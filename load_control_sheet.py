@@ -138,7 +138,6 @@ log.info(f"Truncating {target_table_latest}")
 get_spark().sql(
     f'''
     truncate table {target_table_latest}
-    where rundate = current_date()
     ''')
 log.info(f"Writing processed Control Sheet to {target_table_latest}")
 get_spark().sql(
