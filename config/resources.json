@@ -1,6 +1,6 @@
 {
     "control_sheet": {
-        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=1718512789#gid=1718512789",
+        "url": "https://docs.google.com/spreadsheets/d/1UNgQA1v9mX14udbbNFrs03TXpG__yGJx_tjEWTM_yyo/edit?gid=0#gid=0",
         "sheet": "Control Sheet",
         "read_schema": [
             ["UniqueAdID", "string", "nullable"],
@@ -47,6 +47,7 @@
         "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
         "rpid_with_accs": "marketingdata_prod.warehouse.rpid_with_accounts",
         "control_sheet": "marketingdata_prod.ds_sandbox.nextadscontrolsheet",
+        "control_sheet_latest": "marketingdata_prod.ds_sandbox.nextadscontrolsheet_latest",
         "pscores": {
             "womens": [
                 "marketingdata_prod.warehouse.next_uk_division_model_latest",

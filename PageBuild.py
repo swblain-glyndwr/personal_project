@@ -1,5 +1,12 @@
+import logging
+import logging.config
 import json
 from utils.dbcutils import get_spark
+
+logging.config.fileConfig("config/logging.conf")
+log = logging.getLogger("mylog")
+
+
 with open("config/resources.json") as f:
     rsc = json.load(f)
 
