@@ -1,0 +1,94 @@
+{
+    "control_sheet": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=1718512789#gid=1718512789",
+        "sheet": "Control Sheet",
+        "read_schema": [
+            ["UniqueAdID", "string", "nullable"],
+            ["PotNumber", "string", "nullable"],
+            ["CampaignNumber", "string", "nullable"],
+            ["Title", "string", "nullable"],
+            ["AlgoDivision", "string", "nullable"],
+            ["TradeDivision", "string", "nullable"],
+            ["Brand", "string", "nullable"],
+            ["MASIDToken", "string", "nullable"],
+            ["Segment", "string", "nullable"],
+            ["AdDriver", "string", "nullable"],
+            ["TemplateName", "string", "nullable"],
+            ["StartDate", "string", "nullable"],
+            ["EndDate", "string", "nullable"],
+            ["Status", "string", "nullable"],
+            ["Models", "string", "nullable"],
+            ["ModelCombination", "string", "nullable"],
+            ["URL", "string", "nullable"],
+            ["ProductURLs", "string", "nullable"],
+            ["Items", "string", "nullable"],
+            ["AdCategory", "string", "nullable"],
+            ["AdMission", "string", "nullable"],
+            ["AdTrend", "string", "nullable"],
+            ["AdSubcategory", "string", "nullable"],
+            ["AdBrandName", "string", "nullable"],
+            ["AdCampaign", "string", "nullable"],
+            ["Headline", "string", "nullable"],
+            ["Subtext", "string", "nullable"],
+            ["CTA", "string", "nullable"],
+            ["HeaderColour", "string", "nullable"],
+            ["TextColour", "string", "nullable"],
+            ["BackGroundColour", "string", "nullable"],
+            ["ButtonTextColour", "string", "nullable"],
+            ["ButtonColour", "string", "nullable"],
+            ["BrandsLogos", "string", "nullable"],
+            ["BackgroundImage", "string", "nullable"],
+            ["MobileImage", "string", "nullable"],
+            ["FlatJPG", "string", "nullable"],
+            ["Tags", "string", "nullable"]
+        ]
+    },
+    "tables": {
+        "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
+        "rpid_with_accs": "marketingdata_prod.warehouse.rpid_with_accounts",
+        "control_sheet": "marketingdata_prod.ds_sandbox.nextadscontrolsheet",
+        "pscores": {
+            "womens": [
+                "marketingdata_prod.warehouse.next_uk_division_model_latest",
+                "marketingdata_prod.warehouse.next_uk_womens_nextads_models_latest",
+                "marketingdata_prod.warehouse.next_uk_womens_category_model_latest",
+                "marketingdata_prod.warehouse.next_uk_womens_styles_models_latest",
+                "marketingdata_prod.warehouse.next_uk_clearance_model_latest",
+                "marketingdata_prod.warehouse.next_uk_womens_dd_model_latest",
+                "marketingdata_prod.warehouse.next_uk_womens_nextads_additional_brand_models_latest",
+                "marketingdata_prod.warehouse.next_uk_womens_nextads_style_models_latest"
+            ],
+            "mens": [
+                "marketingdata_prod.warehouse.next_uk_division_model_latest",
+                "marketingdata_prod.warehouse.next_uk_mens_cat_brands_latest",
+                "marketingdata_prod.warehouse.next_uk_mens_nextads_models_latest",
+                "marketingdata_prod.warehouse.next_uk_clearance_model_latest",
+                "marketingdata_prod.warehouse.next_uk_mens_nextadsbrands_models_latest"
+            ],
+            "girls": [
+                "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
+            ],
+            "boys": [
+                "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
+            ],
+            "baby": [
+                "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
+            ]
+        }
+    },
+    "files": {
+        "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V4_SEP24_BKUP",
+        "div_assignment": {
+            "womens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/WomensFile",
+            "mens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/MensFile",
+            "girls": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/GirlsFile",
+            "boys": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/BoysFile",
+            "baby": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/BabyFile",
+            "beauty": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/BeautyFile",
+            "home": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/HomeFile"
+        },
+        "results": {
+            "homepage": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/HomepageResults/TargettedDivRandAdSumary"
+        }
+    }
+}

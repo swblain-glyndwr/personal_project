@@ -1,0 +1,96 @@
+{
+    "overall": {
+        "cells": {
+            "control": 0.1
+        }
+    },
+    "pages": {
+        "HN1": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.2,
+                "personalised": 0.7
+            }
+        },
+        "SB1": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.2,
+                "personalised": 0.7
+            }
+        },
+        "OC1": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.2,
+                "personalised": 0.7
+            }
+        },
+        "LP1": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP2": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP3": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP4": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP5": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP6": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP7": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP8": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP9": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP10": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        },
+        "LP11": {
+            "cells": {
+                "control": 0.1,
+                "random": 0.9
+            }
+        }
+    }
+}
