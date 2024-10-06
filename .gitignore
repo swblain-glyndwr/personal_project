@@ -3,3 +3,11 @@
 .vscode
 *__pycache__*
 .databricks
+build/
+dist/
+.databricks
+*.egg-info
+scratch/**
+!scratch/README.md
+*scratch.py
+.pytest_cache

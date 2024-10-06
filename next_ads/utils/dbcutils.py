@@ -6,7 +6,7 @@ def get_spark():
     Function gets Spark session.
     Enables compatibility with DatabricksConnect sessions.
     Usage:
-    get_spark.table("schema.tablename")
+    get_spark().table("schema.tablename")
     is equivalent to
     spark.table("schema.tablename")
     but enables common syntax across Databricks browser IDE
