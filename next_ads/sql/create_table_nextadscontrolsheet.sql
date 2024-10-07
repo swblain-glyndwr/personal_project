@@ -1,4 +1,4 @@
-create table marketingdata_prod.ds_sandbox.nextadscontrolsheet_latest (
+create table marketingdata_prod.ds_sandbox.nextadscontrolsheet (
   UniqueAdID string not null,
   PotNumber string not null,
   CampaignNumber string,
@@ -10,7 +10,7 @@ create table marketingdata_prod.ds_sandbox.nextadscontrolsheet_latest (
   Location string,
   Segment string,
   AdDriver string,
-  TemplateName string,
+  AdFormat string,
   StartDate date,
   EndDate date,
   Models string,
@@ -38,6 +38,6 @@ create table marketingdata_prod.ds_sandbox.nextadscontrolsheet_latest (
   FlatJPG string,
   Tags string,
   rundate date not null,
-  constraint pk_ad_location_date_latest primary key (UniqueAdID, Location, rundate)
+  constraint pk_ad_location_date primary key (UniqueAdID, Location, rundate)
 )
 partitioned by (rundate)

@@ -1,0 +1,68 @@
+create view marketingdata_prod.warehouse.next_uk_mens_nextads_model_scores_latest as
+select
+    a.*,
+    b.adidas,
+    b.superdry,
+    b.swim,
+    b.threadbare,
+    b.ties,
+    b.tommyhilf,
+    b.trainers,
+    b.Trousers,
+    b.Tshirts,
+    b.underarmour,
+    b.underwear,
+    b.vests,
+    b.bags,
+    b.barbour,
+    b.belts,
+    b.boots,
+    b.boss,
+    b.ck,
+    b.fatface,
+    b.gap,
+    b.hats,
+    b.hoodies,
+    b.jacketscoats,
+    b.Jeans,
+    b.joggers,
+    b.jumpers,
+    b.levis,
+    b.lylescott,
+    b.Next,
+    b.nightwear,
+    b.nike,
+    b.northface,
+    b.Polo,
+    b.ralphlauren,
+    b.reiss,
+    b.riverisland,
+    b.sandals,
+    b.Shirts,
+    b.shoes,
+    b.Shorts,
+    b.Socks,
+    b.suits,
+    c.mw_signature,
+    c.mw_casual,
+    c.mw_formal,
+    c.mw_edit,
+    c.mw_marvin,
+    d.clearance,
+    e.mw_tog24,
+    e.mw_regatta,
+    e.mw_moss,
+    e.mw_joules,
+    e.mw_hugo,
+    e.mw_golf,
+    e.mw_fredperry,
+    e.mw_allsaints
+from marketingdata_prod.warehouse.next_uk_division_model_latest a
+inner join marketingdata_prod.warehouse.next_uk_mens_cat_brands_latest b
+    on a.account_number=b.account_number
+inner join marketingdata_prod.warehouse.next_uk_mens_nextads_models_latest c
+    on a.account_number=c.account_number
+inner join marketingdata_prod.warehouse.next_uk_clearance_model_latest d
+    on a.account_number=d.account_number
+inner join marketingdata_prod.warehouse.next_uk_mens_nextadsbrands_models_latest e
+    on a.account_number=e.account_number
