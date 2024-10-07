@@ -107,12 +107,12 @@ target_cols = (
 if set(target_cols) == set(df_processed.columns):
     log.info("Control Sheet columns match Target table columns")
 elif set(target_cols).issubset(set(df_processed.columns)):
-    log.warning("Warehouse table cols are subset of Control Sheet cols")
+    log.warning("Target table cols are subset of Control Sheet cols")
     extra_cols = set(df_processed.columns).difference(set(target_cols))
     log.warning("Dropping superfluous columns: %s", ", ".join(extra_cols))
     df_processed = df_processed.drop(*list(extra_cols))
 else:
-    raise Exception("Warehouse table cols not a subset of Control Sheet cols")
+    raise Exception("Target table cols not a subset of Control Sheet cols")
 
 
 # Create Temp View, Delete current rundate and Insert
