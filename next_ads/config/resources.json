@@ -13,7 +13,7 @@
             ["MASIDToken", "string", "nullable"],
             ["Segment", "string", "nullable"],
             ["AdDriver", "string", "nullable"],
-            ["TemplateName", "string", "nullable"],
+            ["AdFormat", "string", "nullable"],
             ["StartDate", "string", "nullable"],
             ["EndDate", "string", "nullable"],
             ["Status", "string", "nullable"],
@@ -49,32 +49,11 @@
         "control_sheet": "marketingdata_prod.ds_sandbox.nextadscontrolsheet",
         "control_sheet_latest": "marketingdata_prod.ds_sandbox.nextadscontrolsheet_latest",
         "pscores": {
-            "womens": [
-                "marketingdata_prod.warehouse.next_uk_division_model_latest",
-                "marketingdata_prod.warehouse.next_uk_womens_nextads_models_latest",
-                "marketingdata_prod.warehouse.next_uk_womens_category_model_latest",
-                "marketingdata_prod.warehouse.next_uk_womens_styles_models_latest",
-                "marketingdata_prod.warehouse.next_uk_clearance_model_latest",
-                "marketingdata_prod.warehouse.next_uk_womens_dd_model_latest",
-                "marketingdata_prod.warehouse.next_uk_womens_nextads_additional_brand_models_latest",
-                "marketingdata_prod.warehouse.next_uk_womens_nextads_style_models_latest"
-            ],
-            "mens": [
-                "marketingdata_prod.warehouse.next_uk_division_model_latest",
-                "marketingdata_prod.warehouse.next_uk_mens_cat_brands_latest",
-                "marketingdata_prod.warehouse.next_uk_mens_nextads_models_latest",
-                "marketingdata_prod.warehouse.next_uk_clearance_model_latest",
-                "marketingdata_prod.warehouse.next_uk_mens_nextadsbrands_models_latest"
-            ],
-            "girls": [
-                "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
-            ],
-            "boys": [
-                "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
-            ],
-            "baby": [
-                "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
-            ]
+            "womens": "marketingdata_prod.warehouse.next_uk_womens_nextads_model_scores_latest",
+            "mens": "marketingdata_prod.warehouse.next_uk_mens_nextads_model_scores_latest",
+            "girls": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest",
+            "boys": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest",
+            "baby": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
         }
     },
     "files": {
@@ -89,7 +68,7 @@
             "home": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/HomeFile"
         },
         "results": {
-            "homepage": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/HomepageResults/TargettedDivRandAdSumary"
+            "HN1": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/HomepageResults/TargettedDivRandAdSumary"
         }
     }
 }
