@@ -4,7 +4,7 @@
             "control": 0.1
         }
     },
-    "pages": {
+    "locations": {
         "HN1": {
             "cells": {
                 "control": 0.1,

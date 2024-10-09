@@ -3,14 +3,15 @@ import os
 
 def get_spark():
     """
-    Function gets Spark session.
-    Enables compatibility with DatabricksConnect sessions.
+    Get `spark` (for the active `SparkSession`). Enables code compatibility
+    across Databricks browser and DatabricksConnect session
+    (e.g. via VS Code).
+
     Usage:
-    get_spark().table("schema.tablename")
-    is equivalent to
-    spark.table("schema.tablename")
-    but enables common syntax across Databricks browser IDE
-    and other IDE (e.g. VS Code).
+        spark.table(...)
+            - Works via Databricks browser, but not via Databricks Connect
+        get_spark().table(...)
+            - Works via Databricks browser and Databricks connect
     """
     from pyspark.sql import SparkSession
     return SparkSession.getActiveSession()
@@ -18,14 +19,15 @@ def get_spark():
 
 def get_dbutils():
     """
-    Function gets dbutils for the active spark session.
-    Enables compatibility with DatabricksConnect sessions.
+    Gets `dbutils` for the active `SparkSession`; enables code compatibility
+    across Databricks browser and DatabricksConnect session
+    (e.g. via VS Code).
+
     Usage:
-    get_dbutils.secrets.get(...)
-    is equivalent to
-    dbutils.secrets.get(...)
-    but enables common syntax across Databricks browser IDE
-    and other IDE (e.g. VS Code).
+        dbutils.secrets.get(...)
+            - Works via Databricks browser, but not via Databricks Connect
+        get_dbutils().secrets.get(...)
+            - Works via Databricks browser and Databricks Connect
     """
     if "VSCODE_PID" in os.environ.keys():
         from pyspark.dbutils import DBUtils
@@ -37,14 +39,15 @@ def get_dbutils():
 
 def get_display(df):
     """
-    Function gets dbutils for the active spark session.
-    Enables compatibility with DatabricksConnect sessions.
+    Gets `display` for the active `SparkSession`; enables code compatibility
+    across Databricks browser and DatabricksConnect session
+    (e.g. via VS Code).
+
     Usage:
-    get_display(df)
-    is equivalent to
-    display(df) or df.display()
-    but enables common syntax across Databricks browser IDE
-    and other IDE (e.g. VS Code).
+        df.display()
+            - Works via Databricks browser, but not via Databricks Connect
+        get_display(df)
+            - Works via Databricks browser and Databricks Connect
     """
     if "VSCODE_PID" in os.environ.keys():
         from IPython.display import display

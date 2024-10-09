@@ -46,26 +46,28 @@
     "tables": {
         "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
         "rpid_with_accs": "marketingdata_prod.warehouse.rpid_with_accounts",
-        "control_sheet": "marketingdata_prod.ds_sandbox.nextadscontrolsheet",
-        "control_sheet_latest": "marketingdata_prod.ds_sandbox.nextadscontrolsheet_latest",
+        "control_sheet": "marketingdata_prod.warehouse.nextadscontrolsheet",
+        "control_sheet_latest": "marketingdata_prod.warehouse.nextadscontrolsheet_latest",
+        "assignments": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments",
+        "assignments_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest",
         "pscores": {
-            "womens": "marketingdata_prod.warehouse.next_uk_womens_nextads_model_scores_latest",
-            "mens": "marketingdata_prod.warehouse.next_uk_mens_nextads_model_scores_latest",
-            "girls": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest",
-            "boys": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest",
-            "baby": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
+            "Womens": "marketingdata_prod.warehouse.next_uk_womens_nextads_model_scores_latest",
+            "Mens": "marketingdata_prod.warehouse.next_uk_mens_nextads_model_scores_latest",
+            "Girls": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest",
+            "Boys": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest",
+            "Baby": "marketingdata_prod.warehouse.next_uk_kids_category_model_latest"
         }
     },
     "files": {
         "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V4_SEP24_BKUP",
         "div_assignment": {
-            "womens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/WomensFile",
-            "mens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/MensFile",
-            "girls": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/GirlsFile",
-            "boys": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/BoysFile",
-            "baby": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/BabyFile",
-            "beauty": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/BeautyFile",
-            "home": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV3/delta/HomeFile"
+            "Womens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/WomensFile",
+            "Mens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/MensFile",
+            "Girls": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/GirlsFile",
+            "Boys": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/BoysFile",
+            "Baby": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/BabyFile",
+            "Beauty": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/BeautyFile",
+            "Home": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/HomeFile"
         },
         "results": {
             "HN1": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/HomepageResults/TargettedDivRandAdSumary"

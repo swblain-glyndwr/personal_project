@@ -1,34 +1,40 @@
 import logging
 import logging.config
 import json
-from utils.dbcutils import get_display
 from PageBuilder import (
     get_underperforming_ads,
     get_live_ads,
-    get_pscores
+    assign_pscores_to_ads,
+    assign_best_ads,
+    assign_random_ads
     )
+from utils.dbcutils import get_spark
+from utils.sparkutils import delete_from_and_load, truncate_and_load
 from pyspark.sql import functions as F
-
-logging.config.fileConfig("config/logging.conf")
-log = logging.getLogger("mylog")
-
-
-with open("config/resources.json") as f:
-    rsc = json.load(f)
 
 
 # ARGUMENTS
 location = "HN1"
 
-# Get Ad data
-df_live_ads = get_live_ads(location)
+# Configure logging
+logging.config.fileConfig("config/logging.conf")
+log = logging.getLogger("mylog")
 
+# Read in resources
+log.info("Reading config")
+with open("config/resources.json") as f:
+    rsc = json.load(f)
+
+# Get Ad data
+log.info("Getting Ads")
+df_live_ads = get_live_ads(location)
 
 # Get underperforming Ads
 df_under_perf = get_underperforming_ads(location)
 
 
 # Remove underperforming from Ads to process
+log.info("Removing underperforming Ads")
 df_ads = (
     df_live_ads
     .join(
@@ -38,89 +44,85 @@ df_ads = (
     )
 )
 
+# Get division assignments as one dataframe
+# TODO: Replace separate files with single table
+log.info("Gathering Division assignments")
+div_asgn_list = []
+for div_k in rsc["files"]["div_assignment"].keys():
 
-# Append Scores to Ads according to associated models
-# Split out model column on delimiter
-split_model_col_asterisk = F.split(F.col("model"), r"\*")
-split_model_col_period = F.split(F.col("model"), r"\.")
-max_models_assigned = (
-    df_ads
-    .withColumn("models_assigned", F.size(split_model_col_asterisk))
-    .agg(F.max(F.col("models_assigned")).alias("models_max"))
-    .collect()[0]["models_max"]
-)
-
-for n in range(1, max_models_assigned+1):
-    df_ads = (
-        df_ads
-        .withColumn(
-            f"model{str(str(n).zfill(2))}",
-            split_model_col_asterisk.getItem(n-1)
-        )
+    df_div = (
+        get_spark()
+        .read.format("delta")
+        .load(rsc["files"]["div_assignment"][div_k])
+        .select("account_number")
+        .withColumnRenamed("account_number", "AccountNumber")
+        .withColumn("Division", F.lit(div_k))
     )
 
-df_ads = df_ads.drop("model")
+    div_asgn_list.append(df_div)
 
-# Melt models down to rows per
-df_ads = (
-    df_ads
-    .melt(
-        ids=[c for c in df_ads.columns if not c.startswith("model")],
-        values=[c for c in df_ads.columns if c.startswith("model")],
-        variableColumnName="modeln",
-        valueColumnName="model"
+df_cust_div = div_asgn_list.pop()
+for df_asgn in div_asgn_list:
+    df_cust_div = df_cust_div.union(df_asgn)
+
+
+# Determine Random (within Division) Ad for each customer
+log.info("Assigning Random Ads by Division")
+df_ads_rdm = assign_random_ads(df_ads, df_cust_div, grp_col="Division")
+
+
+# Assign propensity scores to Ads
+log.info("Assigning scores to Ads")
+df_adscores = assign_pscores_to_ads(df_ads)
+df_adscores.cache()
+
+
+# Determine Best Ad for each customer
+log.info("Assigning Best Ads")
+df_ads_best = assign_best_ads(df_adscores)
+# TODO: Untidy having to sort these columns out post-hoc - tidy
+df_ads_best = df_ads_best.join(df_ads.select("UniqueAdID", "MASID"),
+                               on=["UniqueAdID"])
+
+
+# Append to overall cell assignments
+# TODO: Make this generalisable - HPTest hardcoded as column
+log.info("Getting Cell assignments")
+df_cell = (
+        get_spark()
+        .read.format("delta")
+        .load(rsc["files"]["cell_assignment"])
+        .select("account_number", "HPTest")
+        .withColumnRenamed("account_number", "AccountNumber")
     )
-    .drop("modeln")
-    .where(F.col("model").isNotNull())
-)
 
-df_ad_score_lookup = (
-    df_ads
-    .select("UniqueAdID", "Division", "model")
-    .withColumn("model_split", split_model_col_period)
+# Assign Random, Best etc. based on assigned cells
+log.info("Assigning MASID tokens based Targeting and Cells")
+df_assigned_ads = (
+    df_cell
+    .join((df_ads_rdm
+           .select("AccountNumber", "MASID")
+           .withColumnRenamed("MASID", "RandMASID")),
+          on="AccountNumber")
+    .join((df_ads_best
+           .select("AccountNumber", "MASID")
+           .withColumnRenamed("MASID", "BestMASID")),
+          on="AccountNumber")
     .withColumn(
-        "model_score_col",
-        F.col("model_split").getItem(F.size(F.col("model_split"))-1)
-    )
-    .drop("model", "model_split")
-)
-get_display(df_ad_score_lookup)
-
-model_score_cols = [
-    x[0] for x in (
-        df_ad_score_lookup
-        .select("model_score_col")
-        .distinct()
-        .collect()
+        "MASID",
+        F.when(F.col("HPTest") == "1: Personalised", F.col("BestMASID"))
+        .when(F.col("HPTest") == "2: Random", F.col("RandMASID"))
+        .when(F.col("HPTest") == "3: No Banner", F.lit("HN1_Z"))
+        .when(F.col("HPTest") == "4: Overall", F.lit("HN1_Z"))
+        .otherwise(F.lit("HN1_Z"))
         )
-    ]
+)
 
-df_pscores = get_pscores(division="womens", col_subset=model_score_cols)
-get_display(df_pscores)
+# Load output into assignments table
+target_table = rsc["tables"]["assignments"]
+target_table_latest = rsc["tables"]["assignments_latest"]
 
-# Combine scores
-# TODO: Function
-
-# Standardise scores
-# TODO: Function
-
-# Determine Best Score (model combination) for each customer
-
-# Determine Random Score for each customer
-# Could we do this by subbing division in as the model combination
-
-# Randomise within model combination
-
-
-# Write output to table
-# TODO: Create output table in ds_sandbox
-# account,
-# algodivision,
-# location,
-# overall_cell,
-# page_cell,
-# best_ad,
-# best_masid_token,
-# random_ad,
-# random_masid,
-# assigned_masid_token
+log.info(f"Loading output to {target_table}")
+delete_from_and_load(df_assigned_ads, target_table)
+log.info(f"Loading output to {target_table_latest}")
+truncate_and_load(df_assigned_ads, target_table_latest)

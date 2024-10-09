@@ -8,7 +8,7 @@ from utils.dbcutils import get_dbutils, get_spark
 
 def gcp_conn():
     """
-    Function returns gspread connection object.
+    Returns `gspread` connection object
     """
     file = get_dbutils().secrets.get(
         scope="mktg_gcp",
@@ -23,31 +23,25 @@ def spark_df_from_sheets(
         worksheet_name: str,
         schema: list = []
         ) -> DataFrame:
-    '''
-    Function to read from google sheets to spark data frame
+    """
+    Function to read from Google Sheets to Spark dataframe. Only seems to
+    work importing everything as a string(??).
 
     Prerequisites:
-    For the function to work, user needs to share the spreadsheet with service
-    account user e.g. azure-databricks@big-query-156009.iam.gserviceaccount.com
+        Share Google Sheet to be read with service account user
+        e.g. azure-databricks@big-query-156009.iam.gserviceaccount.com
 
-    # Legacy?
-    # Following parameter should be set to point to key associated with the
-    # serivce acccount gcp_key_json_file = '/dbfs/gcp/service-account-key.json'
+    Arguments:
+        url {str} -- URL of Google Sheet
+        worksheet_name {str} -- Name of worksheet to be read
+        schema {list} -- List of lists representing schema to be read
+            e.g. `[["ID","string","nullable"],["Name","string","nullable"]]`
 
-    Inputs:
-    - gcp_key_json_file : Service account Key file used for GCP access,
-        Google Drive API and Google Sheets API needs to be enabled.
-    - sheet_url: url of google sheet
-    - worksheet_name: name of the worksheet in the sheet eg. Sheet2
-    - schema: list of lists to convert to spark schema,
-        e.g. [
-            ["id", "string", "notnullable"],
-            ["name", "string", "nullable"],
-            ["age", "string", nullable]
-            ]
-        N.B. gspread read only seems to work when importing all as string type
-    '''
-
+    Notes:
+        Legacy(??) -- Following parameter should be set to point to the key
+        associated with the serivce acccount:
+            `gcp_key_json_file = '/dbfs/gcp/service-account-key.json'`
+    """
     google_sheet = gcp_conn().open_by_url(url)
     worksheet = google_sheet.worksheet(worksheet_name)
 
