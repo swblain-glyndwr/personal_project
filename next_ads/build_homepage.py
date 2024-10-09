@@ -102,12 +102,14 @@ log.info("Assigning MASID tokens based Targeting and Cells")
 df_assigned_ads = (
     df_cell
     .join((df_ads_rdm
-           .select("AccountNumber", "MASID")
-           .withColumnRenamed("MASID", "RandMASID")),
+           .select("AccountNumber", "MASID", "UniqueAdID")
+           .withColumnRenamed("MASID", "RandMASID", "RandUniqueAdID")
+           .withColumnRenamed("UniqueAdID", "RandUniqueAdID")),
           on="AccountNumber")
     .join((df_ads_best
-           .select("AccountNumber", "MASID")
-           .withColumnRenamed("MASID", "BestMASID")),
+           .select("AccountNumber", "MASID", "UniqueAdID")
+           .withColumnRenamed("MASID", "BestMASID")
+           .withColumnRenamed("UniqueAdID", "BestUniqueAdID")),
           on="AccountNumber")
     .withColumn(
         "MASID",
@@ -120,8 +122,9 @@ df_assigned_ads = (
     .withColumn("Location", F.lit(LOCATION))
     .select("AccountNumber",
             "Location",
-            "UniqueAdID",
+            "RandUniqueAdID",
             "RandomMASID",
+            "BestUniqueAdID",
             "BestMASID",
             "MASID"
             )
