@@ -109,8 +109,6 @@ df_assigned_ads = (
            .select("AccountNumber", "MASID")
            .withColumnRenamed("MASID", "BestMASID")),
           on="AccountNumber")
-    .join(df_ads.select("UniqueAdID", "Division"),
-          on="UniqueAdID")
     .withColumn(
         "MASID",
         F.when(F.col("HPTest") == "1: Personalised", F.col("BestMASID"))
@@ -121,9 +119,8 @@ df_assigned_ads = (
         )
     .withColumn("Location", F.lit(LOCATION))
     .select("AccountNumber",
-            "UniqueAdID",
             "Location",
-            "Division",
+            "UniqueAdID",
             "RandomMASID",
             "BestMASID",
             "MASID"
