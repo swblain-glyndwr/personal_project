@@ -13,12 +13,13 @@ from utils.sparkutils import delete_from_and_load, truncate_and_load
 from pyspark.sql import functions as F
 
 
-# ARGUMENTS
-location = "HN1"
-
-# Configure logging
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
+
+
+# ARGUMENTS
+LOCATION = "HN1"
+log.info(f"Assigning Ads for Location: {LOCATION}")
 
 # Read in resources
 log.info("Reading config")
@@ -27,10 +28,10 @@ with open("config/resources.json") as f:
 
 # Get Ad data
 log.info("Getting Ads")
-df_live_ads = get_live_ads(location)
+df_live_ads = get_live_ads(LOCATION)
 
 # Get underperforming Ads
-df_under_perf = get_underperforming_ads(location)
+df_under_perf = get_underperforming_ads(LOCATION)
 
 
 # Remove underperforming from Ads to process
@@ -108,6 +109,8 @@ df_assigned_ads = (
            .select("AccountNumber", "MASID")
            .withColumnRenamed("MASID", "BestMASID")),
           on="AccountNumber")
+    .join(df_ads.select("UniqueAdID", "Division"),
+          on="UniqueAdID")
     .withColumn(
         "MASID",
         F.when(F.col("HPTest") == "1: Personalised", F.col("BestMASID"))
@@ -116,6 +119,15 @@ df_assigned_ads = (
         .when(F.col("HPTest") == "4: Overall", F.lit("HN1_Z"))
         .otherwise(F.lit("HN1_Z"))
         )
+    .withColumn("Location", F.lit(LOCATION))
+    .select("AccountNumber",
+            "UniqueAdID",
+            "Location",
+            "Division",
+            "RandomMASID",
+            "BestMASID",
+            "MASID"
+            )
 )
 
 # Load output into assignments table
