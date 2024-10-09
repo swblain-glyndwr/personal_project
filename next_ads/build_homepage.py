@@ -130,6 +130,9 @@ df_assigned_ads = (
             )
 )
 
+# Cache df_assigned_ads to improve performance when loading twice
+df_assigned_ads.cache()
+
 # Load output into assignments table
 target_table = rsc["tables"]["assignments"]
 target_table_latest = rsc["tables"]["assignments_latest"]
