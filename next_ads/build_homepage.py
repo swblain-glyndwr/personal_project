@@ -123,7 +123,7 @@ df_assigned_ads = (
     .select("AccountNumber",
             "Location",
             "RandUniqueAdID",
-            "RandomMASID",
+            "RandMASID",
             "BestUniqueAdID",
             "BestMASID",
             "MASID"
