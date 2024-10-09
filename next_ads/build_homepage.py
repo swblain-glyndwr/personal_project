@@ -103,7 +103,7 @@ df_assigned_ads = (
     df_cell
     .join((df_ads_rdm
            .select("AccountNumber", "MASID", "UniqueAdID")
-           .withColumnRenamed("MASID", "RandMASID", "RandUniqueAdID")
+           .withColumnRenamed("MASID", "RandMASID")
            .withColumnRenamed("UniqueAdID", "RandUniqueAdID")),
           on="AccountNumber")
     .join((df_ads_best
