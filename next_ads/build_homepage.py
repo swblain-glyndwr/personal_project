@@ -75,7 +75,6 @@ df_ads_rdm = assign_random_ads(df_ads, df_cust_div, grp_col="Division")
 # Assign propensity scores to Ads
 log.info("Assigning scores to Ads")
 df_adscores = assign_pscores_to_ads(df_ads)
-df_adscores.cache()
 
 
 # Determine Best Ad for each customer
