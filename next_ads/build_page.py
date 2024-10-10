@@ -28,12 +28,12 @@ with open("config/parameters.json") as f:
 # Set Location for run
 # If valid location not specified via sys.argv (run as job),
 # will take hardcoded Location (useful for interactive debugging)
-loc_args = set(prm["locations"].keys()).intersection(set(sys.argv))
+loc_args = list(set(prm["locations"].keys()).intersection(set(sys.argv)))
 
 if len(loc_args) > 1:
-    raise Exception("More than one Location specified")
+    raise Exception(f"More than one Location specified: {loc_args}")
 elif len(loc_args) == 1:
-    LOCATION = list(loc_args)[0]
+    LOCATION = loc_args[0]
 else:
     LOCATION = "HN1"  # For interactive debugging
 
