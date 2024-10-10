@@ -165,9 +165,9 @@ df_assigned_ads = (
             "RandUniqueAdID",
             "RandMASID",
             "BestUniqueAdID",
-            "RandMASIDChall",
-            "BestUniqueAdIDChall",
             "BestMASID",
+            "BestUniqueAdIDChall",
+            "BestMASIDChall",
             "MASID"
             )
 )
