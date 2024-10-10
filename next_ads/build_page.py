@@ -106,12 +106,18 @@ df_ads_best_chall = df_ads_best
 # TODO: Make this generalisable - HPTest hardcoded as column
 # TODO: Dedicated Champion-Challenger column, instead of random_var1
 log.info("Getting Cell assignments")
+
+if LOCATION in ["HN1"]:
+    test_col = "HPTest"
+else:
+    test_col = f"{LOCATION[:2]}Test"
+
 df_cell = (
         get_spark()
         .read.format("delta")
         .load(rsc["files"]["cell_assignment"])
         .select("account_number",
-                f"{LOCATION[:2]}Test",
+                test_col,
                 "random_var1")
         .withColumnRenamed("account_number", "AccountNumber")
     )
