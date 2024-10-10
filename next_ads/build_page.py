@@ -24,19 +24,22 @@ with open("config/resources.json") as f:
 with open("config/parameters.json") as f:
     prm = json.load(f)
 
+
 # Set Location for run
 # If valid location not specified via sys.argv (run as job),
 # will take hardcoded Location (useful for interactive debugging)
 loc_args = set(prm["locations"].keys()).intersection(set(sys.argv))
-if loc_args:
-    if len(loc_args) > 1:
-        raise Exception("More than one Location specified")
-    elif len(loc_args) == 0:
-        LOCATION = loc_args[0]
-    else:
-        LOCATION = "HN1"  # For interactive debugging
+
+if len(loc_args) > 1:
+    raise Exception("More than one Location specified")
+elif len(loc_args) == 1:
+    LOCATION = list(loc_args)[0]
+else:
+    LOCATION = "HN1"  # For interactive debugging
+
 log.info(f"Assigning Ads for Location: {LOCATION}")
-assert 1 == 0
+
+
 # Get Ad data
 log.info("Getting Ads")
 df_live_ads = get_live_ads(LOCATION)
