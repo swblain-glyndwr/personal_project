@@ -46,7 +46,10 @@ def build_spark_schema(schema: list) -> StructType:
     return StructType(fields)
 
 
-def delete_from_and_load(df: DataFrame, table: str) -> None:
+def delete_from_and_load(
+        df: DataFrame,
+        table: str,
+        del_where: dict = dict()) -> None:
     """
     Deletes from table where `rundate == current_date()` then
     inserts df into table with `rundate = current_date()`
@@ -54,14 +57,25 @@ def delete_from_and_load(df: DataFrame, table: str) -> None:
     Arguments:
         df {DataFrame} -- PySpark dataframe to load
         table {str} -- Table to load into
+        del_where {dict} -- col,val pairs to delete before insert
+            e.g. {"rundate": "current_date()", "Location": "'HN1'"}
+            appends "and Location = 'HN1' and rundate = current_date()"
+            to the delete clause
     """
     df.createOrReplaceTempView("df_load")
 
-    get_spark().sql(
+    query_del = (
         f"""
         delete from {table}
-        where rundate = current_date()
-        """)
+        where 1 = 1
+        """
+        )
+
+    if del_where:
+        for k in del_where.keys():
+            query_del = query_del + f"and {k} = {del_where[k]}"
+
+    get_spark().sql(query_del)
 
     get_spark().sql(
         f"""

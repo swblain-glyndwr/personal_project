@@ -1,15 +1,14 @@
 import logging
 import logging.config
 import json
+from AdRetrieval import get_underperforming_ads, get_live_ads
 from PageBuilder import (
-    get_underperforming_ads,
-    get_live_ads,
+    assign_random_ads,
     assign_pscores_to_ads,
-    assign_best_ads,
-    assign_random_ads
+    assign_best_ads
     )
 from utils.dbcutils import get_spark
-from utils.sparkutils import delete_from_and_load, truncate_and_load
+from utils.sparkutils import delete_from_and_load
 from pyspark.sql import functions as F
 
 
@@ -73,16 +72,19 @@ df_ads_rdm = assign_random_ads(df_ads, df_cust_div, grp_col="Division")
 
 
 # Assign propensity scores to Ads
-log.info("Assigning scores to Ads")
-df_adscores = assign_pscores_to_ads(df_ads)
-
-
-# Determine Best Ad for each customer
 log.info("Assigning Best Ads")
+df_adscores = assign_pscores_to_ads(df_ads)
+# Determine Best Ad for each customer
 df_ads_best = assign_best_ads(df_adscores)
 # TODO: Untidy having to sort these columns out post-hoc - tidy
-df_ads_best = df_ads_best.join(df_ads.select("UniqueAdID", "MASID"),
-                               on=["UniqueAdID"])
+df_ads_best = (df_ads_best.join(df_ads.select("UniqueAdID", "MASID"),
+                                on=["UniqueAdID"]))
+
+
+# Assign Best Ad for each customer (via "challenger" method)
+# When no challenger, challenger assignment == champion_assignment
+df_ads_best.cache()  # Cache when no challenger for speed
+df_ads_best_chall = df_ads_best
 
 
 # Append to overall cell assignments
@@ -97,6 +99,7 @@ df_cell = (
     )
 
 # Assign Random, Best etc. based on assigned cells
+# TODO: Create Champion-Challenger split in new overall control and div
 log.info("Assigning MASID tokens based Targeting and Cells")
 df_assigned_ads = (
     df_cell
@@ -110,9 +113,19 @@ df_assigned_ads = (
            .withColumnRenamed("MASID", "BestMASID")
            .withColumnRenamed("UniqueAdID", "BestUniqueAdID")),
           on="AccountNumber")
+    .join((df_ads_best_chall
+           .select("AccountNumber", "MASID", "UniqueAdID")
+           .withColumnRenamed("MASID", "BestMASIDChall")
+           .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChall")),
+          on="AccountNumber")
     .withColumn(
         "MASID",
-        F.when(F.col("HPTest") == "1: Personalised", F.col("BestMASID"))
+        F.when(
+            (F.col("HPTest") == "1: Personalised") & (F.col("ABtest1") <= 0.5),
+            F.col("BestMASID"))
+        .when(
+            (F.col("HPTest") == "1: Personalised") & (F.col("ABtest1") > 0.5),
+            F.col("BestMASIDChall"))
         .when(F.col("HPTest") == "2: Random", F.col("RandMASID"))
         .when(F.col("HPTest") == "3: No Banner", F.lit("HN1_Z"))
         .when(F.col("HPTest") == "4: Overall", F.lit("HN1_Z"))
@@ -124,6 +137,8 @@ df_assigned_ads = (
             "RandUniqueAdID",
             "RandMASID",
             "BestUniqueAdID",
+            "RandMASIDChall",
+            "BestUniqueAdIDChall",
             "BestMASID",
             "MASID"
             )
@@ -137,6 +152,12 @@ target_table = rsc["tables"]["assignments"]
 target_table_latest = rsc["tables"]["assignments_latest"]
 
 log.info(f"Loading output to {target_table}")
-delete_from_and_load(df_assigned_ads, target_table)
+delete_from_and_load(df_assigned_ads,
+                     target_table,
+                     del_where={"rundate": "current_date()",
+                                "Location": LOCATION})
+
 log.info(f"Loading output to {target_table_latest}")
-truncate_and_load(df_assigned_ads, target_table_latest)
+delete_from_and_load(df_assigned_ads,
+                     target_table_latest,
+                     del_where={"Location": LOCATION})

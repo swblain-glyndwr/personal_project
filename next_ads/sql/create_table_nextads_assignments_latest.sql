@@ -5,12 +5,13 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest (
     RandomMASID string,
     BestUniqueAdID string not null,
     BestMASID string,
+    BestUniqueAdIDChall string not null,
+    BestMASIDChall string,
     MASID string not null,
     rundate date not null,
   constraint pk_ad_assignments_latest primary key (
     AccountNumber,
-    Location,
-    rundate
+    Location
     )
 )
 partitioned by (rundate)

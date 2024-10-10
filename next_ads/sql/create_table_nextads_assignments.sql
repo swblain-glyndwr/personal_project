@@ -5,6 +5,8 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments (
     RandomMASID string,
     BestUniqueAdID string not null,
     BestMASID string,
+    BestUniqueAdIDChall string not null,
+    BestMASIDChall string,
     MASID string not null,
     rundate date not null,
   constraint pk_ad_assignments primary key (

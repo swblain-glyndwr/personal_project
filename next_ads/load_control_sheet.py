@@ -4,7 +4,7 @@ import pyspark.sql.functions as F
 import utils.gcputils as gcp
 import json
 from utils.dbcutils import get_spark
-from datetime import date
+from utils.sparkutils import delete_from_and_load
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -98,12 +98,15 @@ rows_pk = (
 assert rows == rows_pk, "Duplicate (UniqueAdID, Locations) found"
 
 target_table = rsc["tables"]["control_sheet"]
+target_table_latest = rsc["tables"]["control_sheet_latest"]
+
 target_cols = (
     get_spark()
     .table(target_table)
     .drop("rundate")
     ).columns
 
+# Safeguard in case additional columns have been added to gsheet
 if set(target_cols) == set(df_processed.columns):
     log.info("Control Sheet columns match Target table columns")
 elif set(target_cols).issubset(set(df_processed.columns)):
@@ -118,32 +121,11 @@ else:
 # Create Temp View, Delete current rundate and Insert
 df_processed.createOrReplaceTempView("df_output")
 
-log.info(f"Deleting from {target_table} where rundate == {date.today()}")
-get_spark().sql(
-    f'''
-    delete from {target_table}
-    where rundate = current_date()
-    ''')
-log.info(f"Writing processed Control Sheet to {target_table}")
-get_spark().sql(
-    f'''
-    insert into {target_table}
-    select *, current_date() as rundate
-    from df_output
-    '''
-    )
+log.info(f"Loading output to {target_table}")
+delete_from_and_load(df_processed,
+                     target_table,
+                     del_where={"rundate": "current_date()"})
 
-target_table_latest = rsc["tables"]["control_sheet_latest"]
-log.info(f"Truncating {target_table_latest}")
-get_spark().sql(
-    f'''
-    truncate table {target_table_latest}
-    ''')
-log.info(f"Writing processed Control Sheet to {target_table_latest}")
-get_spark().sql(
-    f'''
-    insert into {target_table_latest}
-    select *, current_date() as rundate
-    from df_output
-    '''
-    )
+log.info(f"Loading output to {target_table_latest}")
+delete_from_and_load(df_processed,
+                     target_table_latest)
