@@ -183,9 +183,9 @@ log.info(f"Loading output to {target_table}")
 delete_from_and_load(df_assigned_ads,
                      target_table,
                      del_where={"rundate": "current_date()",
-                                "Location": LOCATION})
+                                "Location": f"'{LOCATION}'"})
 
 log.info(f"Loading output to {target_table_latest}")
 delete_from_and_load(df_assigned_ads,
                      target_table_latest,
-                     del_where={"Location": LOCATION})
+                     del_where={"Location": f"'{LOCATION}'"})
