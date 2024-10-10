@@ -10,21 +10,33 @@ from PageBuilder import (
 from utils.dbcutils import get_spark
 from utils.sparkutils import delete_from_and_load
 from pyspark.sql import functions as F
+import sys
 
 
+# Configure logging
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
-
-# ARGUMENTS
-LOCATION = "HN1"
-log.info(f"Assigning Ads for Location: {LOCATION}")
-
-# Read in resources
-log.info("Reading config")
+# Configure run
+log.info("Configuring run")
 with open("config/resources.json") as f:
     rsc = json.load(f)
+with open("config/parameters.json") as f:
+    prm = json.load(f)
 
+# Set Location for run
+# If valid location not specified via sys.argv (run as job),
+# will take hardcoded Location (useful for interactive debugging)
+loc_args = set(prm["locations"].keys()).intersection(set(sys.argv))
+if loc_args:
+    if len(loc_args) > 1:
+        raise Exception("More than one Location specified")
+    elif len(loc_args) == 0:
+        LOCATION = loc_args[0]
+    else:
+        LOCATION = "HN1"  # For interactive debugging
+log.info(f"Assigning Ads for Location: {LOCATION}")
+assert 1 == 0
 # Get Ad data
 log.info("Getting Ads")
 df_live_ads = get_live_ads(LOCATION)

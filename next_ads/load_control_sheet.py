@@ -7,12 +7,13 @@ from utils.dbcutils import get_spark
 from utils.sparkutils import delete_from_and_load
 
 
+# Configure logging
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
 # Parameters
-log.info("Reading parameters")
-with open("config/params.json") as f:
+log.info("Configuring run")
+with open("config/parameters.json") as f:
     prm = json.load(f)
 # Resources
 with open("config/resources.json") as f:
