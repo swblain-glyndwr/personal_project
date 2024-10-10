@@ -125,8 +125,10 @@ df_processed.createOrReplaceTempView("df_output")
 log.info(f"Loading output to {target_table}")
 delete_from_and_load(df_processed,
                      target_table,
+                     pk_cols=["UniqueAdID", "Location"],
                      del_where={"rundate": "current_date()"})
 
 log.info(f"Loading output to {target_table_latest}")
 delete_from_and_load(df_processed,
-                     target_table_latest)
+                     target_table_latest,
+                     pk_cols=["UniqueAdID", "Location"])

@@ -86,11 +86,20 @@ log.info("Assigning Random Ads by Division")
 df_ads_rdm = assign_random_ads(df_ads, df_cust_div, grp_col="Division")
 
 
-# Assign propensity scores to Ads
-log.info("Assigning Best Ads")
+# Assign propensity scores to Ads (irrespective of Division)
 df_adscores = assign_pscores_to_ads(df_ads)
+
+# Limit ad scores to within Division
+# TODO: Remove this restriction for cross-division targeting?
+# e.g. LP Sport, LP Brands, Homepage Teasers
+df_adscores_div = (
+    df_cust_div
+    .join(df_adscores, on=["AccountNumber", "Division"])
+)
+
+log.info("Assigning Best Ads")
 # Determine Best Ad for each customer
-df_ads_best = assign_best_ads(df_adscores)
+df_ads_best = assign_best_ads(df_adscores_div)
 # TODO: Untidy having to sort these columns out post-hoc - tidy
 df_ads_best = (df_ads_best.join(df_ads.select("UniqueAdID", "MASID"),
                                 on=["UniqueAdID"]))
@@ -182,10 +191,12 @@ target_table_latest = rsc["tables"]["assignments_latest"]
 log.info(f"Loading output to {target_table}")
 delete_from_and_load(df_assigned_ads,
                      target_table,
+                     pk_cols=["UniqueAdID", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
 log.info(f"Loading output to {target_table_latest}")
 delete_from_and_load(df_assigned_ads,
                      target_table_latest,
+                     pk_cols=["UniqueAdID", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
