@@ -1,5 +1,6 @@
 from pyspark.sql.types import StructField, StructType
 from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
 import sys
 from utils.dbcutils import get_spark
 
@@ -46,9 +47,33 @@ def build_spark_schema(schema: list) -> StructType:
     return StructType(fields)
 
 
+def assert_pk(df: DataFrame, pk_cols: list):
+    """
+    Assert Primary Key constraint on dataframe.
+    Primary Key constraints only enforced from
+    Databricks Runtime 15.2 and Databricks SQL 2024.30.
+    Prior to this, PK constraints for information only.
+
+    Arguments:
+        df -- Dataframe to check
+        pk_cols -- List of Primary Key columns
+
+    Raises:
+        AssertionError -- If PK constraint is violated (dups, null)
+    """
+    df_pk = df.select(*pk_cols)
+    n = df_pk.count()
+    nd = df_pk.drop_duplicates().count()
+    assert n == nd, f"Duplicates found in Primary Key {pk_cols}"
+    for c in pk_cols:
+        null_count = df_pk.where(F.col(c).isNull()).count()
+        assert null_count == 0, f"Null values found in PK col: {c}"
+
+
 def delete_from_and_load(
         df: DataFrame,
         table: str,
+        pk_cols: list = [],
         del_where: dict = dict()) -> None:
     """
     Deletes from table where `rundate == current_date()` then
@@ -57,11 +82,15 @@ def delete_from_and_load(
     Arguments:
         df {DataFrame} -- PySpark dataframe to load
         table {str} -- Table to load into
+        pk_cols {list} -- Optional - Primary Key cols for assert_pk()
         del_where {dict} -- col,val pairs to delete before insert
             e.g. {"rundate": "current_date()", "Location": "'HN1'"}
             appends "and Location = 'HN1' and rundate = current_date()"
             to the delete clause
     """
+    if pk_cols:
+        assert_pk(df, pk_cols)
+
     df.createOrReplaceTempView("df_load")
 
     query_del = (
@@ -88,7 +117,10 @@ def delete_from_and_load(
     return None
 
 
-def truncate_and_load(df: DataFrame, table: str) -> None:
+def truncate_and_load(
+        df: DataFrame,
+        table: str,
+        pk_cols: list = []) -> None:
     """
     Truncates table and then
     inserts df into table with `rundate = current_date()`
@@ -96,7 +128,11 @@ def truncate_and_load(df: DataFrame, table: str) -> None:
     Arguments:
         df {DataFrame} - PySpark dataframe to load
         table {str} - Table to load into
+        pk_cols {list} -- Optional - Primary Key cols for assert_pk()
     """
+    if pk_cols:
+        assert_pk(df, pk_cols)
+
     df.createOrReplaceTempView("df_load")
 
     get_spark().sql(
