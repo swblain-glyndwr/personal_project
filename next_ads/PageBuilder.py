@@ -214,7 +214,7 @@ def assign_pscores_to_ads(
 
 def assign_best_ads(
         df_adscores: DataFrame,
-        select_rank: int = 1,
+        return_ranks: list = [1],
         tie_breaker: str = ""
         ) -> DataFrame:
     """
@@ -224,7 +224,7 @@ def assign_best_ads(
     Args:
         df_adscores -- Dataframe with columns
         (AccountNumber, UniqueAdID, Division, TargetingGroup, Score)
-        select_rank -- Ranking to choose as 'best'
+        select_ranks -- Rankings to return (for 'best': [1])
         tie_breaker -- String indicating method to use when multiple ads
             feature the same targeting criteria (arg in development)
 
@@ -232,17 +232,18 @@ def assign_best_ads(
         Dataframe with columns
         (AccountNumber, Division, UniqueAdID)
     """
+    # Will take last Ad ID alphabetically (proxy for newest) if Scores are tied
     w = (
         Window
         .partitionBy([F.col("AccountNumber"), F.col("Division")])
-        .orderBy(F.col("Score").desc())
+        .orderBy(F.col("Score").desc(), F.col("UniqueAdID").desc())
     )
 
     df_return = (
         df_adscores
         .withColumn("ScoreRank", F.rank().over(w))
         .orderBy(F.col("AccountNumber"), F.col("Division"), F.col("ScoreRank"))
-        .where(F.col("ScoreRank") == select_rank)
+        .where(F.col("ScoreRank").isin(return_ranks))
         .drop("ScoreRank")
     )
 
