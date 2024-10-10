@@ -191,12 +191,12 @@ target_table_latest = rsc["tables"]["assignments_latest"]
 log.info(f"Loading output to {target_table}")
 delete_from_and_load(df_assigned_ads,
                      target_table,
-                     pk_cols=["UniqueAdID", "Location"],
+                     pk_cols=["AccountNumber", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
 log.info(f"Loading output to {target_table_latest}")
 delete_from_and_load(df_assigned_ads,
                      target_table_latest,
-                     pk_cols=["UniqueAdID", "Location"],
+                     pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
