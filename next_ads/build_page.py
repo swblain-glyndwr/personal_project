@@ -104,12 +104,15 @@ df_ads_best_chall = df_ads_best
 
 # Append to overall cell assignments
 # TODO: Make this generalisable - HPTest hardcoded as column
+# TODO: Dedicated Champion-Challenger column, instead of random_var1
 log.info("Getting Cell assignments")
 df_cell = (
         get_spark()
         .read.format("delta")
         .load(rsc["files"]["cell_assignment"])
-        .select("account_number", "HPTest")
+        .select("account_number",
+                f"{LOCATION[:2]}Test",
+                "random_var1")
         .withColumnRenamed("account_number", "AccountNumber")
     )
 
@@ -136,11 +139,15 @@ df_assigned_ads = (
     .withColumn(
         "MASID",
         F.when(
-            (F.col("HPTest") == "1: Personalised") & (F.col("ABtest1") <= 0.5),
-            F.col("BestMASID"))
+            (F.col("HPTest") == "1: Personalised")
+            & (F.col("random_var1") <= 0.5),
+            F.col("BestMASID")
+            )
         .when(
-            (F.col("HPTest") == "1: Personalised") & (F.col("ABtest1") > 0.5),
-            F.col("BestMASIDChall"))
+            (F.col("HPTest") == "1: Personalised")
+            & (F.col("random_var1") > 0.5),
+            F.col("BestMASIDChall")
+            )
         .when(F.col("HPTest") == "2: Random", F.col("RandMASID"))
         .when(F.col("HPTest") == "3: No Banner", F.lit("HN1_Z"))
         .when(F.col("HPTest") == "4: Overall", F.lit("HN1_Z"))
