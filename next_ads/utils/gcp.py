@@ -1,9 +1,9 @@
-from utils.sparkutils import build_spark_schema
+from next_ads.utils.etl import build_spark_schema
 import base64
 import ast
 import gspread as gs
 from pyspark.sql import DataFrame
-from utils.dbcutils import get_dbutils, get_spark
+from next_ads.utils.dbc import get_dbutils, get_spark
 
 
 def gcp_conn():

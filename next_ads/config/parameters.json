@@ -1,96 +1,121 @@
 {
-    "overall": {
-        "cells": {
-            "control": 0.1
+    "fallow_control": {
+        "proportion": 0.05,
+        "labels": {
+            "True": "No Ads",
+            "False": "Ads"
+        },
+        "seed": 101
+    },
+    "test_locations": {
+        "HN": {
+            "cells": [
+                [0.05, "3: No Banner"],
+                [0.2, "2: Random"],
+                [1.0, "1: Personalised"]
+            ],
+            "seed": 201
+        },
+        "SB": {
+            "cells": [
+                [0.05, "3: No Banner"],
+                [0.2, "2: Random"],
+                [1.0, "1: Personalised"]
+            ],
+            "seed": 202
+        },
+        "OC": {
+            "cells": [
+                [0.05, "3: No Banner"],
+                [0.2, "2: Random"],
+                [1.0, "1: Personalised"]
+            ],
+            "seed": 203
+        },
+        "LP": {
+            "cells": [
+                [0.1, "3: No Banner"],
+                [1.0, "2: Random"]
+            ],
+            "seed": 204
+        },
+        "AdHocAB1": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 301
+        },
+        "AdHocAB2": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 302
+        },
+        "AdHocAB3": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 303
+        },
+        "AdHocAB4": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 304
         }
     },
-    "locations": {
-        "HN1": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.2,
-                "personalised": 0.7
-            }
+    "challenger": {
+        "proportion": 0.5,
+        "labels": {
+            "True": "Challenger",
+            "False": "Champion"
         },
-        "SB1": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.2,
-                "personalised": 0.7
-            }
+        "apply_to" : "1: Personalised", 
+        "seed": 1001
+    },
+    "divisions": {
+        "Womens": {
+            "model": "div_womens"
         },
-        "OC1": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.2,
-                "personalised": 0.7
-            }
+        "Mens": {
+            "model": "div_mens"
         },
-        "LP1": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
+        "Girls": {
+            "model": "div_girls"
         },
-        "LP2": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
+        "Boys": {
+            "model": "div_boys"
         },
-        "LP3": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
+        "Baby": {
+            "model": "div_baby"
         },
-        "LP4": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
+        "Home": {
+            "model": "div_home"
         },
-        "LP5": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
-        },
-        "LP6": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
-        },
-        "LP7": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
-        },
-        "LP8": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
-        },
-        "LP9": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
-        },
-        "LP10": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
-        },
-        "LP11": {
-            "cells": {
-                "control": 0.1,
-                "random": 0.9
-            }
+        "Beauty": {
+            "model": "div_beauty"
         }
+    }
+    ,
+    "locations": {
+        "HN1": {},
+        "SB1": {},
+        "SB2": {},
+        "OC1": {},
+        "LP1": {},
+        "LP2": {},
+        "LP3": {},
+        "LP4": {},
+        "LP5": {},
+        "LP6": {},
+        "LP7": {},
+        "LP8": {},
+        "LP9": {},
+        "LP10": {},
+        "LP11": {}
     }
 }

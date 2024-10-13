@@ -2,25 +2,28 @@ from pyspark.sql.types import StructField, StructType
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 import sys
-from utils.dbcutils import get_spark
+from next_ads.utils.dbc import get_spark
 
 
 def build_spark_field(
         name: str,
         dtype: str,
-        nullable_str: str
+        null_str: str = "null"
         ) -> StructField:
     """
     Builds Spark StructField from agnostic input.
 
     Arguments:
         name {str} -- Name of field
-        dtype {str} -- Type of column (only 'string' currently supported)
-        nullable_str {str} -- Nullable status of field
-
+        dtype {str} -- Type of column
+        (currently supported: `"string"`, `"int"`, `"float"`)
+        null_str {str} -- Optional - Nullable status of field
+        (`"not null"` yields `nullable=False`; `nullable=True` by default)
     """
     spark_types = {
-        "string": "StringType"
+        "string": "StringType",
+        "int": "IntegerType",
+        "float": "FloatType"
     }
 
     spark_type = getattr(
@@ -28,7 +31,9 @@ def build_spark_field(
         spark_types[dtype]
         )
 
-    nullable_bool = False if nullable_str != "nullable" else True
+    nullable_bool = True
+    if null_str.lower() == "not null":
+        nullable_bool = False
 
     return StructField(name, spark_type(), nullable_bool)
 
@@ -39,7 +44,7 @@ def build_spark_schema(schema: list) -> StructType:
 
     Arguments:
         schema {list} -- List of list of strings
-        e.g. `[["ID","string","nullable"],["Name","string","nullable"]]`
+        e.g. `[["ID","string","not null"],["Name","string","null"]]`
 
     """
     fields = [build_spark_field(*c) for c in schema]

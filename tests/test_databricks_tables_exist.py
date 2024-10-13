@@ -8,7 +8,7 @@ with open("../next_ads/config/resources.json") as f:
     rsc = json.load(f)
 
 # TODO: Refactor resources.json so line below isn't necessary
-tbls = {k: v for (k, v) in rsc["tables"].items() if k != "pscores"}
+tbls = rsc["tables"]
 tbl_list = list(tbls.values())
 
 

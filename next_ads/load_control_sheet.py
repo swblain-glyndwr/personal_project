@@ -1,10 +1,10 @@
 import logging
 import logging.config
 import pyspark.sql.functions as F
-import utils.gcputils as gcp
+import next_ads.utils.gcp as gcp
 import json
-from utils.dbcutils import get_spark
-from utils.sparkutils import delete_from_and_load
+from next_ads.utils.dbc import get_spark
+from next_ads.utils.etl import delete_from_and_load
 
 
 # Configure logging
@@ -26,7 +26,7 @@ log.info(f"Valid locations: {' '.join(valid_locations)}")
 # Read schema and append valid locations
 import_schema = rsc["control_sheet"]["read_schema"]
 for v in valid_locations:
-    import_schema.append([v, "string", "nullable"])
+    import_schema.append([v, "string", "null"])
 
 # Import control sheet
 log.info("Reading Control Sheet from Google Sheets")
