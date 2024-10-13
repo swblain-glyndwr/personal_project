@@ -117,13 +117,19 @@ df_adscores_div = (
 log.info("Assigning Best Ads")
 # Determine Best Ad for each customer
 df_ads_best = assign_best_ads(df_adscores_div)
-# TODO: Untidy having to sort these columns out post-hoc - tidy
+# TODO: Untidy having to sort these columns out post-hoc; tidy
 df_ads_best = (
     df_ads_best
     .join(
         (
             df_ads
-            .select("UniqueAdID", "MASID")
+            .select("UniqueAdID", "MASIDToken")
+            .withColumn("Location", F.lit(LOCATION))
+            .withColumn("MASID",
+                        F.concat(F.col("Location"),
+                                 F.lit("_"),
+                                 F.col("MASIDToken")))
+            .drop("Location", "MASIDToken")
             .distinct()
         ),
         on="UniqueAdID"
