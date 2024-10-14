@@ -40,6 +40,14 @@ else:
 log.info(f"Assigning Ads for Location: {LOCATION}")
 
 
+# Temp fix while underperforming only works for HN1
+if LOCATION == "HN1":
+    filter_underperf = True
+else:
+    filter_underperf = False
+# TODO: Sort out results files and underperforming for other locations
+
+
 # Get Ad data
 log.info("Getting Ads")
 ad_cols = [
@@ -51,7 +59,7 @@ ad_cols = [
     ]
 df_ads = get_latest_ads(LOCATION,
                         cols=ad_cols,
-                        filter_underperforming=True)
+                        filter_underperforming=filter_underperf)
 df_ads = df_ads.withColumnRenamed("AlgoDivision", "Division")
 # TODO: Remove renaming once fully migrated to new control sheet
 
