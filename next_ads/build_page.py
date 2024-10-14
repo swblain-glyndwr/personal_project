@@ -185,18 +185,18 @@ df_assigned_ads = (
     .withColumn(
         "MASID",
         F.when(
-            (F.col("HPTest") == "1: Personalised")
+            (F.col(test_col) == "1: Personalised")
             & (F.col("random_var1") <= 0.5),
             F.col("BestMASID")
             )
         .when(
-            (F.col("HPTest") == "1: Personalised")
+            (F.col(test_col) == "1: Personalised")
             & (F.col("random_var1") > 0.5),
             F.col("BestMASIDChall")
             )
-        .when(F.col("HPTest") == "2: Random", F.col("RandMASID"))
-        .when(F.col("HPTest") == "3: No Banner", F.lit("HN1_C"))
-        .when(F.col("HPTest") == "4: Overall", F.lit("HN1_Z"))
+        .when(F.col(test_col) == "2: Random", F.col("RandMASID"))
+        .when(F.col(test_col) == "3: No Banner", F.lit("HN1_C"))
+        .when(F.col(test_col) == "4: Overall", F.lit("HN1_Z"))
         .otherwise(F.lit("HN1_Z"))
         )
     .withColumn("Location", F.lit(LOCATION))
