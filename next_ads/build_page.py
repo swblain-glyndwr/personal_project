@@ -51,7 +51,7 @@ ad_cols = [
     ]
 df_ads = get_latest_ads(LOCATION,
                         cols=ad_cols,
-                        filter_underperforming=False)
+                        filter_underperforming=True)
 df_ads = df_ads.withColumnRenamed("AlgoDivision", "Division")
 # TODO: Remove renaming once fully migrated to new control sheet
 
