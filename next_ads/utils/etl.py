@@ -154,3 +154,23 @@ def truncate_and_load(
         )
 
     return None
+
+
+def count_null_by_col(df: DataFrame) -> DataFrame:
+    """
+    Counts nulls in dataframe by column.
+
+    Arguments:
+        df -- Dataframe
+
+    Returns:
+        dataframe with same column names, each containing null count
+    """
+    df_n = (
+        df.select(
+            [F.count(F.when(F.col(c).isNull(), c)).alias(c)
+             for c in df.columns]
+            )
+    )
+
+    return df_n
