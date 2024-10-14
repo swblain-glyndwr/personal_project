@@ -176,8 +176,8 @@ df_assigned_ads = (
     df_cell
     .join((df_ads_rdm
            .select("AccountNumber", "MASID", "UniqueAdID")
-           .withColumnRenamed("MASID", "RandMASID")
-           .withColumnRenamed("UniqueAdID", "RandUniqueAdID")),
+           .withColumnRenamed("MASID", "RandomMASID")
+           .withColumnRenamed("UniqueAdID", "RandomUniqueAdID")),
           on="AccountNumber",
           how="inner")
     .join((df_ads_best
@@ -196,15 +196,17 @@ df_assigned_ads = (
         "MASID",
         F.when(
             (F.col(test_col) == "1: Personalised")
-            & (F.col("random_var1") <= 0.5),
+            & (F.col("random_var1") <= 0.5)
+            & (F.col("BestMASID").isNotNull()),
             F.col("BestMASID")
             )
         .when(
             (F.col(test_col) == "1: Personalised")
-            & (F.col("random_var1") > 0.5),
+            & (F.col("random_var1") > 0.5)
+            & (F.col("BestMASID").isNotNull()),
             F.col("BestMASIDChall")
             )
-        .when(F.col(test_col) == "2: Random", F.col("RandMASID"))
+        .when(F.col(test_col) == "2: Random", F.col("RandomMASID"))
         .when(F.col(test_col) == "3: No Banner", F.lit(f"{LOCATION}_C"))
         .when(F.col(test_col) == "4: Overall", F.lit(f"{LOCATION}_Z"))
         .otherwise(F.lit(f"{LOCATION}_Z"))
@@ -212,8 +214,8 @@ df_assigned_ads = (
     .withColumn("Location", F.lit(LOCATION))
     .select("AccountNumber",
             "Location",
-            "RandUniqueAdID",
-            "RandMASID",
+            "RandomUniqueAdID",
+            "RandomMASID",
             "BestUniqueAdID",
             "BestMASID",
             "BestUniqueAdIDChall",
