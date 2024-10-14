@@ -23,15 +23,26 @@ def get_underperforming_ads(
         A dataframe with UniqueAdID and Division of underperforming Ads
     """
     test_location = re.findall(r"^[a-zA-Z]{2,3}", location)[0]
+
+    # UniqueAdID extended to include Division suffix to ensure uniqueness
+    # from Oct 2024, therefore Ads from before this period need the suffix
+    # adding for the join
     df = (
         get_spark()
         .read.format("delta")
         .load(rsc["files"]["results"][test_location])
         .filter(F.col("t_RPS_targetted_div_random_ad") <= t_threshold)
-        .select("ID", "Division")
-        .withColumnRenamed("ID", "UniqueAdID")
+        .select("ID", "Division", "FirstShown_targeted_div")
+        .withColumn("UniqueAdID",
+                    F.when(F.col("FirstShown_targeted_div") <= "2024-09-30",
+                           F.concat(F.col("ID"), F.lit("_"),
+                           F.concat("Division")))
+                    .otherwise(F.col("ID")),
+                    )
+        .select("UniqueAdID")
         .distinct()
         )
+
     return df
 
 
