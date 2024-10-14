@@ -139,7 +139,6 @@ df_ads_best = df_ads_best.join(df_ad_masid, on="UniqueAdID")
 
 # Assign Best Ad for each customer (via "challenger" method)
 # When no challenger, challenger assignment == champion_assignment
-df_ads_best.cache()  # Cache when no challenger for speed
 df_ads_best_chall = df_ads_best
 
 
@@ -213,8 +212,6 @@ df_assigned_ads = (
             )
 )
 
-# Cache df_assigned_ads to improve performance when loading twice
-df_assigned_ads.cache()
 
 # Load output into assignments table
 target_table = rsc["tables"]["assignments"]
