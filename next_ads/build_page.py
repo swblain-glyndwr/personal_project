@@ -35,7 +35,7 @@ if len(loc_args) > 1:
 elif len(loc_args) == 1:
     LOCATION = loc_args[0]
 else:
-    LOCATION = "OC1"  # For interactive debugging
+    LOCATION = "HN1"  # For interactive debugging
 
 log.info(f"Assigning Ads for Location: {LOCATION}")
 
@@ -178,17 +178,20 @@ df_assigned_ads = (
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "RandMASID")
            .withColumnRenamed("UniqueAdID", "RandUniqueAdID")),
-          on="AccountNumber")
+          on="AccountNumber",
+          how="inner")
     .join((df_ads_best
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "BestMASID")
            .withColumnRenamed("UniqueAdID", "BestUniqueAdID")),
-          on="AccountNumber")
+          on="AccountNumber",
+          how="left")
     .join((df_ads_best_chall
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "BestMASIDChall")
            .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChall")),
-          on="AccountNumber")
+          on="AccountNumber",
+          how="left")
     .withColumn(
         "MASID",
         F.when(
