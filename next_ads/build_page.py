@@ -90,6 +90,8 @@ df_cust_div = div_asgn_list.pop()
 for df_asgn in div_asgn_list:
     df_cust_div = df_cust_div.union(df_asgn)
 
+df_cust_div.cache()
+
 
 # Determine Random (within Division) Ad for each customer
 log.info("Assigning Random Ads by Division")
@@ -110,6 +112,9 @@ df_adscores = assign_scores_to_entity(
     model_score_table=rsc["tables"]["model_scores_latest"],
     patch_model_refs=True
     )
+
+df_adscores.cache()
+
 
 # Limit ad scores to within Division
 # TODO: Remove this restriction for cross-division targeting?
@@ -135,6 +140,8 @@ log.info("Assigning Best Ads")
 df_ads_best = assign_best_ads(df_adscores_div)
 # Append MASID to each Ad
 df_ads_best = df_ads_best.join(df_ad_masid, on="UniqueAdID")
+
+df_ads_best.cache()
 
 
 # Assign Best Ad for each customer (via "challenger" method)
@@ -211,7 +218,7 @@ df_assigned_ads = (
             "MASID"
             )
 )
-
+df_assigned_ads.cache()
 
 # Load output into assignments table
 target_table = rsc["tables"]["assignments"]
