@@ -55,6 +55,20 @@ df_ads = get_live_ads(LOCATION,
 df_ads = df_ads.withColumnRenamed("AlgoDivision", "Division")
 # TODO: Remove renaming once fully migrated to new control sheet
 
+# Ad ID - MASID lookup
+df_ad_masid = (
+    df_ads
+    .select("UniqueAdID", "MASIDToken")
+    .withColumn("Location", F.lit(LOCATION))
+    .withColumn("MASID",
+                F.concat(F.col("Location"),
+                         F.lit("_"),
+                         F.col("MASIDToken")))
+    .drop("Location", "MASIDToken")
+    .distinct()
+)
+
+
 # Get division assignments as one dataframe
 # TODO: Replace separate files with single table
 log.info("Gathering Division assignments")
@@ -84,6 +98,8 @@ df_ads_rdm = assign_random_ads(
     df_cust_div,
     grp_col="Division"
     )
+# Append MASID to each Ad
+df_ads_rdm = df_ads_rdm.join(df_ad_masid, on="UniqueAdID")
 
 
 # Assign propensity scores to Ads (irrespective of Division)
@@ -117,24 +133,8 @@ df_adscores_div = (
 log.info("Assigning Best Ads")
 # Determine Best Ad for each customer
 df_ads_best = assign_best_ads(df_adscores_div)
-# TODO: Untidy having to sort these columns out post-hoc; tidy
-df_ads_best = (
-    df_ads_best
-    .join(
-        (
-            df_ads
-            .select("UniqueAdID", "MASIDToken")
-            .withColumn("Location", F.lit(LOCATION))
-            .withColumn("MASID",
-                        F.concat(F.col("Location"),
-                                 F.lit("_"),
-                                 F.col("MASIDToken")))
-            .drop("Location", "MASIDToken")
-            .distinct()
-        ),
-        on="UniqueAdID"
-    )
-)
+# Append MASID to each Ad
+df_ads_best = df_ads_best.join(df_ad_masid, on="UniqueAdID")
 
 
 # Assign Best Ad for each customer (via "challenger" method)
