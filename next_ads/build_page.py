@@ -236,3 +236,8 @@ delete_from_and_load(df_assigned_ads,
                      target_table_latest,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
+
+df_cust_div.unpersist()
+df_adscores.unpersist()
+df_ads_best.unpersist()
+df_assigned_ads.unpersist()
