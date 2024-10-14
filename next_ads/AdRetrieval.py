@@ -35,10 +35,10 @@ def get_underperforming_ads(
     return df
 
 
-def get_live_ads(location: str = "",
-                 cols: list = [],
-                 filter_underperforming: bool = False,
-                 **kwargs) -> DataFrame:
+def get_latest_ads(location: str = "",
+                   cols: list = [],
+                   filter_underperforming: bool = False,
+                   **kwargs) -> DataFrame:
     """
     Gets Ads from `_latest` Control Sheet table for a given location.
     Optional filter underperforming with kwargs for customer t_threshold.

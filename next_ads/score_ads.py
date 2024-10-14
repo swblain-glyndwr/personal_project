@@ -1,5 +1,5 @@
 import json
-from AdRetrieval import get_live_ads
+from AdRetrieval import get_latest_ads
 from Assignment import assign_scores_to_entity
 
 
@@ -8,7 +8,7 @@ with open("config/resources.json") as f:
 
 # Get Ads
 df_ads = (
-    get_live_ads(filter_underperforming=False)
+    get_latest_ads(filter_underperforming=False)
     .select("UniqueAdID", "Models", "ModelCombination")
     .distinct()
 )

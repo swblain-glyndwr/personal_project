@@ -1,7 +1,7 @@
 import logging
 import logging.config
 import json
-from AdRetrieval import get_live_ads
+from AdRetrieval import get_latest_ads
 from next_ads.Assignment import (
     assign_random_ads,
     assign_best_ads,
@@ -35,7 +35,7 @@ if len(loc_args) > 1:
 elif len(loc_args) == 1:
     LOCATION = loc_args[0]
 else:
-    LOCATION = "HN1"  # For interactive debugging
+    LOCATION = "OC1"  # For interactive debugging
 
 log.info(f"Assigning Ads for Location: {LOCATION}")
 
@@ -49,9 +49,9 @@ ad_cols = [
     "Models",
     "ModelCombination"
     ]
-df_ads = get_live_ads(LOCATION,
-                      cols=ad_cols,
-                      filter_underperforming=False)
+df_ads = get_latest_ads(LOCATION,
+                        cols=ad_cols,
+                        filter_underperforming=False)
 df_ads = df_ads.withColumnRenamed("AlgoDivision", "Division")
 # TODO: Remove renaming once fully migrated to new control sheet
 
