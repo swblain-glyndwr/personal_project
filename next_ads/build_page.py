@@ -202,9 +202,9 @@ df_assigned_ads = (
             F.col("BestMASIDChall")
             )
         .when(F.col(test_col) == "2: Random", F.col("RandMASID"))
-        .when(F.col(test_col) == "3: No Banner", F.lit("HN1_C"))
-        .when(F.col(test_col) == "4: Overall", F.lit("HN1_Z"))
-        .otherwise(F.lit("HN1_Z"))
+        .when(F.col(test_col) == "3: No Banner", F.lit(f"{LOCATION}_C"))
+        .when(F.col(test_col) == "4: Overall", F.lit(f"{LOCATION}_Z"))
+        .otherwise(F.lit(f"{LOCATION}_Z"))
         )
     .withColumn("Location", F.lit(LOCATION))
     .select("AccountNumber",
