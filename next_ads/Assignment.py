@@ -49,6 +49,8 @@ def get_model_scores(
             )
         )
 
+    df = df.where(F.col("Score").isNotNull())
+
     return df
 
 
@@ -56,7 +58,8 @@ def assign_scores_to_entity(
         df: DataFrame,
         entity_col: str,
         model_score_table: str,
-        patch_model_refs: bool = False) -> DataFrame:
+        patch_model_refs: bool = False,
+        standardise_partition: list = ["TargetingRecipe"]) -> DataFrame:
     """
     Assigns, combines and scales scores for a given entity.
 
@@ -189,10 +192,10 @@ def assign_scores_to_entity(
         df_ent_scores
         .withColumn("ScoreSubMean",
                     subtract_mean(F.col("ScoreRaw"),
-                                  partition_by="TargetingRecipe"))
+                                  partition_by=standardise_partition))
         .withColumn("ScoreZ",
                     z_score(F.col("ScoreRaw"),
-                            partition_by="TargetingRecipe"))
+                            partition_by=standardise_partition))
         )
     assert_pk(df_ent_scores_scl,
               ["AccountNumber", "EntityID", "TargetingRecipe"])

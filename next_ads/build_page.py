@@ -123,6 +123,23 @@ df_adscores = assign_scores_to_entity(
 
 df_adscores.cache()
 
+# df_adscores2 = assign_scores_to_entity(
+#     (
+#         df_ads
+#         .select("MASIDToken", "Models", "ModelCombination")
+#         .withColumn("MASID",
+#                     F.concat(
+#                         F.lit(LOCATION),
+#                         F.lit("_"),
+#                         F.col("MASIDToken")))
+#     ),
+#     entity_col="MASID",
+#     model_score_table=rsc["tables"]["model_scores_latest"],
+#     patch_model_refs=True,
+#     standardise_partition=["EntityID"]
+#     )
+# df_adscores2.cache()
+
 
 # Limit ad scores to within Division
 # TODO: Remove this restriction for cross-division targeting?

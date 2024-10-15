@@ -4,19 +4,19 @@ from pyspark.sql import functions as F
 
 def subtract_mean(
         column: Column,
-        partition_by: str = "") -> Column:
+        partition_by: list = []) -> Column:
     """
     Subtracts column mean from column by optional partition.
 
     Arguments:
         column -- PySpark `Column` to process
-        window -- PySpark `Window` over which to standardise
+        partition_by -- List of columns to partition by
 
     Returns:
         PySpark `Column` with scaled values
     """
     if partition_by:
-        w = Window.partitionBy(F.col(partition_by))
+        w = Window.partitionBy([F.col(p) for p in partition_by])
     else:
         w = Window.partitionBy(F.lit(1))
 
@@ -27,20 +27,20 @@ def subtract_mean(
 
 def z_score(
         column: Column,
-        partition_by: str = "") -> Column:
+        partition_by: list = []) -> Column:
     """
     Z-Score of column by optional partition.
     Z = (x-mean(x))/std(x)
 
     Arguments:
         column -- PySpark `Column` to process
-        window -- PySpark `Window` over which to standardise
+        partition_by -- List of columns to partition by
 
     Returns:
         PySpark `Column` with scaled values
     """
     if partition_by:
-        w = Window.partitionBy(F.col(partition_by))
+        w = Window.partitionBy([F.col(p) for p in partition_by])
     else:
         w = Window.partitionBy(F.lit(1))
 
