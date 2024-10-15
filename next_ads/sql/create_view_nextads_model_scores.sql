@@ -1,6 +1,6 @@
 create view marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest as
 select
-    div.account_number,
+    coalesce(div.account_number, kids.account_number) as account_number,
 
     div.WW as div_womens,
     div.MW as div_mens,
@@ -375,11 +375,11 @@ select
     kids.girls_baby_boutique
 
 from marketingdata_prod.warehouse.next_uk_division_model_latest as div
+full outer join marketingdata_prod.warehouse.next_uk_kids_category_model_latest kids
+    on div.account_number = kids.account_number
 left join marketingdata_prod.warehouse.next_uk_clearance_model_latest as clr
     on div.account_number = clr.account_number
 left join marketingdata_prod.warehouse.next_uk_womens_nextads_model_scores_latest ww
     on div.account_number = ww.account_number
 left join marketingdata_prod.warehouse.next_uk_mens_nextads_model_scores_latest mw
     on div.account_number = mw.account_number
-left join marketingdata_prod.warehouse.next_uk_kids_category_model_latest kids
-    on div.account_number = kids.account_number
