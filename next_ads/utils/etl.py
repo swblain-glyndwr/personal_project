@@ -78,7 +78,7 @@ def assert_pk(df: DataFrame, pk_cols: list):
 def delete_from_and_load(
         df: DataFrame,
         table: str,
-        pk_cols: list = [],
+        pk_cols: list = [str],
         del_where: dict = dict()) -> None:
     """
     Deletes from table where `rundate == current_date()` then
@@ -125,7 +125,7 @@ def delete_from_and_load(
 def truncate_and_load(
         df: DataFrame,
         table: str,
-        pk_cols: list = []) -> None:
+        pk_cols: list = [str]) -> None:
     """
     Truncates table and then
     inserts df into table with `rundate = current_date()`
@@ -141,16 +141,16 @@ def truncate_and_load(
     df.createOrReplaceTempView("df_load")
 
     get_spark().sql(
-        f'''
+        f"""
         truncate table {table}
-        ''')
+        """)
 
     get_spark().sql(
-        f'''
+        f"""
         insert into {table}
         select *, current_date() as rundate
         from df_load
-        '''
+        """
         )
 
     return None
@@ -159,7 +159,7 @@ def truncate_and_load(
 def create_or_replace(
         df: DataFrame,
         table: str,
-        pk_cols: list = []) -> None:
+        pk_cols: list = [str]) -> None:
     """
     Drops table (if exists), then creates table and loads as
     select * from df (with `rundate = current_date()`) appended
@@ -175,25 +175,31 @@ def create_or_replace(
     df.createOrReplaceTempView("df_load")
 
     get_spark().sql(
-        f'''
+        f"""
         drop table if exists {table}
-        ''')
+        """)
 
     get_spark().sql(
-        f'''
+        f"""
         create table {table} as
         select *, current_date() as rundate
         from df_load
-        '''
+        """
         )
 
     if pk_cols:
+        for pk_col in pk_cols:
+            get_spark().sql(
+                f"""
+                alter table {table} alter column {pk_col} set not null
+                """
+                )
         get_spark().sql(
-            f'''
+            f"""
             alter table {table}
             add constraint pk_{"_".join(pk_cols).lower()}
             primary key ({",".join(pk_cols)})
-            '''
+            """
         )
 
     return None
