@@ -31,11 +31,13 @@ TARGETING_SCORES_TABLE = rsc["tables"]["targeting_scores"]
 CELL_ASSIGNMENT_FILE = rsc["files"]["cell_assignment"]
 ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
 ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
+VALID_LOCATIONS = prm["locations"].keys()
+
 
 # Set Location for run
 # If valid location not specified via sys.argv (run as job),
 # will take hardcoded Location (useful for interactive debugging)
-loc_args = list(set(prm["locations"].keys()).intersection(set(sys.argv)))
+loc_args = list(set(VALID_LOCATIONS).intersection(set(sys.argv)))
 
 if len(loc_args) > 1:
     raise Exception(f"More than one Location specified: {loc_args}")
