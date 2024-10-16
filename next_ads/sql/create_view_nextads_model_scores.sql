@@ -500,7 +500,7 @@ from marketingdata_prod.warehouse.next_uk_division_model_latest as div
 full outer join marketingdata_prod.warehouse.next_uk_kids_category_model_latest kids
     on div.account_number = kids.account_number
 full outer join marketingdata_prod.warehouse.next_uk_home_category_model_latest as home
-    on div.account_number = home.account_number
+    on coalesce(div.account_number, kids.account_number) = home.account_number
 
 left join marketingdata_prod.warehouse.next_uk_clearance_model_latest as clr
     on div.account_number = clr.account_number
