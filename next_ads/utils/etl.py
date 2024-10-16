@@ -156,6 +156,40 @@ def truncate_and_load(
     return None
 
 
+def create_or_replace(
+        df: DataFrame,
+        table: str,
+        pk_cols: list = []) -> None:
+    """
+    Drops table (if exists), then creates table and loads as
+    select * from df (with `rundate = current_date()`) appended
+
+    Arguments:
+        df {DataFrame} - PySpark dataframe to load
+        table {str} - Table to load into
+        pk_cols {list} -- Optional - Primary Key cols for assert_pk()
+    """
+    if pk_cols:
+        assert_pk(df, pk_cols)
+
+    df.createOrReplaceTempView("df_load")
+
+    get_spark().sql(
+        f'''
+        drop table if exists {table}
+        ''')
+
+    get_spark().sql(
+        f'''
+        create table {table} as
+        select *, current_date() as rundate
+        from df_load
+        '''
+        )
+
+    return None
+
+
 def count_null_by_col(df: DataFrame) -> DataFrame:
     """
     Counts nulls in dataframe by column.

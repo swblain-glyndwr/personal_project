@@ -3,7 +3,7 @@ from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import build_spark_schema, assert_pk
-from next_ads.utils.columnscalers import subtract_mean, z_score
+# from next_ads.utils.columnscalers import subtract_mean, z_score
 
 
 with open("config/resources.json") as f:
@@ -54,12 +54,164 @@ def get_model_scores(
     return df
 
 
+def append_targeting_criteria(
+        df: DataFrame,
+        col_models: str = "Models",
+        col_model_combination: str = "ModelCombination") -> DataFrame:
+    """
+    Combines col_models (model refs) and col_model_combination (operator
+    e.g. "and", "or") to yeild TargetingCriteria column in standardised format.
+
+    Returns:
+        Dataframe with addidional TargetingCriteria column
+    """
+    df = (
+        df
+        .withColumn(
+            "TargetingCriteria",
+            F.concat(col_model_combination, F.lit("|"), col_models)
+            )
+    )
+
+    return df
+
+
+def aggregate_model_scores(
+        df: DataFrame,
+        model_score_table: str,
+        patch_model_refs: bool = False) -> DataFrame:
+    """
+    Assigns each customer in `model_score_table` an aggregated score.
+    Aggregated score is defined by combining Models and ModelCombination
+    to form a TargetingCriteria. The TargetingScore for each customer, for
+    each TargetingCriteria is calculated and returned.
+
+    Arguments:
+        df -- Spark dataframe with cols:
+            - `Models` (comma separated list of models)
+            - `ModelCombination` (operator for combining models)
+                - N.B. Only "and" ModelCombination currently supported
+
+        model_score_table -- Table containing individual model scores in
+            wide format (cols: `account_number`, `model_ref_1`,
+            `model_ref_2`...)
+
+        patch_model_refs -- Patch verbose model refs in control sheet with
+            new shorter refs
+
+    Returns:
+        Spark dataframe with cols:
+            - AccountNumber
+            - TargetingCriteria
+            - TargetingScore
+    """
+
+    # TODO: ModelCombination forced to "and" until "or" functionality is built
+    df = df.withColumn("ModelCombination", F.lit("and"))
+
+    # Split column by comma (optional trailing whitespace)
+    split_col_comma = F.split(F.col("Models"), r",+\s*")
+
+    # Calculate the maximum number of models assigned to a single Ad
+    max_models_assigned = (
+        df
+        .withColumn("ModelsAssigned", F.size(split_col_comma))
+        .agg(F.max(F.col("ModelsAssigned")).alias("nModelsMax"))
+        .collect()[0]["nModelsMax"]
+    )
+
+    # Dynamically spread models to separate columns
+    for n in range(1, max_models_assigned+1):
+        df = (
+            df
+            .withColumn(
+                f"Model{str(n).zfill(2)}",
+                F.get(split_col_comma, n - 1)
+            )
+        )
+
+    # List of models (with combination operator) becomes TargetingCriteria
+    df = append_targeting_criteria(df).drop("ModelCombination", "Models")
+
+    # Melt assigned models down to one row per model for joining to scores
+    df = (
+        df
+        .melt(
+            ids=[c for c in df.columns if not c.startswith("Model")],
+            values=[c for c in df.columns if c.startswith("Model")],
+            variableColumnName="ModelN",
+            valueColumnName="Model"
+        )
+        .drop("ModelN")
+        .where(F.col("Model").isNotNull())
+    )
+
+    # TODO: vvv Patch start - Patch model references between old and new
+    # Refactor model refs in the new control sheet and remove this patch
+    if patch_model_refs:
+        with open("config/patch_model_ref.json") as f:
+            patch_model_ref = json.load(f)
+
+        df_model_patch = (
+            get_spark()
+            .createDataFrame(
+                list(patch_model_ref.items()),
+                schema=build_spark_schema([
+                    ["Model", "string", "not null"],
+                    ["ModelRef", "string", "not null"]
+                    ])
+                )
+        )
+        assert_pk(df_model_patch, ["Model", "ModelRef"])
+
+        df_score_lookup = (
+            df
+            .join(df_model_patch, on="Model", how="left")
+            .drop("Model")
+            .withColumnRenamed("ModelRef", "Model")
+        )
+    else:
+        df_score_lookup = df
+
+    assert_pk(df_score_lookup, ["TargetingCriteria", "Model"])
+    # TODO: ^^^ Patch end
+
+    # Loop through and union model scores by division
+    # Find only specified models, to avoid pulling back all unnecessarily
+    model_subset = [
+        x[0] for x in (
+            df_score_lookup.select("Model").distinct().collect()
+            )
+        ]
+
+    # Get scores for relevant models
+    df_scores = get_model_scores(
+        model_score_table,
+        models=model_subset,
+        melt_scores=True
+        )
+
+    # Join scores to entity using model as a key
+    df_scores_pre_agg = df_scores.join(df_score_lookup, on="Model")
+
+    # Combine scores
+    # TODO: Other cases than "and"/F.product ("or", "max" etc.)
+    df_agg_scores = (
+        df_scores_pre_agg
+        .groupBy(["AccountNumber", "TargetingCriteria"])
+        .agg(F.product("Score").alias("TargetingScore"))
+    )
+
+    return df_agg_scores
+
+
 def assign_scores_to_entity(
         df: DataFrame,
         entity_col: str,
         model_score_table: str,
-        patch_model_refs: bool = False,
-        standardise_partition: list = ["TargetingRecipe"]) -> DataFrame:
+        patch_model_refs: bool = False  # ,
+        # standardise_partition: list = ["TargetingCriteria"]
+        ) -> DataFrame:
     """
     Assigns, combines and scales scores for a given entity.
 
@@ -76,7 +228,7 @@ def assign_scores_to_entity(
         Dataframe with cols:
             - entity_id
             - "AccountNumber"
-            - "TargetingRecipe"
+            - "TargetingCriteria"
             - *[raw and scaled scores])
     """
     # Rename column for processing
@@ -106,11 +258,11 @@ def assign_scores_to_entity(
             )
         )
 
-    # List of models (with Combination operator) becomes model TargetingRecipe
+    # List of models (with Combination operator) becomes TargetingCriteria
     df = (
         df
         .withColumn(
-            "TargetingRecipe",
+            "TargetingCriteria",
             F.concat("ModelCombination", F.lit("|"), "Models")
             )
         .drop("ModelCombination", "Models")
@@ -156,7 +308,7 @@ def assign_scores_to_entity(
     else:
         df_score_lookup = df
 
-    assert_pk(df_score_lookup, ["EntityID", "TargetingRecipe", "Model"])
+    assert_pk(df_score_lookup, ["EntityID", "TargetingCriteria", "Model"])
 
     # TODO: ^^^ Patch end
 
@@ -182,25 +334,25 @@ def assign_scores_to_entity(
     # TODO: Other cases than "and"/F.product ("or", "max" etc.)
     df_ent_scores = (
         df_scores_pre_agg
-        .groupBy(["AccountNumber", "EntityID", "TargetingRecipe"])
-        .agg(F.product("Score").alias("ScoreRaw"))
+        .groupBy(["AccountNumber", "EntityID", "TargetingCriteria"])
+        .agg(F.product("Score").alias("TargetingScore"))
     )
-    df_ent_scores.cache()
 
     # Score Scaling/Normalisation/Standardisation
-    df_ent_scores_scl = (
-        df_ent_scores
-        .withColumn("ScoreSubMean",
-                    subtract_mean(F.col("ScoreRaw"),
-                                  partition_by=standardise_partition))
-        .withColumn("ScoreZ",
-                    z_score(F.col("ScoreRaw"),
-                            partition_by=standardise_partition))
-        )
-    assert_pk(df_ent_scores_scl,
-              ["AccountNumber", "EntityID", "TargetingRecipe"])
+    # df_ent_scores_scl = (
+    #     df_ent_scores
+    #     .withColumn("ScoreSubMean",
+    #                 subtract_mean(F.col("ScoreRaw"),
+    #                               partition_by=standardise_partition))
+    #     .withColumn("ScoreZ",
+    #                 z_score(F.col("ScoreRaw"),
+    #                         partition_by=standardise_partition))
+    #     )
+    # assert_pk(df_ent_scores_scl,
+    #           ["AccountNumber", "EntityID", "TargetingCriteria"])
 
-    return df_ent_scores_scl.withColumnRenamed("EntityID", entity_col)
+    # return df_ent_scores_scl.withColumnRenamed("EntityID", entity_col)
+    return df_ent_scores
 
 
 def assign_random_ads(
@@ -262,17 +414,20 @@ def assign_random_ads(
 
 
 def assign_best_ads(
-        df_adscores: DataFrame,
+        df_ads: DataFrame,
+        targeting_scores_table: str,
+        scale_fn: callable = None,
+        scale_partition: str = None,
         return_ranks: list = [1],
         tie_breaker: str = ""
         ) -> DataFrame:
     """
     Assigns "best" Ad to each customer based on scores provided.
-    Dev - Tie Breaker needed for one-to-many TargetingRecipe:Ad
+    Dev - Tie Breaker needed for one-to-many TargetingCriteria:Ad
 
     Args:
         df_adscores -- Dataframe with columns
-        (AccountNumber, UniqueAdID, Division, TargetingRecipe, Score)
+        (AccountNumber, UniqueAdID, Division, TargetingCriteria, Score)
         select_ranks -- Rankings to return (for 'best': [1])
         tie_breaker -- String indicating method to use when multiple ads
             feature the same targeting criteria (arg in development)
@@ -281,6 +436,25 @@ def assign_best_ads(
         Dataframe with columns
         (AccountNumber, Division, UniqueAdID)
     """
+
+    # Score Scaling/Normalisation/Standardisation
+    df_adscores = (
+        append_targeting_criteria(df_ads)
+        .select("UniqueAdID", "TargetingCriteria")
+        .join(get_spark().table(targeting_scores_table),
+              on="TargetingCriteria",
+              how="inner")
+    )
+
+    df_adscores = (
+        df_adscores
+        .withColumn("ScoreSubMean",
+                    scale_fn(F.col("TargetingScore"),
+                             scale_partition=scale_partition))
+        )
+    assert_pk(df_adscores,
+              ["AccountNumber", "UniqueAdID", "TargetingCriteria"])
+
     # Will take last Ad ID alphabetically (proxy for newest) if Scores are tied
     w = (
         Window
@@ -297,7 +471,7 @@ def assign_best_ads(
     )
 
     if tie_breaker:
-        # TODO: Tie breaker condition - e.g. ads with common TargetingRecipe
+        # TODO: Tie breaker condition - e.g. ads with common TargetingCriteria
         pass
 
     return df_return
