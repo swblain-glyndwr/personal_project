@@ -1,5 +1,25 @@
 # Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+NEXT Ads is an initiative to serve personalised adverts to customers browsing the NEXT website.  The primary purpose of the **next-ads** code is to assign each customer the 'best' ad for them. 'Best' can be thought of as the most relevant to them, and that which generates the most incremental revenue for the business.  
+
+# Process
+## Macro Process
+
+#### Pre-requisites
+Current model scores for all relevant customers and models. These are currently captured within the view [marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199)
+
+Within the scope of the **next-ads** code:
+1. Read the NEXT Ads control sheet, managed by the OSA (On-Site Advertising) team
+2. Assign customers to measurement cells
+    - Overall: **Fallow Control**
+    - Page-wise: **Control**, **Random**, **Personalised**
+3. Assign each customer their 'best' division, i.e. that which they have the highest propensity score for
+4. Calculate a score for each customer based on the targeting criteria assigned to each active ad
+5. For each page, assign an ad for each customer, that is either a **Random** ad, or their **Personalised** ad (depending on the measurement cell), and output the corresonding code for the respective element of the MASID (e.g. `HN1_AABB`)
+
+
+# Terminology
+- The **Random** cell, or a **Random** ad does not indcate a completely randomly assigned ad; these ads are assigned randomly *within* a customer's preferred division.
+- 
 
 # Getting Started
 TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:

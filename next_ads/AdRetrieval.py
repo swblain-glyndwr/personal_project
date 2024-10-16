@@ -47,7 +47,6 @@ def get_underperforming_ads(
 
 
 def get_latest_ads(location: str = "",
-                   cols: list = [],
                    filter_underperforming: bool = False,
                    **kwargs) -> DataFrame:
     """
@@ -69,8 +68,5 @@ def get_latest_ads(location: str = "",
             df.join(get_underperforming_ads(location, **kwargs),
                     on="UniqueAdID", how="leftanti")
         )
-
-    if cols:
-        df = df.select(*cols)
 
     return df

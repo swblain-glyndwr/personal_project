@@ -50,18 +50,16 @@ else:
 
 # Get Ad data
 log.info("Getting Ads")
-ad_cols = [
-    "UniqueAdID",
-    "AlgoDivision",
-    "MASIDToken",
-    "Models",
-    "ModelCombination"
-    ]
-df_ads = get_latest_ads(LOCATION,
-                        cols=ad_cols,
-                        filter_underperforming=filter_underperf)
-df_ads = df_ads.withColumnRenamed("AlgoDivision", "Division")
-# TODO: Remove renaming once fully migrated to new control sheet
+df_ads = (
+    get_latest_ads(LOCATION, filter_underperforming=filter_underperf)
+    .select("UniqueAdID",
+            "AlgoDivision",
+            "MASIDToken",
+            "Models",
+            "ModelCombination")
+    .withColumnRenamed("AlgoDivision", "Division")
+)
+# TODO: Remove renaming of AlgoDiv once fully migrated to new control sheet
 
 # Ad ID - MASID lookup
 df_ad_masid = (
