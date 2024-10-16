@@ -130,9 +130,12 @@ for div in divs:
     # Get i division's ads
     df_ads_i = (
         df_ads
-        .select("UniqueAdID", "TargetingCriteria")
+        .select("UniqueAdID", "Models", "ModelCombination")
+        .where(F.col("Models").isNotNull())
+        .fillna({"ModelCombination": "and"})
         .where(F.col("Division") == div)
     )
+    # TODO: Remove force "and" for combination
 
     # Get i division's customers
     df_cust_i = (
