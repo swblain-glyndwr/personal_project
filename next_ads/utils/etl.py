@@ -192,7 +192,7 @@ def create_or_replace(
             f'''
             alter table {table}
             add constraint pk_{"_".join(pk_cols).lower()}
-            primary key ({",".join(pk_cols)});
+            primary key ({",".join(pk_cols)})
             '''
         )
 
