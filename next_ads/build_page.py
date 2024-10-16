@@ -4,13 +4,13 @@ import json
 from AdRetrieval import get_latest_ads
 from next_ads.Assignment import (
     assign_random_ads,
-    assign_best_ads,
-    assign_scores_to_entity
+    assign_best_ads
     )
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import delete_from_and_load
 from pyspark.sql import functions as F
 import sys
+from next_ads.utils.columnscalers import subtract_mean
 
 
 # Configure logging
@@ -119,56 +119,47 @@ df_ads_rdm = assign_random_ads(
 df_ads_rdm = df_ads_rdm.join(df_ad_masid, on="UniqueAdID")
 
 
-# Assign propensity scores to Ads (irrespective of Division)
-df_adscores = assign_scores_to_entity(
-    df_ads.select("UniqueAdID", "Models", "ModelCombination"),
-    entity_col="UniqueAdID",
-    model_score_table=TARGETING_SCORES_TABLE,
-    patch_model_refs=True
-    )
-
-df_adscores.cache()
-
-# df_adscores2 = assign_scores_to_entity(
-#     (
-#         df_ads
-#         .select("MASIDToken", "Models", "ModelCombination")
-#         .withColumn("MASID",
-#                     F.concat(
-#                         F.lit(LOCATION),
-#                         F.lit("_"),
-#                         F.col("MASIDToken")))
-#     ),
-#     entity_col="MASID",
-#     model_score_table=rsc["tables"]["model_scores_latest"],
-#     patch_model_refs=True,
-#     standardise_partition=["EntityID"]
-#     )
-# df_adscores2.cache()
-
-
-# Limit ad scores to within Division
-# TODO: Remove this restriction for cross-division targeting?
-# e.g. LP Sport, LP Brands, Homepage Teasers
-df_adscores_div = (
-    df_cust_div.join(
-        (df_adscores
-         .join(df_ads.select("UniqueAdID", "Division"),
-               on="UniqueAdID")),
-        on=["AccountNumber", "Division"]
-    )
-)
-# TODO: Tidy this bit up - Add to function above?
-df_adscores_div = (
-    df_adscores_div
-    .withColumnRenamed("ScoreSubMean", "Score")
-    .drop("ScoreRaw", "ScoreZ")
-)
-
-
 log.info("Assigning Best Ads")
 # Determine Best Ad for each customer
-df_ads_best = assign_best_ads(df_adscores_div)
+
+# Iterate by Division - customer should receive best ad within Division
+divs = [row[0] for row in df_ads.select("Division").distinct().collect()]
+
+df_ads_best_div_list = []
+for div in divs:
+    # Get i division's ads
+    df_ads_i = (
+        df_ads
+        .select("UniqueAdID", "TargetingCriteria")
+        .where(F.col("Division") == div)
+    )
+
+    # Get i division's customers
+    df_cust_i = (
+        df_cust_div
+        .where(F.col("Division") == div)
+        .select("AccountNumber")
+    )
+
+    # Assign best Ad within Division
+    df_ads_best_i = (
+        assign_best_ads(
+            df_ads=df_ads_i,
+            df_cust=df_cust_i,
+            targeting_scores_table=TARGETING_SCORES_TABLE,
+            scale_fn=subtract_mean,
+            scale_partition=["TargetingCriteria"]
+            )
+        .join(df_cust_div.where("Division" == div), on="AccountNumber")
+        .drop("Division")
+    )
+    df_ads_best_div_list.append(df_ads_best_i)
+
+# Combine division runs into single df
+df_ads_best = df_ads_best_div_list.pop()
+for df_ads_best_div in df_ads_best_div_list:
+    df_ads_best = df_ads_best.union(df_ads_best_div)
+
 # Append MASID to each Ad
 df_ads_best = df_ads_best.join(df_ad_masid, on="UniqueAdID")
 
@@ -274,6 +265,5 @@ delete_from_and_load(df_assigned_ads,
                      del_where={"Location": f"'{LOCATION}'"})
 
 df_cust_div.unpersist()
-df_adscores.unpersist()
 df_ads_best.unpersist()
 df_assigned_ads.unpersist()

@@ -416,8 +416,9 @@ def assign_random_ads(
 def assign_best_ads(
         df_ads: DataFrame,
         targeting_scores_table: str,
+        df_cust: DataFrame = None,
         scale_fn: callable = None,
-        scale_partition: str = None,
+        scale_partition: list[str] = [],
         return_ranks: list = [1],
         tie_breaker: str = ""
         ) -> DataFrame:
@@ -446,11 +447,16 @@ def assign_best_ads(
               how="inner")
     )
 
+    if df_cust:
+        df_adscores = df_adscores.join(df_cust,
+                                       on="AccountNumber",
+                                       how="inner")
+
     df_adscores = (
         df_adscores
-        .withColumn("ScoreSubMean",
+        .withColumn("TargetingScoreScaled",
                     scale_fn(F.col("TargetingScore"),
-                             scale_partition=scale_partition))
+                             partition_by=scale_partition))
         )
     assert_pk(df_adscores,
               ["AccountNumber", "UniqueAdID", "TargetingCriteria"])
