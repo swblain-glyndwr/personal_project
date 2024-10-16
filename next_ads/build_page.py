@@ -25,6 +25,13 @@ with open("config/parameters.json") as f:
     prm = json.load(f)
 
 
+# Constants
+DIVISION_ASSIGNMENTS_DICT = rsc["files"]["div_assignment"]
+TARGETING_SCORES_TABLE = rsc["tables"]["targeting_scores"]
+CELL_ASSIGNMENT_FILE = rsc["files"]["cell_assignment"]
+ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
+ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
+
 # Set Location for run
 # If valid location not specified via sys.argv (run as job),
 # will take hardcoded Location (useful for interactive debugging)
@@ -79,12 +86,12 @@ df_ad_masid = (
 # TODO: Replace separate files with single table
 log.info("Gathering Division assignments")
 div_asgn_list = []
-for div_k in rsc["files"]["div_assignment"].keys():
+for div_k in DIVISION_ASSIGNMENTS_DICT.keys():
 
     df_div = (
         get_spark()
         .read.format("delta")
-        .load(rsc["files"]["div_assignment"][div_k])
+        .load(DIVISION_ASSIGNMENTS_DICT[div_k])
         .select("account_number")
         .withColumnRenamed("account_number", "AccountNumber")
         .withColumn("Division", F.lit(div_k))
@@ -111,11 +118,10 @@ df_ads_rdm = df_ads_rdm.join(df_ad_masid, on="UniqueAdID")
 
 
 # Assign propensity scores to Ads (irrespective of Division)
-# df_adscores = get_spark().table(rsc["tables"]["scored_ads_latest"])
 df_adscores = assign_scores_to_entity(
     df_ads.select("UniqueAdID", "Models", "ModelCombination"),
     entity_col="UniqueAdID",
-    model_score_table=rsc["tables"]["model_scores_latest"],
+    model_score_table=TARGETING_SCORES_TABLE,
     patch_model_refs=True
     )
 
@@ -185,7 +191,7 @@ else:
 df_cell = (
         get_spark()
         .read.format("delta")
-        .load(rsc["files"]["cell_assignment"])
+        .load(CELL_ASSIGNMENT_FILE)
         .select("account_number",
                 test_col,
                 "random_var1")
@@ -249,19 +255,19 @@ df_assigned_ads = (
 df_assigned_ads.cache()
 
 # Load output into assignments table
-target_table = rsc["tables"]["assignments"]
-target_table_latest = rsc["tables"]["assignments_latest"]
+ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
+ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
 
-log.info(f"Loading output to {target_table}")
+log.info(f"Loading output to {ASSIGNMENTS_TABLE}")
 delete_from_and_load(df_assigned_ads,
-                     target_table,
+                     ASSIGNMENTS_TABLE,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
-log.info(f"Loading output to {target_table_latest}")
+log.info(f"Loading output to {ASSIGNMENTS_TABLE_LATEST}")
 delete_from_and_load(df_assigned_ads,
-                     target_table_latest,
+                     ASSIGNMENTS_TABLE_LATEST,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
 
