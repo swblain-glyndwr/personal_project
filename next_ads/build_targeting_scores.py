@@ -34,3 +34,5 @@ df_ms_agg.cache()
 create_or_replace(df_ms_agg,
                   table=TARGETING_SCORES_TABLE,
                   pk_cols=["AccountNumber", "TargetingCriteria"])
+
+df_ms_agg.unpersist()
