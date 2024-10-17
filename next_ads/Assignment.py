@@ -17,8 +17,7 @@ def assign_random_ads(
         df_cust_grp - PySpark dataframe with cols ("AccountNumber", grp_col)
         grp_col - column reference to group (partition) by (e.g. "Division")
     Returns:
-        Dataframe with Ads assigned randomly and uniformly
-        to customers within-group
+        Dataframe - Ads assigned randomly (uniform) to customers within-group
     """
     # TODO: Generalise function to assign_random_entity?
 
