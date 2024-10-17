@@ -187,7 +187,7 @@ df_assignments = (
            .withColumnRenamed("MASID", "RandomMASID")
            .withColumnRenamed("UniqueAdID", "RandomUniqueAdID")),
           on="AccountNumber",
-          how="inner")
+          how="left")
     .join((df_assigned_best
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "BestMASID")
