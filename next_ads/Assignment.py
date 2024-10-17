@@ -2,7 +2,7 @@ from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import assert_pk
-from typing import Callable
+from collections.abc import Callable
 from next_ads.Scoring import append_targeting_criteria
 
 
