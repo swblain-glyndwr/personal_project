@@ -1,7 +1,7 @@
 import json
 from pyspark.sql import functions as F
 from AdRetrieval import get_latest_ads
-from Assignment import aggregate_model_scores
+from Scoring import aggregate_model_scores
 from next_ads.utils.etl import create_or_replace
 
 

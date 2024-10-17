@@ -13,11 +13,10 @@ import sys
 from next_ads.utils.columnscalers import subtract_mean
 
 
-# Configure logging
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
-# Configure run
+
 log.info("Configuring run")
 with open("config/resources.json") as f:
     rsc = json.load(f)
@@ -25,36 +24,29 @@ with open("config/parameters.json") as f:
     prm = json.load(f)
 
 
-# Constants
-DIVISION_ASSIGNMENTS_DICT = rsc["files"]["div_assignment"]
+DIVISION_ASSIGNMENTS = rsc["files"]["div_assignment"]
 TARGETING_SCORES_TABLE = rsc["tables"]["targeting_scores"]
 CELL_ASSIGNMENT_FILE = rsc["files"]["cell_assignment"]
 ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
 ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
-VALID_LOCATIONS = prm["locations"].keys()
+VALID_LOCATIONS = set(prm["locations"].keys())
 
 
-# Set Location for run
-# If valid location not specified via sys.argv (run as job),
-# will take hardcoded Location (useful for interactive debugging)
-loc_args = list(set(VALID_LOCATIONS).intersection(set(sys.argv)))
+requested_locations = list(VALID_LOCATIONS.intersection(set(sys.argv)))
 
-if len(loc_args) > 1:
-    raise Exception(f"More than one Location specified: {loc_args}")
-elif len(loc_args) == 1:
-    LOCATION = loc_args[0]
+if len(requested_locations) > 1:
+    raise Exception(f"More than one Location requested: {requested_locations}")
+elif len(requested_locations) == 1:
+    LOCATION = requested_locations[0]
 else:
     LOCATION = "HN1"  # For interactive debugging
 
 log.info(f"Assigning Ads for Location: {LOCATION}")
-
-
-# Temp fix while underperforming only works for HN1
 if LOCATION == "HN1":
     filter_underperf = True
 else:
     filter_underperf = False
-# TODO: Sort out results files and underperforming for other locations
+# TODO: Remove once config can point to results for other locations
 
 
 # Get Ad data
@@ -82,18 +74,17 @@ df_ad_masid = (
     .drop("Location", "MASIDToken")
     .distinct()
 )
+# TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
-
-# Get division assignments as one dataframe
 # TODO: Replace separate files with single table
 log.info("Gathering Division assignments")
 div_asgn_list = []
-for div_k in DIVISION_ASSIGNMENTS_DICT.keys():
+for div_k in DIVISION_ASSIGNMENTS.keys():
 
     df_div = (
         get_spark()
         .read.format("delta")
-        .load(DIVISION_ASSIGNMENTS_DICT[div_k])
+        .load(DIVISION_ASSIGNMENTS[div_k])
         .select("account_number")
         .withColumnRenamed("account_number", "AccountNumber")
         .withColumn("Division", F.lit(div_k))
@@ -108,77 +99,67 @@ for df_asgn in div_asgn_list:
 df_cust_div.cache()
 
 
-# Determine Random (within Division) Ad for each customer
 log.info("Assigning Random Ads by Division")
 df_ads_rdm = assign_random_ads(
     df_ads.select("UniqueAdID", "Division"),
     df_cust_div,
     grp_col="Division"
     )
-# Append MASID to each Ad
 df_ads_rdm = df_ads_rdm.join(df_ad_masid, on="UniqueAdID")
 
 
 log.info("Assigning Best Ads")
-# Determine Best Ad for each customer
-
 # Iterate by Division - customer should receive best ad within Division
 divs = [row[0] for row in df_ads.select("Division").distinct().collect()]
-
 df_ads_best_div_list = []
+
 for div in divs:
-    # Get i division's ads
-    df_ads_i = (
+
+    df_ads_d = (
         df_ads
+        .where(F.col("Division") == div)
         .select("UniqueAdID", "Models", "ModelCombination")
         .where(F.col("Models").isNotNull())
         .fillna({"ModelCombination": "and"})
-        .where(F.col("Division") == div)
     )
     # TODO: Remove force "and" for combination
 
-    # Get i division's customers
-    df_cust_i = (
+    df_cust_d = (
         df_cust_div
         .where(F.col("Division") == div)
         .select("AccountNumber")
     )
+    # TODO: Some division customers may not have relevant scores - capture?
 
-    # Assign best Ad within Division
-    df_ads_best_i = (
+    df_ads_best_d = (
         assign_best_ads(
-            df_ads=df_ads_i,
-            df_cust=df_cust_i,
+            df_ads=df_ads_d,
+            df_cust=df_cust_d,
             targeting_scores_table=TARGETING_SCORES_TABLE,
-            scale_fn=subtract_mean,
-            scale_partition=["TargetingCriteria"]
+            score_scale_fn=subtract_mean
             )
-        .join(df_cust_div.where("Division" == div), on="AccountNumber")
+        .join(df_cust_div.where(F.col("Division") == div),
+              on="AccountNumber", how="inner")
         .drop("Division")
     )
-    df_ads_best_div_list.append(df_ads_best_i)
+    df_ads_best_div_list.append(df_ads_best_d)
 
-# Combine division runs into single df
 df_ads_best = df_ads_best_div_list.pop()
 for df_ads_best_div in df_ads_best_div_list:
     df_ads_best = df_ads_best.union(df_ads_best_div)
 
-# Append MASID to each Ad
 df_ads_best = df_ads_best.join(df_ad_masid, on="UniqueAdID")
 
 df_ads_best.cache()
 
 
-# Assign Best Ad for each customer (via "challenger" method)
-# When no challenger, challenger assignment == champion_assignment
+log.info("Assigning Best Ads (Challenger)")
 df_ads_best_chall = df_ads_best
 
 
-# Append to overall cell assignments
+log.info("Getting Cell assignments")
 # TODO: Make this generalisable - HPTest hardcoded as column
 # TODO: Dedicated Champion-Challenger column, instead of random_var1
-log.info("Getting Cell assignments")
-
 if LOCATION in ["HN1"]:
     test_col = "HPTest"
 else:
