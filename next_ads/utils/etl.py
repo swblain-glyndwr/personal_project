@@ -3,13 +3,12 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 import sys
 from next_ads.utils.dbc import get_spark
-from typing import Optional
 
 
 def build_spark_field(
         name: str,
         dtype: str,
-        null_str: Optional[str] = "null"
+        null_str: str = "null"
         ) -> StructField:
     """
     Builds Spark StructField from agnostic input.
@@ -75,8 +74,8 @@ def assert_pk(df: DataFrame, pk_cols: list):
 def delete_from_and_load(
         df: DataFrame,
         table: str,
-        pk_cols: Optional[list[str]],
-        del_where: Optional[dict]) -> None:
+        pk_cols: list[str] = [],
+        del_where: dict = {}) -> None:
     """
     Deletes from table where `rundate` is current date, then inserts df
     with `rundate` as current date.
@@ -120,7 +119,7 @@ def delete_from_and_load(
 def truncate_and_load(
         df: DataFrame,
         table: str,
-        pk_cols: Optional[list[str]]) -> None:
+        pk_cols: list[str] = []) -> None:
     """
     Truncates table and then inserts df into table with
     `rundate` as current date
@@ -154,7 +153,7 @@ def truncate_and_load(
 def create_or_replace(
         df: DataFrame,
         table: str,
-        pk_cols: list = [str]) -> None:
+        pk_cols: list[str] = []) -> None:
     """
     Drops table (if exists) then creates table and loads df with
     `rundate` as current date
