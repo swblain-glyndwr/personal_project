@@ -1,7 +1,7 @@
 create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest (
     AccountNumber string not null,
     Location string not null,
-    RandomUniqueAdID string not null,
+    RandomUniqueAdID string,
     RandomMASID string not null,
     BestUniqueAdID string,
     BestMASID string,
