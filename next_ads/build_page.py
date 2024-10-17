@@ -200,7 +200,7 @@ df_assignments = (
            .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChallenger")),
           on="AccountNumber",
           how="left")
-    .fillna({"RandomMASID": "{LOCATION}_N"})
+    .fillna({"RandomMASID": f"{LOCATION}_N"})
     .withColumn(
         "MASID",
         F.when(
