@@ -30,6 +30,8 @@ CELL_ASSIGNMENT_FILE = rsc["files"]["cell_assignment"]
 ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
 ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
 VALID_LOCATIONS = set(prm["locations"].keys())
+ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
+ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
 
 
 requested_locations = list(VALID_LOCATIONS.intersection(set(sys.argv)))
@@ -100,12 +102,12 @@ df_cust_div.cache()
 
 
 log.info("Assigning Random Ads by Division")
-df_ads_rdm = assign_random_ads(
+df_assigned_rdm = assign_random_ads(
     df_ads.select("UniqueAdID", "Division"),
     df_cust_div,
     grp_col="Division"
     )
-df_ads_rdm = df_ads_rdm.join(df_ad_masid, on="UniqueAdID")
+df_assigned_rdm = df_assigned_rdm.join(df_ad_masid, on="UniqueAdID")
 
 
 log.info("Assigning Best Ads")
@@ -144,17 +146,17 @@ for div in divs:
     )
     df_ads_best_div_list.append(df_ads_best_d)
 
-df_ads_best = df_ads_best_div_list.pop()
+df_assigned_best = df_ads_best_div_list.pop()
 for df_ads_best_div in df_ads_best_div_list:
-    df_ads_best = df_ads_best.union(df_ads_best_div)
+    df_assigned_best = df_assigned_best.union(df_ads_best_div)
 
-df_ads_best = df_ads_best.join(df_ad_masid, on="UniqueAdID")
+df_assigned_best = df_assigned_best.join(df_ad_masid, on="UniqueAdID")
 
-df_ads_best.cache()
+df_assigned_best.cache()
 
 
 log.info("Assigning Best Ads (Challenger)")
-df_ads_best_chall = df_ads_best
+df_assigned_best_challenger = df_assigned_best
 
 
 log.info("Getting Cell assignments")
@@ -176,26 +178,26 @@ df_cell = (
     )
 
 # Assign Random, Best etc. based on assigned cells
-# TODO: Create Champion-Challenger split in new overall control and div
+# TODO: Create dedicated Challenger split in overall_control_and_div
 log.info("Assigning MASID tokens based Targeting and Cells")
-df_assigned_ads = (
+df_assignments = (
     df_cell
-    .join((df_ads_rdm
+    .join((df_assigned_rdm
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "RandomMASID")
            .withColumnRenamed("UniqueAdID", "RandomUniqueAdID")),
           on="AccountNumber",
           how="inner")
-    .join((df_ads_best
+    .join((df_assigned_best
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "BestMASID")
            .withColumnRenamed("UniqueAdID", "BestUniqueAdID")),
           on="AccountNumber",
           how="left")
-    .join((df_ads_best_chall
+    .join((df_assigned_best_challenger
            .select("AccountNumber", "MASID", "UniqueAdID")
-           .withColumnRenamed("MASID", "BestMASIDChall")
-           .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChall")),
+           .withColumnRenamed("MASID", "BestMASIDChallenger")
+           .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChallenger")),
           on="AccountNumber",
           how="left")
     .withColumn(
@@ -210,7 +212,7 @@ df_assigned_ads = (
             (F.col(test_col) == "1: Personalised")
             & (F.col("random_var1") > 0.5)
             & (F.col("BestMASID").isNotNull()),
-            F.col("BestMASIDChall")
+            F.col("BestMASIDChallenger")
             )
         .when(F.col(test_col) == "2: Random", F.col("RandomMASID"))
         .when(F.col(test_col) == "3: No Banner", F.lit(f"{LOCATION}_C"))
@@ -224,30 +226,27 @@ df_assigned_ads = (
             "RandomMASID",
             "BestUniqueAdID",
             "BestMASID",
-            "BestUniqueAdIDChall",
-            "BestMASIDChall",
+            "BestUniqueAdIDChallenger",
+            "BestMASIDChallenger",
             "MASID"
             )
 )
-df_assigned_ads.cache()
+df_assignments.cache()
 
-# Load output into assignments table
-ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
-ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
 
 log.info(f"Loading output to {ASSIGNMENTS_TABLE}")
-delete_from_and_load(df_assigned_ads,
+delete_from_and_load(df_assignments,
                      ASSIGNMENTS_TABLE,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
 log.info(f"Loading output to {ASSIGNMENTS_TABLE_LATEST}")
-delete_from_and_load(df_assigned_ads,
+delete_from_and_load(df_assignments,
                      ASSIGNMENTS_TABLE_LATEST,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
 
 df_cust_div.unpersist()
-df_ads_best.unpersist()
-df_assigned_ads.unpersist()
+df_assigned_best.unpersist()
+df_assignments.unpersist()

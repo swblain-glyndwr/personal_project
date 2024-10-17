@@ -123,11 +123,17 @@ def assign_best_ads(
         df_adscores
         .withColumn("AdRank", F.rank().over(w))
         .where(F.col("AdRank").isin(return_ranks))
-        .drop("AdRank")
+        .select("AccountNumber",
+                "TargetingCriteria",
+                "TargetingScoreScaled",
+                "AdRank",
+                "UniqueAdID")
     )
 
     if tie_breaker:
-        # TODO: Tie breaker condition - e.g. ads with common TargetingCriteria
+        # TODO: Tie breaker condition
+        # e.g. ads with common TargetingCriteria
+        # utilise assign_random_ads within TargetingCriteria
         pass
 
     return df_return
