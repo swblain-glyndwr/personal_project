@@ -13,14 +13,14 @@ def get_underperforming_ads(
         location: str,
         t_threshold: float = -1.64) -> DataFrame:
     """
-    Gets underperforming Ads, as defined by the Ad's T-value.
+    Gets 'underperforming' Ads, as defined by the Ad's t-value.
 
     Args:
-        location -- A valid Nexts Ads location (MASID prefix, e.g. HN1)
-        t_threshold -- The T-value threshold for "underperforming"
+        location - A valid Nexts Ads location (MASID prefix, e.g. HN1)
+        t_threshold - The t-value threshold for "underperforming"
 
     Returns:
-        A dataframe with UniqueAdID and Division of underperforming Ads
+        Dataframe with UniqueAdID and Division of underperforming Ads
     """
     test_location = re.findall(r"^[a-zA-Z]{2,3}", location)[0]
 
@@ -48,25 +48,26 @@ def get_underperforming_ads(
 
 def get_latest_ads(location: str = "",
                    filter_underperforming: bool = False,
-                   **kwargs) -> DataFrame:
+                   t_threshold: float = None) -> DataFrame:
     """
     Gets Ads from `_latest` Control Sheet table for a given location.
     Optional filter underperforming with kwargs for customer t_threshold.
 
     Args:
-        location -- A valid Next Ads location (i.e. MASID prefix, e.g. HN1)
-        filter_underperforming -- Optional - Remove underperforming Ads.
-        **kwargs -- Optional - Pass through custom t_threshold for removal.
+        location - A valid Next Ads location (i.e. MASID prefix, e.g. HN1)
+        filter_underperforming - Remove 'underperforming' Ads
+        t_threshold - Custom t_threshold to define 'underperforming' ads
     """
     df = get_spark().table(rsc["tables"]["control_sheet_latest"])
 
     if location:
         df = df.where(F.col("Location") == location)
 
-    if filter_underperforming:
-        df = (
-            df.join(get_underperforming_ads(location, **kwargs),
-                    on="UniqueAdID", how="leftanti")
-        )
-
-    return df
+    if filter_underperforming and t_threshold:
+        return (df.join(get_underperforming_ads(location, t_threshold),
+                        on="UniqueAdID", how="leftanti"))
+    elif filter_underperforming:
+        return (df.join(get_underperforming_ads(location),
+                        on="UniqueAdID", how="leftanti"))
+    else:
+        return df
