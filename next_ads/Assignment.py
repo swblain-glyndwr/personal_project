@@ -3,7 +3,6 @@ from pyspark.sql import functions as F
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import assert_pk
 from collections.abc import Callable
-from next_ads.Scoring import append_targeting_criteria
 
 
 def assign_random_ads(
@@ -86,13 +85,12 @@ def assign_best_ads(
     """
 
     df_adscores = (
-        append_targeting_criteria(df_ads)
+        df_ads
         .select("UniqueAdID", "TargetingCriteria")
         .join(get_spark().table(targeting_scores_table),
               on="TargetingCriteria",
               how="inner")
     )
-    # TODO: Move TargetingCriteria generation to load_control_sheet
 
     if df_cust:
         df_adscores = df_adscores.join(df_cust,
