@@ -15,6 +15,7 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet (
   EndDate date,
   Models string,
   ModelCombination string,
+  TargetingCriteria string,
   URL string,
   ProductURLs string,
   Items string,
@@ -37,7 +38,6 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet (
   MobileImage string,
   FlatJPG string,
   Tags string,
-  TargetingCriteria string,
   rundate date not null,
   constraint pk_ad_location_date primary key (UniqueAdID, Location, rundate)
 )
