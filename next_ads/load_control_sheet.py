@@ -5,7 +5,9 @@ from next_ads.Scoring import append_targeting_criteria
 import next_ads.utils.gcp as gcp
 import json
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import assert_pk, delete_from_and_load
+from next_ads.utils.etl import (assert_pk,
+                                create_or_replace,
+                                delete_from_and_load)
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -110,7 +112,7 @@ target_cols = (
     .drop("rundate")
     ).columns
 
-# Safeguard in case additional columns have been added to gsheet
+
 if set(target_cols) == set(df_processed.columns):
     log.info("Control Sheet columns match Target table columns")
 elif set(target_cols).issubset(set(df_processed.columns)):
@@ -122,9 +124,6 @@ else:
     raise Exception("Target table cols not a subset of Control Sheet cols")
 
 
-# Create Temp View, Delete current rundate and Insert
-df_processed.createOrReplaceTempView("df_output")
-
 log.info(f"Loading output to {TARGET_TABLE}")
 delete_from_and_load(df_processed,
                      TARGET_TABLE,
@@ -132,6 +131,6 @@ delete_from_and_load(df_processed,
                      del_where={"rundate": "current_date()"})
 
 log.info(f"Loading output to {TARGET_TABLE_LATEST}")
-delete_from_and_load(df_processed,
-                     TARGET_TABLE_LATEST,
-                     pk_cols=["UniqueAdID", "Location"])
+create_or_replace(df_processed,
+                  TARGET_TABLE_LATEST,
+                  pk_cols=["UniqueAdID", "Location"])
