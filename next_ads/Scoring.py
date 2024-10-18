@@ -99,6 +99,9 @@ def aggregate_model_scores(
         Dataframe with cols: AccountNumber, TargetingCriteria, TargetingScore
     """
 
+    # TODO: ModelCombination forced to "and" until "or" functionality is built
+    df = df.withColumn("ModelCombination", F.lit("and"))
+
     split_col_comma = F.split(F.col("Models"), r",+\s*")
     max_models_assigned = (
         df
