@@ -1,22 +1,21 @@
 import logging
 import logging.config
 import pyspark.sql.functions as F
+from next_ads.Scoring import append_targeting_criteria
 import next_ads.utils.gcp as gcp
 import json
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import delete_from_and_load
+from next_ads.utils.etl import assert_pk, delete_from_and_load
 
 
-# Configure logging
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
 
-# Parameters
 log.info("Configuring run")
 with open("config/parameters.json") as f:
     prm = json.load(f)
-# Resources
+
 with open("config/resources.json") as f:
     rsc = json.load(f)
 
@@ -26,83 +25,83 @@ TARGET_TABLE = rsc["tables"]["write"]["control_sheet"]
 TARGET_TABLE_LATEST = rsc["tables"]["write"]["control_sheet_latest"]
 
 
-# Get valid locations from page keys in resources file
 log.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
-
-# Read schema and append valid locations
 
 for v in VALID_LOCATIONS:
     CONTROL_SHEET["read_schema"].append([v, "string", "null"])
 
-# Import control sheet
+
 log.info("Reading Control Sheet from Google Sheets")
+
 df_ctrl_raw = gcp.spark_df_from_sheets(
     url=CONTROL_SHEET["url"],
     worksheet_name=CONTROL_SHEET["sheet"],
     schema=CONTROL_SHEET["read_schema"]
     )
 
+
 log.info("Processing Control Sheet")
-# Remove Ads without a UniqueAdID and those not Active
-df_ctrl_filtered = (
+
+df_ctrl_active = (
     df_ctrl_raw
     .where(F.col("UniqueAdID") != "")
     .where(F.col("Status") == "Active")
     .drop("Status")
 )
-log.info(f"Active Ads: {df_ctrl_filtered.count():,}")
+log.info(f"Active Ads: {df_ctrl_active.count():,}")
 
-# Apply legacy corercion of Item codes to upper case and replace("-","")
-df_ctrl_filtered = df_ctrl_filtered.withColumn(
+# Legacy corercion of item codes to upper case and replace("-","")
+df_ctrl_active = df_ctrl_active.withColumn(
     "Items",
     F.regexp_replace(F.upper(F.col("Items")), "-", "")
 )
 
-
-# Melt Locations and filter out 'FALSE' permutations to get unique ID-Location
+# Primary Key (UniqueAdID, Location)
 df_id_loc = (
-    df_ctrl_filtered
-    .unpivot("UniqueAdID", VALID_LOCATIONS, "Location", "Requested")
+    df_ctrl_active
+    .unpivot(ids="UniqueAdID",
+             values=VALID_LOCATIONS,
+             variableColumnName="Location",
+             valueColumnName="Requested")
     .where(F.col("Requested") == "TRUE")
     .drop_duplicates()
     .drop("Requested")
 )
-# TODO: Warn Ads team if duplciates found in Input
-distinct_locations = df_id_loc.select('Location').distinct().count()
-log.info(f"Active Locations: {distinct_locations:,}")
+# TODO: Warn Ads team if duplciates found in Input?
+active_locs = set([row[0] for row in df_id_loc.select('Location').collect()])
+log.info(f"Active Locations: {len(active_locs):,} {active_locs}")
 log.info(f"Active Ad-Locations: {df_id_loc.count():,}")
 
-# Exclude Location toggle columns and clean up df
+
 df_ad_attributes = (
-    df_ctrl_filtered
+    df_ctrl_active
     .drop(*VALID_LOCATIONS)
     .drop_duplicates()
     .replace("", None)
 )
 
-# Cast date columns to date type
+
 for date_col in ["StartDate", "EndDate"]:
     df_ad_attributes = df_ad_attributes.withColumn(
         date_col, F.to_date(F.col(date_col), "dd/MM/yyyy")
     )
 
-# Combine primary key columns with Ad attributes
+
 df_processed = (
     df_id_loc
     .join(df_ad_attributes, on="UniqueAdID", how="left")
 )
-
-
-# Checks
-log.info("Running checks")
-rows = df_processed.count()
-rows_pk = (
+df_processed = (
     df_processed
-    .select("UniqueAdID", "Location")
-    .drop_duplicates()
-    .count()
-    )
-assert rows == rows_pk, "Duplicate (UniqueAdID, Locations) found"
+    .fillna({"ModelCombination": "and"})
+    .withColumn("ModelCombination",
+                F.when(F.col("Models").isNull(),
+                       F.lit(None)).otherwise(F.col("ModelCombination")))
+)
+df_processed = append_targeting_criteria(df_processed)
+
+log.info("Validating input")
+assert_pk(df_processed, ["UniqueAdID", "Location"])
 
 
 target_cols = (

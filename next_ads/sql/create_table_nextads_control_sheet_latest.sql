@@ -1,4 +1,4 @@
-create table marketingdata_prod.ds_sandbox.nextadscontrolsheet (
+create table marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet_latest (
   UniqueAdID string not null,
   PotNumber string not null,
   CampaignNumber string,
@@ -37,7 +37,8 @@ create table marketingdata_prod.ds_sandbox.nextadscontrolsheet (
   MobileImage string,
   FlatJPG string,
   Tags string,
+  TargetingCriteria string,
   rundate date not null,
-  constraint pk_ad_location_date primary key (UniqueAdID, Location, rundate)
+  constraint pk_ad_location_date_latest primary key (UniqueAdID, Location, rundate)
 )
-partitioned by (rundate)
+partitioned by (Location)
