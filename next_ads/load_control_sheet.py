@@ -125,12 +125,12 @@ else:
 
 
 log.info(f"Loading output to {TARGET_TABLE}")
-delete_from_and_load(df_processed,
+delete_from_and_load(df_processed.select(*target_cols),
                      TARGET_TABLE,
                      pk_cols=["UniqueAdID", "Location"],
                      del_where={"rundate": "current_date()"})
 
 log.info(f"Loading output to {TARGET_TABLE_LATEST}")
-create_or_replace(df_processed,
+create_or_replace(df_processed.select(*target_cols),
                   TARGET_TABLE_LATEST,
                   pk_cols=["UniqueAdID", "Location"])
