@@ -9,6 +9,10 @@ with open("config/resources.json") as f:
     rsc = json.load(f)
 
 
+CONTROL_SHEET_LATEST = rsc["tables"]["write"]["control_sheet_latest"]
+RESULTS_FILES = rsc["files"]["results"]
+
+
 def get_underperforming_ads(
         location: str,
         t_threshold: float = -1.64) -> DataFrame:
@@ -30,7 +34,7 @@ def get_underperforming_ads(
     df = (
         get_spark()
         .read.format("delta")
-        .load(rsc["files"]["results"][test_location])
+        .load(RESULTS_FILES[test_location])
         .filter(F.col("t_RPS_targetted_div_random_ad") <= t_threshold)
         .select("ID", "Division", "FirstShown_targeted_div")
         .withColumn("UniqueAdID",
@@ -58,7 +62,7 @@ def get_latest_ads(location: str = "",
         filter_underperforming - Remove 'underperforming' Ads
         t_threshold - Custom t_threshold to define 'underperforming' ads
     """
-    df = get_spark().table(rsc["tables"]["control_sheet_latest"])
+    df = get_spark().table(CONTROL_SHEET_LATEST)
 
     if location:
         df = df.where(F.col("Location") == location)

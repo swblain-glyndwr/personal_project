@@ -15,13 +15,12 @@ Within the scope of the **next-ads** code:
 3. Assign each customer their 'best' Division, i.e. that for which they have the highest score
 4. Calculate a score for each customer based on the targeting criteria assigned to each active ad
 5. For each page, assign an ad for each customer, that is either a **Random**\* ad, or their **Personalised** ad (depending on the measurement cell), and output the corresonding code for the respective element of the MASID (e.g. `HN1_AABB`)
-
-*Results? In scope of this repo or other?*
+6. *Results? In scope of this repo?*
 
 \* Random assignment is is not truly random, it is random within a customer's 'best' Division, so could be thought of as naive targeting.
 
 # Key Terms and Concepts
-- `UniqueAdID` - []
+- `UniqueAdID` - This is unique for every Ad. A `UniqueAdID` has one or more `MASID suffixes`
 - `Location` - MASID slot prefix (e.g. "HN1") (change to `Placement` to avoid protected word in SQL?)
 - `Models`: The models to use for targeting (convention: *"model_ref_1, model_ref_2,... model_ref_n"*)
 - `ModelCombination`: An operator that describes how the models should be combined (convention: *"operator"* - N.B. only *"and"* currently supported, planned development of *"or"*, *"max"*, *"mean"*)

@@ -8,8 +8,8 @@ with open("../next_ads/config/resources.json") as f:
     rsc = json.load(f)
 
 # TODO: Refactor resources.json so line below isn't necessary
-tbls = rsc["tables"]
-tbl_list = list(tbls.values())
+TABLES_READ = rsc["tables"]["read"]
+TABLES_WRITE = rsc["tables"]["read"]
 
 
 @pytest.fixture
@@ -23,11 +23,11 @@ def spark() -> SparkSession:
 
 
 def test_tables_exist(spark):
-    for tbl in tbls:
-        assert spark.catalog.tableExists(tbls[tbl])
+    for table in TABLES_READ:
+        assert spark.catalog.tableExists(TABLES_READ[table])
 
 
 # Test negative case
 # def test_tables_exist2(spark):
-#     for tbl in tbls:
-#         assert not spark.catalog.tableExists(tbls[tbl])
+#     for table in TABLES:
+#         assert not spark.catalog.tableExists(TABLES[table])

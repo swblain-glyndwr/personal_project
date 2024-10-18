@@ -25,13 +25,11 @@ with open("config/parameters.json") as f:
 
 
 DIVISION_ASSIGNMENTS = rsc["files"]["div_assignment"]
-TARGETING_SCORES_TABLE = rsc["tables"]["targeting_scores"]
 CELL_ASSIGNMENT_FILE = rsc["files"]["cell_assignment"]
-ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
-ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
+TARGETING_SCORES_TABLE = rsc["tables"]["write"]["targeting_scores_latest"]
+ASSIGNMENTS_TABLE = rsc["tables"]["write"]["assignments"]
+ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["write"]["assignments_latest"]
 VALID_LOCATIONS = set(prm["locations"].keys())
-ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
-ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
 
 
 requested_locations = list(VALID_LOCATIONS.intersection(set(sys.argv)))

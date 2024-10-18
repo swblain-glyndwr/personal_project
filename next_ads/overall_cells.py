@@ -17,17 +17,27 @@ with open("config/resources.json") as f:
 with open("config/parameters.json") as f:
     prm = json.load(f)
 
+RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
+MODEL_SCORES_LATEST = rsc["tables"]["read"]["model_scores_latest"]
+
+LEGACY_EXCL = rsc["legacy"]["account_exclusions"]
+
+FALLOW_PC = prm["fallow_control"]["proportion"]
+FALLOW_SEED = prm["fallow_control"]["seed"]
+TEST_LOCATIONS = prm["test_locations"]
+CHALLENGER_PC = prm["challenger"]["proportion"]
+CHALLENGER_SEED = prm["challenger"]["seed"]
+
 
 # GET CUSTOMER BASE
 # Read in RPID with Accounts
 # Query inherited from Gill's script
 # TODO: Should we take lastest updated record to de-dup instead?
-legacy_excl = rsc["legacy"]["account_exclusions"]
 df_rpid_w_acc = (
         get_spark()
-        .table(rsc["tables"]["rpid_with_accounts"])
+        .table(RPID_WITH_ACCOUNTS)
         .select("account_number", "roamingprofileid")
-        .where(~F.col("account_number").isin(legacy_excl))
+        .where(~F.col("account_number").isin(LEGACY_EXCL))
         .distinct()
 )
 
@@ -57,21 +67,20 @@ n_cust = df_cust.count()
 
 # Fallow assignment
 # OrderBy first for deterministic
-fallow_pc = prm["fallow_control"]["proportion"]
-fallow_seed = prm["fallow_control"]["seed"]
+
 df_fallow = (
     df_cust
     .orderBy(F.col("AccountNumber"))
-    .withColumn("RandomFallow", F.rand(seed=fallow_seed))
-    .withColumn("FallowControl", F.col("RandomFallow") <= fallow_pc)
+    .withColumn("RandomFallow", F.rand(seed=FALLOW_SEED))
+    .withColumn("FallowControl", F.col("RandomFallow") <= FALLOW_PC)
     )
 n_cust_fallow = df_fallow.where(F.col("FallowControl")).count()
 # TODO: Check/calibrate spend per customer of fallow and test group?
 
 
 # Get macro locations and seeds
-test_locs = list(prm["test_locations"].keys())
-test_loc_seeds = {k: prm["test_locations"][k]["seed"] for k in test_locs}
+test_locs = list(TEST_LOCATIONS.keys())
+test_loc_seeds = {k: TEST_LOCATIONS[k]["seed"] for k in test_locs}
 
 # Convert to dataframe
 schema = build_spark_schema([["MacroLocation", "string", "not null"]])
@@ -93,7 +102,7 @@ for test_loc in test_locs:
 # Build case-when to map cell references
 test_loc_cell_assignments = []
 for test_loc in test_locs:
-    cells = prm["test_locations"][test_loc]["cells"]
+    cells = TEST_LOCATIONS[test_loc]["cells"]
     when_strs = []
     for cell in cells:
         when_str = f"when Random{test_loc} <= {cell[0]} then '{cell[1]}'"
@@ -118,13 +127,10 @@ df_test_cells = (
 )
 
 # Champion-Challenger assignment
-challenger_pc = prm["challenger"]["proportion"]
-challenger_seed = prm["challenger"]["seed"]
-# challenger_application = prm["challenger"]["apply_to"]
 df_test_cells_champ = (
     df_test_cells
-    .withColumn("RandomChallenger", F.rand(seed=challenger_seed))
-    .withColumn("Challenger", F.col("RandomChallenger") <= challenger_pc)
+    .withColumn("RandomChallenger", F.rand(seed=CHALLENGER_SEED))
+    .withColumn("Challenger", F.col("RandomChallenger") <= CHALLENGER_PC)
     )
 
 df_test_ctrl = (
@@ -156,7 +162,7 @@ df_div = (
 df_div_scores = assign_scores_to_entity(
     df_div,
     entity_col="Division",
-    model_score_table=rsc["tables"]["model_scores_latest"],
+    model_score_table=MODEL_SCORES_LATEST,
     patch_model_refs=False
     )
 

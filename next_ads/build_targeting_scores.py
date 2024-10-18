@@ -9,8 +9,8 @@ with open("config/resources.json") as f:
     rsc = json.load(f)
 
 
-MODEL_SCORE_TABLE = rsc["tables"]["model_scores_latest"]
-TARGETING_SCORES_TABLE = rsc["tables"]["targeting_scores"]
+MODEL_SCORE_TABLE = rsc["tables"]["read"]["model_scores_latest"]
+TARGETING_SCORES_TABLE = rsc["tables"]["write"]["targeting_scores_latest"]
 
 
 df_scores_required = (

@@ -44,17 +44,20 @@
         ]
     },
     "tables": {
-        "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
-        "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
-        "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-        "control_sheet": "marketingdata_prod.warehouse.nextadscontrolsheetv2",
-        "control_sheet_latest": "marketingdata_prod.warehouse.nextadscontrolsheetv2_latest",
-        "targeting_scores": "marketingdata_prod.ds_sandbox.next_uk_nextads_targeting_scores",
-        "overall_control_and_division": "",
-        "scored_divisions_latest": "",
-        "scored_ads_latest": "",
-        "assignments": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments",
-        "assignments_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest"
+        "read": {
+            "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
+            "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
+            "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest"
+        },
+        "write": {
+            "control_sheet": "marketingdata_prod.warehouse.nextadscontrolsheetv2",
+            "control_sheet_latest": "marketingdata_prod.warehouse.nextadscontrolsheetv2_latest",
+            "targeting_scores_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_targeting_scores_latest",
+            "overall_cells": "",
+            "scored_divisions_latest": "",
+            "assignments": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments",
+            "assignments_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest"
+        }
     },
     "files": {
         "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V4_SEP24_BKUP",

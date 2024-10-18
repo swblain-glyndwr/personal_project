@@ -11,6 +11,7 @@ from next_ads.utils.etl import delete_from_and_load
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
+
 # Parameters
 log.info("Configuring run")
 with open("config/parameters.json") as f:
@@ -19,21 +20,26 @@ with open("config/parameters.json") as f:
 with open("config/resources.json") as f:
     rsc = json.load(f)
 
+VALID_LOCATIONS = list(prm["locations"].keys())
+CONTROL_SHEET = rsc["control_sheet"]
+TARGET_TABLE = rsc["tables"]["write"]["control_sheet"]
+TARGET_TABLE_LATEST = rsc["tables"]["write"]["control_sheet_latest"]
+
+
 # Get valid locations from page keys in resources file
-valid_locations = list(prm["pages"].keys())
-log.info(f"Valid locations: {' '.join(valid_locations)}")
+log.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
 
 # Read schema and append valid locations
-import_schema = rsc["control_sheet"]["read_schema"]
-for v in valid_locations:
-    import_schema.append([v, "string", "null"])
+
+for v in VALID_LOCATIONS:
+    CONTROL_SHEET["read_schema"].append([v, "string", "null"])
 
 # Import control sheet
 log.info("Reading Control Sheet from Google Sheets")
 df_ctrl_raw = gcp.spark_df_from_sheets(
-    url=rsc["control_sheet"]["url"],
-    worksheet_name=rsc["control_sheet"]["sheet"],
-    schema=import_schema
+    url=CONTROL_SHEET["url"],
+    worksheet_name=CONTROL_SHEET["sheet"],
+    schema=CONTROL_SHEET["read_schema"]
     )
 
 log.info("Processing Control Sheet")
@@ -56,7 +62,7 @@ df_ctrl_filtered = df_ctrl_filtered.withColumn(
 # Melt Locations and filter out 'FALSE' permutations to get unique ID-Location
 df_id_loc = (
     df_ctrl_filtered
-    .unpivot("UniqueAdID", valid_locations, "Location", "Requested")
+    .unpivot("UniqueAdID", VALID_LOCATIONS, "Location", "Requested")
     .where(F.col("Requested") == "TRUE")
     .drop_duplicates()
     .drop("Requested")
@@ -69,7 +75,7 @@ log.info(f"Active Ad-Locations: {df_id_loc.count():,}")
 # Exclude Location toggle columns and clean up df
 df_ad_attributes = (
     df_ctrl_filtered
-    .drop(*valid_locations)
+    .drop(*VALID_LOCATIONS)
     .drop_duplicates()
     .replace("", None)
 )
@@ -98,12 +104,10 @@ rows_pk = (
     )
 assert rows == rows_pk, "Duplicate (UniqueAdID, Locations) found"
 
-target_table = rsc["tables"]["control_sheet"]
-target_table_latest = rsc["tables"]["control_sheet_latest"]
 
 target_cols = (
     get_spark()
-    .table(target_table)
+    .table(TARGET_TABLE)
     .drop("rundate")
     ).columns
 
@@ -122,13 +126,13 @@ else:
 # Create Temp View, Delete current rundate and Insert
 df_processed.createOrReplaceTempView("df_output")
 
-log.info(f"Loading output to {target_table}")
+log.info(f"Loading output to {TARGET_TABLE}")
 delete_from_and_load(df_processed,
-                     target_table,
+                     TARGET_TABLE,
                      pk_cols=["UniqueAdID", "Location"],
                      del_where={"rundate": "current_date()"})
 
-log.info(f"Loading output to {target_table_latest}")
+log.info(f"Loading output to {TARGET_TABLE_LATEST}")
 delete_from_and_load(df_processed,
-                     target_table_latest,
+                     TARGET_TABLE_LATEST,
                      pk_cols=["UniqueAdID", "Location"])
