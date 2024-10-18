@@ -40,4 +40,4 @@ create table marketingdata_prod.ds_sandbox.nextadscontrolsheet_latest (
   rundate date not null,
   constraint pk_ad_location_date_latest primary key (UniqueAdID, Location, rundate)
 )
-partitioned by (rundate)
+partitioned by (Location)

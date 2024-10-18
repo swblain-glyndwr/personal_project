@@ -4,20 +4,19 @@ import json
 from AdRetrieval import get_latest_ads
 from next_ads.Assignment import (
     assign_random_ads,
-    assign_best_ads,
-    assign_scores_to_entity
+    assign_best_ads
     )
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import delete_from_and_load
 from pyspark.sql import functions as F
 import sys
+from next_ads.utils.columnscalers import subtract_mean
 
 
-# Configure logging
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
-# Configure run
+
 log.info("Configuring run")
 with open("config/resources.json") as f:
     rsc = json.load(f)
@@ -25,43 +24,45 @@ with open("config/parameters.json") as f:
     prm = json.load(f)
 
 
-# Set Location for run
-# If valid location not specified via sys.argv (run as job),
-# will take hardcoded Location (useful for interactive debugging)
-loc_args = list(set(prm["locations"].keys()).intersection(set(sys.argv)))
+DIVISION_ASSIGNMENTS = rsc["files"]["div_assignment"]
+TARGETING_SCORES_TABLE = rsc["tables"]["targeting_scores"]
+CELL_ASSIGNMENT_FILE = rsc["files"]["cell_assignment"]
+ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
+ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
+VALID_LOCATIONS = set(prm["locations"].keys())
+ASSIGNMENTS_TABLE = rsc["tables"]["assignments"]
+ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["assignments_latest"]
 
-if len(loc_args) > 1:
-    raise Exception(f"More than one Location specified: {loc_args}")
-elif len(loc_args) == 1:
-    LOCATION = loc_args[0]
+
+requested_locations = list(VALID_LOCATIONS.intersection(set(sys.argv)))
+
+if len(requested_locations) > 1:
+    raise Exception(f"More than one Location requested: {requested_locations}")
+elif len(requested_locations) == 1:
+    LOCATION = requested_locations[0]
 else:
     LOCATION = "HN1"  # For interactive debugging
 
 log.info(f"Assigning Ads for Location: {LOCATION}")
-
-
-# Temp fix while underperforming only works for HN1
 if LOCATION == "HN1":
     filter_underperf = True
 else:
     filter_underperf = False
-# TODO: Sort out results files and underperforming for other locations
+# TODO: Remove once config can point to results for other locations
 
 
 # Get Ad data
 log.info("Getting Ads")
-ad_cols = [
-    "UniqueAdID",
-    "AlgoDivision",
-    "MASIDToken",
-    "Models",
-    "ModelCombination"
-    ]
-df_ads = get_latest_ads(LOCATION,
-                        cols=ad_cols,
-                        filter_underperforming=filter_underperf)
-df_ads = df_ads.withColumnRenamed("AlgoDivision", "Division")
-# TODO: Remove renaming once fully migrated to new control sheet
+df_ads = (
+    get_latest_ads(LOCATION, filter_underperforming=filter_underperf)
+    .select("UniqueAdID",
+            "AlgoDivision",
+            "MASIDToken",
+            "Models",
+            "ModelCombination")
+    .withColumnRenamed("AlgoDivision", "Division")
+)
+# TODO: Remove renaming of AlgoDiv once fully migrated to new control sheet
 
 # Ad ID - MASID lookup
 df_ad_masid = (
@@ -75,18 +76,17 @@ df_ad_masid = (
     .drop("Location", "MASIDToken")
     .distinct()
 )
+# TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
-
-# Get division assignments as one dataframe
 # TODO: Replace separate files with single table
 log.info("Gathering Division assignments")
 div_asgn_list = []
-for div_k in rsc["files"]["div_assignment"].keys():
+for div_k in DIVISION_ASSIGNMENTS.keys():
 
     df_div = (
         get_spark()
         .read.format("delta")
-        .load(rsc["files"]["div_assignment"][div_k])
+        .load(DIVISION_ASSIGNMENTS[div_k])
         .select("account_number")
         .withColumnRenamed("account_number", "AccountNumber")
         .withColumn("Division", F.lit(div_k))
@@ -101,84 +101,67 @@ for df_asgn in div_asgn_list:
 df_cust_div.cache()
 
 
-# Determine Random (within Division) Ad for each customer
 log.info("Assigning Random Ads by Division")
-df_ads_rdm = assign_random_ads(
+df_assigned_rdm = assign_random_ads(
     df_ads.select("UniqueAdID", "Division"),
     df_cust_div,
     grp_col="Division"
     )
-# Append MASID to each Ad
-df_ads_rdm = df_ads_rdm.join(df_ad_masid, on="UniqueAdID")
-
-
-# Assign propensity scores to Ads (irrespective of Division)
-# df_adscores = get_spark().table(rsc["tables"]["scored_ads_latest"])
-df_adscores = assign_scores_to_entity(
-    df_ads.select("UniqueAdID", "Models", "ModelCombination"),
-    entity_col="UniqueAdID",
-    model_score_table=rsc["tables"]["model_scores_latest"],
-    patch_model_refs=True
-    )
-
-df_adscores.cache()
-
-# df_adscores2 = assign_scores_to_entity(
-#     (
-#         df_ads
-#         .select("MASIDToken", "Models", "ModelCombination")
-#         .withColumn("MASID",
-#                     F.concat(
-#                         F.lit(LOCATION),
-#                         F.lit("_"),
-#                         F.col("MASIDToken")))
-#     ),
-#     entity_col="MASID",
-#     model_score_table=rsc["tables"]["model_scores_latest"],
-#     patch_model_refs=True,
-#     standardise_partition=["EntityID"]
-#     )
-# df_adscores2.cache()
-
-
-# Limit ad scores to within Division
-# TODO: Remove this restriction for cross-division targeting?
-# e.g. LP Sport, LP Brands, Homepage Teasers
-df_adscores_div = (
-    df_cust_div.join(
-        (df_adscores
-         .join(df_ads.select("UniqueAdID", "Division"),
-               on="UniqueAdID")),
-        on=["AccountNumber", "Division"]
-    )
-)
-# TODO: Tidy this bit up - Add to function above?
-df_adscores_div = (
-    df_adscores_div
-    .withColumnRenamed("ScoreSubMean", "Score")
-    .drop("ScoreRaw", "ScoreZ")
-)
+df_assigned_rdm = df_assigned_rdm.join(df_ad_masid, on="UniqueAdID")
 
 
 log.info("Assigning Best Ads")
-# Determine Best Ad for each customer
-df_ads_best = assign_best_ads(df_adscores_div)
-# Append MASID to each Ad
-df_ads_best = df_ads_best.join(df_ad_masid, on="UniqueAdID")
+# Iterate by Division - customer should receive best ad within Division
+divs = [row[0] for row in df_ads.select("Division").distinct().collect()]
+df_ads_best_div_list = []
 
-df_ads_best.cache()
+for div in divs:
+
+    df_ads_d = (
+        df_ads
+        .where(F.col("Division") == div)
+        .select("UniqueAdID", "Models", "ModelCombination")
+        .where(F.col("Models").isNotNull())
+        .fillna({"ModelCombination": "and"})
+    )
+    # TODO: Remove force "and" for combination
+
+    df_cust_d = (
+        df_cust_div
+        .where(F.col("Division") == div)
+        .select("AccountNumber")
+    )
+    # TODO: Some division customers may not have relevant scores - capture?
+
+    df_ads_best_d = (
+        assign_best_ads(
+            df_ads=df_ads_d,
+            df_cust=df_cust_d,
+            targeting_scores_table=TARGETING_SCORES_TABLE,
+            score_scale_fn=subtract_mean
+            )
+        .join(df_cust_div.where(F.col("Division") == div),
+              on="AccountNumber", how="inner")
+        .drop("Division")
+    )
+    df_ads_best_div_list.append(df_ads_best_d)
+
+df_assigned_best = df_ads_best_div_list.pop()
+for df_ads_best_div in df_ads_best_div_list:
+    df_assigned_best = df_assigned_best.union(df_ads_best_div)
+
+df_assigned_best = df_assigned_best.join(df_ad_masid, on="UniqueAdID")
+
+df_assigned_best.cache()
 
 
-# Assign Best Ad for each customer (via "challenger" method)
-# When no challenger, challenger assignment == champion_assignment
-df_ads_best_chall = df_ads_best
+log.info("Assigning Best Ads (Challenger)")
+df_assigned_best_challenger = df_assigned_best
 
 
-# Append to overall cell assignments
+log.info("Getting Cell assignments")
 # TODO: Make this generalisable - HPTest hardcoded as column
 # TODO: Dedicated Champion-Challenger column, instead of random_var1
-log.info("Getting Cell assignments")
-
 if LOCATION in ["HN1"]:
     test_col = "HPTest"
 else:
@@ -187,7 +170,7 @@ else:
 df_cell = (
         get_spark()
         .read.format("delta")
-        .load(rsc["files"]["cell_assignment"])
+        .load(CELL_ASSIGNMENT_FILE)
         .select("account_number",
                 test_col,
                 "random_var1")
@@ -195,28 +178,29 @@ df_cell = (
     )
 
 # Assign Random, Best etc. based on assigned cells
-# TODO: Create Champion-Challenger split in new overall control and div
+# TODO: Create dedicated Challenger split in overall_control_and_div
 log.info("Assigning MASID tokens based Targeting and Cells")
-df_assigned_ads = (
+df_assignments = (
     df_cell
-    .join((df_ads_rdm
+    .join((df_assigned_rdm
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "RandomMASID")
            .withColumnRenamed("UniqueAdID", "RandomUniqueAdID")),
           on="AccountNumber",
-          how="inner")
-    .join((df_ads_best
+          how="left")
+    .join((df_assigned_best
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "BestMASID")
            .withColumnRenamed("UniqueAdID", "BestUniqueAdID")),
           on="AccountNumber",
           how="left")
-    .join((df_ads_best_chall
+    .join((df_assigned_best_challenger
            .select("AccountNumber", "MASID", "UniqueAdID")
-           .withColumnRenamed("MASID", "BestMASIDChall")
-           .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChall")),
+           .withColumnRenamed("MASID", "BestMASIDChallenger")
+           .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChallenger")),
           on="AccountNumber",
           how="left")
+    .fillna({"RandomMASID": f"{LOCATION}_N"})
     .withColumn(
         "MASID",
         F.when(
@@ -229,7 +213,7 @@ df_assigned_ads = (
             (F.col(test_col) == "1: Personalised")
             & (F.col("random_var1") > 0.5)
             & (F.col("BestMASID").isNotNull()),
-            F.col("BestMASIDChall")
+            F.col("BestMASIDChallenger")
             )
         .when(F.col(test_col) == "2: Random", F.col("RandomMASID"))
         .when(F.col(test_col) == "3: No Banner", F.lit(f"{LOCATION}_C"))
@@ -243,31 +227,27 @@ df_assigned_ads = (
             "RandomMASID",
             "BestUniqueAdID",
             "BestMASID",
-            "BestUniqueAdIDChall",
-            "BestMASIDChall",
+            "BestUniqueAdIDChallenger",
+            "BestMASIDChallenger",
             "MASID"
             )
 )
-df_assigned_ads.cache()
+df_assignments.cache()
 
-# Load output into assignments table
-target_table = rsc["tables"]["assignments"]
-target_table_latest = rsc["tables"]["assignments_latest"]
 
-log.info(f"Loading output to {target_table}")
-delete_from_and_load(df_assigned_ads,
-                     target_table,
+log.info(f"Loading output to {ASSIGNMENTS_TABLE}")
+delete_from_and_load(df_assignments,
+                     ASSIGNMENTS_TABLE,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
-log.info(f"Loading output to {target_table_latest}")
-delete_from_and_load(df_assigned_ads,
-                     target_table_latest,
+log.info(f"Loading output to {ASSIGNMENTS_TABLE_LATEST}")
+delete_from_and_load(df_assignments,
+                     ASSIGNMENTS_TABLE_LATEST,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
 
 df_cust_div.unpersist()
-df_adscores.unpersist()
-df_ads_best.unpersist()
-df_assigned_ads.unpersist()
+df_assigned_best.unpersist()
+df_assignments.unpersist()

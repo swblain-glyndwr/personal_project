@@ -14,11 +14,10 @@ def build_spark_field(
     Builds Spark StructField from agnostic input.
 
     Arguments:
-        name {str} -- Name of field
-        dtype {str} -- Type of column
+        name - Name of field
+        dtype - Column data type
         (currently supported: `"string"`, `"int"`, `"float"`)
-        null_str {str} -- Optional - Nullable status of field
-        (`"not null"` yields `nullable=False`; `nullable=True` by default)
+        null_str - Nullable status of field ("not null" for nullable=False)
     """
     spark_types = {
         "string": "StringType",
@@ -38,12 +37,12 @@ def build_spark_field(
     return StructField(name, spark_type(), nullable_bool)
 
 
-def build_spark_schema(schema: list) -> StructType:
+def build_spark_schema(schema: list[list[str]]) -> StructType:
     """
     Builds Spark StructType object - requires `build_spark_fields`.
 
     Arguments:
-        schema {list} -- List of list of strings
+        schema - List of list of strings
         e.g. `[["ID","string","not null"],["Name","string","null"]]`
 
     """
@@ -60,11 +59,8 @@ def assert_pk(df: DataFrame, pk_cols: list):
     Prior to this, PK constraints for information only.
 
     Arguments:
-        df -- Dataframe to check
-        pk_cols -- List of Primary Key columns
-
-    Raises:
-        AssertionError -- If PK constraint is violated (dups, null)
+        df - Dataframe to check
+        pk_cols - List of Primary Key columns
     """
     df_pk = df.select(*pk_cols)
     n = df_pk.count()
@@ -78,20 +74,18 @@ def assert_pk(df: DataFrame, pk_cols: list):
 def delete_from_and_load(
         df: DataFrame,
         table: str,
-        pk_cols: list = [],
-        del_where: dict = dict()) -> None:
+        pk_cols: list[str] = [],
+        del_where: dict = {}) -> None:
     """
-    Deletes from table where `rundate == current_date()` then
-    inserts df into table with `rundate = current_date()`
+    Deletes from table where `rundate` is current date, then inserts df
+    with `rundate` as current date.
 
     Arguments:
-        df {DataFrame} -- PySpark dataframe to load
-        table {str} -- Table to load into
-        pk_cols {list} -- Optional - Primary Key cols for assert_pk()
-        del_where {dict} -- col,val pairs to delete before insert
-            e.g. {"rundate": "current_date()", "Location": "'HN1'"}
-            appends "and Location = 'HN1' and rundate = current_date()"
-            to the delete clause
+        df - PySpark dataframe to load
+        table - Table to delete from and load into
+        pk_cols - Primary Key columns
+        del_where - Also delete where key = value before load
+            e.g. {"a": "'b'"} appends and "and a = 'b'
     """
     if pk_cols:
         assert_pk(df, pk_cols)
@@ -125,15 +119,15 @@ def delete_from_and_load(
 def truncate_and_load(
         df: DataFrame,
         table: str,
-        pk_cols: list = []) -> None:
+        pk_cols: list[str] = []) -> None:
     """
-    Truncates table and then
-    inserts df into table with `rundate = current_date()`
+    Truncates table and then inserts df into table with
+    `rundate` as current date
 
     Arguments:
-        df {DataFrame} - PySpark dataframe to load
-        table {str} - Table to load into
-        pk_cols {list} -- Optional - Primary Key cols for assert_pk()
+        df - PySpark dataframe to load
+        table - Table to truncate and load into
+        pk_cols - Primary Key columns
     """
     if pk_cols:
         assert_pk(df, pk_cols)
@@ -141,30 +135,73 @@ def truncate_and_load(
     df.createOrReplaceTempView("df_load")
 
     get_spark().sql(
-        f'''
+        f"""
         truncate table {table}
-        ''')
+        """)
 
     get_spark().sql(
-        f'''
+        f"""
         insert into {table}
         select *, current_date() as rundate
         from df_load
-        '''
+        """
         )
 
     return None
 
 
-def count_null_by_col(df: DataFrame) -> DataFrame:
+def create_or_replace(
+        df: DataFrame,
+        table: str,
+        pk_cols: list[str] = []) -> None:
     """
-    Counts nulls in dataframe by column.
+    Drops table (if exists) then creates table and loads df with
+    `rundate` as current date
 
     Arguments:
-        df -- Dataframe
+        df - PySpark dataframe to load
+        table - Table to load into
+        pk_cols - Primary Key columns
+    """
+    if pk_cols:
+        assert_pk(df, pk_cols)
 
-    Returns:
-        dataframe with same column names, each containing null count
+    df.createOrReplaceTempView("df_load")
+
+    get_spark().sql(
+        f"""
+        drop table if exists {table}
+        """)
+
+    get_spark().sql(
+        f"""
+        create table {table} as
+        select *, current_date() as rundate
+        from df_load
+        """
+        )
+
+    if pk_cols:
+        for pk_col in pk_cols:
+            get_spark().sql(
+                f"""
+                alter table {table} alter column {pk_col} set not null
+                """
+                )
+        get_spark().sql(
+            f"""
+            alter table {table}
+            add constraint pk_{"_".join(pk_cols).lower()}
+            primary key ({",".join(pk_cols)})
+            """
+        )
+
+    return None
+
+
+def count_null_by_column(df: DataFrame) -> DataFrame:
+    """
+    Counts nulls in Spark dataframe by column.
     """
     df_n = (
         df.select(
