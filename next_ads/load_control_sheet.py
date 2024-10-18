@@ -102,7 +102,7 @@ df_processed = (
 )
 df_processed = append_targeting_criteria(df_processed)
 
-log.info("Validating input")
+log.info("Checking input Primary Key")
 assert_pk(df_processed, ["UniqueAdID", "Location"])
 
 
