@@ -10,7 +10,7 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet_latest 
   Location string,
   Segment string,
   AdDriver string,
-  AdFormat string,
+  TemplateName string,
   StartDate date,
   EndDate date,
   Models string,
