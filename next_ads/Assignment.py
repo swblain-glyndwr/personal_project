@@ -75,7 +75,7 @@ def assign_best_ads(
     Dev - Tie Breaker needed for one-to-many TargetingCriteria:Ad
 
     Arguments:
-        df_ads - Dataframe with columns (UniqueAdID, Models, ModelCombination)
+        df_ads - Dataframe with columns (UniqueAdID, TargetingCriteria)
         targeting_scores_table - Name of table containing TargetingScores
         df_cust - Filter customers (Dataframe with col: AccountNumber)
         score_scale_fn - Function for scaling the score

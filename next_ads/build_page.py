@@ -56,8 +56,7 @@ df_ads = (
     .select("UniqueAdID",
             "AlgoDivision",
             "MASIDToken",
-            "Models",
-            "ModelCombination")
+            "TargetingCriteria")
     .withColumnRenamed("AlgoDivision", "Division")
 )
 # TODO: Remove renaming of AlgoDiv once fully migrated to new control sheet
@@ -118,11 +117,9 @@ for div in divs:
     df_ads_d = (
         df_ads
         .where(F.col("Division") == div)
-        .select("UniqueAdID", "Models", "ModelCombination")
-        .where(F.col("Models").isNotNull())
-        .fillna({"ModelCombination": "and"})
+        .where(F.col("TargetingCriteria").isNotNull())
+        .select("UniqueAdID", "TargetingCriteria")
     )
-    # TODO: Remove force "and" for combination
 
     df_cust_d = (
         df_cust_div
