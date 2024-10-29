@@ -1,12 +1,16 @@
 create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments (
     AccountNumber string not null,
     Location string not null,
+    TestLocation string not null,
+    TestLocationCell string not null,
+    ChampionChallenger string,
     RandomUniqueAdID string,
     RandomMASID string not null,
     BestUniqueAdID string,
     BestMASID string,
     BestUniqueAdIDChallenger string,
     BestMASIDChallenger string,
+    UniqueAdID string,
     MASID string not null,
     rundate date not null,
   constraint pk_ad_assignments primary key (

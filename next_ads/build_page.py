@@ -24,8 +24,8 @@ with open("config/parameters.json") as f:
     prm = json.load(f)
 
 
-DIVISION_ASSIGNMENTS = rsc["files"]["div_assignment"]
-CELL_ASSIGNMENT_FILE = rsc["files"]["cell_assignment"]
+DIVISION_ASSIGNMENT = rsc["files"]["div_assignment"]
+CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
 TARGETING_SCORES_TABLE = rsc["tables"]["write"]["targeting_scores_latest"]
 ASSIGNMENTS_TABLE = rsc["tables"]["write"]["assignments"]
 ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["write"]["assignments_latest"]
@@ -78,12 +78,12 @@ df_ad_masid = (
 # TODO: Replace separate files with single table
 log.info("Gathering Division assignments")
 div_asgn_list = []
-for div_k in DIVISION_ASSIGNMENTS.keys():
+for div_k in DIVISION_ASSIGNMENT.keys():
 
     df_div = (
         get_spark()
         .read.format("delta")
-        .load(DIVISION_ASSIGNMENTS[div_k])
+        .load(DIVISION_ASSIGNMENT[div_k])
         .select("account_number")
         .withColumnRenamed("account_number", "AccountNumber")
         .withColumn("Division", F.lit(div_k))
@@ -157,15 +157,16 @@ df_assigned_best_challenger = df_assigned_best
 log.info("Getting Cell assignments")
 # TODO: Make this generalisable - HPTest hardcoded as column
 # TODO: Dedicated Champion-Challenger column, instead of random_var1
+TEST_LOCATION = LOCATION[:2]
 if LOCATION in ["HN1"]:
     test_col = "HPTest"
 else:
-    test_col = f"{LOCATION[:2]}Test"
+    test_col = f"{TEST_LOCATION}Test"
 
 df_cell = (
         get_spark()
         .read.format("delta")
-        .load(CELL_ASSIGNMENT_FILE)
+        .load(CELL_ASSIGNMENT)
         .select("account_number",
                 test_col,
                 "random_var1")
@@ -196,18 +197,42 @@ df_assignments = (
           on="AccountNumber",
           how="left")
     .fillna({"RandomMASID": f"{LOCATION}_N"})
+    .withColumn("ChampionChallenger",
+                F.when((F.col("random_var1") <= 0.5)
+                       & (F.col(test_col) == "1: Personalised"),
+                       "Champion")
+                .when((F.col("random_var1") > 0.5)
+                      & (F.col(test_col) == "1: Personalised"),
+                      "Challenger")
+                .otherwise(None)
+                )
+    .withColumn(
+        "UniqueAdID",
+        F.when(
+            (F.col("ChampionChallenger") == "Champion")
+            & (F.col("BestUniqueAdID").isNotNull()),
+            F.col("BestUniqueAdID")
+            )
+        .when(
+            (F.col("ChampionChallenger") == "Challenger")
+            & (F.col("BestUniqueAdIDChallenger").isNotNull()),
+            F.col("BestUniqueAdIDChallenger")
+            )
+        .when(F.col(test_col) == "2: Random", F.col("RandomUniqueAdID"))
+        .when(F.col(test_col) == "3: No Banner", F.lit("_location_control"))
+        .when(F.col(test_col) == "4: Overall", F.lit("_overall_control"))
+        .otherwise(F.lit(None))
+        )
     .withColumn(
         "MASID",
         F.when(
-            (F.col(test_col) == "1: Personalised")
-            & (F.col("random_var1") <= 0.5)
+            (F.col("ChampionChallenger") == "Champion")
             & (F.col("BestMASID").isNotNull()),
             F.col("BestMASID")
             )
         .when(
-            (F.col(test_col) == "1: Personalised")
-            & (F.col("random_var1") > 0.5)
-            & (F.col("BestMASID").isNotNull()),
+            (F.col("ChampionChallenger") == "Challenger")
+            & (F.col("BestMASIDChallenger").isNotNull()),
             F.col("BestMASIDChallenger")
             )
         .when(F.col(test_col) == "2: Random", F.col("RandomMASID"))
@@ -216,14 +241,20 @@ df_assignments = (
         .otherwise(F.lit(f"{LOCATION}_Z"))
         )
     .withColumn("Location", F.lit(LOCATION))
+    .withColumn("TestLocation", F.lit(TEST_LOCATION))
+    .withColumnRenamed(test_col, "TestLocationCell")
     .select("AccountNumber",
             "Location",
+            "TestLocation",
+            "TestLocationCell",
+            "ChampionChallenger",
             "RandomUniqueAdID",
             "RandomMASID",
             "BestUniqueAdID",
             "BestMASID",
             "BestUniqueAdIDChallenger",
             "BestMASIDChallenger",
+            "UniqueAdID",
             "MASID"
             )
 )
