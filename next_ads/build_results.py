@@ -21,16 +21,23 @@ parser.add_argument("--f", help="dummy arg enabling interactive debugging")
 parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
 parser.add_argument("--testlocation", nargs="?", const="HN1", type=str)
 pargs = vars(parser.parse_args())
-req_testlocation = pargs["testlocation"] if pargs["testlocation"] else "HN"
+req_testlocation = pargs["testlocation"] if pargs["testlocation"] else "SB"
 job_env = get_job_env(pargs)
 log.info(f"Running in: {job_env}")
 
 RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
+UK_PREFERENCE_FRAMEWORK = rsc["tables"]["read"]["uk_preference_framework"]
+
 BQ_UK_SESSIONS = rsc["tables"]["read"]["bq_uk_sessions"]
 BQ_UK_PAGES = rsc["tables"]["read"]["bq_uk_pages"]
+BQ_UK_ADD_TO_BASKET = rsc["tables"]["read"]["bq_uk_add_to_basket"]
+BQ_UK_TRANSACTIONS = rsc["tables"]["read"]["bq_uk_transactions"]
+
 BQ_UK_SESSIONS_APP = rsc["tables"]["read"]["bq_uk_sessions_app"]
 BQ_UK_SCREENS = rsc["tables"]["read"]["bq_uk_screens"]
-UK_PREFERENCE_FRAMEWORK = rsc["tables"]["read"]["uk_preference_framework"]
+BQ_UK_ADD_TO_BASKET_APP = rsc["tables"]["read"]["bq_uk_add_to_basket_app"]
+BQ_UK_TRANSACTIONS_APP = rsc["tables"]["read"]["bq_uk_transactions_app"]
+
 AD_ASSIGNMENTS = rsc["tables"]["write"]["assignments"]
 
 ANCHOR_DATE = dt.date.today() - dt.timedelta(days=2)
@@ -110,6 +117,71 @@ df_first_hits_app = (
 )
 
 df_first_hits = df_first_hits_web.union(df_first_hits_app)
+
+
+# Looks like there is insufficient data in the BQ tables to do this
+# precisely? Example: same item is added to basket multiple times
+# (perhaps multiple variants? size? colour?), some of these are before
+# viewing the ad, some are after...
+# - The add_to_basket view doesn't tell you the item value
+# - The transaction view doesn't tell you which item was added when
+# Assumption made in order to progress - All items with same ProductSKU
+# in a given basket are of equal value (ascertained via the median)
+# if three of five of that Product were added after the ad view, two units
+# multiplied by the median value for that Product will be returned
+
+# What to do with cases where VisitID doesn't appear in add to basket table
+# but does appear in transactions table?
+# See visit ID "1449884134.1727259093-1730140221-23	" as an example
+# This case would produce a None in the table below...
+# 	PostFirstHit	count(DISTINCT UniqueVisitID)
+# 0	None	        50,375
+# 1	True	        40,964
+# 2	False	        81,476
+df_post_ad_view_value = (
+    df_first_hits_web
+    .join(
+        get_spark()
+        .table(BQ_UK_ADD_TO_BASKET)
+        .where(F.col("date") == ANCHOR_DATE)
+        .select("UniqueVisitID", "Timestamp", "ProductSKU"),
+        on="UniqueVisitID",
+        how="left")
+    # .withColumn("PostFirstHit", F.col("Timestamp") > F.col("FirstHit"))
+    # .groupBy("PostFirstHit").agg(F.countDistinct("UniqueVisitID")))
+    .where(F.col("Timestamp") > F.col("FirstHit"))
+    .groupBy("UniqueVisitID", "ProductSKU")
+    .count().withColumnRenamed("count", "Units")
+    .join(
+        get_spark()
+        .table(BQ_UK_TRANSACTIONS)
+        .where(F.col("date") == ANCHOR_DATE)
+        .select("UniqueVisitID", "ProductSKU", "productRevenue")
+        .groupBy("UniqueVisitID", "ProductSKU")
+        .agg(F.median("productRevenue").alias("MedianProductRevenue")),
+        on="UniqueVisitID",
+        how="left")
+    .withColumn("ProductRevenue",
+                F.col("Units") * F.col("MedianProductRevenue"))
+)
+df_post_ad_view_value.cache()
+
+
+# SB_TransValue=spark.sql("""
+# select r.UniqueVisitID, sum(ProductRevenue) as RPS_post_SB
+# from ds_sandbox.NextAds_SB_Hit r
+# left join (
+#     select UniqueVisitID, date, Timestamp, ProductSKU
+#     from warehouse.bq_atbs_next_uk where date=current_date()-1) a
+# on r.UniqueVisitID=a.UniqueVisitID
+# and a.Timestamp>SBHit
+# left join (
+#     select UniqueVisitID, date, Timestamp, productRevenue, ProductSKU
+#     from warehouse.bq_transactions_next_uk where date=current_date()-1) t
+# on a.UniqueVisitID=t.UniqueVisitID
+# and a.ProductSKU=t.ProductSKU
+# group by all
+# """)
 
 
 df_revenue_per_session_web = (
