@@ -1,8 +1,30 @@
+import json
 from pyspark.sql.types import StructField, StructType
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 import sys
 from next_ads.utils.dbc import get_spark
+
+
+def get_catalog() -> str:
+    with open("config/resources.json") as f:
+        rsc = json.load(f)
+    return rsc["catalog"]
+
+
+def get_schema(env: str) -> str:
+    with open("config/resources.json") as f:
+        rsc = json.load(f)
+    return rsc["schema"][env]
+
+
+def get_job_env(pargs: dict) -> str:
+    if not pargs["jobname"]:
+        return "dev"
+    elif pargs["jobname"].startswith("dev_"):
+        return "dev"
+    else:
+        return "prod"
 
 
 def build_spark_field(
@@ -74,6 +96,7 @@ def assert_pk(df: DataFrame, pk_cols: list):
 def delete_from_and_load(
         df: DataFrame,
         table: str,
+        env: str = "dev",
         pk_cols: list[str] = [],
         del_where: dict = {}) -> None:
     """
@@ -83,10 +106,14 @@ def delete_from_and_load(
     Arguments:
         df - PySpark dataframe to load
         table - Table to delete from and load into
+        env - dictates which schema to use
         pk_cols - Primary Key columns
         del_where - Also delete where key = value before load
             e.g. {"a": "'b'"} appends and "and a = 'b'
     """
+
+    table = f"{get_catalog()}.{get_schema(env)}.{table}"
+
     if pk_cols:
         assert_pk(df, pk_cols)
 
@@ -119,6 +146,7 @@ def delete_from_and_load(
 def truncate_and_load(
         df: DataFrame,
         table: str,
+        env: str = "dev",
         pk_cols: list[str] = []) -> None:
     """
     Truncates table and then inserts df into table with
@@ -127,8 +155,12 @@ def truncate_and_load(
     Arguments:
         df - PySpark dataframe to load
         table - Table to truncate and load into
+        env - dictates which schema to use
         pk_cols - Primary Key columns
     """
+
+    table = f"{get_catalog()}.{get_schema(env)}.{table}"
+
     if pk_cols:
         assert_pk(df, pk_cols)
 
@@ -153,6 +185,7 @@ def truncate_and_load(
 def create_or_replace(
         df: DataFrame,
         table: str,
+        env: str = "dev",
         pk_cols: list[str] = []) -> None:
     """
     Drops table (if exists) then creates table and loads df with
@@ -161,8 +194,12 @@ def create_or_replace(
     Arguments:
         df - PySpark dataframe to load
         table - Table to load into
+        env - dictates which schema to use
         pk_cols - Primary Key columns
     """
+
+    table = f"{get_catalog()}.{get_schema(env)}.{table}"
+
     if pk_cols:
         assert_pk(df, pk_cols)
 

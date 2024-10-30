@@ -1,14 +1,29 @@
+import argparse
+import logging
+import logging.config
 import json
 import datetime as dt
+from next_ads.utils.etl import get_job_env
 from next_ads.utils.dbc import get_spark
 import pyspark.sql.functions as F
 
+logging.config.fileConfig("config/logging.conf")
+log = logging.getLogger("mylog")
+
+log.info("Configuring run")
 with open("config/resources.json") as f:
     rsc = json.load(f)
-
 with open("config/parameters.json") as f:
     prm = json.load(f)
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--f", help="dummy arg enabling interactive debugging")
+parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
+parser.add_argument("--testlocation", nargs="?", const="HN1", type=str)
+pargs = vars(parser.parse_args())
+req_testlocation = pargs["testlocation"] if pargs["testlocation"] else "HN"
+job_env = get_job_env(pargs)
+log.info(f"Running in: {job_env}")
 
 RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
 BQ_UK_SESSIONS = rsc["tables"]["read"]["bq_uk_sessions"]
@@ -21,7 +36,12 @@ AD_ASSIGNMENTS = rsc["tables"]["write"]["assignments"]
 ANCHOR_DATE = dt.date.today() - dt.timedelta(days=2)
 
 TEST_LOCATIONS = prm["test_locations"]
-TEST_LOCATION = "HN"
+if req_testlocation in TEST_LOCATIONS:
+    TEST_LOCATION = req_testlocation
+else:
+    raise Exception(f"Invalid TestLocation requested: {req_testlocation}")
+log.info(f"Building results tables for TestLocation: {TEST_LOCATION}")
+
 
 # There were a lot of instances of "select distinct..." in legacy code
 # therefore drop_duplicates() has been used to ensure the same uniqueness

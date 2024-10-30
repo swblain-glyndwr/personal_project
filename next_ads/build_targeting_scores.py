@@ -1,3 +1,5 @@
+import logging
+import logging.config
 import json
 from pyspark.sql import functions as F
 from AdRetrieval import get_latest_ads
@@ -5,9 +7,12 @@ from Scoring import aggregate_model_scores
 from next_ads.utils.etl import create_or_replace
 
 
+logging.config.fileConfig("config/logging.conf")
+log = logging.getLogger("mylog")
+
+log.info("Configuring run")
 with open("config/resources.json") as f:
     rsc = json.load(f)
-
 
 MODEL_SCORE_TABLE = rsc["tables"]["read"]["model_scores_latest"]
 TARGETING_SCORES_TABLE = rsc["tables"]["write"]["targeting_scores_latest"]

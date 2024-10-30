@@ -1,3 +1,4 @@
+import argparse
 import logging
 import logging.config
 import json
@@ -7,15 +8,13 @@ from next_ads.Assignment import (
     assign_best_ads
     )
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import delete_from_and_load
+from next_ads.utils.etl import get_job_env, delete_from_and_load
 from pyspark.sql import functions as F
-import sys
 from next_ads.utils.columnscalers import subtract_mean
 
 
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
-
 
 log.info("Configuring run")
 with open("config/resources.json") as f:
@@ -23,6 +22,14 @@ with open("config/resources.json") as f:
 with open("config/parameters.json") as f:
     prm = json.load(f)
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--f", help="dummy arg enabling interactive debugging")
+parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
+parser.add_argument("--location", nargs="?", const="HN1", type=str)
+pargs = vars(parser.parse_args())
+req_location = pargs["location"] if pargs["location"] else "HN1"
+job_env = get_job_env(pargs)
+log.info(f"Running in: {job_env}")
 
 DIVISION_ASSIGNMENT = rsc["files"]["div_assignment"]
 CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
@@ -31,17 +38,12 @@ ASSIGNMENTS_TABLE = rsc["tables"]["write"]["assignments"]
 ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["write"]["assignments_latest"]
 VALID_LOCATIONS = set(prm["locations"].keys())
 
-
-requested_locations = list(VALID_LOCATIONS.intersection(set(sys.argv)))
-
-if len(requested_locations) > 1:
-    raise Exception(f"More than one Location requested: {requested_locations}")
-elif len(requested_locations) == 1:
-    LOCATION = requested_locations[0]
+if req_location in VALID_LOCATIONS:
+    LOCATION = req_location
 else:
-    LOCATION = "HN1"  # For interactive debugging
-
+    raise Exception(f"Invalid Location requested: {req_location}")
 log.info(f"Assigning Ads for Location: {LOCATION}")
+
 if LOCATION == "HN1":
     filter_underperf = True
 else:
