@@ -138,6 +138,11 @@ df_first_hits = df_first_hits_web.union(df_first_hits_app)
 # 0	None	        50,375
 # 1	True	        40,964
 # 2	False	        81,476
+# None results are dropped when Timestamp > FirstHit is applied
+# PostFirstHit	count(DISTINCT UniqueVisitID)
+# 0	True	40964
+# This means that some Visits that converted are being dropped?
+
 df_post_ad_view_value = (
     df_first_hits_web
     .join(
@@ -150,6 +155,7 @@ df_post_ad_view_value = (
     # .withColumn("PostFirstHit", F.col("Timestamp") > F.col("FirstHit"))
     # .groupBy("PostFirstHit").agg(F.countDistinct("UniqueVisitID")))
     .where(F.col("Timestamp") > F.col("FirstHit"))
+    # .groupBy("PostFirstHit").agg(F.countDistinct("UniqueVisitID")))
     .groupBy("UniqueVisitID", "ProductSKU")
     .count().withColumnRenamed("count", "Units")
     .join(
