@@ -23,7 +23,7 @@ parser.add_argument("--testlocation", nargs="?", const="HN1", type=str)
 pargs = vars(parser.parse_args())
 req_testlocation = pargs["testlocation"] if pargs["testlocation"] else "SB"
 job_env = get_job_env(pargs)
-log.info(f"Running in: {job_env}")
+log.info(f"Running in job environment: {job_env}")
 
 RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
 UK_PREFERENCE_FRAMEWORK = rsc["tables"]["read"]["uk_preference_framework"]

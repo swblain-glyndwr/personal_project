@@ -29,7 +29,7 @@ parser.add_argument("--location", nargs="?", const="HN1", type=str)
 pargs = vars(parser.parse_args())
 req_location = pargs["location"] if pargs["location"] else "HN1"
 job_env = get_job_env(pargs)
-log.info(f"Running in: {job_env}")
+log.info(f"Running in job environment: {job_env}")
 
 DIVISION_ASSIGNMENT = rsc["files"]["div_assignment"]
 CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
