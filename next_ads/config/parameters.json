@@ -16,7 +16,8 @@
             ],
             "seed": 201,
             "page": "/",
-            "screen": "Home"
+            "screen": "Home",
+            "reported_value": "SessionRevenue"
         },
         "SB": {
             "cells": [
@@ -26,7 +27,8 @@
             ],
             "seed": 202,
             "page": "/shoppingbag",
-            "screen": "Cart"
+            "screen": "Cart",
+            "reported_value": "ProductRevenuePostFirstHit"
         },
         "OC": {
             "cells": [
@@ -36,7 +38,8 @@
             ],
             "seed": 203,
             "page": "%checkout/complete%",
-		    "screen": "Checkout Completed"
+		    "screen": "Checkout Completed",
+            "reported_value": "ProductRevenuePostFirstHit"
         },
         "LP": {
             "cells": [
