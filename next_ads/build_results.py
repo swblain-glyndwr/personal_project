@@ -235,7 +235,7 @@ assert_pk(df_session_revenue_web, ["UniqueVisitID"])
 
 df_session_revenue_app = (
     df_sessions_app
-    .join(df_first_hits_app, how="inner", on="UniqueVisitID")
+    .join(df_rev_post_first_hit_app, how="inner", on="UniqueVisitID")
     .withColumn("Revenue",
                 F.col(TEST_LOCATIONS[TEST_LOCATION]["reported_value"]))
     .select(
