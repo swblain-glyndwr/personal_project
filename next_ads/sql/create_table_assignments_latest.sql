@@ -13,9 +13,6 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest (
     UniqueAdID string,
     MASID string not null,
     rundate date not null,
-  constraint pk_next_uk_nextads_assignments_latest primary key (
-    AccountNumber,
-    Location
-    )
+  constraint pk_next_uk_nextads_assignments_latest primary key (AccountNumber, Location)
 )
 partitioned by (Location)
