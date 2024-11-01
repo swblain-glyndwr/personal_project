@@ -48,7 +48,19 @@
             ],
             "seed": 204,
             "page": "",
-		    "screen": ""
+		    "screen": "",
+            "reported_value": "SessionRevenue"
+        },
+        "PH": {
+            "cells": [
+                [0.05, "3: No Banner"],
+                [0.2, "2: Random"],
+                [1.0, "1: Personalised"]
+            ],
+            "seed": 205,
+            "page": "/",
+            "screen": "Home",
+            "reported_value": "SessionRevenue"
         },
         "AdHocAB1": {
             "cells": [
@@ -77,16 +89,14 @@
                 [1.0, "B"]
             ],
             "seed": 304
-        }
-    },
-    "challenger": {
-        "proportion": 0.5,
-        "labels": {
-            "True": "Challenger",
-            "False": "Champion"
         },
-        "apply_to" : "1: Personalised", 
-        "seed": 1001
+        "ChampionChallenger": {
+            "cells": [
+                [0.5, "Champion"],
+                [1.0, "Challenger"]
+            ],
+            "seed": 401
+        }
     },
     "divisions": {
         "Womens": {
@@ -110,13 +120,108 @@
         "Beauty": {
             "model": "div_beauty"
         }
-    }
-    ,
+    },
     "locations": {
-        "HN1": {},
-        "SB1": {},
-        "SB2": {},
-        "OC1": {},
+        "HN1": {
+            "map": [
+                {
+                    "when": [{"macro": "HN", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "HN", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "HN", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestAd"
+                }
+            ]
+        },
+        "SB1": {
+            "map": [
+                {
+                    "when": [{"macro": "SB", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "SB", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "SB", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestChallengerAd"
+                },
+                {
+                    "when": [{"macro": "AdHocAB1", "match": "B"}],
+                    "then": "Control"
+                }
+            ]
+        },
+        "SB2": {
+            "map": [
+                {
+                    "when": [{"macro": "SB", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "SB", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "SB", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestChallengerAd"
+                },
+                {
+                    "when": [{"macro": "AdHocAB2", "match": "B"}],
+                    "then": "Control"
+                }
+            ]
+        },
+        "OC1": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestChallengerAd"
+                }
+            ]
+        },
         "LP1": {},
         "LP2": {},
         "LP3": {},
@@ -127,6 +232,110 @@
         "LP8": {},
         "LP9": {},
         "LP10": {},
-        "LP11": {}
+        "LP11": {},
+        "PH2": {
+            "map": [
+                {
+                    "when": [{"macro": "PH", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestChallengerAd"
+                }
+            ],
+            "best_args": {
+                "return_ranks": [1]
+            }
+        },
+        "PH3": {
+            "map": [
+                {
+                    "when": [{"macro": "PH", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestChallengerAd"
+                }
+            ],
+            "best_args": {
+                "return_ranks": [2]
+            }
+        },
+        "PH4": {
+            "map": [
+                {
+                    "when": [{"macro": "PH", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestChallengerAd"
+                }
+            ],
+            "best_args": {
+                "return_ranks": [3]
+            }
+        },
+        "PH5": {
+            "map": [
+                {
+                    "when": [{"macro": "PH", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "2. Random"}],
+                    "then": "RandomAd"
+                },
+                {
+                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "then": "BestAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "BestChallengerAd"
+                }
+            ],
+            "best_args": {
+                "return_ranks": [4]
+            }
+        }
     }
 }
