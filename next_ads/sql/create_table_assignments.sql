@@ -1,4 +1,4 @@
-create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments (
+create table {table} (
     AccountNumber string not null,
     Location string not null,
     MacroLocation string not null,
@@ -13,7 +13,7 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments (
     UniqueAdID string,
     MASID string not null,
     rundate date not null,
-  constraint pk_ad_assignments primary key (
+  constraint pk_{table_name} primary key (
     AccountNumber,
     Location,
     rundate

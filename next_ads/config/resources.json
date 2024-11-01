@@ -43,11 +43,6 @@
             ["Tags", "string", "null"]
         ]
     },
-    "catalog": "marketingdata_prod",
-    "schema": {
-        "dev": "ds_sandbox",
-        "prod": "warehouse"
-    },
     "tables": {
         "read": {
             "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
@@ -66,9 +61,8 @@
         "write": {
             "control_sheet": "next_uk_nextads_control_sheet",
             "control_sheet_latest": "next_uk_nextads_control_sheet_latest",
+            "fixed_cells": "next_uk_nextads_fixed_cells",
             "targeting_scores_latest": "next_uk_nextads_targeting_scores_latest",
-            "overall_cells": "",
-            "division_scores_latest": "",
             "assignments": "next_uk_nextads_assignments",
             "assignments_latest": "next_uk_nextads_assignments_latest"
         }
