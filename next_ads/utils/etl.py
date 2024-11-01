@@ -14,19 +14,8 @@ def get_job_env(pargs: dict) -> str:
         return "prod"
 
 
-def extract_table_name(
-        table_path: str,
-        split_char: str = ".") -> str:
-    return table_path.split(split_char)[-1]
-
-
-def apply_job_env_prefix(
-        table: str,
-        job_env: str) -> str:
-    if job_env == "dev":
-        return "dev_" + table
-    else:
-        return table
+def map_schema(s: str, schema) -> str:
+    return s.format_map({"schema": schema})
 
 
 def build_spark_field(
@@ -98,7 +87,6 @@ def assert_pk(df: DataFrame, pk_cols: list):
 def delete_from_and_load(
         df: DataFrame,
         table: str,
-        job_env: str,
         pk_cols: list[str] = [],
         del_where: dict = {}) -> None:
     """
@@ -108,15 +96,10 @@ def delete_from_and_load(
     Arguments:
         df - PySpark dataframe to load
         table - Table to delete from and load into
-        job_env - Job environment (dictates table reference)
         pk_cols - Primary Key columns
         del_where - Also delete where key = value before load
             e.g. {"a": "'b'"} appends and "and a = 'b'
     """
-
-    table_name_raw = extract_table_name(table)
-    table_name = apply_job_env_prefix(table_name_raw, job_env)
-    table_path = table.replace(table_name_raw, table_name)
 
     if pk_cols:
         assert_pk(df, pk_cols)
@@ -125,7 +108,7 @@ def delete_from_and_load(
 
     query_del = (
         f"""
-        delete from {table_path}
+        delete from {table}
         where 1 = 1
         """
         )
@@ -138,7 +121,7 @@ def delete_from_and_load(
 
     get_spark().sql(
         f"""
-        insert into {table_path}
+        insert into {table}
         select *, current_date() as rundate
         from df_load
         """
@@ -150,7 +133,6 @@ def delete_from_and_load(
 def truncate_and_load(
         df: DataFrame,
         table: str,
-        job_env: str,
         pk_cols: list[str] = []) -> None:
     """
     Truncates table and then inserts df into table with
@@ -159,13 +141,8 @@ def truncate_and_load(
     Arguments:
         df - PySpark dataframe to load
         table - Table to truncate and load into
-        job_env - Job environment (dictates table reference)
         pk_cols - Primary Key columns
     """
-
-    table_name_raw = extract_table_name(table)
-    table_name = apply_job_env_prefix(table_name_raw, job_env)
-    table_path = table.replace(table_name_raw, table_name)
 
     if pk_cols:
         assert_pk(df, pk_cols)
@@ -174,71 +151,15 @@ def truncate_and_load(
 
     get_spark().sql(
         f"""
-        truncate table {table_path}
+        truncate table {table}
         """)
 
     get_spark().sql(
         f"""
-        insert into {table_path}
+        insert into {table}
         select *, current_date() as rundate
         from df_load
         """
-        )
-
-    return None
-
-
-def create_or_replace(
-        df: DataFrame,
-        table: str,
-        job_env: str,
-        pk_cols: list[str] = []) -> None:
-    """
-    Drops table (if exists) then creates table and loads df with
-    `rundate` as current date
-
-    Arguments:
-        df - PySpark dataframe to load
-        table - Table to load into
-        job_env - Job environment (dictates table reference)
-        pk_cols - Primary Key columns
-    """
-
-    table_name_raw = extract_table_name(table)
-    table_name = apply_job_env_prefix(table_name_raw, job_env)
-    table_path = table.replace(table_name_raw, table_name)
-
-    if pk_cols:
-        assert_pk(df, pk_cols)
-
-    df.createOrReplaceTempView("df_load")
-
-    get_spark().sql(
-        f"""
-        drop table if exists {table_path}
-        """)
-
-    get_spark().sql(
-        f"""
-        create table {table_path} as
-        select *, current_date() as rundate
-        from df_load
-        """
-        )
-
-    if pk_cols:
-        for pk_col in pk_cols:
-            get_spark().sql(
-                f"""
-                alter table {table} alter column {pk_col} set not null
-                """
-                )
-        get_spark().sql(
-            f"""
-            alter table {table}
-            add constraint pk_{table_name}
-            primary key ({",".join(pk_cols)})
-            """
         )
 
     return None

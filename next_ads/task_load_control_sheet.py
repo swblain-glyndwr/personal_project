@@ -9,7 +9,8 @@ from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (assert_pk,
                                 truncate_and_load,
                                 delete_from_and_load,
-                                get_job_env)
+                                get_job_env,
+                                map_schema)
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -31,9 +32,12 @@ log.info(f"Running in job environment: {job_env}")
 
 VALID_LOCATIONS = list(prm["locations"].keys())
 CONTROL_SHEET = rsc["control_sheet"]
-TARGET_TABLE = rsc["tables"]["write"]["control_sheet"]
-TARGET_TABLE_LATEST = rsc["tables"]["write"]["control_sheet_latest"]
 
+SCHEMA = rsc["schema"][job_env]
+
+tbls = rsc["tables"]["write"]
+TARGET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
+TARGET_TABLE_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 
 log.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
 

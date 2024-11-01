@@ -8,7 +8,7 @@ from next_ads.Assignment import (
     assign_best_ads
     )
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import get_job_env, delete_from_and_load
+from next_ads.utils.etl import get_job_env, map_schema, delete_from_and_load
 from pyspark.sql import functions as F
 from next_ads.utils.columnscalers import subtract_mean
 
@@ -34,10 +34,14 @@ log.info(f"Running in job environment: {job_env}")
 
 DIVISION_ASSIGNMENT = rsc["files"]["div_assignment"]
 CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
-TARGETING_SCORES_TABLE = rsc["tables"]["write"]["targeting_scores_latest"]
-ASSIGNMENTS_TABLE = rsc["tables"]["write"]["assignments"]
-ASSIGNMENTS_TABLE_LATEST = rsc["tables"]["write"]["assignments_latest"]
 VALID_LOCATIONS = set(prm["locations"].keys())
+
+SCHEMA = rsc["schema"][job_env]
+
+tbls = rsc["tables"]["write"]
+TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
+ASSIGNMENTS_TABLE = map_schema(tbls["assignments"])
+ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"])
 
 if req_location in VALID_LOCATIONS:
     LOCATION = req_location

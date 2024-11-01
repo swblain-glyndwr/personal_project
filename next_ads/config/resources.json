@@ -43,6 +43,10 @@
             ["Tags", "string", "null"]
         ]
     },
+    "schema": {
+        "dev": "ds_sandbox",
+        "prod": "warehouse"
+    },
     "tables": {
         "read": {
             "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
@@ -59,12 +63,12 @@
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest"
         },
         "write": {
-            "control_sheet": "marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet",
-            "control_sheet_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet_latest",
-            "fixed_cells": "marketingdata_prod.ds_sandbox.next_uk_nextads_fixed_cells",
-            "targeting_scores_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_targeting_scores_latest",
-            "assignments": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments",
-            "assignments_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest"
+            "control_sheet": "marketingdata_prod.{schema}.next_uk_nextads_control_sheet",
+            "control_sheet_latest": "marketingdata_prod.{schema}.next_uk_nextads_control_sheet_latest",
+            "fixed_cells": "marketingdata_prod.{schema}.next_uk_nextads_fixed_cells",
+            "targeting_scores_latest": "marketingdata_prod.{schema}.next_uk_nextads_targeting_scores_latest",
+            "assignments": "marketingdata_prod.{schema}.next_uk_nextads_assignments",
+            "assignments_latest": "marketingdata_prod.{schema}.next_uk_nextads_assignments_latest"
         }
     },
     "files": {

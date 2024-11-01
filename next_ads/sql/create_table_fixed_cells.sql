@@ -1,4 +1,4 @@
-create table marketingdata_prod.ds_sandbox.next_uk_nextads_fixed_cells (
+create table marketingdata_prod.{schema}.next_uk_nextads_fixed_cells (
     AccountNumber string not null,
     FallowControl boolean not null,
     AlgoDivision string not null,

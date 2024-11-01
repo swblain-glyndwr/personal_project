@@ -3,9 +3,7 @@ import logging.config
 import json
 import argparse
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import (apply_job_env_prefix,
-                                extract_table_name,
-                                get_job_env)
+from next_ads.utils.etl import get_job_env, map_schema
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -23,24 +21,21 @@ pargs = vars(known_args)
 job_env = get_job_env(pargs)
 log.info(f"Running in job environment: {job_env}")
 
+SCHEMA = rsc["schema"][job_env]
 TABLES = rsc["tables"]["write"]
 
 for table_ref in TABLES:
 
-    table = TABLES[table_ref]
-    table_name_raw = extract_table_name(table)
-    table_name = apply_job_env_prefix(table_name_raw, job_env)
-    table_path = table.replace(table_name_raw, table_name)
+    table = map_schema(TABLES[table_ref], SCHEMA)
 
-    if get_spark().catalog.tableExists(table_path):
-        log.warning(f"Table {table_path} already exists - skipping")
+    if get_spark().catalog.tableExists(table):
+        log.warning(f"Table {table} already exists - skipping")
         continue
 
     with open(f"sql/create_table_{table_ref}.sql") as f:
-        raw_query = "".join(f.readlines())
+        query = "".join(f.readlines())
 
-    query = raw_query.replace(table_name_raw, table_name)
-    log.info(f"Creating {table_ref} table as: {table_path}")
+    log.info(f"Creating {table_ref} table as: {table}")
     get_spark().sql(query)
 
 log.info("Run complete")

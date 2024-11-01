@@ -3,7 +3,7 @@ import logging
 import logging.config
 import json
 import datetime as dt
-from next_ads.utils.etl import assert_pk, get_job_env
+from next_ads.utils.etl import assert_pk, get_job_env, map_schema
 from next_ads.utils.dbc import get_spark
 import pyspark.sql.functions as F
 
@@ -39,7 +39,9 @@ BQ_UK_SCREENS = rsc["tables"]["read"]["bq_uk_screens"]
 BQ_UK_ADD_TO_BASKET_APP = rsc["tables"]["read"]["bq_uk_add_to_basket_app"]
 BQ_UK_TRANSACTIONS_APP = rsc["tables"]["read"]["bq_uk_transactions_app"]
 
-AD_ASSIGNMENTS = rsc["tables"]["write"]["assignments"]
+SCHEMA = rsc["schema"][job_env]
+tbls = rsc["tables"]["write"]
+AD_ASSIGNMENTS = map_schema(tbls["assignments"], SCHEMA)
 
 ANCHOR_DATE = dt.date.today() - dt.timedelta(days=2)
 

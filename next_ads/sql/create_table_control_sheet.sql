@@ -1,4 +1,4 @@
-create table marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet (
+create table marketingdata_prod.{schema}.next_uk_nextads_control_sheet (
   UniqueAdID string not null,
   PotNumber string not null,
   CampaignNumber string,

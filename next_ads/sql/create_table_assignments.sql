@@ -1,4 +1,4 @@
-create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments (
+create table marketingdata_prod.{schema}.next_uk_nextads_assignments (
     AccountNumber string not null,
     Location string not null,
     MacroLocation string not null,

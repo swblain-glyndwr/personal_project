@@ -5,7 +5,7 @@ import json
 from pyspark.sql import functions as F
 from AdRetrieval import get_latest_ads
 from Scoring import aggregate_model_scores
-from next_ads.utils.etl import truncate_and_load, get_job_env
+from next_ads.utils.etl import truncate_and_load, get_job_env, map_schema
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -24,7 +24,10 @@ job_env = get_job_env(pargs)
 log.info(f"Running in job environment: {job_env}")
 
 MODEL_SCORE_TABLE = rsc["tables"]["read"]["model_scores_latest"]
-TARGETING_SCORES_TABLE = rsc["tables"]["write"]["targeting_scores_latest"]
+
+SCHEMA = rsc["schema"][job_env]
+tbls = rsc["tables"]["write"]
+TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
 
 
 df_scores_required = (
