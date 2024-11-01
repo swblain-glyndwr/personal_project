@@ -7,7 +7,7 @@ import next_ads.utils.gcp as gcp
 import json
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (assert_pk,
-                                create_or_replace,
+                                truncate_and_load,
                                 delete_from_and_load,
                                 get_job_env)
 
@@ -140,7 +140,7 @@ delete_from_and_load(df_processed.select(*target_cols),
                      del_where={"rundate": "current_date()"})
 
 log.info("Loading output to table (latest)")
-create_or_replace(df_processed.select(*target_cols),
+truncate_and_load(df_processed.select(*target_cols),
                   TARGET_TABLE_LATEST,
                   job_env=job_env,
                   pk_cols=["UniqueAdID", "Location"])
