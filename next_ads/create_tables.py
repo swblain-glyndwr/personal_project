@@ -29,9 +29,15 @@ for table_ref in TABLES:
     table = TABLES[table_ref]
     table_name_raw = extract_table_name(table)
     table_name = apply_job_env_prefix(table_name_raw, job_env)
+    table_path = table.replace(table_name_raw, table_name)
+
+    if get_spark().catalog.tableExists(table_path):
+        log.warning(f"Table {table_path} already exists - skipping")
+        continue
 
     with open(f"sql/create_table_{table_ref}.sql") as f:
         raw_query = "".join(f.readlines())
 
     query = raw_query.replace(table_name_raw, table_name)
+
     get_spark().sql(query)
