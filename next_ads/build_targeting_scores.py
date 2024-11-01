@@ -1,10 +1,11 @@
+import argparse
 import logging
 import logging.config
 import json
 from pyspark.sql import functions as F
 from AdRetrieval import get_latest_ads
 from Scoring import aggregate_model_scores
-from next_ads.utils.etl import create_or_replace
+from next_ads.utils.etl import truncate_and_load, get_job_env
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -13,6 +14,14 @@ log = logging.getLogger("mylog")
 log.info("Configuring run")
 with open("config/resources.json") as f:
     rsc = json.load(f)
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--f", help="dummy arg enabling interactive debugging")
+parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
+known_args, unknown_args = parser.parse_known_args()
+pargs = vars(known_args)
+job_env = get_job_env(pargs)
+log.info(f"Running in job environment: {job_env}")
 
 MODEL_SCORE_TABLE = rsc["tables"]["read"]["model_scores_latest"]
 TARGETING_SCORES_TABLE = rsc["tables"]["write"]["targeting_scores_latest"]
@@ -36,8 +45,11 @@ df_ms_agg = aggregate_model_scores(
 df_ms_agg.cache()
 
 
-create_or_replace(df_ms_agg,
+truncate_and_load(df_ms_agg,
                   table=TARGETING_SCORES_TABLE,
+                  job_env=job_env,
                   pk_cols=["AccountNumber", "TargetingCriteria"])
 
 df_ms_agg.unpersist()
+
+log.info("Run complete")

@@ -26,7 +26,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--f", help="dummy arg enabling interactive debugging")
 parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
 parser.add_argument("--location", nargs="?", const="HN1", type=str)
-pargs = vars(parser.parse_args())
+known_args, unknown_args = parser.parse_known_args()
+pargs = vars(known_args)
 req_location = pargs["location"] if pargs["location"] else "HN1"
 job_env = get_job_env(pargs)
 log.info(f"Running in job environment: {job_env}")
@@ -279,3 +280,5 @@ delete_from_and_load(df_assignments,
 df_cust_div.unpersist()
 df_assigned_best.unpersist()
 df_assignments.unpersist()
+
+log.info("Run complete")

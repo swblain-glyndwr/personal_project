@@ -1,3 +1,4 @@
+import argparse
 import logging
 import logging.config
 import pyspark.sql.functions as F
@@ -7,19 +8,26 @@ import json
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (assert_pk,
                                 create_or_replace,
-                                delete_from_and_load)
+                                delete_from_and_load,
+                                get_job_env)
 
 
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
-
 log.info("Configuring run")
 with open("config/parameters.json") as f:
     prm = json.load(f)
-
 with open("config/resources.json") as f:
     rsc = json.load(f)
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--f", help="dummy arg enabling interactive debugging")
+parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
+known_args, unknown_args = parser.parse_known_args()
+pargs = vars(known_args)
+job_env = get_job_env(pargs)
+log.info(f"Running in job environment: {job_env}")
 
 VALID_LOCATIONS = list(prm["locations"].keys())
 CONTROL_SHEET = rsc["control_sheet"]
@@ -124,13 +132,17 @@ else:
     raise Exception("Target table cols not a subset of Control Sheet cols")
 
 
-log.info(f"Loading output to {TARGET_TABLE}")
+log.info("Loading output to table")
 delete_from_and_load(df_processed.select(*target_cols),
                      TARGET_TABLE,
+                     job_env=job_env,
                      pk_cols=["UniqueAdID", "Location"],
                      del_where={"rundate": "current_date()"})
 
-log.info(f"Loading output to {TARGET_TABLE_LATEST}")
+log.info("Loading output to table (latest)")
 create_or_replace(df_processed.select(*target_cols),
                   TARGET_TABLE_LATEST,
+                  job_env=job_env,
                   pk_cols=["UniqueAdID", "Location"])
+
+log.info("Run complete")

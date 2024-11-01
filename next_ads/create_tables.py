@@ -42,3 +42,5 @@ for table_ref in TABLES:
     query = raw_query.replace(table_name_raw, table_name)
     log.info(f"Creating {table_ref} table as: {table_path}")
     get_spark().sql(query)
+
+log.info("Run complete")
