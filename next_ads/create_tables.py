@@ -39,5 +39,5 @@ for table_ref in TABLES:
         raw_query = "".join(f.readlines())
 
     query = raw_query.replace(table_name_raw, table_name)
-
+    log.info(f"Creating {table_ref} table as: {table_path}")
     get_spark().sql(query)
