@@ -17,7 +17,8 @@
             "seed": 201,
             "page": "/",
             "screen": "Home",
-            "reported_value": "SessionRevenue"
+            "reported_value": "SessionRevenue",
+            "members": ["HN1"]
         },
         "SB": {
             "cells": [
@@ -28,7 +29,8 @@
             "seed": 202,
             "page": "/shoppingbag",
             "screen": "Cart",
-            "reported_value": "ProductRevenuePostFirstHit"
+            "reported_value": "ProductRevenuePostFirstHit",
+            "members": ["SB1", "SB2"]
         },
         "OC": {
             "cells": [
@@ -39,7 +41,8 @@
             "seed": 203,
             "page": "%checkout/complete%",
 		    "screen": "Checkout Completed",
-            "reported_value": "ProductRevenuePostFirstHit"
+            "reported_value": "ProductRevenuePostFirstHit",
+            "members": ["OC1"]
         },
         "LP": {
             "cells": [
@@ -49,7 +52,8 @@
             "seed": 204,
             "page": "",
 		    "screen": "",
-            "reported_value": "SessionRevenue"
+            "reported_value": "SessionRevenue",
+            "members": ["LP1", "LP2", "LP3", "LP4", "LP5", "LP6", "LP7", "LP8"]
         },
         "PH": {
             "cells": [
@@ -60,7 +64,8 @@
             "seed": 205,
             "page": "/",
             "screen": "Home",
-            "reported_value": "SessionRevenue"
+            "reported_value": "SessionRevenue",
+            "members": ["PH2", "PH3", "PH4", "PH5"]
         },
         "AdHocAB1": {
             "cells": [
@@ -143,7 +148,10 @@
                     ],
                     "then": "BestAd"
                 }
-            ]
+            ],
+            "constraints": {
+                "match": ["CustomerDivision", "AdDivision"]
+            }
         },
         "SB1": {
             "map": [
@@ -161,7 +169,7 @@
                 },
                 {
                     "when": [
-                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "SB", "match": "1: Personalised"},
                         {"macro": "ChampionChallenger", "match": "Challenger"}
                     ],
                     "then": "BestChallengerAd"
@@ -170,7 +178,10 @@
                     "when": [{"macro": "AdHocAB1", "match": "B"}],
                     "then": "Control"
                 }
-            ]
+            ],
+            "constraints": {
+                "match": ["CustomerDivision", "AdDivision"]
+            }
         },
         "SB2": {
             "map": [
@@ -188,7 +199,7 @@
                 },
                 {
                     "when": [
-                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "SB", "match": "1: Personalised"},
                         {"macro": "ChampionChallenger", "match": "Challenger"}
                     ],
                     "then": "BestChallengerAd"
@@ -197,7 +208,10 @@
                     "when": [{"macro": "AdHocAB2", "match": "B"}],
                     "then": "Control"
                 }
-            ]
+            ],
+            "constraints": {
+                "match": ["CustomerDivision", "AdDivision"]
+            }
         },
         "OC1": {
             "map": [
@@ -215,21 +229,136 @@
                 },
                 {
                     "when": [
-                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "OC", "match": "1: Personalised"},
                         {"macro": "ChampionChallenger", "match": "Challenger"}
                     ],
                     "then": "BestChallengerAd"
                 }
-            ]
+            ],
+            "constraints": {
+                "match": ["CustomerDivision", "AdDivision"]
+            }
         },
-        "LP1": {},
-        "LP2": {},
-        "LP3": {},
-        "LP4": {},
-        "LP5": {},
-        "LP6": {},
-        "LP7": {},
-        "LP8": {},
+        "LP1": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["AdDivision", "Womens"]
+            }
+        },
+        "LP2": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["AdDivision", "Mens"]
+            }
+        },
+        "LP3": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["AdDivision", "Boys"]
+            }
+        },
+        "LP4": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["AdDivision", "Girls"]
+            }
+        },
+        "LP5": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["AdDivision", "Home"]
+            }
+        },
+        "LP6": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["AdDivision", "Beauty"]
+            }
+        },
+        "LP7": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["TradeDivision", "Brands"]
+            }
+        },
+        "LP8": {
+            "map": [
+                {
+                    "when": [{"macro": "OC", "match": "3: No Banner"}],
+                    "then": "Control"
+                },
+                {
+                    "when": [{"macro": "OC", "match": "2. Random"}],
+                    "then": "RandomAd"
+                }
+            ],
+            "constraints": {
+                "where": ["TradeDivision", "Sport"]
+            }
+        },
         "LP9": {},
         "LP10": {},
         "LP11": {},
