@@ -2,8 +2,10 @@ import logging
 import logging.config
 import json
 import argparse
-# from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import get_job_env, get_env_prefix
+from next_ads.utils.dbc import get_spark
+from next_ads.utils.etl import (apply_job_env_prefix,
+                                extract_table_name,
+                                get_job_env)
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -20,22 +22,16 @@ pargs = vars(parser.parse_args())
 job_env = get_job_env(pargs)
 log.info(f"Running in job environment: {job_env}")
 
-CATALOG = rsc["write"]["catalog"]
-SCHEMA = rsc["write"]["schema"]
-TABLES = rsc["write"]["tables"]
-ENV_PREFIX = get_env_prefix(job_env)
+TABLES = rsc["tables"]["write"]
 
-log.info(f"Creating tables in {CATALOG}.{SCHEMA}")
+for table_ref in TABLES:
 
-for table in TABLES:
-    if not TABLES[table]:
-        continue
-    with open(f"sql/create_table_{table}.sql") as f:
+    table = TABLES[table_ref]
+    table_name_raw = extract_table_name(table)
+    table_name = apply_job_env_prefix(table_name_raw, job_env)
+
+    with open(f"sql/create_table_{table_ref}.sql") as f:
         raw_query = "".join(f.readlines())
-    query = raw_query.format_map({
-        "catalog": CATALOG,
-        "schema": SCHEMA,
-        "env_prefix": ENV_PREFIX,
-        "table": table})
-    print(query)
-    print("")
+
+    query = raw_query.replace(table_name_raw, table_name)
+    get_spark().sql(query)

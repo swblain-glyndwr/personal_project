@@ -98,6 +98,7 @@ def assert_pk(df: DataFrame, pk_cols: list):
 def delete_from_and_load(
         df: DataFrame,
         table: str,
+        job_env: str,
         pk_cols: list[str] = [],
         del_where: dict = {}) -> None:
     """
@@ -107,14 +108,15 @@ def delete_from_and_load(
     Arguments:
         df - PySpark dataframe to load
         table - Table to delete from and load into
+        job_env - Job environment (dictates table reference)
         pk_cols - Primary Key columns
         del_where - Also delete where key = value before load
             e.g. {"a": "'b'"} appends and "and a = 'b'
     """
 
-    table_raw = extract_table_name(table)
-    table_name = apply_job_env_prefix(table_raw)
-    table_path = table.replace(table_raw, table_name)
+    table_name_raw = extract_table_name(table)
+    table_name = apply_job_env_prefix(table_name_raw, job_env)
+    table_path = table.replace(table_name_raw, table_name)
 
     if pk_cols:
         assert_pk(df, pk_cols)
@@ -148,6 +150,7 @@ def delete_from_and_load(
 def truncate_and_load(
         df: DataFrame,
         table: str,
+        job_env: str,
         pk_cols: list[str] = []) -> None:
     """
     Truncates table and then inserts df into table with
@@ -156,12 +159,13 @@ def truncate_and_load(
     Arguments:
         df - PySpark dataframe to load
         table - Table to truncate and load into
+        job_env - Job environment (dictates table reference)
         pk_cols - Primary Key columns
     """
 
-    table_raw = extract_table_name(table)
-    table_name = apply_job_env_prefix(table_raw)
-    table_path = table.replace(table_raw, table_name)
+    table_name_raw = extract_table_name(table)
+    table_name = apply_job_env_prefix(table_name_raw, job_env)
+    table_path = table.replace(table_name_raw, table_name)
 
     if pk_cols:
         assert_pk(df, pk_cols)
@@ -187,6 +191,7 @@ def truncate_and_load(
 def create_or_replace(
         df: DataFrame,
         table: str,
+        job_env: str,
         pk_cols: list[str] = []) -> None:
     """
     Drops table (if exists) then creates table and loads df with
@@ -195,12 +200,13 @@ def create_or_replace(
     Arguments:
         df - PySpark dataframe to load
         table - Table to load into
+        job_env - Job environment (dictates table reference)
         pk_cols - Primary Key columns
     """
 
-    table_raw = extract_table_name(table)
-    table_name = apply_job_env_prefix(table_raw)
-    table_path = table.replace(table_raw, table_name)
+    table_name_raw = extract_table_name(table)
+    table_name = apply_job_env_prefix(table_name_raw, job_env)
+    table_path = table.replace(table_name_raw, table_name)
 
     if pk_cols:
         assert_pk(df, pk_cols)
