@@ -33,7 +33,7 @@ for table_ref in TABLES:
         continue
 
     with open(f"sql/create_table_{table_ref}.sql") as f:
-        query = "".join(f.readlines())
+        query = map_schema("".join(f.readlines()), SCHEMA)
 
     log.info(f"Creating {table_ref} table as: {table}")
     get_spark().sql(query)
