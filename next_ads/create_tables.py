@@ -18,7 +18,8 @@ with open("config/resources.json") as f:
 parser = argparse.ArgumentParser()
 parser.add_argument("--f", help="dummy arg enabling interactive debugging")
 parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
-pargs = vars(parser.parse_args())
+known_args, unknown_args = parser.parse_known_args()
+pargs = vars(known_args)
 job_env = get_job_env(pargs)
 log.info(f"Running in job environment: {job_env}")
 
