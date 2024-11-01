@@ -19,9 +19,9 @@ with open("config/parameters.json") as f:
 parser = argparse.ArgumentParser()
 parser.add_argument("--f", help="dummy arg enabling interactive debugging")
 parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
-parser.add_argument("--testlocation", nargs="?", const="HN1", type=str)
+parser.add_argument("--macrolocation", nargs="?", const="HN1", type=str)
 pargs = vars(parser.parse_args())
-req_testlocation = pargs["testlocation"] if pargs["testlocation"] else "SB"
+req_macrolocation = pargs["macrolocation"] if pargs["macrolocation"] else "SB"
 job_env = get_job_env(pargs)
 log.info(f"Running in job environment: {job_env}")
 
@@ -42,12 +42,12 @@ AD_ASSIGNMENTS = rsc["tables"]["write"]["assignments"]
 
 ANCHOR_DATE = dt.date.today() - dt.timedelta(days=2)
 
-TEST_LOCATIONS = prm["test_locations"]
-if req_testlocation in TEST_LOCATIONS:
-    TEST_LOCATION = req_testlocation
+MACRO_LOCATIONS = prm["macro_locations"]
+if req_macrolocation in MACRO_LOCATIONS:
+    MACRO_LOCATION = req_macrolocation
 else:
-    raise Exception(f"Invalid TestLocation requested: {req_testlocation}")
-log.info(f"Building results tables for TestLocation: {TEST_LOCATION}")
+    raise Exception(f"Invalid MacroLocation requested: {req_macrolocation}")
+log.info(f"Building results tables for MacroLocation: {MACRO_LOCATION}")
 
 
 # There were a lot of instances of "select distinct..." in legacy code
@@ -116,7 +116,7 @@ df_sessions.cache()
 df_first_hits_web = (
     get_spark()
     .table(BQ_UK_PAGES)
-    .where(F.col("PagePath") == TEST_LOCATIONS[TEST_LOCATION]["page"])
+    .where(F.col("PagePath") == MACRO_LOCATIONS[MACRO_LOCATION]["page"])
     .where(F.col("date") == ANCHOR_DATE)
     .select("UniqueVisitID", "FirstTimestamp")
     .groupBy("UniqueVisitID")
@@ -126,7 +126,7 @@ df_first_hits_web = (
 df_first_hits_app = (
     get_spark()
     .table(BQ_UK_SCREENS)
-    .where(F.col("ScreenName") == TEST_LOCATIONS[TEST_LOCATION]["screen"])
+    .where(F.col("ScreenName") == MACRO_LOCATIONS[MACRO_LOCATION]["screen"])
     .where(F.col("date") == ANCHOR_DATE)
     .select("UniqueVisitID", "FirstTimestamp")
     .groupBy("UniqueVisitID")
@@ -222,7 +222,7 @@ df_session_revenue_web = (
     df_sessions_web
     .join(df_rev_post_first_hit_web, how="inner", on="UniqueVisitID")
     .withColumn("Revenue",
-                F.col(TEST_LOCATIONS[TEST_LOCATION]["reported_value"]))
+                F.col(MACRO_LOCATIONS[MACRO_LOCATION]["reported_value"]))
     .select(
         "AccountNumber",
         "UniqueVisitID",
@@ -237,7 +237,7 @@ df_session_revenue_app = (
     df_sessions_app
     .join(df_rev_post_first_hit_app, how="inner", on="UniqueVisitID")
     .withColumn("Revenue",
-                F.col(TEST_LOCATIONS[TEST_LOCATION]["reported_value"]))
+                F.col(MACRO_LOCATIONS[MACRO_LOCATION]["reported_value"]))
     .select(
         "AccountNumber",
         "UniqueVisitID",
@@ -258,7 +258,7 @@ df_session_revenue.cache()
 # df_next_page_path = (
 #     get_spark()
 #     .table(BQ_UK_PAGES)
-#     .where(F.col("PagePath") == TEST_LOCATIONS[TEST_LOCATION]["page"])
+#     .where(F.col("PagePath") == MACRO_LOCATIONS[MACRO_LOCATION]["page"])
 #     .where(F.col("date") == ANCHOR_DATE)
 #     .select("UniqueVisitID", "NextPagePath")
 #     .drop_duplicates()
@@ -267,7 +267,7 @@ df_session_revenue.cache()
 # df_next_page_path_app = (
 #     get_spark()
 #     .table(BQ_UK_SCREENS)
-#     .where(F.col("ScreenName") == TEST_LOCATIONS[TEST_LOCATION]["screen"])
+#     .where(F.col("ScreenName") == MACRO_LOCATIONS[MACRO_LOCATION]["screen"])
 #     .where(F.col("date") == ANCHOR_DATE)
 #     .select("UniqueVisitID", "NextScreenName")
 #     .withColumnRenamed("NextScreenName", "NextPagePath")
@@ -302,9 +302,9 @@ df_session_revenue_app.printSchema()  # Matches HP_Hit schema
 
 
 # Three ds_sandbox tables created:
-# {TEST_LOCATION}_Hit as select * from HP_Hit/df_revenue_per_session
-# {TEST_LOCATION}_Next_Page as select * from HP_Next_Page/df_next_page
-# {TEST_LOCATION}_Account as select distinct acc from HP_Hit/df_rps
+# {MACRO_LOCATION}_Hit as select * from HP_Hit/df_revenue_per_session
+# {MACRO_LOCATION}_Next_Page as select * from HP_Next_Page/df_next_page
+# {MACRO_LOCATION}_Account as select distinct acc from HP_Hit/df_rps
 
 
 # 1 Combine App and Web AccountNumber lists to create master unique accs list
@@ -352,7 +352,7 @@ df_results_total = (
 
 # df_results_total.count()
 df_results_total
-df_results_total.groupBy("TestLocationCell").count()
+df_results_total.groupBy("MacroLocationCell").count()
 
 
 # History then loaded and overwritten
@@ -378,14 +378,14 @@ bq_nextads_homepage_report = (
     df_results_total
     .select(
         "AccountNumber",
-        "TestLocationCell",  # Replacing HPTest
+        "MacroLocationCell",  # Replacing HPTest
         "RPS",
         "Device",
         "UniqueVisitID",
         "SessionDate",
         "Division"
     )
-    .where(F.col("TestLocationCell") != "4: Overall")
+    .where(F.col("MacroLocationCell") != "4: Overall")
 )
 # TODO: Export to BQ
 

@@ -1,8 +1,8 @@
 create table marketingdata_prod.ds_sandbox.next_uk_nextads_assignments (
     AccountNumber string not null,
     Location string not null,
-    TestLocation string not null,
-    TestLocationCell string not null,
+    MacroLocation string not null,
+    MacroLocationCell string not null,
     ChampionChallenger string,
     RandomUniqueAdID string,
     RandomMASID string not null,

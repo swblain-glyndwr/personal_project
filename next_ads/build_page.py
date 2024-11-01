@@ -159,11 +159,11 @@ df_assigned_best_challenger = df_assigned_best
 log.info("Getting Cell assignments")
 # TODO: Make this generalisable - HPTest hardcoded as column
 # TODO: Dedicated Champion-Challenger column, instead of random_var1
-TEST_LOCATION = LOCATION[:2]
+MACRO_LOCATION = LOCATION[:2]
 if LOCATION in ["HN1"]:
     test_col = "HPTest"
 else:
-    test_col = f"{TEST_LOCATION}Test"
+    test_col = f"{MACRO_LOCATION}Test"
 
 df_cell = (
         get_spark()
@@ -243,12 +243,12 @@ df_assignments = (
         .otherwise(F.lit(f"{LOCATION}_Z"))
         )
     .withColumn("Location", F.lit(LOCATION))
-    .withColumn("TestLocation", F.lit(TEST_LOCATION))
-    .withColumnRenamed(test_col, "TestLocationCell")
+    .withColumn("MacroLocation", F.lit(MACRO_LOCATION))
+    .withColumnRenamed(test_col, "MacroLocationCell")
     .select("AccountNumber",
             "Location",
-            "TestLocation",
-            "TestLocationCell",
+            "MacroLocation",
+            "MacroLocationCell",
             "ChampionChallenger",
             "RandomUniqueAdID",
             "RandomMASID",

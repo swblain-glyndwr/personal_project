@@ -24,7 +24,7 @@ LEGACY_EXCL = rsc["legacy"]["account_exclusions"]
 
 FALLOW_PC = prm["fallow_control"]["proportion"]
 FALLOW_SEED = prm["fallow_control"]["seed"]
-TEST_LOCATIONS = prm["test_locations"]
+MACRO_LOCATIONS = prm["macro_locations"]
 CHALLENGER_PC = prm["challenger"]["proportion"]
 CHALLENGER_SEED = prm["challenger"]["seed"]
 
@@ -79,12 +79,12 @@ n_cust_fallow = df_fallow.where(F.col("FallowControl")).count()
 
 
 # Get macro locations and seeds
-test_locs = list(TEST_LOCATIONS.keys())
-test_loc_seeds = {k: TEST_LOCATIONS[k]["seed"] for k in test_locs}
+macro_locs = list(MACRO_LOCATIONS.keys())
+macro_loc_seeds = {k: MACRO_LOCATIONS[k]["seed"] for k in macro_locs}
 
 # Convert to dataframe
 schema = build_spark_schema([["MacroLocation", "string", "not null"]])
-df_test_loc = get_spark().createDataFrame([(c,) for c in test_locs], schema)
+df_macro_loc = get_spark().createDataFrame([(c,) for c in macro_locs], schema)
 
 # Append column of Random variable for each Macro Location
 df_test_rdm = (
@@ -92,29 +92,29 @@ df_test_rdm = (
     .where(~F.col("FallowControl"))
     .drop("RandomFallow", "FallowControl")
 )
-for test_loc in test_locs:
+for macro_loc in macro_locs:
     df_test_rdm = (
         df_test_rdm
-        .withColumn(f"Random{test_loc}",
-                    F.rand(seed=test_loc_seeds[test_loc]))
+        .withColumn(f"Random{macro_loc}",
+                    F.rand(seed=macro_loc_seeds[macro_loc]))
     )
 
 # Build case-when to map cell references
-test_loc_cell_assignments = []
-for test_loc in test_locs:
-    cells = TEST_LOCATIONS[test_loc]["cells"]
+macro_loc_cell_assignments = []
+for macro_loc in macro_locs:
+    cells = MACRO_LOCATIONS[macro_loc]["cells"]
     when_strs = []
     for cell in cells:
-        when_str = f"when Random{test_loc} <= {cell[0]} then '{cell[1]}'"
+        when_str = f"when Random{macro_loc} <= {cell[0]} then '{cell[1]}'"
         when_strs.append(when_str)
-    test_loc_cell_assignment = (
+    macro_loc_cell_assignment = (
         "case "
         + " ".join(when_strs)
-        + f" else null end as Cell{test_loc}"
+        + f" else null end as Cell{macro_loc}"
     )
-    test_loc_cell_assignments.append(test_loc_cell_assignment)
+    macro_loc_cell_assignments.append(macro_loc_cell_assignment)
 
-test_loc_cell_case_when = ",\n".join(test_loc_cell_assignments)
+macro_loc_cell_case_when = ",\n".join(macro_loc_cell_assignments)
 
 # Map test cell references
 df_test_rdm.createOrReplaceTempView("df_test_rdm_tmp")
@@ -122,7 +122,7 @@ df_test_cells = (
     get_spark()
     .sql(f"""
          select a.*,
-         {test_loc_cell_case_when} from df_test_rdm_tmp a
+         {macro_loc_cell_case_when} from df_test_rdm_tmp a
          """)
 )
 

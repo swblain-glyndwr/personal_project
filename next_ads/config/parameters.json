@@ -7,7 +7,7 @@
         },
         "seed": 101
     },
-    "test_locations": {
+    "macro_locations": {
         "HN": {
             "cells": [
                 [0.05, "3: No Banner"],
