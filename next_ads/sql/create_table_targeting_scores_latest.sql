@@ -5,7 +5,7 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_targeting_scores_late
     rundate date not null,
   constraint pk_next_uk_nextads_targeting_scores_latest primary key (
     AccountNumber,
-    Location,
+    TargetingCriteria,
     rundate
     )
 )

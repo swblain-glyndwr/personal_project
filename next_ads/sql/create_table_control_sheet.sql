@@ -39,6 +39,9 @@ create table marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet (
   FlatJPG string,
   Tags string,
   rundate date not null,
-  constraint pk_next_uk_nextads_control_sheet primary key (UniqueAdID, Location, rundate)
+  constraint pk_next_uk_nextads_control_sheet primary key (
+    UniqueAdID,
+    Location,
+    rundate)
 )
 partitioned by (rundate)
