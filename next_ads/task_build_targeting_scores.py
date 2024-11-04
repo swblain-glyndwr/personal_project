@@ -45,7 +45,6 @@ df_ms_agg.cache()
 
 truncate_and_load(df_ms_agg,
                   table=TARGETING_SCORES_TABLE,
-                  job_env=job_env,
                   pk_cols=["AccountNumber", "TargetingCriteria"])
 
 df_ms_agg.unpersist()

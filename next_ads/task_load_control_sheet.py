@@ -134,14 +134,12 @@ else:
 log.info("Loading output to table")
 delete_from_and_load(df_processed.select(*target_cols),
                      TARGET_TABLE,
-                     job_env=job_env,
                      pk_cols=["UniqueAdID", "Location"],
                      del_where={"rundate": "current_date()"})
 
 log.info("Loading output to table (latest)")
 truncate_and_load(df_processed.select(*target_cols),
                   TARGET_TABLE_LATEST,
-                  job_env=job_env,
                   pk_cols=["UniqueAdID", "Location"])
 
 log.info("Run complete")

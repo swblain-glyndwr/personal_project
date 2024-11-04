@@ -8,7 +8,6 @@ import re
 with open("config/resources.json") as f:
     rsc = json.load(f)
 
-
 CONTROL_SHEET_LATEST = rsc["tables"]["write"]["control_sheet_latest"]
 RESULTS_FILES = rsc["files"]["results"]
 
@@ -17,6 +16,8 @@ def get_underperforming_ads(
         location: str,
         t_threshold: float = -1.64) -> DataFrame:
     """
+    TODO: Function might be warranted, but needs refactoring to work with
+    job_env paradigm.
     Gets 'underperforming' Ads, as defined by the Ad's t-value.
 
     Args:
@@ -54,6 +55,8 @@ def get_latest_ads(location: str = "",
                    filter_underperforming: bool = False,
                    t_threshold: float = None) -> DataFrame:
     """
+    TODO: Not sure this function is worth it - have to get involved with
+    resources and schema?
     Gets Ads from `_latest` Control Sheet table for a given location.
     Optional filter underperforming with kwargs for customer t_threshold.
 
