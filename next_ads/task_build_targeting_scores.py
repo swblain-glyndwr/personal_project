@@ -1,11 +1,10 @@
-import argparse
 import logging
 import logging.config
 import json
 from pyspark.sql import functions as F
 from AdRetrieval import get_latest_ads
 from Scoring import aggregate_model_scores
-from next_ads.utils.etl import truncate_and_load, get_job_env, map_schema
+from next_ads.utils.etl import truncate_and_load, JobParser, map_schema
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -15,12 +14,8 @@ log.info("Configuring run")
 with open("config/resources.json") as f:
     rsc = json.load(f)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--f", help="dummy arg enabling interactive debugging")
-parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
-known_args, unknown_args = parser.parse_known_args()
-pargs = vars(known_args)
-job_env = get_job_env(pargs)
+parser = JobParser()
+pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
 MODEL_SCORE_TABLE = rsc["tables"]["read"]["model_scores_latest"]

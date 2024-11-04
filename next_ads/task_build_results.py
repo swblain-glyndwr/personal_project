@@ -1,9 +1,8 @@
-import argparse
 import logging
 import logging.config
 import json
 import datetime as dt
-from next_ads.utils.etl import assert_pk, get_job_env, map_schema
+from next_ads.utils.etl import assert_pk, JobParser, map_schema
 from next_ads.utils.dbc import get_spark
 import pyspark.sql.functions as F
 
@@ -16,14 +15,9 @@ with open("config/resources.json") as f:
 with open("config/parameters.json") as f:
     prm = json.load(f)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--f", help="dummy arg enabling interactive debugging")
-parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
-parser.add_argument("--macrolocation", nargs="?", const="HN1", type=str)
-known_args, unknown_args = parser.parse_known_args()
-pargs = vars(known_args)
-req_macrolocation = pargs["macrolocation"] if pargs["macrolocation"] else "SB"
-job_env = get_job_env(pargs)
+parser = JobParser()
+pargs, job_env = parser.parse_job_args(["--jobname", "--macrolocation"])
+req_macrolocation = pargs["macrolocation"] if pargs["macrolocation"] else "HN"
 log.info(f"Running in job environment: {job_env}")
 
 RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]

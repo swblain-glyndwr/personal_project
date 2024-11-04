@@ -1,4 +1,3 @@
-import argparse
 import logging
 import logging.config
 import pyspark.sql.functions as F
@@ -9,7 +8,7 @@ from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (assert_pk,
                                 truncate_and_load,
                                 delete_from_and_load,
-                                get_job_env,
+                                JobParser,
                                 map_schema)
 
 
@@ -22,12 +21,8 @@ with open("config/parameters.json") as f:
 with open("config/resources.json") as f:
     rsc = json.load(f)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--f", help="dummy arg enabling interactive debugging")
-parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
-known_args, unknown_args = parser.parse_known_args()
-pargs = vars(known_args)
-job_env = get_job_env(pargs)
+parser = JobParser()
+pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
 VALID_LOCATIONS = list(prm["locations"].keys())

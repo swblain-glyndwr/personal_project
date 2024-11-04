@@ -3,15 +3,59 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 import sys
 from next_ads.utils.dbc import get_spark
+from argparse import ArgumentParser
 
 
-def get_job_env(pargs: dict) -> str:
-    if not pargs["jobname"]:
-        return "dev"
-    elif pargs["jobname"].startswith("dev_"):
-        return "dev"
-    else:
-        return "prod"
+class JobParser(ArgumentParser):
+    """
+    Child class of argparse.Argument parser designed to parse
+    Databricks job parameters
+    """
+    def __init__(self):
+        super().__init__()
+
+    def parse_job_args(self, job_arg_list: list) -> dict:
+        """
+        Arguments:
+            List of option strings to parse e.g. ["--jobname", "--location"]
+
+        Returns:
+            Dictionary of parsed (known) arguments
+        """
+        known_arg_list = [
+            "--f",
+            "--jobname",
+            "--location",
+            "--macrolocation"
+            ]
+
+        job_args = [j for j in job_arg_list if j in known_arg_list]
+
+        self.add_argument("--f", help="dummy arg for interactive debugging")
+
+        if "--jobname" in job_args:
+            self.add_argument("--jobname",
+                              nargs="?", const="dev_", type=str)
+
+        if "--location" in job_args:
+            self.add_argument("--location",
+                              nargs="?", const="HN1", type=str)
+
+        if "--macrolocation" in job_args:
+            self.add_argument("--macrolocation",
+                              nargs="?", const="HN", type=str)
+
+        known_args, _ = self.parse_known_args()
+        pargs = vars(known_args)
+
+        if not pargs["jobname"]:
+            job_env = "dev"
+        elif pargs["jobname"].startswith("dev_"):
+            job_env = "dev"
+        else:
+            job_env = "prod"
+
+        return pargs, job_env
 
 
 def map_schema(s: str, schema) -> str:
