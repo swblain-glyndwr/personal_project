@@ -1,7 +1,6 @@
 import logging
 import logging.config
 import json
-from AdRetrieval import get_latest_ads
 from next_ads.Assignment import (
     assign_random_ads,
     assign_best_ads
@@ -28,41 +27,34 @@ pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
 req_location = pargs["location"] if pargs["location"] else "HN1"
 log.info(f"Running in job environment: {job_env}")
 
-DIVISION_ASSIGNMENTS = rsc["files"]["division_assignments"]
-CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
-VALID_LOCATIONS = set(prm["locations"].keys())
-
 SCHEMA = rsc["schema"][job_env]
 
 tbls = rsc["tables"]["write"]
+CONTROL_SHEET_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
-ASSIGNMENTS_TABLE = map_schema(tbls["assignments"])
-ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"])
+ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
+ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
+FIXED_CELLS = map_schema(tbls["fixed_cells"], SCHEMA)
 
+VALID_LOCATIONS = set(prm["locations"].keys())
 if req_location in VALID_LOCATIONS:
     LOCATION = req_location
 else:
     raise Exception(f"Invalid Location requested: {req_location}")
 log.info(f"Assigning Ads for Location: {LOCATION}")
 
-if LOCATION == "HN1":
-    filter_underperf = True
-else:
-    filter_underperf = False
-# TODO: Remove once config can point to results for other locations
 
-
-# Get Ad data
 log.info("Getting Ads")
 df_ads = (
-    get_latest_ads(LOCATION, filter_underperforming=filter_underperf)
-    .select("UniqueAdID",
-            "AlgoDivision",
-            "MASIDToken",
-            "TargetingCriteria")
-    .withColumnRenamed("AlgoDivision", "Division")
+    get_spark()
+    .table(CONTROL_SHEET_LATEST)
+    .select(
+        "UniqueAdID",
+        "AlgoDivision",
+        "MASIDToken",
+        "TargetingCriteria")
 )
-# TODO: Remove renaming of AlgoDiv once fully migrated to new control sheet
+# TODO: Remove underperforming Ads
 
 # Ad ID - MASID lookup
 df_ad_masid = (
@@ -78,55 +70,43 @@ df_ad_masid = (
 )
 # TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
-# TODO: Replace separate files with single table
-log.info("Gathering Division assignments")
-div_asgn_list = []
-for div_k in DIVISION_ASSIGNMENTS.keys():
-
-    df_div = (
-        get_spark()
-        .read.format("delta")
-        .load(DIVISION_ASSIGNMENTS[div_k])
-        .select("account_number")
-        .withColumnRenamed("account_number", "AccountNumber")
-        .withColumn("Division", F.lit(div_k))
-    )
-
-    div_asgn_list.append(df_div)
-
-df_cust_div = div_asgn_list.pop()
-for df_asgn in div_asgn_list:
-    df_cust_div = df_cust_div.union(df_asgn)
-
-df_cust_div.cache()
+log.info("Getting fixed cell assignments")
+df_cells = (
+    get_spark()
+    .table(FIXED_CELLS)
+)
+df_cust_div = (
+    df_cells
+    .select("AccountNumber", "AlgoDivision")
+    .where(F.col("AlgoDivision").isNotNull())
+)
 
 
-log.info("Assigning Random Ads by Division")
+log.info("Assigning Random Ads by AlgoDivision")
 df_assigned_rdm = assign_random_ads(
-    df_ads.select("UniqueAdID", "Division"),
+    df_ads.select("UniqueAdID", "AlgoDivision"),
     df_cust_div,
-    grp_col="Division"
+    grp_col="AlgoDivision"
     )
-df_assigned_rdm = df_assigned_rdm.join(df_ad_masid, on="UniqueAdID")
 
-
+# BOOKMARK
 log.info("Assigning Best Ads")
 # Iterate by Division - customer should receive best ad within Division
-divs = [row[0] for row in df_ads.select("Division").distinct().collect()]
+divs = [row[0] for row in df_ads.select("AlgoDivision").distinct().collect()]
 df_ads_best_div_list = []
 
 for div in divs:
 
     df_ads_d = (
         df_ads
-        .where(F.col("Division") == div)
+        .where(F.col("AlgoDivision") == div)
         .where(F.col("TargetingCriteria").isNotNull())
         .select("UniqueAdID", "TargetingCriteria")
     )
 
     df_cust_d = (
         df_cust_div
-        .where(F.col("Division") == div)
+        .where(F.col("AlgoDivision") == div)
         .select("AccountNumber")
     )
     # TODO: Some division customers may not have relevant scores - capture?
@@ -138,7 +118,7 @@ for div in divs:
             targeting_scores_table=TARGETING_SCORES_TABLE,
             score_scale_fn=subtract_mean
             )
-        .join(df_cust_div.where(F.col("Division") == div),
+        .join(df_cust_div.where(F.col("AlgoDivision") == div),
               on="AccountNumber", how="inner")
         .drop("Division")
     )
@@ -147,8 +127,6 @@ for div in divs:
 df_assigned_best = df_ads_best_div_list.pop()
 for df_ads_best_div in df_ads_best_div_list:
     df_assigned_best = df_assigned_best.union(df_ads_best_div)
-
-df_assigned_best = df_assigned_best.join(df_ad_masid, on="UniqueAdID")
 
 df_assigned_best.cache()
 
@@ -166,21 +144,12 @@ if LOCATION in ["HN1"]:
 else:
     test_col = f"{MACRO_LOCATION}Test"
 
-df_cell = (
-        get_spark()
-        .read.format("delta")
-        .load(CELL_ASSIGNMENT)
-        .select("account_number",
-                test_col,
-                "random_var1")
-        .withColumnRenamed("account_number", "AccountNumber")
-    )
 
 # Assign Random, Best etc. based on assigned cells
 # TODO: Create dedicated Challenger split in overall_control_and_div
 log.info("Assigning MASID tokens based Targeting and Cells")
 df_assignments = (
-    df_cell
+    df_cells
     .join((df_assigned_rdm
            .select("AccountNumber", "MASID", "UniqueAdID")
            .withColumnRenamed("MASID", "RandomMASID")
