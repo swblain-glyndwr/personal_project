@@ -373,6 +373,7 @@ select
     kids.girls_bold_skandi,
     kids.girls_neutral_skandi,
     kids.girls_baby_boutique,
+    kids.kids_premium,
 
     home.animalhomeware as home_animalhomeware,
     home.assembled as home_assembled,
