@@ -1,6 +1,6 @@
 create table marketingdata_prod.{schema}.next_uk_nextads_fixed_cells (
     AccountNumber string not null,
-    FallowControl boolean not null,
+    FallowControl string not null,
     HN string not null,
     SB string not null,
     OC string not null,
