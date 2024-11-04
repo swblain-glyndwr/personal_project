@@ -362,7 +362,7 @@
                 "where": ["TradeDivision", "Sport"]
             }
         },
-        "PH2": {
+        "PH3": {
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
@@ -388,7 +388,7 @@
                 "return_ranks": [1]
             }
         },
-        "PH3": {
+        "PH4": {
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
@@ -414,7 +414,7 @@
                 "return_ranks": [2]
             }
         },
-        "PH4": {
+        "PH5": {
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
@@ -440,7 +440,7 @@
                 "return_ranks": [3]
             }
         },
-        "PH5": {
+        "PH6": {
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
