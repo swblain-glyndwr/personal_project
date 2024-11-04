@@ -150,7 +150,10 @@
                 }
             ],
             "constraints": {
-                "match": ["CustomerDivision", "AdDivision"]
+                "match": {
+                    "customer": "AlgoDivision",
+                    "ad": "AlgoDivision"
+                }
             }
         },
         "SB1": {

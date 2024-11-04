@@ -1,9 +1,12 @@
+import argparse
 import logging
 import logging.config
 import json
 from next_ads.utils.dbc import get_spark
-# from pyspark.sql import functions as F
-# from next_ads.utils.etl import assert_pk, build_spark_schema
+from pyspark.sql import functions as F
+from next_ads.utils.etl import (truncate_and_load,
+                                get_job_env,
+                                map_schema)
 
 
 # Configure logging
@@ -16,9 +19,21 @@ with open("config/resources.json") as f:
 with open("config/parameters.json") as f:
     prm = json.load(f)
 
-CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
-DIV_ASSIGNMENTS = rsc["files"]["div_assignments"]
+parser = argparse.ArgumentParser()
+parser.add_argument("--f", help="dummy arg enabling interactive debugging")
+parser.add_argument("--jobname", nargs="?", const="dev_", type=str)
+known_args, unknown_args = parser.parse_known_args()
+pargs = vars(known_args)
+job_env = get_job_env(pargs)
+log.info(f"Running in job environment: {job_env}")
 
+CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
+DIVISION_ASSIGNMENTS = rsc["files"]["division_assignments"]
+
+SCHEMA = rsc["schema"][job_env]
+FIXED_CELLS_TABLE = map_schema(rsc["tables"]["write"]["fixed_cells"], SCHEMA)
+
+# Import existing file for test cell assignment
 df_cells_raw = (
     get_spark()
     .read.format("delta").load(CELL_ASSIGNMENT)
@@ -43,8 +58,8 @@ df_cells_fmt = (
         {
             "account_number": "AccountNumber",
             "OverallTestControl": "FallowControl",
-            "SBTest": "SB",
             "HPTest": "HN",
+            "SBTest": "SB",
             "OCTest": "OC",
             "LPTest": "LP",
             "VariantTest": "AdHocAB1",
@@ -53,7 +68,58 @@ df_cells_fmt = (
             "VariantTest4": "AdHocAB4"
         }
     )
+    .withColumns({
+        "ChampionChallenger": F.lit(None)
+    })
+    .select(
+        "AccountNumber",
+        "FallowControl",
+        "HN",
+        "SB",
+        "OC",
+        "LP",
+        "AdHocAB1",
+        "AdHocAB2",
+        "AdHocAB3",
+        "AdHocAB4",
+        "ChampionChallenger"
+    )
 )
+
+
+div_asgn_list = []
+for div_k in DIVISION_ASSIGNMENTS.keys():
+
+    df_div = (
+        get_spark()
+        .read.format("delta")
+        .load(DIVISION_ASSIGNMENTS[div_k])
+        .select("account_number")
+        .withColumnRenamed("account_number", "AccountNumber")
+        .withColumn("AlgoDivision", F.lit(div_k))
+    )
+
+    div_asgn_list.append(df_div)
+
+df_cust_div = div_asgn_list.pop()
+for df_asgn in div_asgn_list:
+    df_cust_div = df_cust_div.union(df_asgn)
+
+
+df_cells = (
+    df_cells_fmt
+    .join(df_cust_div, on="AccountNumber", how="left")
+)
+
+# count_null_by_column(df_cells)
+# df_cells.where(F.col("AlgoDivision").isNull())
+# TODO: Why are some customers not assigned a Division?
+
+
+truncate_and_load(df_cells,
+                  FIXED_CELLS_TABLE,
+                  pk_cols=["AccountNumber"])
+
 
 # BOOKMARK
 # Use HN location for PH slots for now

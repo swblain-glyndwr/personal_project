@@ -32,7 +32,7 @@ req_location = pargs["location"] if pargs["location"] else "HN1"
 job_env = get_job_env(pargs)
 log.info(f"Running in job environment: {job_env}")
 
-DIVISION_ASSIGNMENT = rsc["files"]["div_assignment"]
+DIVISION_ASSIGNMENTS = rsc["files"]["division_assignments"]
 CELL_ASSIGNMENT = rsc["files"]["cell_assignment"]
 VALID_LOCATIONS = set(prm["locations"].keys())
 
@@ -85,12 +85,12 @@ df_ad_masid = (
 # TODO: Replace separate files with single table
 log.info("Gathering Division assignments")
 div_asgn_list = []
-for div_k in DIVISION_ASSIGNMENT.keys():
+for div_k in DIVISION_ASSIGNMENTS.keys():
 
     df_div = (
         get_spark()
         .read.format("delta")
-        .load(DIVISION_ASSIGNMENT[div_k])
+        .load(DIVISION_ASSIGNMENTS[div_k])
         .select("account_number")
         .withColumnRenamed("account_number", "AccountNumber")
         .withColumn("Division", F.lit(div_k))
