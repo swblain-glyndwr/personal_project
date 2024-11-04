@@ -33,6 +33,8 @@ DIVISION_ASSIGNMENTS = rsc["files"]["division_assignments"]
 SCHEMA = rsc["schema"][job_env]
 FIXED_CELLS_TABLE = map_schema(rsc["tables"]["write"]["fixed_cells"], SCHEMA)
 
+
+log.info("Fetching existing assignments")
 # Import existing file for test cell assignment
 df_cells_raw = (
     get_spark()
@@ -115,7 +117,7 @@ df_cells = (
 # df_cells.where(F.col("AlgoDivision").isNull())
 # TODO: Why are some customers not assigned a Division?
 
-
+log.info(f"Writing assignments to {FIXED_CELLS_TABLE}")
 truncate_and_load(df_cells,
                   FIXED_CELLS_TABLE,
                   pk_cols=["AccountNumber"])
@@ -283,3 +285,5 @@ truncate_and_load(df_cells,
 
 # # Create Control Assignemnt Table
 # # Create Division Assignment
+
+log.info("Run complete")
