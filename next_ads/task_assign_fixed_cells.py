@@ -66,7 +66,7 @@ df_cells_fmt = (
         }
     )
     .withColumns({
-        "ChampionChallenger": F.lit(None)
+        "ChampionChallenger": F.lit("Champion")
     })
     .select(
         "AccountNumber",
