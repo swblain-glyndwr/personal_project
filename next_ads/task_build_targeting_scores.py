@@ -2,9 +2,9 @@ import logging
 import logging.config
 import json
 from pyspark.sql import functions as F
-from AdRetrieval import get_latest_ads
 from Scoring import aggregate_model_scores
 from next_ads.utils.etl import truncate_and_load, JobParser, map_schema
+from next_ads.utils.dbc import get_spark
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -23,10 +23,11 @@ MODEL_SCORE_TABLE = rsc["tables"]["read"]["model_scores_latest"]
 SCHEMA = rsc["schema"][job_env]
 tbls = rsc["tables"]["write"]
 TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
-
+CONTROL_SHEET_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 
 df_scores_required = (
-    get_latest_ads()
+    get_spark()
+    .table(CONTROL_SHEET_LATEST)
     .select("Models",
             "ModelCombination")
     .where(F.col("Models").isNotNull())
