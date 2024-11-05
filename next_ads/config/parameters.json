@@ -130,6 +130,10 @@
         "HN1": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "HN", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -162,6 +166,10 @@
         "SB1": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "SB", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -184,6 +192,10 @@
         },
         "SB2": {
             "map": [
+                {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
                 {
                     "when": [{"macro": "SB", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
@@ -208,6 +220,10 @@
         "OC1": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -227,6 +243,10 @@
         "LP1": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -241,6 +261,10 @@
         },
         "LP2": {
             "map": [
+                {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
@@ -257,6 +281,10 @@
         "LP3": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -271,6 +299,10 @@
         },
         "LP4": {
             "map": [
+                {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
@@ -287,6 +319,10 @@
         "LP5": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -301,6 +337,10 @@
         },
         "LP6": {
             "map": [
+                {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
@@ -317,6 +357,10 @@
         "LP7": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -332,6 +376,10 @@
         "LP8": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -346,6 +394,10 @@
         },
         "PH3": {
             "map": [
+                {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
@@ -366,6 +418,10 @@
         "PH4": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -385,6 +441,10 @@
         "PH5": {
             "map": [
                 {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
+                {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"
                 },
@@ -403,6 +463,10 @@
         },
         "PH6": {
             "map": [
+                {
+                    "when": [{"macro": "FallowControl", "match": "NoAds"}],
+                    "then": "UniqueAdIDFallow"
+                },
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
                     "then": "UniqueAdIDControl"

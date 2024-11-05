@@ -7,6 +7,7 @@ from next_ads.Assignment import (
     )
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
+                                build_spark_schema,
                                 map_schema,
                                 delete_from_and_load)
 from pyspark.sql import functions as F
@@ -133,7 +134,8 @@ df_assigned_best_challenger = df_assigned_best
 log.info("Determining Ad to be shown based on assignments and fixed cells")
 df_assignments = (
     df_cells
-    .withColumn("UniqueAdIDControl", F.lit("C"))
+    .withColumn("UniqueAdIDFallow", F.lit("fallow_control"))
+    .withColumn("UniqueAdIDControl", F.lit("page_control"))
     .join(
         (
             df_assigned_rdm
@@ -171,7 +173,7 @@ for cell_map in CELL_MAP["map"]:
 
 case_when_str = "\n".join(case_whens)
 case_when_str = case_when_str + "\nelse null end as UniqueAdIDShown"
-
+print(case_when_str)
 
 df_assignments.createOrReplaceTempView("df_assignments")
 
@@ -194,10 +196,25 @@ df_ad_masid = (
 )
 # TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
-df_ad_shown_masid = df_ad_shown.join(
-    df_ad_masid.withColumnRenamed("UniqueAdID", "UniqueAdIDShown"),
-    on="UniqueAdIDShown", how="left"
-    )
+# Append codes for control cells
+ctrl_masid_cols = ["UniqueAdID", "MASID"]
+ctrl_masid_vals = [("C", f"{LOCATION}_C"), ("CC", f"{LOCATION}_CC")]
+df_control_masid = (
+    get_spark().createDataFrame(
+        data=ctrl_masid_vals,
+        schema=build_spark_schema(
+            [["UniqueAdID", "string", "not null"],
+             ["MASID", "string", "not null"]])
+             )
+)
+df_ad_masid = df_ad_masid.union(df_control_masid)
+
+df_ad_shown_masid = (
+    df_ad_shown
+    .join(df_ad_masid.withColumnRenamed("UniqueAdID", "UniqueAdIDShown"),
+          on="UniqueAdIDShown", how="left")
+)
+
 df_ad_shown_masid.cache()
 
 log.info(f"Loading output to {ASSIGNMENTS_TABLE}")
