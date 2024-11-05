@@ -178,7 +178,9 @@ print(case_when_str)
 df_assignments.createOrReplaceTempView("df_assignments")
 
 df_ad_shown = (
-    get_spark().sql(f"select a.*,\n{case_when_str}\nfrom df_assignments")
+    get_spark().sql(
+        f"select a.*,\ncase {case_when_str}\nfrom df_assignments as a"
+        )
 )
 
 
