@@ -131,22 +131,25 @@
             "map": [
                 {
                     "when": [{"macro": "HN", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "HN", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
-                    "when": [{"macro": "HN", "match": "1: Personalised"}],
-                    "then": "BestAd"
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
                 },
                 {
                     "when": [
                         {"macro": "HN", "match": "1: Personalised"},
                         {"macro": "ChampionChallenger", "match": "Challenger"}
                     ],
-                    "then": "BestAd"
+                    "then": "UniqueAdIDBestChallenger"
                 }
             ],
             "constraints": {
@@ -160,26 +163,19 @@
             "map": [
                 {
                     "when": [{"macro": "SB", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "SB", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
                     "when": [{"macro": "SB", "match": "1: Personalised"}],
-                    "then": "BestAd"
-                },
-                {
-                    "when": [
-                        {"macro": "SB", "match": "1: Personalised"},
-                        {"macro": "ChampionChallenger", "match": "Challenger"}
-                    ],
-                    "then": "BestChallengerAd"
+                    "then": "UniqueAdIDBest"
                 },
                 {
                     "when": [{"macro": "AdHocAB1", "match": "B"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 }
             ],
             "constraints": {
@@ -190,26 +186,19 @@
             "map": [
                 {
                     "when": [{"macro": "SB", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "SB", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
                     "when": [{"macro": "SB", "match": "1: Personalised"}],
-                    "then": "BestAd"
-                },
-                {
-                    "when": [
-                        {"macro": "SB", "match": "1: Personalised"},
-                        {"macro": "ChampionChallenger", "match": "Challenger"}
-                    ],
-                    "then": "BestChallengerAd"
+                    "then": "UniqueAdIDBest"
                 },
                 {
                     "when": [{"macro": "AdHocAB2", "match": "B"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 }
             ],
             "constraints": {
@@ -220,22 +209,15 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
                     "when": [{"macro": "OC", "match": "1: Personalised"}],
-                    "then": "BestAd"
-                },
-                {
-                    "when": [
-                        {"macro": "OC", "match": "1: Personalised"},
-                        {"macro": "ChampionChallenger", "match": "Challenger"}
-                    ],
-                    "then": "BestChallengerAd"
+                    "then": "UniqueAdIDBest"
                 }
             ],
             "constraints": {
@@ -246,11 +228,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -261,11 +243,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -276,11 +258,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -291,11 +273,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -306,11 +288,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -321,11 +303,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -336,11 +318,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -351,11 +333,11 @@
             "map": [
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 }
             ],
             "constraints": {
@@ -366,22 +348,15 @@
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
                     "when": [{"macro": "PH", "match": "1: Personalised"}],
-                    "then": "BestAd"
-                },
-                {
-                    "when": [
-                        {"macro": "HN", "match": "1: Personalised"},
-                        {"macro": "ChampionChallenger", "match": "Challenger"}
-                    ],
-                    "then": "BestChallengerAd"
+                    "then": "UniqueAdIDBest"
                 }
             ],
             "best_args": {
@@ -392,22 +367,15 @@
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
                     "when": [{"macro": "PH", "match": "1: Personalised"}],
-                    "then": "BestAd"
-                },
-                {
-                    "when": [
-                        {"macro": "HN", "match": "1: Personalised"},
-                        {"macro": "ChampionChallenger", "match": "Challenger"}
-                    ],
-                    "then": "BestChallengerAd"
+                    "then": "UniqueAdIDBest"
                 }
             ],
             "best_args": {
@@ -418,22 +386,15 @@
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
                     "when": [{"macro": "PH", "match": "1: Personalised"}],
-                    "then": "BestAd"
-                },
-                {
-                    "when": [
-                        {"macro": "HN", "match": "1: Personalised"},
-                        {"macro": "ChampionChallenger", "match": "Challenger"}
-                    ],
-                    "then": "BestChallengerAd"
+                    "then": "UniqueAdIDBest"
                 }
             ],
             "best_args": {
@@ -444,22 +405,15 @@
             "map": [
                 {
                     "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "Control"
+                    "then": "UniqueAdIDControl"
                 },
                 {
                     "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "RandomAd"
+                    "then": "UniqueAdIDRandom"
                 },
                 {
                     "when": [{"macro": "PH", "match": "1: Personalised"}],
-                    "then": "BestAd"
-                },
-                {
-                    "when": [
-                        {"macro": "HN", "match": "1: Personalised"},
-                        {"macro": "ChampionChallenger", "match": "Challenger"}
-                    ],
-                    "then": "BestChallengerAd"
+                    "then": "UniqueAdIDBest"
                 }
             ],
             "best_args": {

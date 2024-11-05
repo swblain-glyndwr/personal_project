@@ -27,6 +27,7 @@ pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
 req_location = pargs["location"] if pargs["location"] else "HN1"
 log.info(f"Running in job environment: {job_env}")
 
+LOCATIONS = prm["locations"]
 SCHEMA = rsc["schema"][job_env]
 
 tbls = rsc["tables"]["write"]
@@ -36,18 +37,21 @@ ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
 FIXED_CELLS = map_schema(tbls["fixed_cells"], SCHEMA)
 
-VALID_LOCATIONS = set(prm["locations"].keys())
+VALID_LOCATIONS = set(LOCATIONS.keys())
 if req_location in VALID_LOCATIONS:
     LOCATION = req_location
 else:
     raise Exception(f"Invalid Location requested: {req_location}")
 log.info(f"Assigning Ads for Location: {LOCATION}")
 
+CELL_MAP = LOCATIONS[LOCATION]
+
 
 log.info("Getting Ads")
 df_ads = (
     get_spark()
     .table(CONTROL_SHEET_LATEST)
+    .where(F.col("Location") == LOCATION)
     .select(
         "UniqueAdID",
         "AlgoDivision",
@@ -56,24 +60,12 @@ df_ads = (
 )
 # TODO: Remove underperforming Ads
 
-# Ad ID - MASID lookup
-df_ad_masid = (
-    df_ads
-    .select("UniqueAdID", "MASIDToken")
-    .withColumn("Location", F.lit(LOCATION))
-    .withColumn("MASID",
-                F.concat(F.col("Location"),
-                         F.lit("_"),
-                         F.col("MASIDToken")))
-    .drop("Location", "MASIDToken")
-    .distinct()
-)
-# TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
 log.info("Getting fixed cell assignments")
 df_cells = (
     get_spark()
     .table(FIXED_CELLS)
+    .drop("rundate")
 )
 df_cust_div = (
     df_cells
@@ -88,8 +80,9 @@ df_assigned_rdm = assign_random_ads(
     df_cust_div,
     grp_col="AlgoDivision"
     )
+df_assigned_rdm.cache()
 
-# BOOKMARK
+
 log.info("Assigning Best Ads")
 # Iterate by Division - customer should receive best ad within Division
 divs = [row[0] for row in df_ads.select("AlgoDivision").distinct().collect()]
@@ -135,113 +128,87 @@ log.info("Assigning Best Ads (Challenger)")
 df_assigned_best_challenger = df_assigned_best
 
 
-log.info("Getting Cell assignments")
-# TODO: Make this generalisable - HPTest hardcoded as column
-# TODO: Dedicated Champion-Challenger column, instead of random_var1
-MACRO_LOCATION = LOCATION[:2]
-if LOCATION in ["HN1"]:
-    test_col = "HPTest"
-else:
-    test_col = f"{MACRO_LOCATION}Test"
-
-
 # Assign Random, Best etc. based on assigned cells
 # TODO: Create dedicated Challenger split in overall_control_and_div
-log.info("Assigning MASID tokens based Targeting and Cells")
+log.info("Determining Ad to be shown based on assignments and fixed cells")
 df_assignments = (
     df_cells
-    .join((df_assigned_rdm
-           .select("AccountNumber", "MASID", "UniqueAdID")
-           .withColumnRenamed("MASID", "RandomMASID")
-           .withColumnRenamed("UniqueAdID", "RandomUniqueAdID")),
-          on="AccountNumber",
-          how="left")
-    .join((df_assigned_best
-           .select("AccountNumber", "MASID", "UniqueAdID")
-           .withColumnRenamed("MASID", "BestMASID")
-           .withColumnRenamed("UniqueAdID", "BestUniqueAdID")),
-          on="AccountNumber",
-          how="left")
-    .join((df_assigned_best_challenger
-           .select("AccountNumber", "MASID", "UniqueAdID")
-           .withColumnRenamed("MASID", "BestMASIDChallenger")
-           .withColumnRenamed("UniqueAdID", "BestUniqueAdIDChallenger")),
-          on="AccountNumber",
-          how="left")
-    .fillna({"RandomMASID": f"{LOCATION}_N"})
-    .withColumn("ChampionChallenger",
-                F.when((F.col("random_var1") <= 0.5)
-                       & (F.col(test_col) == "1: Personalised"),
-                       "Champion")
-                .when((F.col("random_var1") > 0.5)
-                      & (F.col(test_col) == "1: Personalised"),
-                      "Challenger")
-                .otherwise(None)
-                )
-    .withColumn(
-        "UniqueAdID",
-        F.when(
-            (F.col("ChampionChallenger") == "Champion")
-            & (F.col("BestUniqueAdID").isNotNull()),
-            F.col("BestUniqueAdID")
-            )
-        .when(
-            (F.col("ChampionChallenger") == "Challenger")
-            & (F.col("BestUniqueAdIDChallenger").isNotNull()),
-            F.col("BestUniqueAdIDChallenger")
-            )
-        .when(F.col(test_col) == "2: Random", F.col("RandomUniqueAdID"))
-        .when(F.col(test_col) == "3: No Banner", F.lit("_location_control"))
-        .when(F.col(test_col) == "4: Overall", F.lit("_overall_control"))
-        .otherwise(F.lit(None))
-        )
-    .withColumn(
-        "MASID",
-        F.when(
-            (F.col("ChampionChallenger") == "Champion")
-            & (F.col("BestMASID").isNotNull()),
-            F.col("BestMASID")
-            )
-        .when(
-            (F.col("ChampionChallenger") == "Challenger")
-            & (F.col("BestMASIDChallenger").isNotNull()),
-            F.col("BestMASIDChallenger")
-            )
-        .when(F.col(test_col) == "2: Random", F.col("RandomMASID"))
-        .when(F.col(test_col) == "3: No Banner", F.lit(f"{LOCATION}_C"))
-        .when(F.col(test_col) == "4: Overall", F.lit(f"{LOCATION}_Z"))
-        .otherwise(F.lit(f"{LOCATION}_Z"))
-        )
-    .withColumn("Location", F.lit(LOCATION))
-    .withColumn("MacroLocation", F.lit(MACRO_LOCATION))
-    .withColumnRenamed(test_col, "MacroLocationCell")
-    .select("AccountNumber",
-            "Location",
-            "MacroLocation",
-            "MacroLocationCell",
-            "ChampionChallenger",
-            "RandomUniqueAdID",
-            "RandomMASID",
-            "BestUniqueAdID",
-            "BestMASID",
-            "BestUniqueAdIDChallenger",
-            "BestMASIDChallenger",
-            "UniqueAdID",
-            "MASID"
-            )
+    .withColumn("UniqueAdIDControl", F.lit("C"))
+    .join(
+        (
+            df_assigned_rdm
+            .select("AccountNumber", "UniqueAdID")
+            .withColumnRenamed("UniqueAdID", "UniqueAdIDRandom")
+        ),
+        on="AccountNumber", how="left")
+    .join(
+        (
+            df_assigned_best
+            .select("AccountNumber", "UniqueAdID")
+            .withColumnRenamed("UniqueAdID", "UniqueAdIDBest")
+        ),
+        on="AccountNumber", how="left")
+    .join(
+        (
+            df_assigned_best_challenger
+            .select("AccountNumber", "UniqueAdID")
+            .withColumnRenamed("UniqueAdID", "UniqueAdIDBestChallenger")
+        ),
+        on="AccountNumber", how="left")
 )
 df_assignments.cache()
 
 
+# Dynamically construct assignment map from config
+case_whens = []
+for cell_map in CELL_MAP["map"]:
+    case_when_and = []
+    for wh in cell_map["when"]:
+        cwa = f"{wh['macro']} = '{wh['match']}'"
+        case_when_and.append(cwa)
+        case_when_token = " and ".join(case_when_and)
+    case_whens.append(f"when {case_when_token} then {cell_map['then']}")
+
+case_when_str = "\n".join(case_whens)
+case_when_str = case_when_str + "\nelse null end as UniqueAdIDShown"
+
+
+df_assignments.createOrReplaceTempView("df_assignments")
+
+df_ad_shown = (
+    get_spark().sql(f"select a.*,\n{case_when_str}\nfrom df_assignments")
+)
+
+
+# Ad-MASID lookup
+df_ad_masid = (
+    df_ads
+    .select("UniqueAdID", "MASIDToken")
+    .withColumn("Location", F.lit(LOCATION))
+    .withColumn("MASID",
+                F.concat(F.col("Location"),
+                         F.lit("_"),
+                         F.col("MASIDToken")))
+    .drop("Location", "MASIDToken")
+    .distinct()
+)
+# TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
+
+df_ad_shown_masid = df_ad_shown.join(
+    df_ad_masid.withColumnRenamed("UniqueAdID", "UniqueAdIDShown"),
+    on="UniqueAdIDShown", how="left"
+    )
+df_ad_shown_masid.cache()
+
 log.info(f"Loading output to {ASSIGNMENTS_TABLE}")
-delete_from_and_load(df_assignments,
+delete_from_and_load(df_ad_shown_masid,
                      ASSIGNMENTS_TABLE,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
 log.info(f"Loading output to {ASSIGNMENTS_TABLE_LATEST}")
-delete_from_and_load(df_assignments,
+delete_from_and_load(df_ad_shown_masid,
                      ASSIGNMENTS_TABLE_LATEST,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
