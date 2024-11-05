@@ -135,7 +135,7 @@ log.info("Determining Ad to be shown based on assignments and fixed cells")
 df_assignments = (
     df_cells
     .withColumn("UniqueAdIDFallow", F.lit("fallow_control"))
-    .withColumn("UniqueAdIDControl", F.lit("page_control"))
+    .withColumn("UniqueAdIDControl", F.lit("macrolocation_control"))
     .join(
         (
             df_assigned_rdm
@@ -173,7 +173,6 @@ for cell_map in CELL_MAP["map"]:
 
 case_when_str = "\n".join(case_whens)
 case_when_str = case_when_str + "\nelse null end as UniqueAdIDShown"
-print(case_when_str)
 
 df_assignments.createOrReplaceTempView("df_assignments")
 
@@ -182,7 +181,6 @@ df_ad_shown = (
         f"select a.*,\ncase {case_when_str}\nfrom df_assignments as a"
         )
 )
-
 
 # Ad-MASID lookup
 df_ad_masid = (
@@ -200,7 +198,8 @@ df_ad_masid = (
 
 # Append codes for control cells
 ctrl_masid_cols = ["UniqueAdID", "MASID"]
-ctrl_masid_vals = [("C", f"{LOCATION}_C"), ("CC", f"{LOCATION}_CC")]
+ctrl_masid_vals = [("fallow_control", f"{LOCATION}_C"),
+                   ("macrolocation_control", f"{LOCATION}_CC")]
 df_control_masid = (
     get_spark().createDataFrame(
         data=ctrl_masid_vals,
@@ -214,21 +213,47 @@ df_ad_masid = df_ad_masid.union(df_control_masid)
 
 df_ad_shown_masid = (
     df_ad_shown
-    .join(df_ad_masid.withColumnRenamed("UniqueAdID", "UniqueAdIDShown"),
-          on="UniqueAdIDShown", how="left")
+    .join(df_ad_masid,
+          on=df_ad_shown.UniqueAdIDShown == df_ad_masid.UniqueAdID, how="left")
+    .drop("UniqueAdID")
 )
-
 df_ad_shown_masid.cache()
 
+# Check and warn if null MASID assignments exist
+n_null_masid = df_ad_shown_masid.where(F.col("MASID").isNull()).count()
+if n_null_masid > 0:
+    log.warning(f"{n_null_masid:,} accounts with null MASID - removing")
+    df_ad_shown_masid = df_ad_shown_masid.where(F.col("MASID").isNotNull())
+
+df_ad_shown_masid_output = (
+    df_ad_shown_masid
+    .withColumn("Location", F.lit(LOCATION))
+    .withColumn("MacroLocation", F.lit(CELL_MAP["parent"]))
+    .withColumn("MacroLocationCell", F.col(CELL_MAP["parent"]))
+    .select(
+        "AccountNumber",
+        "Location",
+        "MacroLocation",
+        "MacroLocationCell",
+        "AdHocAB1",
+        "AdHocAB2",
+        "AdHocAB3",
+        "AdHocAB4",
+        "ChampionChallenger",
+        "AlgoDivision",
+        "UniqueAdIDShown",
+        "MASID")
+)
+
 log.info(f"Loading output to {ASSIGNMENTS_TABLE}")
-delete_from_and_load(df_ad_shown_masid,
+delete_from_and_load(df_ad_shown_masid_output,
                      ASSIGNMENTS_TABLE,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
 log.info(f"Loading output to {ASSIGNMENTS_TABLE_LATEST}")
-delete_from_and_load(df_ad_shown_masid,
+delete_from_and_load(df_ad_shown_masid_output,
                      ASSIGNMENTS_TABLE_LATEST,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
@@ -236,5 +261,6 @@ delete_from_and_load(df_ad_shown_masid,
 df_cust_div.unpersist()
 df_assigned_best.unpersist()
 df_assignments.unpersist()
+df_ad_shown_masid.unpersist()
 
 log.info("Run complete")

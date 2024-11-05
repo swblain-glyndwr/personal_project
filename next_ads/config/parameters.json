@@ -128,6 +128,7 @@
     },
     "locations": {
         "HN1": {
+            "parent": "HN",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -164,6 +165,7 @@
             }
         },
         "SB1": {
+            "parent": "SB",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -191,6 +193,7 @@
             }
         },
         "SB2": {
+            "parent": "SB",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -218,6 +221,7 @@
             }
         },
         "OC1": {
+            "parent": "OC",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -241,6 +245,7 @@
             }
         },
         "LP1": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -260,6 +265,7 @@
             }
         },
         "LP2": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -279,6 +285,7 @@
             }
         },
         "LP3": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -298,6 +305,7 @@
             }
         },
         "LP4": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -317,6 +325,7 @@
             }
         },
         "LP5": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -336,6 +345,7 @@
             }
         },
         "LP6": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -355,6 +365,7 @@
             }
         },
         "LP7": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -374,6 +385,7 @@
             }
         },
         "LP8": {
+            "parent": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -393,6 +405,7 @@
             }
         },
         "PH3": {
+            "parent": "PH",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -416,6 +429,7 @@
             }
         },
         "PH4": {
+            "parent": "PH",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -439,6 +453,7 @@
             }
         },
         "PH5": {
+            "parent": "PH",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -462,6 +477,7 @@
             }
         },
         "PH6": {
+            "parent": "PH",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
