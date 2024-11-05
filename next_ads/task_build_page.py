@@ -204,8 +204,9 @@ df_control_masid = (
         data=ctrl_masid_vals,
         schema=build_spark_schema(
             [["UniqueAdID", "string", "not null"],
-             ["MASID", "string", "not null"]])
-             )
+             ["MASID", "string", "not null"]]
+            )
+        )
 )
 df_ad_masid = df_ad_masid.union(df_control_masid)
 
