@@ -37,7 +37,7 @@ df_cells_raw = (
     .select(
         "account_number",
         "OverallTestControl",
-        "SBTest",
+        "Test",
         "HPTest",
         "OCTest",
         "LPTest",
@@ -56,7 +56,7 @@ df_cells_fmt = (
             "account_number": "AccountNumber",
             "OverallTestControl": "FallowControl",
             "HPTest": "HN",
-            "SBTest": "SB",
+            "Test": "SB",
             "OCTest": "OC",
             "LPTest": "LP",
             "VariantTest": "AdHocAB1",
