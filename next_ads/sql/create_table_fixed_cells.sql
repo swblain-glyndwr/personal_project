@@ -4,7 +4,6 @@ create table marketingdata_prod.{schema}.next_uk_nextads_fixed_cells (
     HN string not null,
     SB string not null,
     OC string not null,
-    LP string not null,
     AdHocAB1 string,
     AdHocAB2 string,
     AdHocAB3 string,
