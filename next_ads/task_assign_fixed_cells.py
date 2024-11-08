@@ -118,9 +118,7 @@ truncate_and_load(df_cells,
                   pk_cols=["AccountNumber"])
 
 
-# BOOKMARK
-# Use HN location for PH slots for now
-
+# vvvv New file dev below vvvv
 
 # RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
 # MODEL_SCORES_LATEST = rsc["tables"]["read"]["model_scores_latest"]

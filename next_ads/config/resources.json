@@ -72,7 +72,7 @@
         }
     },
     "files": {
-        "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V4_SEP24_BKUP",
+        "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V3_JUL24",
         "division_assignments": {
             "Womens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/WomensFile",
             "Mens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/MensFile",
