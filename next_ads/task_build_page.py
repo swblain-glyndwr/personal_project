@@ -113,6 +113,7 @@ df_assigned_best.cache()
 
 
 log.info("Assigning Best Ads (Challenger)")
+# Assigning best to best_challenger effectively switches challenger off
 df_assigned_best_challenger = df_assigned_best
 
 
@@ -152,7 +153,7 @@ case_whens = []
 for cell_map in CELL_MAP["map"]:
     case_when_and = []
     for wh in cell_map["when"]:
-        cwa = f"{wh['macro']} = '{wh['match']}'"
+        cwa = f"{wh['col']} = '{wh['match']}'"
         case_when_and.append(cwa)
         case_when_token = " and ".join(case_when_and)
     case_whens.append(f"when {case_when_token} then {cell_map['then']}")

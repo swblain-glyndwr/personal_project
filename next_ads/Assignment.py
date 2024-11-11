@@ -83,12 +83,6 @@ def assign_best_ads(
         return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
         tie_breaker - TODO - How to break tie when one Targeting has many Ads
     """
-    print(f"Ad count: {df_ads.count()}")
-    print(f"Cust count: {df_cust.count()}")
-    print(f"Targeting scores table: {targeting_scores_table}")
-    print(f"Score scale fn: {score_scale_fn}")
-    print(f"Score scale partition: {score_scale_partition}")
-    print(f"Return ranks: {return_ranks}")
 
     df_adscores = (
         df_ads
@@ -157,7 +151,6 @@ def assign_best_ads_with_constraints(
         df_ads_best_div_list = []
 
         for div in divs:
-            print(f"Processing div: {div}")
             df_ads_d = (
                 df_ads
                 .where(F.col(div_type) == div)
