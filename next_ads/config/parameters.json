@@ -17,8 +17,7 @@
             "seed": 201,
             "page": "/",
             "screen": "Home",
-            "reported_value": "SessionRevenue",
-            "members": ["HN1"]
+            "reported_value": "SessionRevenue"
         },
         "SB": {
             "cells": [
@@ -29,8 +28,7 @@
             "seed": 202,
             "page": "/shoppingbag",
             "screen": "Cart",
-            "reported_value": "ProductRevenuePostFirstHit",
-            "members": ["SB1", "SB2"]
+            "reported_value": "ProductRevenuePostFirstHit"
         },
         "OC": {
             "cells": [
@@ -41,8 +39,7 @@
             "seed": 203,
             "page": "%checkout/complete%",
 		    "screen": "Checkout Completed",
-            "reported_value": "ProductRevenuePostFirstHit",
-            "members": ["OC1"]
+            "reported_value": "ProductRevenuePostFirstHit"
         },
         "LP": {
             "cells": [
@@ -52,8 +49,7 @@
             "seed": 204,
             "page": "",
 		    "screen": "",
-            "reported_value": "SessionRevenue",
-            "members": ["LP1", "LP2", "LP3", "LP4", "LP5", "LP6", "LP7", "LP8"]
+            "reported_value": "SessionRevenue"
         },
         "PH": {
             "cells": [
@@ -64,8 +60,7 @@
             "seed": 205,
             "page": "/",
             "screen": "Home",
-            "reported_value": "SessionRevenue",
-            "members": ["PH2", "PH3", "PH4", "PH5"]
+            "reported_value": "SessionRevenue"
         },
         "AdHocAB1": {
             "cells": [
@@ -132,14 +127,21 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "HN", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "HN", "match": "2. Random"}],
+                    "when": [{"macro": "AdHocAB1", "match": "2: Variant B"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "2. Random"},
+                        {"macro": "AdHocAB1", "match": "1: Variant A"}
+                    ],
                     "then": "UniqueAdIDRandom"
                 },
                 {
@@ -169,27 +171,43 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "SB", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"macro": "AdHocAB2", "match": "2: Variant B"},
+                        {"macro": "AdHocAB3", "match": "1: Variant A"}
+                    ],
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "SB", "match": "2. Random"}],
                     "then": "UniqueAdIDRandom"
                 },
                 {
-                    "when": [{"macro": "SB", "match": "1: Personalised"}],
+                    "when": [
+                        {"macro": "SB", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Champion"}
+                    ],
                     "then": "UniqueAdIDBest"
                 },
                 {
-                    "when": [{"macro": "AdHocAB1", "match": "B"}],
-                    "then": "UniqueAdIDControl"
+                    "when": [
+                        {"macro": "SB", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
                 }
             ],
             "constraints": {
-                "match": ["CustomerDivision", "AdDivision"]
+                "match": {
+                    "customer": "AlgoDivision",
+                    "ad": "AlgoDivision"
+                }
             }
         },
         "SB2": {
@@ -197,27 +215,43 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "SB", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"macro": "AdHocAB2", "match": "2: Variant B"},
+                        {"macro": "AdHocAB3", "match": "2: Variant B"}
+                    ],
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "SB", "match": "2. Random"}],
                     "then": "UniqueAdIDRandom"
                 },
                 {
-                    "when": [{"macro": "SB", "match": "1: Personalised"}],
+                    "when": [
+                        {"macro": "SB", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Champion"}
+                    ],
                     "then": "UniqueAdIDBest"
                 },
                 {
-                    "when": [{"macro": "AdHocAB2", "match": "B"}],
-                    "then": "UniqueAdIDControl"
+                    "when": [
+                        {"macro": "SB", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
                 }
             ],
             "constraints": {
-                "match": ["CustomerDivision", "AdDivision"]
+                "match": {
+                    "customer": "AlgoDivision",
+                    "ad": "AlgoDivision"
+                }
             }
         },
         "OC1": {
@@ -225,11 +259,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -241,7 +275,10 @@
                 }
             ],
             "constraints": {
-                "match": ["CustomerDivision", "AdDivision"]
+                "match": {
+                    "customer": "AlgoDivision",
+                    "ad": "AlgoDivision"
+                }
             }
         },
         "LP1": {
@@ -249,11 +286,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -269,11 +306,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -289,11 +326,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -309,11 +346,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -329,11 +366,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -349,11 +386,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -369,11 +406,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -389,11 +426,11 @@
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "then": "NoAd"
                 },
                 {
                     "when": [{"macro": "OC", "match": "2. Random"}],
@@ -405,23 +442,40 @@
             }
         },
         "PH3": {
-            "parent": "PH",
+            "parent": "HN",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "when": [{"macro": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"macro": "AdHocAB1", "match": "1: Variant A"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "when": [
+                        {"macro": "HN", "match": "2. Random"},
+                        {"macro": "AdHocAB1", "match": "2: Variant B"}
+                    ],
                     "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
                 }
             ],
             "best_args": {
@@ -429,23 +483,40 @@
             }
         },
         "PH4": {
-            "parent": "PH",
+            "parent": "HN",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "when": [{"macro": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"macro": "AdHocAB1", "match": "1: Variant A"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "when": [
+                        {"macro": "HN", "match": "2. Random"},
+                        {"macro": "AdHocAB1", "match": "2: Variant B"}
+                    ],
                     "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
                 }
             ],
             "best_args": {
@@ -453,23 +524,40 @@
             }
         },
         "PH5": {
-            "parent": "PH",
+            "parent": "HN",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "when": [{"macro": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"macro": "AdHocAB1", "match": "1: Variant A"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "when": [
+                        {"macro": "HN", "match": "2. Random"},
+                        {"macro": "AdHocAB1", "match": "2: Variant B"}
+                    ],
                     "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
                 }
             ],
             "best_args": {
@@ -477,23 +565,40 @@
             }
         },
         "PH6": {
-            "parent": "PH",
+            "parent": "HN",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
-                    "then": "UniqueAdIDFallow"
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "3: No Banner"}],
-                    "then": "UniqueAdIDControl"
+                    "when": [{"macro": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "2. Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"macro": "AdHocAB1", "match": "1: Variant A"}],
+                    "then": "NoAd"
                 },
                 {
-                    "when": [{"macro": "PH", "match": "1: Personalised"}],
+                    "when": [
+                        {"macro": "HN", "match": "2. Random"},
+                        {"macro": "AdHocAB1", "match": "2: Variant B"}
+                    ],
                     "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"macro": "HN", "match": "1: Personalised"},
+                        {"macro": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
                 }
             ],
             "best_args": {

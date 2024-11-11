@@ -107,7 +107,9 @@ df_cells = (
 
 # count_null_by_column(df_cells)
 # df_cells.where(F.col("AlgoDivision").isNull())
-# TODO: Why are some customers not assigned a Division?
+# TODO: Why are some customers not assigned a Division? Remove for now...
+df_cells = df_cells.where(F.col("AlgoDivision").isNotNull())
+
 
 log.info(f"Writing assignments to {FIXED_CELLS_TABLE}")
 truncate_and_load(df_cells,

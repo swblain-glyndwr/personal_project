@@ -134,8 +134,7 @@ df_assigned_best_challenger = df_assigned_best
 log.info("Determining Ad to be shown based on assignments and fixed cells")
 df_assignments = (
     df_cells
-    .withColumn("UniqueAdIDFallow", F.lit("fallow_control"))
-    .withColumn("UniqueAdIDControl", F.lit("macrolocation_control"))
+    .withColumn("NoAd", F.lit("Z"))
     .join(
         (
             df_assigned_rdm
@@ -198,8 +197,8 @@ df_ad_masid = (
 
 # Append codes for control cells
 ctrl_masid_cols = ["UniqueAdID", "MASID"]
-ctrl_masid_vals = [("fallow_control", f"{LOCATION}_C"),
-                   ("macrolocation_control", f"{LOCATION}_CC")]
+ctrl_masid_vals = [("NoAd", f"{LOCATION}_Z")]
+
 df_control_masid = (
     get_spark().createDataFrame(
         data=ctrl_masid_vals,
