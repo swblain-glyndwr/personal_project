@@ -59,7 +59,7 @@ df_ctrl_active = (
 )
 log.info(f"Active Ads: {df_ctrl_active.count():,}")
 
-# Legacy corercion of item codes to upper case and replace("-","")
+# Legacy coercion of item codes to upper case and replace("-","")
 df_ctrl_active = df_ctrl_active.withColumn(
     "Items",
     F.regexp_replace(F.upper(F.col("Items")), "-", "")
