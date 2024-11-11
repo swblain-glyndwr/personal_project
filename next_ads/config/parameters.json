@@ -62,21 +62,21 @@
             "screen": "Home",
             "reported_value": "SessionRevenue"
         },
-        "AdHocAB2": {
+        "AdHocAB1": {
             "cells": [
                 [0.5, "A"],
                 [1.0, "B"]
             ],
             "seed": 301
         },
-        "AdHocAB3": {
+        "AdHocAB2": {
             "cells": [
                 [0.5, "A"],
                 [1.0, "B"]
             ],
             "seed": 302
         },
-        "AdHocAB4": {
+        "AdHocAB3": {
             "cells": [
                 [0.5, "A"],
                 [1.0, "B"]
