@@ -126,7 +126,7 @@
             "macro": "HN",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "HN", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -164,7 +164,7 @@
             "macro": "SB",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "SB", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -206,7 +206,7 @@
             "inherit_ads_from": "SB1",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "SB", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -247,7 +247,7 @@
             "macro": "OC",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "OC", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -271,7 +271,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -291,7 +291,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -311,7 +311,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -331,7 +331,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -351,7 +351,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -371,7 +371,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -391,7 +391,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -411,7 +411,7 @@
             "macro": "LP",
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "LP", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -433,7 +433,7 @@
             "best_kwargs": {"return_ranks": [1]},
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "HN", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -473,7 +473,7 @@
             "best_kwargs": {"return_ranks": [2]},
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "HN", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -513,7 +513,7 @@
             "best_kwargs": {"return_ranks": [3]},
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "HN", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
@@ -553,7 +553,7 @@
             "best_kwargs": {"return_ranks": [4]},
             "map": [
                 {
-                    "when": [{"col": "FallowControl", "match": "NoAds"}],
+                    "when": [{"col": "HN", "match": "4: Overall"}],
                     "then": "NoAd"
                 },
                 {
