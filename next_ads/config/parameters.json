@@ -123,7 +123,7 @@
     },
     "locations": {
         "HN1": {
-            "parent": "HN",
+            "macro": "HN",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -167,7 +167,7 @@
             }
         },
         "SB1": {
-            "parent": "SB",
+            "macro": "SB",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -211,7 +211,8 @@
             }
         },
         "SB2": {
-            "parent": "SB",
+            "macro": "SB",
+            "inherit_ads_from": "SB1",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -255,7 +256,7 @@
             }
         },
         "OC1": {
-            "parent": "OC",
+            "macro": "OC",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -282,7 +283,7 @@
             }
         },
         "LP1": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -302,7 +303,7 @@
             }
         },
         "LP2": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -322,7 +323,7 @@
             }
         },
         "LP3": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -342,7 +343,7 @@
             }
         },
         "LP4": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -362,7 +363,7 @@
             }
         },
         "LP5": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -382,7 +383,7 @@
             }
         },
         "LP6": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -402,7 +403,7 @@
             }
         },
         "LP7": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -422,7 +423,7 @@
             }
         },
         "LP8": {
-            "parent": "LP",
+            "macro": "LP",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -442,7 +443,8 @@
             }
         },
         "PH3": {
-            "parent": "HN",
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -483,7 +485,8 @@
             }
         },
         "PH4": {
-            "parent": "HN",
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -524,7 +527,8 @@
             }
         },
         "PH5": {
-            "parent": "HN",
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -565,7 +569,8 @@
             }
         },
         "PH6": {
-            "parent": "HN",
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],

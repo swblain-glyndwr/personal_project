@@ -25,7 +25,16 @@ parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
-VALID_LOCATIONS = list(prm["locations"].keys())
+LOCATIONS = prm["locations"]
+VALID_LOCATIONS = list(LOCATIONS.keys())
+READ_LOCATIONS = list()
+INHERITED_LOCATIONS = dict()
+for k in VALID_LOCATIONS:
+    if "inherit_ads_from" in LOCATIONS[k]:
+        INHERITED_LOCATIONS[k] = LOCATIONS[k]["inherit_ads_from"]
+    else:
+        READ_LOCATIONS.append(k)
+
 CONTROL_SHEET = rsc["control_sheet"]
 
 SCHEMA = rsc["schema"][job_env]
@@ -35,8 +44,10 @@ TARGET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
 TARGET_TABLE_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 
 log.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
+log.info(f"Locations to read: {' '.join(READ_LOCATIONS)}")
+log.info(f"Locations with inherited ads: {INHERITED_LOCATIONS}")
 
-for v in VALID_LOCATIONS:
+for v in READ_LOCATIONS:
     CONTROL_SHEET["read_schema"].append([v, "string", "null"])
 
 
@@ -64,6 +75,14 @@ df_ctrl_active = df_ctrl_active.withColumn(
     "Items",
     F.regexp_replace(F.upper(F.col("Items")), "-", "")
 )
+
+# Create columns for inherited locations
+if INHERITED_LOCATIONS:
+    for k in INHERITED_LOCATIONS:
+        df_ctrl_active = (
+            df_ctrl_active
+            .withColumn(k, F.col(LOCATIONS[k]["inherit_ads_from"]))
+        )
 
 # Primary Key (UniqueAdID, Location)
 df_id_loc = (
@@ -111,6 +130,34 @@ df_processed = append_targeting_criteria(df_processed)
 
 log.info("Checking input Primary Key")
 assert_pk(df_processed, ["UniqueAdID", "Location"])
+
+
+df_dup_masids = (
+    df_processed
+    .groupBy("AlgoDivision", "Location", "MASIDToken")
+    .agg(F.countDistinct("UniqueAdID").alias("AdsPerMASID"))
+    .where(F.col("AdsPerMASID") > 1)
+)
+if df_dup_masids.count() > 1:
+    dup_masid_list = list(set([row[0] for row in (df_dup_masids
+                                                  .select("MASIDToken")
+                                                  .collect())]))
+    log.warning("Duplicate MASID suffixes assigned to Ads" +
+                f" in same AlgoDivision: {dup_masid_list}")
+    for m in dup_masid_list:
+        log.info(f"Resolving conflict for MASID suffix: {m}")
+        df_dups_m = (
+            df_processed
+            .where(F.col("MASIDToken") == m)
+            .select("UniqueAdID")
+            ).collect()
+        clashing_ids = list(set([row[0] for row in df_dups_m]))
+        clashing_ids.sort()  # Sort alphabetically as proxy for latest
+        log.info(f"Keeping ad: {clashing_ids[-1]}")
+        ids_to_del = clashing_ids[:-1]
+        for id_del in ids_to_del:
+            log.info(f"Dropping conflicting ad: {id_del}")
+            df_processed = df_processed.where(F.col("UniqueAdID") != id_del)
 
 
 target_cols = (

@@ -227,8 +227,8 @@ if n_null_masid > 0:
 df_ad_shown_masid_output = (
     df_ad_shown_masid
     .withColumn("Location", F.lit(LOCATION))
-    .withColumn("MacroLocation", F.lit(CELL_MAP["parent"]))
-    .withColumn("MacroLocationCell", F.col(CELL_MAP["parent"]))
+    .withColumn("MacroLocation", F.lit(CELL_MAP["macro"]))
+    .withColumn("MacroLocationCell", F.col(CELL_MAP["macro"]))
     .select(
         "AccountNumber",
         "Location",
