@@ -160,10 +160,7 @@
                 }
             ],
             "constraints": {
-                "match": {
-                    "customer": "AlgoDivision",
-                    "ad": "AlgoDivision"
-                }
+                "targeting_within_division": "AlgoDivision"
             }
         },
         "SB1": {
@@ -204,10 +201,7 @@
                 }
             ],
             "constraints": {
-                "match": {
-                    "customer": "AlgoDivision",
-                    "ad": "AlgoDivision"
-                }
+                "targeting_within_division": "AlgoDivision"
             }
         },
         "SB2": {
@@ -249,10 +243,7 @@
                 }
             ],
             "constraints": {
-                "match": {
-                    "customer": "AlgoDivision",
-                    "ad": "AlgoDivision"
-                }
+                "targeting_within_division": "AlgoDivision"
             }
         },
         "OC1": {
@@ -276,10 +267,7 @@
                 }
             ],
             "constraints": {
-                "match": {
-                    "customer": "AlgoDivision",
-                    "ad": "AlgoDivision"
-                }
+                "targeting_within_division": "AlgoDivision"
             }
         },
         "LP1": {
@@ -299,7 +287,7 @@
                 }
             ],
             "constraints": {
-                "where": ["AdDivision", "Womens"]
+                "filter_ads": {"AdDivision": "Womens"}
             }
         },
         "LP2": {
@@ -319,7 +307,7 @@
                 }
             ],
             "constraints": {
-                "where": ["AdDivision", "Mens"]
+                "filter_ads": {"AdDivision": "Mens"}
             }
         },
         "LP3": {
@@ -339,7 +327,7 @@
                 }
             ],
             "constraints": {
-                "where": ["AdDivision", "Boys"]
+                "filter_ads": {"AdDivision": "Boys"}
             }
         },
         "LP4": {
@@ -359,7 +347,7 @@
                 }
             ],
             "constraints": {
-                "where": ["AdDivision", "Girls"]
+                "filter_ads": {"AdDivision": "Girls"}
             }
         },
         "LP5": {
@@ -379,7 +367,7 @@
                 }
             ],
             "constraints": {
-                "where": ["AdDivision", "Home"]
+                "filter_ads": {"AdDivision": "Home"}
             }
         },
         "LP6": {
@@ -399,7 +387,7 @@
                 }
             ],
             "constraints": {
-                "where": ["AdDivision", "Beauty"]
+                "filter_ads": {"AdDivision": "Beauty"}
             }
         },
         "LP7": {
@@ -419,7 +407,7 @@
                 }
             ],
             "constraints": {
-                "where": ["TradeDivision", "Brands"]
+                "filter_ads": {"TradeDivision": "Brands"}
             }
         },
         "LP8": {
@@ -439,12 +427,13 @@
                 }
             ],
             "constraints": {
-                "where": ["TradeDivision", "Sport"]
+                "filter_ads": {"TradeDivision": "Sport"}
             }
         },
         "PH3": {
             "macro": "HN",
             "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [1]},
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -479,14 +468,12 @@
                     ],
                     "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "best_args": {
-                "return_ranks": [1]
-            }
+            ]
         },
         "PH4": {
             "macro": "HN",
             "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [2]},
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -521,14 +508,12 @@
                     ],
                     "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "best_args": {
-                "return_ranks": [2]
-            }
+            ]
         },
         "PH5": {
             "macro": "HN",
             "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [3]},
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -563,14 +548,12 @@
                     ],
                     "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "best_args": {
-                "return_ranks": [3]
-            }
+            ]
         },
         "PH6": {
             "macro": "HN",
             "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [4]},
             "map": [
                 {
                     "when": [{"macro": "FallowControl", "match": "NoAds"}],
@@ -605,10 +588,7 @@
                     ],
                     "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "best_args": {
-                "return_ranks": [4]
-            }
+            ]
         }
     }
 }

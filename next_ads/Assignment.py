@@ -83,6 +83,12 @@ def assign_best_ads(
         return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
         tie_breaker - TODO - How to break tie when one Targeting has many Ads
     """
+    print(f"Ad count: {df_ads.count()}")
+    print(f"Cust count: {df_cust.count()}")
+    print(f"Targeting scores table: {targeting_scores_table}")
+    print(f"Score scale fn: {score_scale_fn}")
+    print(f"Score scale partition: {score_scale_partition}")
+    print(f"Return ranks: {return_ranks}")
 
     df_adscores = (
         df_ads
@@ -134,3 +140,65 @@ def assign_best_ads(
         pass
 
     return df_return
+
+
+def assign_best_ads_with_constraints(
+        df_ads: DataFrame,
+        df_cust: DataFrame = None,
+        constraints: dict = {},
+        best_kwargs: dict = {}) -> DataFrame:
+
+    if "targeting_within_division" in constraints:
+
+        div_type = constraints["targeting_within_division"]
+        divs = [row[0] for row in (df_cust
+                                   .select(div_type)
+                                   .distinct()).collect()]
+        df_ads_best_div_list = []
+
+        for div in divs:
+            print(f"Processing div: {div}")
+            df_ads_d = (
+                df_ads
+                .where(F.col(div_type) == div)
+                .where(F.col("TargetingCriteria").isNotNull())
+                .select("UniqueAdID", "TargetingCriteria")
+            )
+            df_cust_d = (
+                df_cust
+                .where(F.col(div_type) == div)
+                .select("AccountNumber")
+            )
+            df_ads_best_d = (
+                assign_best_ads(
+                    df_ads=df_ads_d,
+                    df_cust=df_cust_d,
+                    **best_kwargs
+                    )
+            )
+            df_ads_best_div_list.append(df_ads_best_d)
+
+        df_assigned_best = df_ads_best_div_list.pop()
+        for df_ads_best_div in df_ads_best_div_list:
+            df_assigned_best = df_assigned_best.union(df_ads_best_div)
+
+        return df_assigned_best
+
+    elif "filter_ads" in constraints:
+
+        for k in constraints["filter_ads"].keys():
+            df_ads = (
+                df_ads
+                .where(F.col(k) == constraints["filter"][k])
+            )
+
+        df_assigned_best = assign_best_ads(
+                    df_ads=df_ads,
+                    df_cust=df_cust,
+                    **best_kwargs
+                    )
+
+        return df_assigned_best
+
+    else:
+        raise Exception("Constraint not understood")

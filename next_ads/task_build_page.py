@@ -2,6 +2,7 @@ import logging
 import logging.config
 import json
 from next_ads.Assignment import (
+    assign_best_ads_with_constraints,
     assign_random_ads,
     assign_best_ads
     )
@@ -68,59 +69,45 @@ df_cells = (
     .table(FIXED_CELLS)
     .drop("rundate")
 )
-df_cust_div = (
+df_cust = (
     df_cells
     .select("AccountNumber", "AlgoDivision")
     .where(F.col("AlgoDivision").isNotNull())
 )
 
 
-log.info("Assigning Random Ads by AlgoDivision")
+log.info("Assigning Random Ads")
 df_assigned_rdm = assign_random_ads(
     df_ads.select("UniqueAdID", "AlgoDivision"),
-    df_cust_div,
+    df_cust,
     grp_col="AlgoDivision"
     )
 df_assigned_rdm.cache()
 
 
 log.info("Assigning Best Ads")
-# Iterate by Division - customer should receive best ad within Division
-divs = [row[0] for row in df_ads.select("AlgoDivision").distinct().collect()]
-df_ads_best_div_list = []
 
-for div in divs:
+best_kwargs = {
+    "targeting_scores_table": TARGETING_SCORES_TABLE,
+    "score_scale_fn": subtract_mean
+}
 
-    df_ads_d = (
-        df_ads
-        .where(F.col("AlgoDivision") == div)
-        .where(F.col("TargetingCriteria").isNotNull())
-        .select("UniqueAdID", "TargetingCriteria")
+if "best_kwargs" in LOCATIONS[LOCATION]:
+    best_kwargs = best_kwargs | LOCATIONS[LOCATION]["best_kwargs"]
+
+if "constraints" in LOCATIONS[LOCATION]:
+    df_assigned_best = assign_best_ads_with_constraints(
+        df_ads=df_ads,
+        df_cust=df_cust,
+        constraints=LOCATIONS[LOCATION]["constraints"],
+        best_kwargs=best_kwargs
     )
-
-    df_cust_d = (
-        df_cust_div
-        .where(F.col("AlgoDivision") == div)
-        .select("AccountNumber")
+else:
+    df_assigned_best = assign_best_ads(
+        df_ads=df_ads,
+        df_cust=df_cust,
+        **best_kwargs
     )
-    # TODO: Some division customers may not have relevant scores - capture?
-
-    df_ads_best_d = (
-        assign_best_ads(
-            df_ads=df_ads_d,
-            df_cust=df_cust_d,
-            targeting_scores_table=TARGETING_SCORES_TABLE,
-            score_scale_fn=subtract_mean
-            )
-        .join(df_cust_div.where(F.col("AlgoDivision") == div),
-              on="AccountNumber", how="inner")
-        .drop("Division")
-    )
-    df_ads_best_div_list.append(df_ads_best_d)
-
-df_assigned_best = df_ads_best_div_list.pop()
-for df_ads_best_div in df_ads_best_div_list:
-    df_assigned_best = df_assigned_best.union(df_ads_best_div)
 
 df_assigned_best.cache()
 
@@ -257,7 +244,7 @@ delete_from_and_load(df_ad_shown_masid_output,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
 
-df_cust_div.unpersist()
+df_cust.unpersist()
 df_assigned_best.unpersist()
 df_assignments.unpersist()
 df_ad_shown_masid.unpersist()
