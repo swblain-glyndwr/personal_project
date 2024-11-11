@@ -138,10 +138,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [
-                        {"col": "HN", "match": "2. Random"},
-                        {"col": "AdHocAB2", "match": "1: Variant A"}
-                    ],
+                    "when": [{"col": "HN", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 },
                 {
@@ -182,7 +179,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "SB", "match": "2. Random"}],
+                    "when": [{"col": "SB", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 },
                 {
@@ -224,7 +221,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "SB", "match": "2. Random"}],
+                    "when": [{"col": "SB", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 },
                 {
@@ -258,7 +255,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 },
                 {
@@ -282,7 +279,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -302,7 +299,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -322,7 +319,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -342,7 +339,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -362,7 +359,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -382,7 +379,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -402,7 +399,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -422,7 +419,7 @@
                     "then": "NoAd"
                 },
                 {
-                    "when": [{"col": "OC", "match": "2. Random"}],
+                    "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
             ],
@@ -449,7 +446,7 @@
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "2. Random"},
+                        {"col": "HN", "match": "2: Random"},
                         {"col": "AdHocAB2", "match": "2: Variant B"}
                     ],
                     "then": "UniqueAdIDBest"
@@ -489,7 +486,7 @@
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "2. Random"},
+                        {"col": "HN", "match": "2: Random"},
                         {"col": "AdHocAB2", "match": "2: Variant B"}
                     ],
                     "then": "UniqueAdIDBest"
@@ -529,7 +526,7 @@
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "2. Random"},
+                        {"col": "HN", "match": "2: Random"},
                         {"col": "AdHocAB2", "match": "2: Variant B"}
                     ],
                     "then": "UniqueAdIDBest"
@@ -569,7 +566,7 @@
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "2. Random"},
+                        {"col": "HN", "match": "2: Random"},
                         {"col": "AdHocAB2", "match": "2: Variant B"}
                     ],
                     "then": "UniqueAdIDBest"
