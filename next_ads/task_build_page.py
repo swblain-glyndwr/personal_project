@@ -185,7 +185,7 @@ df_ad_masid = (
 
 # Append codes for control cells
 ctrl_masid_cols = ["UniqueAdID", "MASID"]
-ctrl_masid_vals = [("NoAd", f"{LOCATION}_Z")]
+ctrl_masid_vals = [("Z", f"{LOCATION}_Z")]
 
 df_control_masid = (
     get_spark().createDataFrame(
