@@ -124,6 +124,9 @@
     "locations": {
         "HN1": {
             "macro": "HN",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "map": [
                 {
                     "when": [{"col": "HN", "match": "4: Overall"}],
@@ -155,13 +158,13 @@
                     ],
                     "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            }
+            ]
         },
         "SB1": {
             "macro": "SB",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "map": [
                 {
                     "when": [{"col": "SB", "match": "4: Overall"}],
@@ -196,14 +199,14 @@
                     ],
                     "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            }
+            ]
         },
         "SB2": {
             "macro": "SB",
             "inherit_ads_from": "SB1",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "map": [
                 {
                     "when": [{"col": "SB", "match": "4: Overall"}],
@@ -238,13 +241,13 @@
                     ],
                     "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            }
+            ]
         },
         "OC1": {
             "macro": "OC",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "map": [
                 {
                     "when": [{"col": "OC", "match": "4: Overall"}],
@@ -259,16 +262,26 @@
                     "then": "UniqueAdIDRandom"
                 },
                 {
-                    "when": [{"col": "OC", "match": "1: Personalised"}],
+                    "when": [
+                        {"col": "OC", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
                     "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "OC", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
                 }
-            ],
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            }
+            ]
         },
         "LP1": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Womens"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -282,13 +295,13 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"AdDivision": "Womens"}
-            }
+            ]
         },
         "LP2": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Mens"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -302,13 +315,13 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"AdDivision": "Mens"}
-            }
+            ]
         },
         "LP3": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Boys"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -322,13 +335,13 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"AdDivision": "Boys"}
-            }
+            ]
         },
         "LP4": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Girls"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -342,13 +355,13 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"AdDivision": "Girls"}
-            }
+            ]
         },
         "LP5": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Home"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -362,13 +375,13 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"AdDivision": "Home"}
-            }
+            ]
         },
         "LP6": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Beauty"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -382,13 +395,13 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"AdDivision": "Beauty"}
-            }
+            ]
         },
         "LP7": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"TradeDivision": "Brands"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -402,13 +415,13 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"TradeDivision": "Brands"}
-            }
+            ]
         },
         "LP8": {
             "macro": "LP",
+            "constraints": {
+                "filter_ads": {"TradeDivision": "Sport"}
+            },
             "map": [
                 {
                     "when": [{"col": "LP", "match": "4: Overall"}],
@@ -422,10 +435,7 @@
                     "when": [{"col": "OC", "match": "2: Random"}],
                     "then": "UniqueAdIDRandom"
                 }
-            ],
-            "constraints": {
-                "filter_ads": {"TradeDivision": "Sport"}
-            }
+            ]
         },
         "PH3": {
             "macro": "HN",
