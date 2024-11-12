@@ -6,13 +6,21 @@ from pyspark.sql import DataFrame
 from next_ads.utils.dbc import get_dbutils, get_spark
 
 
+GCP_SCOPE = "mktg_gcp"
+GCP_KEY = "mktg-gcp-service-account-b64-encoded"
+
+# Legacy? - gcp_key_json_file should be set to point to the key
+# associated with the serivce acccount
+# GCP_KEY_JSON_FILE = '/dbfs/gcp/service-account-key.json'
+
+
 def gcp_conn():
     """
     Returns `gspread` connection object
     """
     file = get_dbutils().secrets.get(
-        scope="mktg_gcp",
-        key="mktg-gcp-service-account-b64-encoded")
+        scope=GCP_SCOPE,
+        key=GCP_KEY)
     decoded = base64.b64decode(file.encode("utf-8")).decode("utf-8")
     service_account_dict = ast.literal_eval(decoded)
     return gs.service_account_from_dict(service_account_dict)
@@ -21,7 +29,7 @@ def gcp_conn():
 def spark_df_from_sheets(
         url: str,
         worksheet_name: str,
-        schema: list = []
+        schema: list[list[str]] = []
         ) -> DataFrame:
     """
     Function to read from Google Sheets to Spark dataframe. Only seems to
@@ -32,15 +40,10 @@ def spark_df_from_sheets(
         e.g. azure-databricks@big-query-156009.iam.gserviceaccount.com
 
     Arguments:
-        url {str} -- URL of Google Sheet
-        worksheet_name {str} -- Name of worksheet to be read
-        schema {list} -- List of lists representing schema to be read
-            e.g. `[["ID","string","nullable"],["Name","string","nullable"]]`
-
-    Notes:
-        Legacy(??) -- Following parameter should be set to point to the key
-        associated with the serivce acccount:
-            `gcp_key_json_file = '/dbfs/gcp/service-account-key.json'`
+        url - URL of Google Sheet
+        worksheet_name - Name of worksheet to be read
+        schema - List of lists representing schema to be read
+            e.g. `[["ID","string","not null"],["Name","string","nullable"]]`
     """
     google_sheet = gcp_conn().open_by_url(url)
     worksheet = google_sheet.worksheet(worksheet_name)
