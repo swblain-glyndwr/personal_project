@@ -1,6 +1,6 @@
 {
     "control_sheet": {
-        "url": "https://docs.google.com/spreadsheets/d/1UNgQA1v9mX14udbbNFrs03TXpG__yGJx_tjEWTM_yyo/edit?gid=0#gid=0",
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
         "sheet": "Control Sheet",
         "read_schema": [
             ["UniqueAdID", "string", "null"],
@@ -13,7 +13,7 @@
             ["MASIDToken", "string", "null"],
             ["Segment", "string", "null"],
             ["AdDriver", "string", "null"],
-            ["AdFormat", "string", "null"],
+            ["TemplateName", "string", "null"],
             ["StartDate", "string", "null"],
             ["EndDate", "string", "null"],
             ["Status", "string", "null"],
@@ -43,21 +43,37 @@
             ["Tags", "string", "null"]
         ]
     },
+    "schema": {
+        "dev": "ds_sandbox",
+        "prod": "warehouse"
+    },
     "tables": {
-        "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
-        "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
-        "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-        "control_sheet": "marketingdata_prod.warehouse.nextadscontrolsheetv2",
-        "control_sheet_latest": "marketingdata_prod.warehouse.nextadscontrolsheetv2_latest",
-        "overall_control_and_division": "",
-        "scored_divisions_latest": "",
-        "scored_ads_latest": "",
-        "assignments": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments",
-        "assignments_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_assignments_latest"
+        "read": {
+            "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
+            "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
+            "bq_uk_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
+            "bq_uk_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
+            "bq_uk_add_to_basket": "marketingdata_prod.warehouse.bq_atbs_next_uk",
+            "bq_uk_transactions": "marketingdata_prod.warehouse.bq_transactions_next_uk",
+            "bq_uk_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
+            "bq_uk_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
+            "bq_uk_add_to_basket_app": "marketingdata_prod.warehouse.bq_atbs_next_uk_app",
+            "bq_uk_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
+            "uk_preference_framework": "marketingdata_prod.warehouse.uk_pf",
+            "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest"
+        },
+        "write": {
+            "control_sheet": "marketingdata_prod.{schema}.next_uk_nextads_control_sheet",
+            "control_sheet_latest": "marketingdata_prod.{schema}.next_uk_nextads_control_sheet_latest",
+            "fixed_cells": "marketingdata_prod.{schema}.next_uk_nextads_fixed_cells",
+            "targeting_scores_latest": "marketingdata_prod.{schema}.next_uk_nextads_targeting_scores_latest",
+            "assignments": "marketingdata_prod.{schema}.next_uk_nextads_assignments",
+            "assignments_latest": "marketingdata_prod.{schema}.next_uk_nextads_assignments_latest"
+        }
     },
     "files": {
-        "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V4_SEP24_BKUP",
-        "div_assignment": {
+        "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V3_JUL24",
+        "division_assignments": {
             "Womens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/WomensFile",
             "Mens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/MensFile",
             "Girls": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/GirlsFile",

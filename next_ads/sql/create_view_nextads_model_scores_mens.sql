@@ -1,4 +1,4 @@
-create view marketingdata_prod.warehouse.next_uk_mens_nextads_model_scores_latest as
+create view marketingdata_prod.warehouse.next_uk_nextads_model_scores_mens_latest as
 select
     a.*,
     b.adidas,

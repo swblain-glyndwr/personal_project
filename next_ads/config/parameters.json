@@ -7,14 +7,17 @@
         },
         "seed": 101
     },
-    "test_locations": {
+    "macro_locations": {
         "HN": {
             "cells": [
                 [0.05, "3: No Banner"],
                 [0.2, "2: Random"],
                 [1.0, "1: Personalised"]
             ],
-            "seed": 201
+            "seed": 201,
+            "page": "/",
+            "screen": "Home",
+            "reported_value": "SessionRevenue"
         },
         "SB": {
             "cells": [
@@ -22,7 +25,10 @@
                 [0.2, "2: Random"],
                 [1.0, "1: Personalised"]
             ],
-            "seed": 202
+            "seed": 202,
+            "page": "/shoppingbag",
+            "screen": "Cart",
+            "reported_value": "ProductRevenuePostFirstHit"
         },
         "OC": {
             "cells": [
@@ -30,14 +36,31 @@
                 [0.2, "2: Random"],
                 [1.0, "1: Personalised"]
             ],
-            "seed": 203
+            "seed": 203,
+            "page": "%checkout/complete%",
+		    "screen": "Checkout Completed",
+            "reported_value": "ProductRevenuePostFirstHit"
         },
         "LP": {
             "cells": [
                 [0.1, "3: No Banner"],
                 [1.0, "2: Random"]
             ],
-            "seed": 204
+            "seed": 204,
+            "page": "",
+		    "screen": "",
+            "reported_value": "SessionRevenue"
+        },
+        "PH": {
+            "cells": [
+                [0.05, "3: No Banner"],
+                [0.2, "2: Random"],
+                [1.0, "1: Personalised"]
+            ],
+            "seed": 205,
+            "page": "/",
+            "screen": "Home",
+            "reported_value": "SessionRevenue"
         },
         "AdHocAB1": {
             "cells": [
@@ -66,16 +89,14 @@
                 [1.0, "B"]
             ],
             "seed": 304
-        }
-    },
-    "challenger": {
-        "proportion": 0.5,
-        "labels": {
-            "True": "Challenger",
-            "False": "Champion"
         },
-        "apply_to" : "1: Personalised", 
-        "seed": 1001
+        "ChampionChallenger": {
+            "cells": [
+                [0.5, "Champion"],
+                [1.0, "Challenger"]
+            ],
+            "seed": 401
+        }
     },
     "divisions": {
         "Womens": {
@@ -99,23 +120,482 @@
         "Beauty": {
             "model": "div_beauty"
         }
-    }
-    ,
+    },
     "locations": {
-        "HN1": {},
-        "SB1": {},
-        "SB2": {},
-        "OC1": {},
-        "LP1": {},
-        "LP2": {},
-        "LP3": {},
-        "LP4": {},
-        "LP5": {},
-        "LP6": {},
-        "LP7": {},
-        "LP8": {},
-        "LP9": {},
-        "LP10": {},
-        "LP11": {}
+        "HN1": {
+            "macro": "HN",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "HN", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "AdHocAB2", "match": "2: Variant B"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "HN", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        },
+        "SB1": {
+            "macro": "SB",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "SB", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "SB", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"col": "AdHocAB3", "match": "2: Variant B"},
+                        {"col": "AdHocAB4", "match": "1: Variant A"}
+                    ],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "SB", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                },
+                {
+                    "when": [
+                        {"col": "SB", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "SB", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        },
+        "SB2": {
+            "macro": "SB",
+            "inherit_ads_from": "SB1",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "SB", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "SB", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"col": "AdHocAB3", "match": "2: Variant B"},
+                        {"col": "AdHocAB4", "match": "2: Variant B"}
+                    ],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "SB", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                },
+                {
+                    "when": [
+                        {"col": "SB", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "SB", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        },
+        "OC1": {
+            "macro": "OC",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "OC", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                },
+                {
+                    "when": [
+                        {"col": "OC", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "OC", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        },
+        "LP1": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Womens"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "LP2": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Mens"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "LP3": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Boys"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "LP4": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Girls"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "LP5": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Home"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "LP6": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"AdDivision": "Beauty"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "LP7": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"TradeDivision": "Brands"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "LP8": {
+            "macro": "LP",
+            "constraints": {
+                "filter_ads": {"TradeDivision": "Sport"}
+            },
+            "map": [
+                {
+                    "when": [{"col": "LP", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "OC", "match": "2: Random"}],
+                    "then": "UniqueAdIDRandom"
+                }
+            ]
+        },
+        "PH3": {
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [1]},
+            "map": [
+                {
+                    "when": [{"col": "HN", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "2: Random"},
+                        {"col": "AdHocAB2", "match": "2: Variant B"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        },
+        "PH4": {
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [2]},
+            "map": [
+                {
+                    "when": [{"col": "HN", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "2: Random"},
+                        {"col": "AdHocAB2", "match": "2: Variant B"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        },
+        "PH5": {
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [3]},
+            "map": [
+                {
+                    "when": [{"col": "HN", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "2: Random"},
+                        {"col": "AdHocAB2", "match": "2: Variant B"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        },
+        "PH6": {
+            "macro": "HN",
+            "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [4]},
+            "map": [
+                {
+                    "when": [{"col": "HN", "match": "4: Overall"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "HN", "match": "3: No Banner"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
+                    "then": "NoAd"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "2: Random"},
+                        {"col": "AdHocAB2", "match": "2: Variant B"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Champion"}
+                    ],
+                    "then": "UniqueAdIDBest"
+                },
+                {
+                    "when": [
+                        {"col": "HN", "match": "1: Personalised"},
+                        {"col": "ChampionChallenger", "match": "Challenger"}
+                    ],
+                    "then": "UniqueAdIDBestChallenger"
+                }
+            ]
+        }
     }
 }

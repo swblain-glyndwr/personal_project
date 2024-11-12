@@ -8,21 +8,26 @@ import re
 with open("config/resources.json") as f:
     rsc = json.load(f)
 
+CONTROL_SHEET_LATEST = rsc["tables"]["write"]["control_sheet_latest"]
+RESULTS_FILES = rsc["files"]["results"]
+
 
 def get_underperforming_ads(
         location: str,
         t_threshold: float = -1.64) -> DataFrame:
     """
-    Gets underperforming Ads, as defined by the Ad's T-value.
+    TODO: Function might be warranted, but needs refactoring to work with
+    job_env paradigm.
+    Gets 'underperforming' Ads, as defined by the Ad's t-value.
 
     Args:
-        location -- A valid Nexts Ads location (MASID prefix, e.g. HN1)
-        t_threshold -- The T-value threshold for "underperforming"
+        location - A valid Nexts Ads location (MASID prefix, e.g. HN1)
+        t_threshold - The t-value threshold for "underperforming"
 
     Returns:
-        A dataframe with UniqueAdID and Division of underperforming Ads
+        Dataframe with UniqueAdID and Division of underperforming Ads
     """
-    test_location = re.findall(r"^[a-zA-Z]{2,3}", location)[0]
+    macro_location = re.findall(r"^[a-zA-Z]{2,3}", location)[0]
 
     # UniqueAdID extended to include Division suffix to ensure uniqueness
     # from Oct 2024, therefore Ads from before this period need the suffix
@@ -30,7 +35,7 @@ def get_underperforming_ads(
     df = (
         get_spark()
         .read.format("delta")
-        .load(rsc["files"]["results"][test_location])
+        .load(RESULTS_FILES[macro_location])
         .filter(F.col("t_RPS_targetted_div_random_ad") <= t_threshold)
         .select("ID", "Division", "FirstShown_targeted_div")
         .withColumn("UniqueAdID",
@@ -47,30 +52,29 @@ def get_underperforming_ads(
 
 
 def get_latest_ads(location: str = "",
-                   cols: list = [],
                    filter_underperforming: bool = False,
-                   **kwargs) -> DataFrame:
+                   t_threshold: float = None) -> DataFrame:
     """
+    TODO: Not sure this function is worth it - have to get involved with
+    resources and schema?
     Gets Ads from `_latest` Control Sheet table for a given location.
     Optional filter underperforming with kwargs for customer t_threshold.
 
     Args:
-        location -- A valid Next Ads location (i.e. MASID prefix, e.g. HN1)
-        filter_underperforming -- Optional - Remove underperforming Ads.
-        **kwargs -- Optional - Pass through custom t_threshold for removal.
+        location - A valid Next Ads location (i.e. MASID prefix, e.g. HN1)
+        filter_underperforming - Remove 'underperforming' Ads
+        t_threshold - Custom t_threshold to define 'underperforming' ads
     """
-    df = get_spark().table(rsc["tables"]["control_sheet_latest"])
+    df = get_spark().table(CONTROL_SHEET_LATEST)
 
     if location:
         df = df.where(F.col("Location") == location)
 
-    if filter_underperforming:
-        df = (
-            df.join(get_underperforming_ads(location, **kwargs),
-                    on="UniqueAdID", how="leftanti")
-        )
-
-    if cols:
-        df = df.select(*cols)
-
-    return df
+    if filter_underperforming and t_threshold:
+        return (df.join(get_underperforming_ads(location, t_threshold),
+                        on="UniqueAdID", how="leftanti"))
+    elif filter_underperforming:
+        return (df.join(get_underperforming_ads(location),
+                        on="UniqueAdID", how="leftanti"))
+    else:
+        return df
