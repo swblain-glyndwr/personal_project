@@ -128,6 +128,21 @@ def assert_pk(df: DataFrame, pk_cols: list):
         assert null_count == 0, f"Null values found in PK col: {c}"
 
 
+def table_housekeeping(
+        table: str,
+        vacuum_hours: int = 168,
+        retention_days: int = 731) -> None:
+
+    get_spark().sql(
+        f"""
+        delete from {table}
+        where rundate <= current_date() - {retention_days}
+        """)
+
+    get_spark().sql(f"optimize {table}")
+    get_spark().sql(f"vacuum {table} retain {vacuum_hours} hours")
+
+
 def delete_from_and_load(
         df: DataFrame,
         table: str,
@@ -171,6 +186,8 @@ def delete_from_and_load(
         """
         )
 
+    table_housekeeping(table)
+
     return None
 
 
@@ -205,6 +222,8 @@ def truncate_and_load(
         from df_load
         """
         )
+
+    table_housekeeping(table)
 
     return None
 
