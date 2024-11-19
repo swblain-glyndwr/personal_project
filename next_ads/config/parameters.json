@@ -1,14 +1,10 @@
 {
     "fallow_control": {
-        "proportion": 0.05,
-        "labels": {
-            "True": "No Ads",
-            "False": "Ads"
-        },
+        "proportion": 0.1,
         "seed": 101
     },
-    "macro_locations": {
-        "HN": {
+    "test_cells": {
+        "HN1": {
             "cells": [
                 [0.05, "3: No Banner"],
                 [0.2, "2: Random"],
@@ -19,7 +15,7 @@
             "screen": "Home",
             "reported_value": "SessionRevenue"
         },
-        "SB": {
+        "SB1": {
             "cells": [
                 [0.05, "3: No Banner"],
                 [0.2, "2: Random"],
@@ -30,7 +26,7 @@
             "screen": "Cart",
             "reported_value": "ProductRevenuePostFirstHit"
         },
-        "OC": {
+        "OC1": {
             "cells": [
                 [0.05, "3: No Banner"],
                 [0.2, "2: Random"],
@@ -41,7 +37,7 @@
 		    "screen": "Checkout Completed",
             "reported_value": "ProductRevenuePostFirstHit"
         },
-        "LP": {
+        "LP1": {
             "cells": [
                 [0.1, "3: No Banner"],
                 [1.0, "2: Random"]
@@ -51,7 +47,7 @@
 		    "screen": "",
             "reported_value": "SessionRevenue"
         },
-        "PH": {
+        "PH1": {
             "cells": [
                 [0.05, "3: No Banner"],
                 [0.2, "2: Random"],
@@ -90,6 +86,41 @@
             ],
             "seed": 304
         },
+        "AdHocAB5": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 305
+        },
+        "AdHocAB6": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 306
+        },
+        "AdHocAB7": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 307
+        },
+        "AdHocAB8": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 308
+        },
+        "AdHocAB9": {
+            "cells": [
+                [0.5, "A"],
+                [1.0, "B"]
+            ],
+            "seed": 309
+        },
         "ChampionChallenger": {
             "cells": [
                 [0.5, "Champion"],
@@ -98,7 +129,7 @@
             "seed": 401
         }
     },
-    "divisions": {
+    "algo_divisions": {
         "Womens": {
             "model": "div_womens"
         },
