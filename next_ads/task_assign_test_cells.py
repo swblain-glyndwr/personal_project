@@ -9,11 +9,9 @@ from next_ads.utils.etl import (assert_pk,
                                 map_schema)
 
 
-# Configure logging
 logging.config.fileConfig("config/logging.conf")
 log = logging.getLogger("mylog")
 
-# Configure run
 with open("config/resources.json") as f:
     rsc = json.load(f)
 with open("config/parameters.json") as f:
@@ -38,9 +36,7 @@ FALLOW_SEED = prm["fallow_control"]["seed"]
 TEST_CELLS = prm["test_cells"]
 
 
-# GET CUSTOMER BASE
-# Read in RPID with Accounts
-# Query inherited from Gill's script
+# Query inherited from legacy script
 # TODO: Should we take lastest updated record to de-dup instead?
 df_rpid_w_acc = (
         get_spark()
@@ -50,9 +46,8 @@ df_rpid_w_acc = (
         .distinct()
 )
 
-# Read in SVOC table
 # SVOC table used because it contains older accounts too
-# Where clause inherited from Gill's script
+# Where clause inherited from legacy script
 df_cust = (
     get_spark()
     .table(SVOC)
