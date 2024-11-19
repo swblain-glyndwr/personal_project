@@ -111,9 +111,6 @@ def build_spark_schema(schema: list[list[str]]) -> StructType:
 def assert_pk(df: DataFrame, pk_cols: list):
     """
     Assert Primary Key constraint on dataframe.
-    Primary Key constraints only enforced from
-    Databricks Runtime 15.2 and Databricks SQL 2024.30.
-    Prior to this, PK constraints for information only.
 
     Arguments:
         df - Dataframe to check
