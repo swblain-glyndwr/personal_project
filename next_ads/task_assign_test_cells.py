@@ -66,19 +66,10 @@ assert_pk(df_cust, ["AccountNumber"])
 df_cust.cache()
 log.info(f"Customer base size: {df_cust.count():,}")
 
-df_cust_existing = (
-    get_spark()
-    .table(TEST_CELLS_TABLE)
-    .select("AccountNumber")
-    .drop_duplicates()
-)
-
-df_cust_new = df_cust.join(df_cust_existing,
-                           on="AccountNumber", how="leftanti")
-log.info(f"New customers: {df_cust_new.count():,}")
+df_test_cell_existing = get_spark().table(TEST_CELLS_TABLE)
 
 df_fallow = (
-    df_cust_new
+    df_cust
     .orderBy(F.col("AccountNumber"))
     .withColumn("RandomFallow", F.rand(seed=FALLOW_SEED))
     .withColumn("FallowControl", F.col("RandomFallow") <= FALLOW_PC)
@@ -133,23 +124,24 @@ df_test_cells_ads = (
 
 df_test_cells = (
     df_fallow
-    .withColumn("CellKey", F.lit("FallowControl"))
-    .withColumn("CellValue",
-                F.when(~F.col("FallowControl"), "Ads").otherwise("No Ads"))
     .select("AccountNumber", "FallowControl")
+    .join(df_test_cells_ads.select("AccountNumber", *test_cells),
+          on="AccountNumber", how="left")
 )
 
-df_test_cells_ads_melt = (
-    df_test_cells_ads
-    .select("AccountNumber", *test_cells)
-    .unpivot("AccountNumber", test_cells, "CellKey", "CellValue")
-)
+for test_cell in test_cells:
+    df_test_cells = (
+        df_test_cells
+        .withColumn(test_cell,
+                    F.when(F.col("FallowControl"), F.lit("4: Overall")))
+    )
 
 df_test_cells = (
-    df_test_cells
-    .union(df_test_cells_ads_melt)
+    df_test_cells.withColumn("FallowControl",
+                             F.when(F.col("FallowControl"),
+                                    F.lit("NoAds")).otherwise(F.lit("Ads")))
 )
-
-assert_pk(df_test_cells, ["AccountNumber", "CellKey"])
+df_test_cells.cache()
+assert_pk(df_test_cells, ["AccountNumber"])
 
 log.info("Run complete")
