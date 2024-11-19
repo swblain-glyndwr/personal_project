@@ -133,7 +133,8 @@ for test_cell in test_cells:
     df_test_cells = (
         df_test_cells
         .withColumn(test_cell,
-                    F.when(F.col("FallowControl"), F.lit("4: Overall")))
+                    F.when(F.col("FallowControl"),
+                           F.lit("4: Overall")).otherwise(F.col(test_cell)))
     )
 
 df_test_cells = (
