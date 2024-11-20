@@ -5,8 +5,8 @@ from next_ads.utils.dbc import get_spark
 from pyspark.sql import functions as F
 from next_ads.utils.etl import (assert_pk,
                                 JobParser,
-                                build_spark_schema,
-                                map_schema)
+                                map_schema,
+                                chain_when_thens)
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -66,70 +66,51 @@ assert_pk(df_cust, ["AccountNumber"])
 df_cust.cache()
 log.info(f"Customer base size: {df_cust.count():,}")
 
-df_test_cell_existing = get_spark().table(TEST_CELLS_TABLE)
-
 df_fallow = (
     df_cust
     .orderBy(F.col("AccountNumber"))
     .withColumn("RandomFallow", F.rand(seed=FALLOW_SEED))
     .withColumn("FallowControl", F.col("RandomFallow") <= FALLOW_PC)
     )
+df_fallow.cache()
 # TODO: Calibrate spend per customer of fallow and test group?
 
-test_cells = list(TEST_CELLS.keys())
-test_cell_seeds = {k: TEST_CELLS[k]["seed"] for k in test_cells}
-
-sch = build_spark_schema([["TestCell", "string", "not null"]])
-df_test_cell = get_spark().createDataFrame([(c,) for c in test_cells], sch)
-
-df_test_rdm = (
+df_test_ads = (
     df_fallow
     .where(~F.col("FallowControl"))
-    .drop("RandomFallow", "FallowControl")
+    .select("AccountNumber")
 )
 
-for test_cell in test_cells:
-    df_test_rdm = (
-        df_test_rdm
-        .withColumn(f"{test_cell}Random",
-                    F.rand(seed=test_cell_seeds[test_cell]))
+for test_cell in TEST_CELLS:
+    df_test_ads = (
+        df_test_ads
+        .orderBy(F.col("AccountNumber"))
+        .withColumn(f"Random{test_cell}",
+                    F.rand(seed=TEST_CELLS[test_cell]["seed"]))
+        .withColumn(test_cell,
+                    chain_when_thens(TEST_CELLS[test_cell]["cells"]))
     )
-
-# Build case-when to map cell references
-test_cell_assignments = []
-for test_cell in test_cells:
-    cells = TEST_CELLS[test_cell]["cells"]
-    when_strs = []
-    for cell in cells:
-        when_str = f"when {test_cell}Random <= {cell[0]} then '{cell[1]}'"
-        when_strs.append(when_str)
-    test_cell_assignment = (
-        "case "
-        + " ".join(when_strs)
-        + f" else null end as {test_cell}"
-    )
-    test_cell_assignments.append(test_cell_assignment)
-
-test_cell_case_when = ",\n".join(test_cell_assignments)
-
-df_test_rdm.createOrReplaceTempView("df_test_rdm_tmp")
-df_test_cells_ads = (
-    get_spark()
-    .sql(f"""
-         select a.*,
-         {test_cell_case_when}
-         from df_test_rdm_tmp a
-         """)
-)
+df_test_ads.cache()
 
 df_test_cells = (
     df_fallow
-    .select("AccountNumber", "FallowControl")
-    .join(df_test_cells_ads.select("AccountNumber", *test_cells),
-          on="AccountNumber", how="left")
+    .join(df_test_ads, on="AccountNumber", how="left")
+    .select("AccountNumber", "FallowControl", *list(TEST_CELLS.keys()))
 )
+df_test_cells.cache()
 
-for test_cell in test_cells:
+print(f"Customers: {df_cust.count():,}")
+print(f"Customers Fallow table: {df_fallow.count():,}")
+print(f"""Customers Fallow True: {
+    df_fallow.where(~F.col('FallowControl')).count():,}""")
+print(f"Customers Ads: {df_test_ads.count():,}")
+print(f"""
+      Not in Fallow test_cells diff:
+      {df_fallow.where(
+          ~F.col('FallowControl')).count() - df_test_ads.count()}""")
+
+
+for test_cell in TEST_CELLS:
     df_test_cells = (
         df_test_cells
         .withColumn(test_cell,
@@ -142,7 +123,16 @@ df_test_cells = (
                              F.when(F.col("FallowControl"),
                                     F.lit("NoAds")).otherwise(F.lit("Ads")))
 )
-df_test_cells.cache()
+
 assert_pk(df_test_cells, ["AccountNumber"])
 
-log.info("Run complete")
+
+# Backup existing table
+
+# Get existing table
+
+# Where columns in existing table, union new customers
+
+# Where columns not in existing table, join additional columns
+
+# log.info("Run complete")

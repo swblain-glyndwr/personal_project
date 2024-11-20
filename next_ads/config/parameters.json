@@ -4,627 +4,795 @@
         "seed": 101
     },
     "test_cells": {
-        "HN1": {
+        "HNTest1": {
             "cells": [
-                [0.05, "3: No Banner"],
-                [0.2, "2: Random"],
-                [1.0, "1: Personalised"]
+                {
+                    "when": [{"col": "RandomHNTest1", "op": "le", "val": 0.1}],
+                    "then": {"val": "3: No Banner"}
+                },
+                {
+                    "when": [{"col": "RandomHNTest1", "op": "le", "val": 0.55}],
+                    "then": {"val": "2: Random"}
+                },
+                {
+                    "when": [{"col": "RandomHNTest1", "op": "le", "val": 1.0}],
+                    "then": {"val": "1: Personalised"}
+                }
             ],
             "seed": 201,
             "page": "/",
             "screen": "Home",
             "reported_value": "SessionRevenue"
         },
-        "SB1": {
+        "SBTest1": {
             "cells": [
-                [0.05, "3: No Banner"],
-                [0.2, "2: Random"],
-                [1.0, "1: Personalised"]
+                {
+                    "when": [{"col": "RandomSBTest1", "op": "le", "val": 0.1}],
+                    "then": {"val": "3: No Banner"}
+                },
+                {
+                    "when": [{"col": "RandomSBTest1", "op": "le", "val": 0.55}],
+                    "then": {"val": "2: Random"}
+                },
+                {
+                    "when": [{"col": "RandomSBTest1", "op": "le", "val": 1.0}],
+                    "then": {"val": "1: Personalised"}
+                }
             ],
             "seed": 202,
             "page": "/shoppingbag",
             "screen": "Cart",
             "reported_value": "ProductRevenuePostFirstHit"
         },
-        "OC1": {
+        "OCTest1": {
             "cells": [
-                [0.05, "3: No Banner"],
-                [0.2, "2: Random"],
-                [1.0, "1: Personalised"]
+                {
+                    "when": [{"col": "RandomOCTest1", "op": "le", "val": 0.1}],
+                    "then": {"val": "3: No Banner"}
+                },
+                {
+                    "when": [{"col": "RandomOCTest1", "op": "le", "val": 0.55}],
+                    "then": {"val": "2: Random"}
+                },
+                {
+                    "when": [{"col": "RandomOCTest1", "op": "le", "val": 1.0}],
+                    "then": {"val": "1: Personalised"}
+                }
             ],
             "seed": 203,
             "page": "%checkout/complete%",
 		    "screen": "Checkout Completed",
             "reported_value": "ProductRevenuePostFirstHit"
         },
-        "LP1": {
+        "LPTest1": {
             "cells": [
-                [0.1, "3: No Banner"],
-                [1.0, "2: Random"]
+                {
+                    "when": [{"col": "RandomLPTest1", "op": "le", "val": 0.1}],
+                    "then": {"val": "3: No Banner"}
+                },
+                {
+                    "when": [{"col": "RandomLPTest1", "op": "le", "val": 0.55}],
+                    "then": {"val": "2: Random"}
+                },
+                {
+                    "when": [{"col": "RandomLPTest1", "op": "le", "val": 1.0}],
+                    "then": {"val": "1: Personalised"}
+                }
             ],
             "seed": 204,
             "page": "",
 		    "screen": "",
             "reported_value": "SessionRevenue"
         },
-        "PH1": {
+        "AdHocABTest1": {
             "cells": [
-                [0.05, "3: No Banner"],
-                [0.2, "2: Random"],
-                [1.0, "1: Personalised"]
-            ],
-            "seed": 205,
-            "page": "/",
-            "screen": "Home",
-            "reported_value": "SessionRevenue"
-        },
-        "AdHocAB1": {
-            "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 301
         },
-        "AdHocAB2": {
+        "AdHocABTest2": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest2", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest2", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 302
         },
-        "AdHocAB3": {
+        "AdHocABTest3": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest3", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest3", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 303
         },
-        "AdHocAB4": {
+        "AdHocABTest4": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest4", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest4", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 304
         },
-        "AdHocAB5": {
+        "AdHocABTest5": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest5", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest5", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 305
         },
-        "AdHocAB6": {
+        "AdHocABTest6": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest6", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest6", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 306
         },
-        "AdHocAB7": {
+        "AdHocABTest7": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest7", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest7", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 307
         },
-        "AdHocAB8": {
+        "AdHocABTest8": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest8", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest8", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 308
         },
-        "AdHocAB9": {
+        "AdHocABTest9": {
             "cells": [
-                [0.5, "A"],
-                [1.0, "B"]
+                {
+                    "when": [{"col": "RandomAdHocABTest9", "op": "le", "val": 0.5}],
+                    "then": {"val": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest9", "op": "le", "val": 1.0}],
+                    "then": {"val": "B"}
+                }
             ],
             "seed": 309
         },
         "ChampionChallenger": {
             "cells": [
-                [0.5, "Champion"],
-                [1.0, "Challenger"]
+                {
+                    "when": [{"col": "RandomChampionChallenger", "op": "le", "val": 0.5}],
+                    "then": {"val": "Champion"}
+                },
+                {
+                    "when": [{"col": "RandomChampionChallenger", "op": "le", "val": 1.0}],
+                    "then": {"val": "Challenger"}
+                }
             ],
             "seed": 401
         }
     },
     "algo_divisions": {
-        "Womens": {
-            "model": "div_womens"
-        },
-        "Mens": {
-            "model": "div_mens"
-        },
-        "Girls": {
-            "model": "div_girls"
-        },
-        "Boys": {
-            "model": "div_boys"
-        },
-        "Baby": {
-            "model": "div_baby"
-        },
-        "Home": {
-            "model": "div_home"
-        },
-        "Beauty": {
-            "model": "div_beauty"
-        }
+        "Womens": {"model": "div_womens"},
+        "Mens": {"model": "div_mens"},
+        "Girls": {"model": "div_girls"},
+        "Boys": {"model": "div_boys"},
+        "Baby": {"model": "div_baby"},
+        "Home": {"model": "div_home"},
+        "Beauty": {"model": "div_beauty"}
     },
     "locations": {
         "HN1": {
-            "macro": "HN",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
                 {
-                    "when": [{"col": "HN", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HN", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocAB2", "match": "2: Variant B"}],
-                    "then": "NoAd"
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HN", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
-                },
-                {
-                    "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
-                    ],
-                    "then": "UniqueAdIDBest"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "SB1": {
-            "macro": "SB",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
                 {
-                    "when": [{"col": "SB", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "SB", "match": "3: No Banner"}],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [
-                        {"col": "AdHocAB3", "match": "2: Variant B"},
-                        {"col": "AdHocAB4", "match": "1: Variant A"}
-                    ],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [{"col": "SB", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
                     "when": [
-                        {"col": "SB", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
+                        {"col": "AdHocABTest3", "op": "eq", "val": "2: Variant B"},
+                        {"col": "AdHocABTest4", "op": "eq", "val": "1: Variant A"}
                     ],
-                    "then": "UniqueAdIDBest"
+                    "then": {"val": "NoAd"}
+                },
+                {
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
                 },
                 {
                     "when": [
-                        {"col": "SB", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "SBTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "SBTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "SB2": {
-            "macro": "SB",
             "inherit_ads_from": "SB1",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
                 {
-                    "when": [{"col": "SB", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "SB", "match": "3: No Banner"}],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [
-                        {"col": "AdHocAB3", "match": "2: Variant B"},
-                        {"col": "AdHocAB4", "match": "2: Variant B"}
-                    ],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [{"col": "SB", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
                     "when": [
-                        {"col": "SB", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
+                        {"col": "AdHocABTest3", "op": "eq", "val": "2: Variant B"},
+                        {"col": "AdHocABTest4", "op": "eq", "val": "2: Variant B"}
                     ],
-                    "then": "UniqueAdIDBest"
+                    "then": {"val": "NoAd"}
+                },
+                {
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
                 },
                 {
                     "when": [
-                        {"col": "SB", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "SBTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "SBTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "OC1": {
-            "macro": "OC",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
                 {
-                    "when": [{"col": "OC", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "OCTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "OCTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
-                },
-                {
-                    "when": [
-                        {"col": "OC", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
-                    ],
-                    "then": "UniqueAdIDBest"
+                    "when": [{"col": "OCTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
                 },
                 {
                     "when": [
-                        {"col": "OC", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "OCTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "OCTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP1": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"AdDivision": "Womens"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP2": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"AdDivision": "Mens"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP3": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"AdDivision": "Boys"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP4": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"AdDivision": "Girls"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP5": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"AdDivision": "Home"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP6": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"AdDivision": "Beauty"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP7": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"TradeDivision": "Brands"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP8": {
-            "macro": "LP",
             "constraints": {
                 "filter_ads": {"TradeDivision": "Sport"}
             },
             "map": [
                 {
-                    "when": [{"col": "LP", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OC", "match": "2: Random"}],
-                    "then": "UniqueAdIDRandom"
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
+                    "then": {"col": "UniqueAdIDRandom"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LPTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "PH3": {
-            "macro": "HN",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1]},
             "map": [
                 {
-                    "when": [{"col": "HN", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HN", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [
-                        {"col": "HN", "match": "2: Random"},
-                        {"col": "AdHocAB2", "match": "2: Variant B"}
-                    ],
-                    "then": "UniqueAdIDBest"
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
+                        {"col": "HNTest1", "op": "eq", "val": "2: Random"},
+                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
                     ],
-                    "then": "UniqueAdIDBest"
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "PH4": {
-            "macro": "HN",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [2]},
             "map": [
                 {
-                    "when": [{"col": "HN", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HN", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [
-                        {"col": "HN", "match": "2: Random"},
-                        {"col": "AdHocAB2", "match": "2: Variant B"}
-                    ],
-                    "then": "UniqueAdIDBest"
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
+                        {"col": "HNTest1", "op": "eq", "val": "2: Random"},
+                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
                     ],
-                    "then": "UniqueAdIDBest"
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "PH5": {
-            "macro": "HN",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3]},
             "map": [
                 {
-                    "when": [{"col": "HN", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HN", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [
-                        {"col": "HN", "match": "2: Random"},
-                        {"col": "AdHocAB2", "match": "2: Variant B"}
-                    ],
-                    "then": "UniqueAdIDBest"
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
+                        {"col": "HNTest1", "op": "eq", "val": "2: Random"},
+                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
                     ],
-                    "then": "UniqueAdIDBest"
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "PH6": {
-            "macro": "HN",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [4]},
             "map": [
                 {
-                    "when": [{"col": "HN", "match": "4: Overall"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HN", "match": "3: No Banner"}],
-                    "then": "NoAd"
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocAB2", "match": "1: Variant A"}],
-                    "then": "NoAd"
-                },
-                {
-                    "when": [
-                        {"col": "HN", "match": "2: Random"},
-                        {"col": "AdHocAB2", "match": "2: Variant B"}
-                    ],
-                    "then": "UniqueAdIDBest"
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
+                    "then": {"val": "NoAd"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Champion"}
+                        {"col": "HNTest1", "op": "eq", "val": "2: Random"},
+                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
                     ],
-                    "then": "UniqueAdIDBest"
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HN", "match": "1: Personalised"},
-                        {"col": "ChampionChallenger", "match": "Challenger"}
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
-                    "then": "UniqueAdIDBestChallenger"
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "HNTest1", "op": "eq", "val": "1: Personalised"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         }

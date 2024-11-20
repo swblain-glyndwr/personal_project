@@ -1,3 +1,5 @@
+import functools
+import operator
 from pyspark.sql.types import StructField, StructType
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
@@ -56,6 +58,33 @@ class JobParser(ArgumentParser):
             job_env = "prod"
 
         return pargs, job_env
+
+
+def chain_when_and(whens: list[dict]):
+    ops = sys.modules["operator"]
+    wl = [getattr(ops, w["op"])(F.col(w["col"]), w["val"]) for w in whens]
+    return functools.reduce(operator.and_, wl)
+
+
+def chain_when_thens(when_thens: list):
+    wt0 = when_thens[0]
+    whens = wt0["when"]
+    if "col" in wt0["then"]:
+        then = F.col(wt0["then"]["col"])
+    else:
+        then = wt0["then"]["val"]
+    cond = F.when(chain_when_and(whens), then)
+    if len(when_thens) == 1:
+        return cond
+    else:
+        for wt in when_thens[1:]:
+            whens = wt["when"]
+            if "col" in wt["then"]:
+                then = F.col(wt["then"]["col"])
+            else:
+                then = wt["then"]["val"]
+            cond = cond.when(chain_when_and(whens), then)
+        return cond
 
 
 def map_schema(s: str, schema) -> str:
