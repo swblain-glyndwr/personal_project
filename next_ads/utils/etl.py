@@ -61,18 +61,59 @@ class JobParser(ArgumentParser):
 
 
 def chain_when_and(whens: list[dict]):
+    """
+    Chains PySpark when conditions together with "and" operator.
+
+    Arguments:
+        whens - List of dictionaries, each with "col", "op", "val" keys
+        (i.e. column, operator, value)
+
+    e.g.
+    ```
+    [{"col": "colname", "op": "eq", "val": "value"},
+    {"col": "colname2", "op": "le", "val": 0.5}]
+    ```
+
+    The above would return the equivalent of:
+    `(F.col("colname") == "value") & (F.col("colname2") <= 0.5)`
+    """
     ops = sys.modules["operator"]
     wl = [getattr(ops, w["op"])(F.col(w["col"]), w["val"]) for w in whens]
     return functools.reduce(operator.and_, wl)
 
 
 def chain_when_thens(when_thens: list):
+    """
+    Chains when-then PySpark conditions together.
+
+    Arguments:
+        when_thens - List of dictionaries of the form:
+        N.B. "then" dict should have either `col` or `lit` key, depending on
+        whether the "then" is a column reference of literal.
+    ```
+    [{
+        "when": [{"col": "colname", "op": "eq", "val": "value"},
+                    {"col": "colname2", "op": "le", "val": 0.5}],
+        "then": {"lit": "a"}
+    },
+    {
+        "when": [{"col": "colname3", "op": "eq", "val": "othervalue"}],
+        "then": {"col": "colname4"}
+    }]
+    ```
+
+    The above would return the equivalent of:
+    ```
+    F.when((F.col("colname") == "value") & (F.col("colname2") <= 0.5), "a"))
+     .when(F.col("colname3") == "othervalue", F.col("colname4"))
+    ```
+    """
     wt0 = when_thens[0]
     whens = wt0["when"]
     if "col" in wt0["then"]:
         then = F.col(wt0["then"]["col"])
     else:
-        then = wt0["then"]["val"]
+        then = F.lit(wt0["then"]["lit"])
     cond = F.when(chain_when_and(whens), then)
     if len(when_thens) == 1:
         return cond
@@ -82,7 +123,7 @@ def chain_when_thens(when_thens: list):
             if "col" in wt["then"]:
                 then = F.col(wt["then"]["col"])
             else:
-                then = wt["then"]["val"]
+                then = F.lit(wt["then"]["lit"])
             cond = cond.when(chain_when_and(whens), then)
         return cond
 
@@ -248,6 +289,45 @@ def truncate_and_load(
         from df_load
         """
         )
+
+    table_housekeeping(table)
+
+    return None
+
+
+def create_table_from_df(
+        df: DataFrame,
+        table: str,
+        partitioned_by: list[str],
+        pk_cols: list[str] = [],
+        drop_if_exists: bool = False) -> None:
+
+    if pk_cols:
+        assert_pk(df, pk_cols)
+
+    if get_spark().catalog.tableExists(table):
+        if drop_if_exists:
+            get_spark().sql(f"drop table {table}")
+        else:
+            msg = f"Table {table} exists (and drop_if_exists set to False)"
+            raise Exception(msg)
+
+    df.createOrReplaceTempView("df_create")
+
+    get_spark().sql(f"create table {table} as select * from df_create")
+
+    get_spark().sql(
+        f"alter table {table} add partitioned by ({','.join(partitioned_by)})"
+    )
+
+    for pk_col in pk_cols:
+        get_spark().sql(
+            f"alter table {table} alter column {pk_col} set not null")
+
+    table_name = table.split(".")[-1]
+    get_spark().sql(
+        f"""alter table {table} add constraint pk_{table_name}
+        primary key ({','.join(pk_cols)})""")
 
     table_housekeeping(table)
 

@@ -8,15 +8,15 @@
             "cells": [
                 {
                     "when": [{"col": "RandomHNTest1", "op": "le", "val": 0.1}],
-                    "then": {"val": "3: No Banner"}
+                    "then": {"lit": "3: No Banner"}
                 },
                 {
                     "when": [{"col": "RandomHNTest1", "op": "le", "val": 0.55}],
-                    "then": {"val": "2: Random"}
+                    "then": {"lit": "2: Random"}
                 },
                 {
                     "when": [{"col": "RandomHNTest1", "op": "le", "val": 1.0}],
-                    "then": {"val": "1: Personalised"}
+                    "then": {"lit": "1: Personalised"}
                 }
             ],
             "seed": 201,
@@ -28,15 +28,15 @@
             "cells": [
                 {
                     "when": [{"col": "RandomSBTest1", "op": "le", "val": 0.1}],
-                    "then": {"val": "3: No Banner"}
+                    "then": {"lit": "3: No Banner"}
                 },
                 {
                     "when": [{"col": "RandomSBTest1", "op": "le", "val": 0.55}],
-                    "then": {"val": "2: Random"}
+                    "then": {"lit": "2: Random"}
                 },
                 {
                     "when": [{"col": "RandomSBTest1", "op": "le", "val": 1.0}],
-                    "then": {"val": "1: Personalised"}
+                    "then": {"lit": "1: Personalised"}
                 }
             ],
             "seed": 202,
@@ -48,15 +48,15 @@
             "cells": [
                 {
                     "when": [{"col": "RandomOCTest1", "op": "le", "val": 0.1}],
-                    "then": {"val": "3: No Banner"}
+                    "then": {"lit": "3: No Banner"}
                 },
                 {
                     "when": [{"col": "RandomOCTest1", "op": "le", "val": 0.55}],
-                    "then": {"val": "2: Random"}
+                    "then": {"lit": "2: Random"}
                 },
                 {
                     "when": [{"col": "RandomOCTest1", "op": "le", "val": 1.0}],
-                    "then": {"val": "1: Personalised"}
+                    "then": {"lit": "1: Personalised"}
                 }
             ],
             "seed": 203,
@@ -68,15 +68,15 @@
             "cells": [
                 {
                     "when": [{"col": "RandomLPTest1", "op": "le", "val": 0.1}],
-                    "then": {"val": "3: No Banner"}
+                    "then": {"lit": "3: No Banner"}
                 },
                 {
                     "when": [{"col": "RandomLPTest1", "op": "le", "val": 0.55}],
-                    "then": {"val": "2: Random"}
+                    "then": {"lit": "2: Random"}
                 },
                 {
                     "when": [{"col": "RandomLPTest1", "op": "le", "val": 1.0}],
-                    "then": {"val": "1: Personalised"}
+                    "then": {"lit": "1: Personalised"}
                 }
             ],
             "seed": 204,
@@ -88,11 +88,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 301
@@ -101,11 +101,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest2", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest2", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 302
@@ -114,11 +114,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest3", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest3", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 303
@@ -127,11 +127,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest4", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest4", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 304
@@ -140,11 +140,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest5", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest5", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 305
@@ -153,11 +153,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest6", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest6", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 306
@@ -166,11 +166,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest7", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest7", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 307
@@ -179,11 +179,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest8", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest8", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 308
@@ -192,11 +192,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomAdHocABTest9", "op": "le", "val": 0.5}],
-                    "then": {"val": "A"}
+                    "then": {"lit": "A"}
                 },
                 {
                     "when": [{"col": "RandomAdHocABTest9", "op": "le", "val": 1.0}],
-                    "then": {"val": "B"}
+                    "then": {"lit": "B"}
                 }
             ],
             "seed": 309
@@ -205,11 +205,11 @@
             "cells": [
                 {
                     "when": [{"col": "RandomChampionChallenger", "op": "le", "val": 0.5}],
-                    "then": {"val": "Champion"}
+                    "then": {"lit": "Champion"}
                 },
                 {
                     "when": [{"col": "RandomChampionChallenger", "op": "le", "val": 1.0}],
-                    "then": {"val": "Challenger"}
+                    "then": {"lit": "Challenger"}
                 }
             ],
             "seed": 401
@@ -232,15 +232,15 @@
             "map": [
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "2: Random"}],
@@ -269,18 +269,18 @@
             "map": [
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest3", "op": "eq", "val": "2: Variant B"},
                         {"col": "AdHocABTest4", "op": "eq", "val": "1: Variant A"}
                     ],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "2: Random"}],
@@ -310,18 +310,18 @@
             "map": [
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest3", "op": "eq", "val": "2: Variant B"},
                         {"col": "AdHocABTest4", "op": "eq", "val": "2: Variant B"}
                     ],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "2: Random"}],
@@ -350,11 +350,11 @@
             "map": [
                 {
                     "when": [{"col": "OCTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "OCTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "OCTest1", "op": "eq", "val": "2: Random"}],
@@ -383,11 +383,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -416,11 +416,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -449,11 +449,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -482,11 +482,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -515,11 +515,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -548,11 +548,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -581,11 +581,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -614,11 +614,11 @@
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Random"}],
@@ -646,15 +646,15 @@
             "map": [
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [
@@ -685,15 +685,15 @@
             "map": [
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [
@@ -724,15 +724,15 @@
             "map": [
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [
@@ -763,15 +763,15 @@
             "map": [
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "4: Overall"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "3: No Banner"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
-                    "then": {"val": "NoAd"}
+                    "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [

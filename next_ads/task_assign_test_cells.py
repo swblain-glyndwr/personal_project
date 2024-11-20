@@ -5,6 +5,7 @@ from next_ads.utils.dbc import get_spark
 from pyspark.sql import functions as F
 from next_ads.utils.etl import (assert_pk,
                                 JobParser,
+                                create_table_from_df,
                                 map_schema,
                                 chain_when_thens)
 
@@ -92,47 +93,97 @@ for test_cell in TEST_CELLS:
     )
 df_test_ads.cache()
 
-df_test_cells = (
+df_cells = (
     df_fallow
     .join(df_test_ads, on="AccountNumber", how="left")
     .select("AccountNumber", "FallowControl", *list(TEST_CELLS.keys()))
 )
-df_test_cells.cache()
+df_cells.cache()
 
 print(f"Customers: {df_cust.count():,}")
 print(f"Customers Fallow table: {df_fallow.count():,}")
 print(f"""Customers Fallow True: {
     df_fallow.where(~F.col('FallowControl')).count():,}""")
 print(f"Customers Ads: {df_test_ads.count():,}")
-print(f"""
-      Not in Fallow test_cells diff:
-      {df_fallow.where(
-          ~F.col('FallowControl')).count() - df_test_ads.count()}""")
-
+n_diff = (df_fallow.where(~F.col('FallowControl')).count()
+          - df_test_ads.count())
+print(f"Not in Fallow test_cells diff: {n_diff:,}")
 
 for test_cell in TEST_CELLS:
-    df_test_cells = (
-        df_test_cells
+    df_cells = (
+        df_cells
         .withColumn(test_cell,
                     F.when(F.col("FallowControl"),
                            F.lit("4: Overall")).otherwise(F.col(test_cell)))
     )
 
-df_test_cells = (
-    df_test_cells.withColumn("FallowControl",
-                             F.when(F.col("FallowControl"),
-                                    F.lit("NoAds")).otherwise(F.lit("Ads")))
+df_cells = (
+    df_cells.withColumn("FallowControl",
+                        F.when(F.col("FallowControl"),
+                               F.lit("NoAds")).otherwise(F.lit("Ads")))
 )
 
-assert_pk(df_test_cells, ["AccountNumber"])
+# TODO: Ad algo division assignment
+# BOOKMARK
 
+assert_pk(df_cells, ["AccountNumber"])
 
-# Backup existing table
 
 # Get existing table
+df_cells_existing = get_spark().table(TEST_CELLS_TABLE)
+log.info(f"Customers with existing cells: {df_cells_existing.count():,}")
+
+# Backup existing table
+# TODO: Partition on AlgoDivision instead?
+df_cells_existing = create_table_from_df(
+    df=df_cells,
+    table=TEST_CELLS_TABLE + "_backup",
+    partitioned_by=["FallowControl"],
+    pk_cols=["AccountNumber"]
+    )
+
+# Get new customers
+df_cust_new = (
+    df_cells_existing
+    .select("AccountNumber")
+    .join(df_cells.select("AccountNumber"),
+          on="AccountNumber", how="leftanti")
+    )
+log.info(f"New customers to assign existing cells: {df_cust_new.count():,}")
+
+# Filter new cell assignments to new customers only
+df_cells_new = df_cust_new.join(df_cells,
+                                on="AccountNumber", how="left")
 
 # Where columns in existing table, union new customers
+cols_exist = df_cells_existing.columns
+df_cells_updated = (
+    df_cells_existing
+    .union(df_cells_new.select(*cols_exist))
+    )
+
 
 # Where columns not in existing table, join additional columns
+col_not_exist = [c for c in df_cells.columns if c not in cols_exist]
+df_cells_new_cols = df_cells.select("AccountNumber", *col_not_exist)
 
-# log.info("Run complete")
+df_cells_full = (
+    df_cells_updated
+    .join(df_cells_new_cols, on="AccountNumber", how="left")
+)
+
+for col in col_not_exist:
+    n_null = df_cells_updated.where(F.col(col).isNull()).count()
+    log.warning(f"{n_null:,} existing customers not present in new col {col}")
+
+
+# TODO: Partition on AlgoDivision instead?
+df_cells_full = create_table_from_df(
+    df=df_cells,
+    table=TEST_CELLS_TABLE,
+    partitioned_by=["FallowControl"],
+    pk_cols=["AccountNumber"],
+    drop_if_exists=True
+    )
+
+log.info("Run complete")
