@@ -3,6 +3,7 @@ import logging.config
 import json
 from next_ads.utils.dbc import get_spark
 from pyspark.sql import functions as F
+from pyspark.sql import Window
 from next_ads.utils.etl import (assert_pk,
                                 JobParser,
                                 create_table_from_df,
@@ -23,19 +24,25 @@ pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
 SCHEMA = rsc["schema"][job_env]
-TEST_CELLS_TABLE = map_schema(rsc["tables"]["write"]["test_cells"], SCHEMA)
+CUST_CELLS_TABLE = map_schema(rsc["tables"]["write"]["customer_cells"],
+                              SCHEMA)
 
+TABLES_READ = rsc["tables"]["read"]
 # SVOC table used for customer base because it contains older accounts
-SVOC = rsc["tables"]["read"]["svoc_pii"]
-RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
-MODEL_SCORES_LATEST = rsc["tables"]["read"]["model_scores_latest"]
-
+SVOC = TABLES_READ["svoc_pii"]
+RPID_WITH_ACCOUNTS = TABLES_READ["rpid_with_accounts"]
+MODEL_SCORES_LATEST = TABLES_READ["model_scores_latest"]
 LEGACY_EXCL = rsc["legacy"]["account_exclusions"]
 
 FALLOW_PC = prm["fallow_control"]["proportion"]
 FALLOW_SEED = prm["fallow_control"]["seed"]
 TEST_CELLS = prm["test_cells"]
+ALGO_DIVISIONS = prm["algo_divisions"]
 
+attach_audiences = False
+if "audiences" in prm:
+    attach_audiences = True
+    AUDIENCES = prm["audiences"]
 
 # Query inherited from legacy script
 # TODO: Should we take lastest updated record to de-dup instead?
@@ -126,18 +133,60 @@ df_cells = (
 # TODO: Ad algo division assignment
 # BOOKMARK
 
+# TODO: Audience assignment
+if attach_audiences:
+    df_audience_list = []
+    for (i, a) in enumerate(AUDIENCES):
+        a_name = AUDIENCES[i][0]
+        a_cols = AUDIENCES[i][1]
+        df_a = (
+            get_spark()
+            .table(TABLES_READ[a_name])
+            .withColumnsRenamed(
+                {
+                    a_cols["account_col"]: "AccountNumber",
+                    a_cols["label_col"]: "Audience"
+                }
+            )
+            .withColumn("AudiencePriority", F.lit(i))
+            )
+        df_audience_list.append(df_a)
+
+    df_audiences = df_audience_list.pop()
+    if len(df_audience_list) >= 1:
+        for df_a_i in df_audience_list:
+            df_audiences = df_audiences.union(df_a_i)
+
+    accW = Window.partitionBy("AccountNumber")
+    df_audiences = (
+        df_audiences
+        .withColumn("MaxPriority",
+                    F.min(F.col("AudiencePriority")).over(accW))
+        .where(F.col("AudiencePriority") == F.col("MaxPriority"))
+    )
+
+    assert_pk(df_audiences, ["AccountNumber"])
+
+    df_cells = df_cells.join(
+        df_audiences.select("AccountNumber", "Audience"),
+        on="AccountNumber", how="left")
+    n_with_audience = df_cells.where(F.col("Audience").isNotNull()).count()
+    log.info(f"{n_with_audience:,} customers assigned a predefined audience")
+else:
+    df_cells = df_cells.withColumn("Audience", F.lit(None))
+
 assert_pk(df_cells, ["AccountNumber"])
 
 
 # Get existing table
-df_cells_existing = get_spark().table(TEST_CELLS_TABLE)
+df_cells_existing = get_spark().table(CUST_CELLS_TABLE)
 log.info(f"Customers with existing cells: {df_cells_existing.count():,}")
 
 # Backup existing table
 # TODO: Partition on AlgoDivision instead?
 df_cells_existing = create_table_from_df(
     df=df_cells,
-    table=TEST_CELLS_TABLE + "_backup",
+    table=CUST_CELLS_TABLE + "_backup",
     partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"]
     )
@@ -180,10 +229,13 @@ for col in col_not_exist:
 # TODO: Partition on AlgoDivision instead?
 df_cells_full = create_table_from_df(
     df=df_cells,
-    table=TEST_CELLS_TABLE,
+    table=CUST_CELLS_TABLE,
     partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"],
     drop_if_exists=True
     )
+
+
+# Figure out what's going on with the Exponea load
 
 log.info("Run complete")

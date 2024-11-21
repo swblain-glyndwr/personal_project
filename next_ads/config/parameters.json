@@ -3,6 +3,7 @@
         "proportion": 0.1,
         "seed": 101
     },
+
     "test_cells": {
         "HNTest1": {
             "cells": [
@@ -215,6 +216,7 @@
             "seed": 401
         }
     },
+    
     "algo_divisions": {
         "Womens": {"model": "div_womens"},
         "Mens": {"model": "div_mens"},
@@ -224,6 +226,11 @@
         "Home": {"model": "div_home"},
         "Beauty": {"model": "div_beauty"}
     },
+    
+    "audiences": [
+        ["Seasons", {"account_col": "account_number", "label_col": "segment"}]
+    ],
+    
     "locations": {
         "HN1": {
             "constraints": {
