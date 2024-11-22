@@ -317,7 +317,11 @@ def create_table_from_df(
     get_spark().sql(f"create table {table} as select * from df_create")
 
     get_spark().sql(
-        f"alter table {table} add partitioned by ({','.join(partitioned_by)})"
+        f"""
+        replace table {table}
+        partitioned by ({','.join(partitioned_by)})
+        as select * from {table}
+        """
     )
 
     for pk_col in pk_cols:
