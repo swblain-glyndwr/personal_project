@@ -195,3 +195,257 @@ def assign_best_ads_with_constraints(
 
     else:
         raise Exception("Constraint not understood")
+
+
+def assign_predetermined_audience(
+        audiences: list[list[dict]],
+        tables: dict
+        ) -> DataFrame:
+    """
+    Assigns predefined audience, in order.
+    First in list takes priority when customer in multiple audiences.
+
+    Arguments:
+        audiences - List of lists.
+        First element of sublist if audience reference.
+        Second element of sublist is dict containing column references
+        e.g.
+        ```[['Audience1',
+             {'account_col': 'account_number',
+              'label_col': 'segment'}],
+            ['Audience2':
+             {'account_col': 'account',
+              'label_col': 'cluster_name'}]]
+        ```
+    Returns:
+        DataFrame with columns `AccountNumber`, `Audience`.
+        No `AccountNumber` will have multiple `Audiences`.
+    """
+
+    df_audience_list = []
+
+    for (i, a) in enumerate(audiences):
+        a_name = audiences[i][0]
+        a_cols = audiences[i][1]
+        df_a = (
+            get_spark()
+            .table(tables[a_name])
+            .withColumnsRenamed(
+                {
+                    a_cols["account_col"]: "AccountNumber",
+                    a_cols["label_col"]: "Audience"
+                }
+            )
+            .withColumn("AudiencePriority", F.lit(i))
+            )
+        df_audience_list.append(df_a)
+
+    df_audiences = df_audience_list.pop()
+
+    if len(df_audience_list) >= 1:
+        for df_a_i in df_audience_list:
+            df_audiences = df_audiences.union(df_a_i)
+
+    accW = Window.partitionBy("AccountNumber")
+
+    df_audiences = (
+        df_audiences
+        .withColumn("MaxPriority",
+                    F.min(F.col("AudiencePriority")).over(accW))
+        .where(F.col("AudiencePriority") == F.col("MaxPriority"))
+    )
+
+    assert_pk(df_audiences, ["AccountNumber"])
+
+    return df_audiences
+
+
+def get_algo_divisions_legacy() -> DataFrame:
+    """
+    Approach of assigning each customer their 'best' Division.
+    Code ported across from legacy code due to time constraints.\n
+    **WARNING: Table references and variables are hard-coded.**
+
+    Returns:
+        DataFrame with columns `UniqueAdID`, `AlgoDivision`
+    """
+    schema = 'marketingdata_prod.warehouse'
+    df_base = (
+        get_spark()
+        .table(schema + '.adm_v2_customers_base')
+        .where((F.col('country') == 'GB') & (F.col('shopped_104w') == 'Y'))
+    )
+    df_brands = get_spark().table(schema + '.adm_v2_transaction_brands')
+    df_divisions = get_spark().table(schema + '.adm_v2_transaction_divisions')
+    df_beauty = get_spark().table(schema + '.adm_v2_transaction_beauty')
+
+    cats = [
+        'beauty',
+        'mens',
+        'womens',
+        'boys',
+        'girls',
+        'home',
+        'newbornboys',
+        'newborngirls'
+    ]
+
+    total = df_base.agg(F.countDistinct('account_number')).collect()[0][0]
+
+    exprs = [(F.countDistinct(F.when(
+        (F.col(i+'_spend_1w') > 0) |
+        (F.col(i+'_spend_1_4w') > 0) |
+        (F.col(i+'_spend_4_13w') > 0) |
+        (F.col(i+'_spend_13_26w') > 0) |
+        (F.col(i+'_spend_26_52w') > 0),
+        F.col('account_number')))/total).alias(i) for i in cats]
+
+    (
+        df_base
+        .join(df_beauty, 'account_number', 'inner')
+        .join(df_brands, 'account_number', 'inner')
+        .join(df_divisions, 'account_number', 'inner')
+    ).agg(F.count('account_number'), F.countDistinct('account_number'))
+
+    target_proportions = (
+        df_base
+        .join(df_beauty, 'account_number', 'inner')
+        .join(df_brands, 'account_number', 'inner')
+        .join(df_divisions, 'account_number', 'inner')
+        .agg(*exprs)
+        .toDF(
+            'beauty',
+            'mens',
+            'womens',
+            'boys',
+            'girls',
+            'home',
+            'newbornboys',
+            'newborngirs')
+    )
+
+    target_proportions = (
+        target_proportions
+        .withColumn('newborn', F.col('newbornboys') + F.col('newborngirs'))
+    )
+
+    target_proportions = target_proportions.drop('newbornboys', 'newborngirs')
+
+    target_proportions.withColumn('row_sum',
+                                  sum([F.col(c)
+                                       for c in target_proportions.columns]))
+    # Proportions add up to more than 1? (1.535707 on 21.11.2024)
+    # Cats aren't mutually exclusive, so maybe this is right?
+
+    # TODO: Change to collective model view
+    all_scores = (
+        get_spark()
+        .table('warehouse.next_uk_division_model_latest')
+        .drop('rundate')
+        .select(
+            'account_number',
+            F.col('WW').alias('womens'),
+            F.col('MW').alias('mens'),
+            F.col('BW').alias('boys'),
+            F.col('GW').alias('girls'),
+            F.col('BL').alias('beauty'),
+            F.col('HW').alias('home'),
+            F.col('NB').alias('newborn')
+            )
+        )
+
+    standard_individual = all_scores
+    cols = standard_individual.drop('account_number').columns
+    w = Window().partitionBy(F.lit(1))
+
+    for i in cols:
+        standard_individual = (
+            standard_individual
+            .withColumn(
+                i,
+                (((((F.col(i))-F.mean(i).over(w)))*0.25)/(F.stddev(i).over(w))
+                 ) + (target_proportions.select(i).collect()[0][0])
+            )
+        )
+
+    # This DF is written out as delta lake file in legacy code
+    # Needed for LP apparently
+
+    # Rewrote the below legacy code in pyspark
+    # DivModels = (
+    #     get_spark()
+    #     .sql("""
+    # select distinct account_number,
+    # womens as WW,
+    # mens as MW,
+    # girls as GW,
+    # boys as BW,
+    # newborn as NB,
+    # beauty as BL,
+    # home as HW
+    # from standard_individual
+    #             """)
+    # )
+
+    DivModels = (
+        standard_individual
+        .withColumnsRenamed(
+            {
+                "womens": "WW",
+                "mens": "MW",
+                "girls": "GW",
+                "boys": "BW",
+                "newborn": "NB",
+                "beauty": "BL",
+                "home": "HW"
+            }
+        )
+        .select("account_number",
+                "WW",
+                "MW",
+                "GW",
+                "BW",
+                "NB",
+                "BL",
+                "HW")
+        .drop_duplicates()
+    )
+
+    DivModels = (
+        DivModels
+        .to_pandas_on_spark()
+        .melt(id_vars='account_number')
+        .to_spark()
+        .withColumnRenamed('value', 'propensity')
+        .withColumn('rank',
+                    F.rank().over(
+                        Window.partitionBy(
+                            "account_number").orderBy(
+                                F.col("propensity").desc())))
+        .filter(F.col('rank') <= 1)
+        .groupby('account_number')
+        .pivot('rank')
+        .agg(F.first('variable'))
+        .withColumnRenamed('1', 'Best_Orig')
+        )
+
+    df_return = (
+        DivModels
+        .withColumnRenamed('account_number', 'AccountNumber')
+        .withColumn(
+            'AlgoDivision',
+            F.when(F.col('Best_Orig') == 'WW', F.lit('Womens'))
+            .when(F.col('Best_Orig') == 'MW', F.lit('Mens'))
+            .when(F.col('Best_Orig') == 'GW', F.lit('Girls'))
+            .when(F.col('Best_Orig') == 'BW', F.lit('Boys'))
+            .when(F.col('Best_Orig') == 'NB', F.lit('Baby'))
+            .when(F.col('Best_Orig') == 'BL', F.lit('Beauty'))
+            .when(F.col('Best_Orig') == 'HW', F.lit('Homeware'))
+            .otherwise(F.lit(None))
+            )
+        .select('AccountNumber', 'AlgoDivision')
+    )
+
+    assert_pk(df_return, ['AccountNumber', 'AlgoDivision'])
+
+    return df_return

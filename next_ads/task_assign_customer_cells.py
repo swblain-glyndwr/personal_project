@@ -1,9 +1,10 @@
 import logging
 import logging.config
 import json
+from next_ads.Assignment import (assign_predetermined_audience,
+                                 get_algo_divisions_legacy)
 from next_ads.utils.dbc import get_spark
 from pyspark.sql import functions as F
-from pyspark.sql import Window
 from next_ads.utils.etl import (assert_pk,
                                 JobParser,
                                 create_table_from_df,
@@ -39,9 +40,9 @@ FALLOW_SEED = prm["fallow_control"]["seed"]
 TEST_CELLS = prm["test_cells"]
 ALGO_DIVISIONS = prm["algo_divisions"]
 
-attach_audiences = False
+assign_audiences = False
 if "audiences" in prm:
-    attach_audiences = True
+    assign_audiences = True
     AUDIENCES = prm["audiences"]
 
 # Query inherited from legacy script
@@ -130,112 +131,124 @@ df_cells = (
                                F.lit("NoAds")).otherwise(F.lit("Ads")))
 )
 
-# TODO: Ad algo division assignment
-# BOOKMARK
+# AlgoDivision assignment
+# TODO: Review methodology of AlgoDivision assignment
+# Due to time constraints, old methodology was ported across without review
+log.info("(Legacy) Assigning customer division via legacy method")
+df_divs = get_algo_divisions_legacy()
+df_divs.cache()
+# Inner join may drop customers because legacy approach is limited
+# to customers that were present when div models were built
+n_dropped_no_div = df_cells.join(df_divs, "AccountNumber", "leftanti").count()
+log.info(f"{n_dropped_no_div:,} customers dropped (no division scores)")
+df_cells = df_cells.join(df_divs, on='AccountNumber', how='inner')
 
 # TODO: Audience assignment
-if attach_audiences:
-    df_audience_list = []
-    for (i, a) in enumerate(AUDIENCES):
-        a_name = AUDIENCES[i][0]
-        a_cols = AUDIENCES[i][1]
-        df_a = (
-            get_spark()
-            .table(TABLES_READ[a_name])
-            .withColumnsRenamed(
-                {
-                    a_cols["account_col"]: "AccountNumber",
-                    a_cols["label_col"]: "Audience"
-                }
-            )
-            .withColumn("AudiencePriority", F.lit(i))
-            )
-        df_audience_list.append(df_a)
+log.info("Assigning Audiences")
+if assign_audiences:
 
-    df_audiences = df_audience_list.pop()
-    if len(df_audience_list) >= 1:
-        for df_a_i in df_audience_list:
-            df_audiences = df_audiences.union(df_a_i)
-
-    accW = Window.partitionBy("AccountNumber")
-    df_audiences = (
-        df_audiences
-        .withColumn("MaxPriority",
-                    F.min(F.col("AudiencePriority")).over(accW))
-        .where(F.col("AudiencePriority") == F.col("MaxPriority"))
+    df_audiences = assign_predetermined_audience(
+        audiences=AUDIENCES,
+        tables=TABLES_READ
     )
-
-    assert_pk(df_audiences, ["AccountNumber"])
 
     df_cells = df_cells.join(
         df_audiences.select("AccountNumber", "Audience"),
         on="AccountNumber", how="left")
     n_with_audience = df_cells.where(F.col("Audience").isNotNull()).count()
     log.info(f"{n_with_audience:,} customers assigned a predefined audience")
+
 else:
     df_cells = df_cells.withColumn("Audience", F.lit(None))
 
 assert_pk(df_cells, ["AccountNumber"])
 
-
 # Get existing table
-df_cells_existing = get_spark().table(CUST_CELLS_TABLE)
-log.info(f"Customers with existing cells: {df_cells_existing.count():,}")
+df_cells_existing = (
+    get_spark()
+    .table(CUST_CELLS_TABLE)
+)
+df_cells_existing = (
+    df_cells_existing
+    .select(*[c for c in df_cells_existing.columns if c != "rundate"])
+)
+
+n_cust_existing = df_cells_existing.count()
+log.info(f"Existing customers: {n_cust_existing:,}")
 
 # Backup existing table
-# TODO: Partition on AlgoDivision instead?
-df_cells_existing = create_table_from_df(
-    df=df_cells,
-    table=CUST_CELLS_TABLE + "_backup",
-    partitioned_by=["FallowControl"],
-    pk_cols=["AccountNumber"]
-    )
+# # TODO: Partition on AlgoDivision instead?
+# df_cells_existing = create_table_from_df(
+#     df=df_cells,
+#     table=CUST_CELLS_TABLE + "_backup",
+#     partitioned_by=["FallowControl"],
+#     pk_cols=["AccountNumber"]
+#     )
 
-# Get new customers
 df_cust_new = (
-    df_cells_existing
+    df_cells
     .select("AccountNumber")
-    .join(df_cells.select("AccountNumber"),
+    .join(df_cells_existing.select("AccountNumber"),
           on="AccountNumber", how="leftanti")
     )
-log.info(f"New customers to assign existing cells: {df_cust_new.count():,}")
+
+n_cust_new = df_cust_new.count()
+log.info(f"New customers: {n_cust_new:,}")
+
+existing_cols = [c for c in df_cells_existing.columns if c != "AccountNumber"]
+proposed_cols = [c for c in df_cells.columns if c != "AccountNumber"]
+overlapping_cols = [c for c in proposed_cols if c in existing_cols]
+new_cols = [c for c in proposed_cols if c not in existing_cols]
+deprecated_cols = [c for c in existing_cols if c not in proposed_cols]
+
+log.info(f"Existing columns:    {existing_cols}")
+log.info(f"Proposed columns:    {proposed_cols}")
+log.info(f"Overlapping columns: {overlapping_cols}")
+log.info(f"New columns:         {new_cols}")
+log.info(f"Deprecated columns:  {deprecated_cols}")
 
 # Filter new cell assignments to new customers only
-df_cells_new = df_cust_new.join(df_cells,
-                                on="AccountNumber", how="left")
+df_cells_new = df_cust_new.join(
+    df_cells.select("AccountNumber", *overlapping_cols),
+    on="AccountNumber", how="left")
+
+# Add nulls for deprecated columns for new customers
+for dcol in deprecated_cols:
+    df_cells_new = df_cells_new.withColumn(dcol, F.lit(None))
 
 # Where columns in existing table, union new customers
-cols_exist = df_cells_existing.columns
-df_cells_updated = (
+log.info("Unioning new customers for existing columns")
+cols_for_union = ["AccountNumber", *existing_cols]
+schema_mismatch_msg = "New cell schema mismatch with existing"
+assert cols_for_union == df_cells_existing.columns, schema_mismatch_msg
+df_cells_existing_updated = (
     df_cells_existing
-    .union(df_cells_new.select(*cols_exist))
+    .union(df_cells_new.select("AccountNumber", *existing_cols))
     )
 
-
 # Where columns not in existing table, join additional columns
-col_not_exist = [c for c in df_cells.columns if c not in cols_exist]
-df_cells_new_cols = df_cells.select("AccountNumber", *col_not_exist)
+df_cells_new_cols = df_cells.select("AccountNumber", *new_cols)
 
+log.info("Joining new columns for all customers")
 df_cells_full = (
-    df_cells_updated
+    df_cells_existing_updated
     .join(df_cells_new_cols, on="AccountNumber", how="left")
 )
 
-for col in col_not_exist:
-    n_null = df_cells_updated.where(F.col(col).isNull()).count()
-    log.warning(f"{n_null:,} existing customers not present in new col {col}")
+for ncol in new_cols:
+    n_null = df_cells_full.where(F.col(ncol).isNull()).count()
+    log.warning(f"{n_null:,} existing customers not present in new col {ncol}")
 
 
 # TODO: Partition on AlgoDivision instead?
 df_cells_full = create_table_from_df(
     df=df_cells,
     table=CUST_CELLS_TABLE,
-    partitioned_by=["FallowControl"],
+    partitioned_by=["AlgoDivision"],
     pk_cols=["AccountNumber"],
     drop_if_exists=True
     )
 
-
-# Figure out what's going on with the Exponea load
+# TODO: Figure out what's going on with the Exponea load
 
 log.info("Run complete")
