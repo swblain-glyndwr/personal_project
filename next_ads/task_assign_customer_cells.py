@@ -181,7 +181,8 @@ df_cells_existing = create_table_from_df(
     df=df_cells,
     table=CUST_CELLS_TABLE + "_backup",
     partitioned_by=["FallowControl"],
-    pk_cols=["AccountNumber"]
+    pk_cols=["AccountNumber"],
+    drop_if_exists=True
     )
 
 df_cust_new = (
