@@ -177,13 +177,12 @@ n_cust_existing = df_cells_existing.count()
 log.info(f"Existing customers: {n_cust_existing:,}")
 
 # Backup existing table
-# # TODO: Partition on AlgoDivision instead?
-# df_cells_existing = create_table_from_df(
-#     df=df_cells,
-#     table=CUST_CELLS_TABLE + "_backup",
-#     partitioned_by=["FallowControl"],
-#     pk_cols=["AccountNumber"]
-#     )
+df_cells_existing = create_table_from_df(
+    df=df_cells,
+    table=CUST_CELLS_TABLE + "_backup",
+    partitioned_by=["FallowControl"],
+    pk_cols=["AccountNumber"]
+    )
 
 df_cust_new = (
     df_cells
