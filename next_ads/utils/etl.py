@@ -314,7 +314,10 @@ def create_table_from_df(
 
     df.createOrReplaceTempView("df_create")
 
-    get_spark().sql(f"create table {table} as select * from df_create")
+    get_spark().sql(f"""
+                    create table {table} as
+                    select *, current_date() as rundate
+                    from df_create""")
 
     get_spark().sql(
         f"""
