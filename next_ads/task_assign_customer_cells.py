@@ -146,8 +146,9 @@ df_cust_new = (
 n_cust_new = df_cust_new.count()
 log.info(f"New customers: {n_cust_new:,}")
 
-existing_cols = [c for c in df_cells_existing.columns if c != "AccountNumber"]
-proposed_cols = [c for c in df_cells.columns if c != "AccountNumber"]
+pk_columns = ["AccountNumber", "rundate"]
+existing_cols = [c for c in df_cells_existing.columns if c not in pk_columns]
+proposed_cols = [c for c in df_cells.columns if c not in pk_columns]
 overlapping_cols = [c for c in proposed_cols if c in existing_cols]
 new_cols = [c for c in proposed_cols if c not in existing_cols]
 deprecated_cols = [c for c in existing_cols if c not in proposed_cols]
@@ -158,9 +159,12 @@ log.info(f"Overlapping columns: {overlapping_cols}")
 log.info(f"New columns:         {new_cols}")
 log.info(f"Deprecated columns:  {deprecated_cols}")
 
-df_cells_new = df_cust_new.join(
-    df_cells.select("AccountNumber", *overlapping_cols),
-    on="AccountNumber", how="left")
+df_cells_new = (
+    df_cust_new
+    .join(
+        df_cells.select("AccountNumber", *overlapping_cols),
+        on="AccountNumber", how="left")
+)
 
 for dcol in deprecated_cols:
     df_cells_new = df_cells_new.withColumn(dcol, F.lit(None))
@@ -172,7 +176,7 @@ if n_cust_new > 0:
     assert cols_for_union == df_cells_existing.columns, schema_mismatch_msg
     df_cells_existing_updated = (
         df_cells_existing
-        .unionByName(df_cells_new.select("AccountNumber", *existing_cols))
+        .unionByName(df_cells_new.select(cols_for_union))
         )
 else:
     df_cells_existing_updated = df_cells_existing
@@ -248,13 +252,13 @@ if transient_cells:
             df_tc_long = melt_transient_cells(df_tc)
             df_cells_transient = df_cells_transient.unionByName(df_tc_long)
 
-delete_from_and_load(df_cells_transient,
-                     TRANSIENT_CELLS_TABLE,
-                     pk_cols=["AccountNumber", "Cell"],
-                     del_where={"rundate": "current_date()"})
+    delete_from_and_load(df_cells_transient,
+                         TRANSIENT_CELLS_TABLE,
+                         pk_cols=["AccountNumber", "Cell"],
+                         del_where={"rundate": "current_date()"})
 
-truncate_and_load(df_cells_transient,
-                  TRANSIENT_CELLS_LATEST_TABLE,
-                  pk_cols=["AccountNumber", "Cell"])
+    truncate_and_load(df_cells_transient,
+                      TRANSIENT_CELLS_LATEST_TABLE,
+                      pk_cols=["AccountNumber", "Cell"])
 
 log.info("Run complete")
