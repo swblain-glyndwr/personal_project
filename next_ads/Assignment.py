@@ -447,7 +447,7 @@ def get_algo_divisions_legacy() -> DataFrame:
             .when(F.col('Best_Orig') == 'BW', F.lit('Boys'))
             .when(F.col('Best_Orig') == 'NB', F.lit('Baby'))
             .when(F.col('Best_Orig') == 'BL', F.lit('Beauty'))
-            .when(F.col('Best_Orig') == 'HW', F.lit('Homeware'))
+            .when(F.col('Best_Orig') == 'HW', F.lit('Home'))
             .otherwise(F.lit(None))
             )
         .select('AccountNumber', 'AlgoDivision')
