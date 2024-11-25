@@ -211,6 +211,8 @@ if n_cust_new > 0:
         df_cells_existing
         .union(df_cells_new.select("AccountNumber", *existing_cols))
         )
+else:
+    df_cells_existing_updated = df_cells_existing
 
 df_cells_new_cols = df_cells.select("AccountNumber", *new_cols)
 
