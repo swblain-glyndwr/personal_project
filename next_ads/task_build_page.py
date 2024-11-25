@@ -9,6 +9,7 @@ from next_ads.Assignment import (
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
                                 build_spark_schema,
+                                chain_when_thens,
                                 map_schema,
                                 delete_from_and_load)
 from pyspark.sql import functions as F
@@ -37,7 +38,7 @@ CONTROL_SHEET_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
 ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
-FIXED_CELLS = map_schema(tbls["fixed_cells"], SCHEMA)
+CUSTOMER_CELLS = map_schema(tbls["customer_cells"], SCHEMA)
 
 VALID_LOCATIONS = set(LOCATIONS.keys())
 if req_location in VALID_LOCATIONS:
@@ -63,12 +64,13 @@ df_ads = (
 # TODO: Remove underperforming Ads
 
 
-log.info("Getting fixed cell assignments")
+log.info("Getting customer cell assignments")
 df_cells = (
     get_spark()
-    .table(FIXED_CELLS)
+    .table(CUSTOMER_CELLS)
     .drop("rundate")
 )
+
 df_cust = (
     df_cells
     .select("AccountNumber", "AlgoDivision")
@@ -147,29 +149,12 @@ df_assignments = (
 )
 df_assignments.cache()
 
+df_ad_assigned = (
+        df_assignments
+        .withColumn("UniqueAdIDAssigned",
+                    chain_when_thens(CELL_MAP["map"]))
+    )
 
-# Dynamically construct assignment map from config
-case_whens = []
-for cell_map in CELL_MAP["map"]:
-    case_when_and = []
-    for wh in cell_map["when"]:
-        cwa = f"{wh['col']} = '{wh['match']}'"
-        case_when_and.append(cwa)
-        case_when_token = " and ".join(case_when_and)
-    case_whens.append(f"when {case_when_token} then {cell_map['then']}")
-
-case_when_str = "\n".join(case_whens)
-case_when_str = case_when_str + "\nelse null end as UniqueAdIDShown"
-
-df_assignments.createOrReplaceTempView("df_assignments")
-
-df_ad_shown = (
-    get_spark().sql(
-        f"select a.*,\ncase {case_when_str}\nfrom df_assignments as a"
-        )
-)
-
-# Ad-MASID lookup
 df_ad_masid = (
     df_ads
     .select("UniqueAdID", "MASIDToken")
@@ -183,7 +168,6 @@ df_ad_masid = (
 )
 # TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
-# Append codes for control cells
 ctrl_masid_cols = ["UniqueAdID", "MASID"]
 ctrl_masid_vals = [("Z", f"{LOCATION}_Z")]
 
@@ -196,51 +180,48 @@ df_control_masid = (
             )
         )
 )
-df_ad_masid = df_ad_masid.union(df_control_masid)
+df_ad_masid = df_ad_masid.unionByName(df_control_masid)
 
-df_ad_shown_masid = (
-    df_ad_shown
+df_ad_assigned_masid = (
+    df_ad_assigned
     .join(df_ad_masid,
-          on=df_ad_shown.UniqueAdIDShown == df_ad_masid.UniqueAdID, how="left")
+          on=df_ad_assigned.UniqueAdIDAssigned == df_ad_masid.UniqueAdID,
+          how="left")
     .drop("UniqueAdID")
 )
-df_ad_shown_masid.cache()
+df_ad_assigned_masid.cache()
 
 # Check and warn if null MASID assignments exist
-n_null_masid = df_ad_shown_masid.where(F.col("MASID").isNull()).count()
+n_null_masid = df_ad_assigned_masid.where(F.col("MASID").isNull()).count()
 if n_null_masid > 0:
-    log.warning(f"{n_null_masid:,} accounts with null MASID - removing")
-    df_ad_shown_masid = df_ad_shown_masid.where(F.col("MASID").isNotNull())
+    log.warning(f"Removing {n_null_masid:,} accounts with null MASID")
+    df_ad_assigned_masid = (
+        df_ad_assigned_masid
+        .where(F.col("MASID").isNotNull())
+    )
 
-df_ad_shown_masid_output = (
-    df_ad_shown_masid
+df_ad_assigned_masid_output = (
+    df_ad_assigned_masid
     .withColumn("Location", F.lit(LOCATION))
-    .withColumn("MacroLocation", F.lit(CELL_MAP["macro"]))
-    .withColumn("MacroLocationCell", F.col(CELL_MAP["macro"]))
     .select(
         "AccountNumber",
         "Location",
-        "MacroLocation",
-        "MacroLocationCell",
-        "AdHocAB1",
-        "AdHocAB2",
-        "AdHocAB3",
-        "AdHocAB4",
-        "ChampionChallenger",
-        "AlgoDivision",
-        "UniqueAdIDShown",
+        "UniqueAdIDRandom",
+        "UniqueAdIDBest",
+        "UniqueAdIDBestChallenger",
+        "UniqueAdIDAssigned",
         "MASID")
 )
 
 log.info(f"Loading output to {ASSIGNMENTS_TABLE}")
-delete_from_and_load(df_ad_shown_masid_output,
+delete_from_and_load(df_ad_assigned_masid_output,
                      ASSIGNMENTS_TABLE,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"rundate": "current_date()",
                                 "Location": f"'{LOCATION}'"})
 
 log.info(f"Loading output to {ASSIGNMENTS_TABLE_LATEST}")
-delete_from_and_load(df_ad_shown_masid_output,
+delete_from_and_load(df_ad_assigned_masid_output,
                      ASSIGNMENTS_TABLE_LATEST,
                      pk_cols=["AccountNumber", "Location"],
                      del_where={"Location": f"'{LOCATION}'"})
@@ -248,6 +229,6 @@ delete_from_and_load(df_ad_shown_masid_output,
 df_cust.unpersist()
 df_assigned_best.unpersist()
 df_assignments.unpersist()
-df_ad_shown_masid.unpersist()
+df_ad_assigned_masid.unpersist()
 
 log.info("Run complete")

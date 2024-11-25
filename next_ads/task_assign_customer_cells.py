@@ -7,9 +7,9 @@ from next_ads.utils.dbc import get_spark
 from pyspark.sql import functions as F
 from next_ads.utils.etl import (assert_pk,
                                 JobParser,
-                                create_table_from_df,
+                                create_table_from_df, delete_from_and_load,
                                 map_schema,
-                                chain_when_thens)
+                                chain_when_thens, truncate_and_load)
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -25,8 +25,11 @@ pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
 SCHEMA = rsc["schema"][job_env]
-CUST_CELLS_TABLE = map_schema(rsc["tables"]["write"]["customer_cells"],
-                              SCHEMA)
+tbls = rsc["tables"]["write"]
+FIXED_CELLS_TABLE = map_schema(tbls["customer_cells_fixed_latest"], SCHEMA)
+TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"], SCHEMA)
+TRANSIENT_CELLS_LATEST_TABLE = map_schema(
+    tbls["customer_cells_transient_latest"], SCHEMA)
 
 TABLES_READ = rsc["tables"]["read"]
 # SVOC table used for customer base because it contains older accounts
@@ -37,13 +40,12 @@ LEGACY_EXCL = rsc["legacy"]["account_exclusions"]
 
 FALLOW_PC = prm["fallow_control"]["proportion"]
 FALLOW_SEED = prm["fallow_control"]["seed"]
-TEST_CELLS = prm["test_cells"]
-ALGO_DIVISIONS = prm["algo_divisions"]
+FIXED_CELLS = prm["fixed_cells"]
 
-assign_audiences = False
-if "audiences" in prm:
-    assign_audiences = True
-    AUDIENCES = prm["audiences"]
+transient_cells = False
+if "transient_cells" in prm:
+    transient_cells = True
+    TRANSIENT_CELLS = prm["transient_cells"]
 
 # Query inherited from legacy script
 # TODO: Should we take lastest updated record to de-dup instead?
@@ -90,33 +92,33 @@ df_test_ads = (
     .select("AccountNumber")
 )
 
-for test_cell in TEST_CELLS:
+for fixed_cell in FIXED_CELLS:
     df_test_ads = (
         df_test_ads
         .orderBy(F.col("AccountNumber"))
-        .withColumn(f"Random{test_cell}",
-                    F.rand(seed=TEST_CELLS[test_cell]["seed"]))
-        .withColumn(test_cell,
-                    chain_when_thens(TEST_CELLS[test_cell]["cells"]))
+        .withColumn(f"Random{fixed_cell}",
+                    F.rand(seed=FIXED_CELLS[fixed_cell]["seed"]))
+        .withColumn(fixed_cell,
+                    chain_when_thens(FIXED_CELLS[fixed_cell]["cells"]))
     )
 df_test_ads.cache()
 
 df_cells = (
     df_fallow
     .join(df_test_ads, on="AccountNumber", how="left")
-    .select("AccountNumber", "FallowControl", *list(TEST_CELLS.keys()))
+    .select("AccountNumber", "FallowControl", *list(FIXED_CELLS.keys()))
 )
 df_cells.cache()
 
 log.info(f"Base customers: {df_cust.count():,}")
 log.info(f"Customers not in fallow cell: {df_test_ads.count():,}")
 
-for test_cell in TEST_CELLS:
+for fixed_cell in FIXED_CELLS:
     df_cells = (
         df_cells
-        .withColumn(test_cell,
+        .withColumn(fixed_cell,
                     F.when(F.col("FallowControl"),
-                           F.lit("4: Overall")).otherwise(F.col(test_cell)))
+                           F.lit("4: Overall")).otherwise(F.col(fixed_cell)))
     )
 
 df_cells = (
@@ -125,49 +127,10 @@ df_cells = (
                                F.lit("NoAds")).otherwise(F.lit("Ads")))
 )
 
-# AlgoDivision assignment
-# TODO: Review methodology of AlgoDivision assignment
-# Due to time constraints, old methodology was ported across without review
-log.info("(Legacy) Assigning customer division via legacy method")
-df_divs = get_algo_divisions_legacy()
-df_divs.cache()
-# Inner join may drop customers because legacy approach is limited
-# to customers that were present when div models were built
-n_dropped_no_div = df_cells.join(df_divs, "AccountNumber", "leftanti").count()
-log.info(f"{n_dropped_no_div:,} customers dropped (no division scores)")
-df_cells = df_cells.join(df_divs, on='AccountNumber', how='inner')
-
-
-log.info("Assigning Audiences")
-if assign_audiences:
-
-    df_audiences = assign_predetermined_audience(
-        audiences=AUDIENCES,
-        tables=TABLES_READ
-    )
-
-    df_cells = df_cells.join(
-        df_audiences.select("AccountNumber", "Audience"),
-        on="AccountNumber", how="left")
-    n_with_audience = df_cells.where(F.col("Audience").isNotNull()).count()
-    log.info(f"{n_with_audience:,} customers assigned a predefined audience")
-
-else:
-    df_cells = df_cells.withColumn("Audience", F.lit(None))
-
-assert_pk(df_cells, ["AccountNumber"])
-
-# Get existing table
 df_cells_existing = (
     get_spark()
-    .table(CUST_CELLS_TABLE)
-)
-
-transient_cols = ["rundate", "AlgoDivision", "Audience"]
-log.info(f"Stripping transient fields {transient_cols} from existing cells")
-df_cells_existing = (
-    df_cells_existing
-    .select(*[c for c in df_cells_existing.columns if c not in transient_cols])
+    .table(FIXED_CELLS_TABLE)
+    .drop("rundate")
 )
 
 n_cust_existing = df_cells_existing.count()
@@ -209,18 +172,20 @@ if n_cust_new > 0:
     assert cols_for_union == df_cells_existing.columns, schema_mismatch_msg
     df_cells_existing_updated = (
         df_cells_existing
-        .union(df_cells_new.select("AccountNumber", *existing_cols))
+        .unionByName(df_cells_new.select("AccountNumber", *existing_cols))
         )
 else:
     df_cells_existing_updated = df_cells_existing
 
-df_cells_new_cols = df_cells.select("AccountNumber", *new_cols)
-
-log.info("Joining new columns for all customers")
-df_cells_full = (
-    df_cells_existing_updated
-    .join(df_cells_new_cols, on="AccountNumber", how="left")
-)
+if len(new_cols) > 0:
+    df_cells_new_cols = df_cells.select("AccountNumber", *new_cols)
+    log.info("Joining new columns for all customers")
+    df_cells_full = (
+        df_cells_existing_updated
+        .join(df_cells_new_cols, on="AccountNumber", how="left")
+    )
+else:
+    df_cells_full = df_cells_existing_updated
 
 for ncol in new_cols:
     n_null = df_cells_full.where(F.col(ncol).isNull()).count()
@@ -229,7 +194,7 @@ for ncol in new_cols:
 # Back up existing table before overwriting cells table
 create_table_from_df(
     df=df_cells_existing,
-    table=CUST_CELLS_TABLE + "_backup",
+    table=FIXED_CELLS_TABLE + "_backup",
     partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"],
     drop_if_exists=True
@@ -237,12 +202,59 @@ create_table_from_df(
 
 create_table_from_df(
     df=df_cells,
-    table=CUST_CELLS_TABLE,
-    partitioned_by=["AlgoDivision"],
+    table=FIXED_CELLS_TABLE,
+    partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"],
     drop_if_exists=True
     )
 
 # TODO: Figure out what's going on with the Exponea load
+
+# Transient cells - append to history - store in long format
+
+
+def melt_transient_cells(df):
+    df_melted = df.unpivot(
+        ids="AccountNumber",
+        values=None,
+        variableColumnName="Cell",
+        valueColumnName="CellValue")
+    return df_melted
+
+
+if transient_cells:
+    transient_cell_dfs = []
+    if "AlgoDivision" in TRANSIENT_CELLS:
+        # TODO: Review methodology of AlgoDivision assignment
+        # Due to time constraints, old methodology was ported across without
+        # full review
+        log.info("[Legacy] Assigning AlgoDivision via legacy method")
+        df_divs = get_algo_divisions_legacy()
+        transient_cell_dfs.append(df_divs)
+
+    if "Audiences" in TRANSIENT_CELLS:
+        log.info("Assigning Audiences")
+        df_audiences = assign_predetermined_audience(
+            audiences=TRANSIENT_CELLS["Audiences"],
+            tables=TABLES_READ
+        )
+        transient_cell_dfs.append(df_audiences)
+
+    df_cells_transient = transient_cell_dfs.pop()
+    df_cells_transient = melt_transient_cells(df_cells_transient)
+
+    if transient_cell_dfs:
+        for df_tc in transient_cell_dfs:
+            df_tc_long = melt_transient_cells(df_tc)
+            df_cells_transient = df_cells_transient.unionByName(df_tc_long)
+
+delete_from_and_load(df_cells_transient,
+                     TRANSIENT_CELLS_TABLE,
+                     pk_cols=["AccountNumber", "Cell"],
+                     del_where={"rundate": "current_date()"})
+
+truncate_and_load(df_cells_transient,
+                  TRANSIENT_CELLS_LATEST_TABLE,
+                  pk_cols=["AccountNumber", "Cell"])
 
 log.info("Run complete")

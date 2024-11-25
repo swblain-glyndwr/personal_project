@@ -4,7 +4,7 @@
         "seed": 101
     },
 
-    "test_cells": {
+    "fixed_cells": {
         "HNTest1": {
             "cells": [
                 {
@@ -217,19 +217,12 @@
         }
     },
     
-    "algo_divisions": {
-        "Womens": {"model": "div_womens"},
-        "Mens": {"model": "div_mens"},
-        "Girls": {"model": "div_girls"},
-        "Boys": {"model": "div_boys"},
-        "Baby": {"model": "div_baby"},
-        "Home": {"model": "div_home"},
-        "Beauty": {"model": "div_beauty"}
+    "transient_cells": {
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
+        "Audiences": [
+            ["Seasons", {"account_col": "account_number", "label_col": "group_w_control"}]
+        ]
     },
-    
-    "audiences": [
-        ["Seasons", {"account_col": "account_number", "label_col": "group_w_control"}]
-    ],
     
     "locations": {
         "HN1": {
