@@ -202,14 +202,15 @@ df_cells_new = df_cust_new.join(
 for dcol in deprecated_cols:
     df_cells_new = df_cells_new.withColumn(dcol, F.lit(None))
 
-log.info("Unioning new customers for existing columns")
-cols_for_union = ["AccountNumber", *existing_cols]
-schema_mismatch_msg = "New cell schema mismatch with existing"
-assert cols_for_union == df_cells_existing.columns, schema_mismatch_msg
-df_cells_existing_updated = (
-    df_cells_existing
-    .union(df_cells_new.select("AccountNumber", *existing_cols))
-    )
+if n_cust_new > 0:
+    log.info("Unioning new customers for existing columns")
+    cols_for_union = ["AccountNumber", *existing_cols]
+    schema_mismatch_msg = "New cell schema mismatch with existing"
+    assert cols_for_union == df_cells_existing.columns, schema_mismatch_msg
+    df_cells_existing_updated = (
+        df_cells_existing
+        .union(df_cells_new.select("AccountNumber", *existing_cols))
+        )
 
 df_cells_new_cols = df_cells.select("AccountNumber", *new_cols)
 
