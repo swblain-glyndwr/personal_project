@@ -228,7 +228,7 @@
     },
     
     "audiences": [
-        ["Seasons", {"account_col": "account_number", "label_col": "segment"}]
+        ["Seasons", {"account_col": "account_number", "label_col": "group_w_control"}]
     ],
     
     "locations": {

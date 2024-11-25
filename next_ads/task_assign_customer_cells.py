@@ -108,14 +108,8 @@ df_cells = (
 )
 df_cells.cache()
 
-print(f"Customers: {df_cust.count():,}")
-print(f"Customers Fallow table: {df_fallow.count():,}")
-print(f"""Customers Fallow True: {
-    df_fallow.where(~F.col('FallowControl')).count():,}""")
-print(f"Customers Ads: {df_test_ads.count():,}")
-n_diff = (df_fallow.where(~F.col('FallowControl')).count()
-          - df_test_ads.count())
-print(f"Not in Fallow test_cells diff: {n_diff:,}")
+log.info(f"Base customers: {df_cust.count():,}")
+log.info(f"Customers not in fallow cell: {df_test_ads.count():,}")
 
 for test_cell in TEST_CELLS:
     df_cells = (
@@ -143,7 +137,7 @@ n_dropped_no_div = df_cells.join(df_divs, "AccountNumber", "leftanti").count()
 log.info(f"{n_dropped_no_div:,} customers dropped (no division scores)")
 df_cells = df_cells.join(df_divs, on='AccountNumber', how='inner')
 
-# TODO: Audience assignment
+
 log.info("Assigning Audiences")
 if assign_audiences:
 
@@ -168,22 +162,16 @@ df_cells_existing = (
     get_spark()
     .table(CUST_CELLS_TABLE)
 )
+
+transient_cols = ["rundate", "AlgoDivision", "Audience"]
+log.info(f"Stripping transient fields {transient_cols} from existing cells")
 df_cells_existing = (
     df_cells_existing
-    .select(*[c for c in df_cells_existing.columns if c != "rundate"])
+    .select(*[c for c in df_cells_existing.columns if c not in transient_cols])
 )
 
 n_cust_existing = df_cells_existing.count()
 log.info(f"Existing customers: {n_cust_existing:,}")
-
-# Backup existing table
-create_table_from_df(
-    df=df_cells_existing,
-    table=CUST_CELLS_TABLE + "_backup",
-    partitioned_by=["FallowControl"],
-    pk_cols=["AccountNumber"],
-    drop_if_exists=True
-    )
 
 df_cust_new = (
     df_cells
@@ -207,16 +195,13 @@ log.info(f"Overlapping columns: {overlapping_cols}")
 log.info(f"New columns:         {new_cols}")
 log.info(f"Deprecated columns:  {deprecated_cols}")
 
-# Filter new cell assignments to new customers only
 df_cells_new = df_cust_new.join(
     df_cells.select("AccountNumber", *overlapping_cols),
     on="AccountNumber", how="left")
 
-# Add nulls for deprecated columns for new customers
 for dcol in deprecated_cols:
     df_cells_new = df_cells_new.withColumn(dcol, F.lit(None))
 
-# Where columns in existing table, union new customers
 log.info("Unioning new customers for existing columns")
 cols_for_union = ["AccountNumber", *existing_cols]
 schema_mismatch_msg = "New cell schema mismatch with existing"
@@ -226,7 +211,6 @@ df_cells_existing_updated = (
     .union(df_cells_new.select("AccountNumber", *existing_cols))
     )
 
-# Where columns not in existing table, join additional columns
 df_cells_new_cols = df_cells.select("AccountNumber", *new_cols)
 
 log.info("Joining new columns for all customers")
@@ -237,11 +221,18 @@ df_cells_full = (
 
 for ncol in new_cols:
     n_null = df_cells_full.where(F.col(ncol).isNull()).count()
-    log.warning(f"{n_null:,} existing customers not present in new col {ncol}")
+    log.warning(f"{n_null:,} existing customers not assigned {ncol}")
 
+# Back up existing table before overwriting cells table
+create_table_from_df(
+    df=df_cells_existing,
+    table=CUST_CELLS_TABLE + "_backup",
+    partitioned_by=["FallowControl"],
+    pk_cols=["AccountNumber"],
+    drop_if_exists=True
+    )
 
-# TODO: Partition on AlgoDivision instead?
-df_cells_full = create_table_from_df(
+create_table_from_df(
     df=df_cells,
     table=CUST_CELLS_TABLE,
     partitioned_by=["AlgoDivision"],
