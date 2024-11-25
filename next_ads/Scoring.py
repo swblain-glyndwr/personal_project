@@ -163,7 +163,6 @@ def aggregate_model_scores(
     assert_pk(df_score_lookup, ["TargetingCriteria", "Model"])
     # TODO: ^^^ Patch end
 
-    # Loop through and union model scores by division
     # Find only specified models, to avoid pulling back all unnecessarily
     model_subset = [
         x[0] for x in (
