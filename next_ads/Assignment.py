@@ -263,7 +263,9 @@ def assign_predetermined_audience(
 def get_algo_divisions_legacy() -> DataFrame:
     """
     Approach of assigning each customer their 'best' Division.
-    Code ported across from legacy code due to time constraints.\n
+    Code ported across from legacy code due to time constraints.
+    Small syntax changes made to bypass need for Spark SQL and
+    to_pandas_on_spark().\n
     **WARNING: Table references and variables are hard-coded.**
 
     Returns:
@@ -410,13 +412,18 @@ def get_algo_divisions_legacy() -> DataFrame:
                 "HW")
         .drop_duplicates()
     )
+    # Rewrote the initial unpivot melt to avoid using to_pandas_on_spark()
+    # DivModels
+    # .to_pandas_on_spark()
+    # .melt(id_vars='account_number')
+    # .to_spark()
 
     DivModels = (
         DivModels
-        .to_pandas_on_spark()
-        .melt(id_vars='account_number')
-        .to_spark()
-        .withColumnRenamed('value', 'propensity')
+        .unpivot(ids="account_number",
+                 values=None,
+                 variableColumnName="variable",
+                 valueColumnName="propensity")
         .withColumn('rank',
                     F.rank().over(
                         Window.partitionBy(
