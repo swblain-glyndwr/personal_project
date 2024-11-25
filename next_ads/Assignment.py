@@ -50,7 +50,7 @@ def assign_random_ads(
 
     df_cust_rdm = grp_cust_rdm_list.pop()
     for df_n in grp_cust_rdm_list:
-        df_cust_rdm = df_cust_rdm.union(df_n)
+        df_cust_rdm = df_cust_rdm.unionByName(df_n)
 
     df_cust_rdm_ads = (
         df_cust_rdm
@@ -173,7 +173,7 @@ def assign_best_ads_with_constraints(
 
         df_assigned_best = df_ads_best_div_list.pop()
         for df_ads_best_div in df_ads_best_div_list:
-            df_assigned_best = df_assigned_best.union(df_ads_best_div)
+            df_assigned_best = df_assigned_best.unionByName(df_ads_best_div)
 
         return df_assigned_best
 
@@ -244,7 +244,7 @@ def assign_predetermined_audience(
 
     if len(df_audience_list) >= 1:
         for df_a_i in df_audience_list:
-            df_audiences = df_audiences.union(df_a_i)
+            df_audiences = df_audiences.unionByName(df_a_i)
 
     accW = Window.partitionBy("AccountNumber")
 
@@ -253,6 +253,7 @@ def assign_predetermined_audience(
         .withColumn("MaxPriority",
                     F.min(F.col("AudiencePriority")).over(accW))
         .where(F.col("AudiencePriority") == F.col("MaxPriority"))
+        .select("AccountNumber", "Audience")
     )
 
     assert_pk(df_audiences, ["AccountNumber"])

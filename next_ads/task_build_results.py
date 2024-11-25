@@ -106,7 +106,7 @@ df_sessions_app = (
     .drop_duplicates()
 )
 
-df_sessions = df_sessions_web.union(df_sessions_app)
+df_sessions = df_sessions_web.unionByName(df_sessions_app)
 df_sessions.cache()
 
 
@@ -130,7 +130,7 @@ df_first_hits_app = (
     .agg(F.min("FirstTimestamp").alias("FirstHit"))
 )
 
-df_first_hits = df_first_hits_web.union(df_first_hits_app)
+df_first_hits = df_first_hits_web.unionByName(df_first_hits_app)
 
 
 # Counting value of items only after page hit
@@ -247,7 +247,7 @@ assert_pk(df_session_revenue_app, ["UniqueVisitID"])
 
 df_session_revenue = (
     df_session_revenue_web
-    .union(df_session_revenue_app)
+    .unionByName(df_session_revenue_app)
 )
 
 df_session_revenue.cache()

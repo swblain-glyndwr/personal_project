@@ -97,7 +97,7 @@ for div_k in DIVISION_ASSIGNMENTS.keys():
 
 df_cust_div = div_asgn_list.pop()
 for df_asgn in div_asgn_list:
-    df_cust_div = df_cust_div.union(df_asgn)
+    df_cust_div = df_cust_div.unionByName(df_asgn)
 
 
 df_cells = (
