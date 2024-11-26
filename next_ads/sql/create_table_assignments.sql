@@ -1,7 +1,7 @@
 create table marketingdata_prod.{schema}.next_uk_nextads_assignments (
     AccountNumber string not null,
     Location string not null,
-    UniqueAdIDRandom string,
+    UniqueAdIDBasic string,
     UniqueAdIDBest string,
     UniqueAdIDBestChallenger string,
     UniqueAdIDAssigned string not null,
