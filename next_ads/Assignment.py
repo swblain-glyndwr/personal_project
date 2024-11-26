@@ -261,6 +261,18 @@ def assign_predetermined_audience(
     return df_audiences
 
 
+def melt_transient_cells(df: DataFrame) -> DataFrame:
+    """
+    Utility function for melting transient cells.
+    """
+    df_melted = df.unpivot(
+        ids="AccountNumber",
+        values=None,
+        variableColumnName="Cell",
+        valueColumnName="CellValue")
+    return df_melted
+
+
 def get_algo_divisions_legacy() -> DataFrame:
     """
     Approach of assigning each customer their 'best' Division.
