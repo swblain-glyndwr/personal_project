@@ -43,6 +43,8 @@ tbls = rsc["tables"]["write"]
 TARGET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
 TARGET_TABLE_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 
+WEBHOOK_URL = rsc["webhooks"]["Input Warnings"]
+
 log.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
 log.info(f"Locations to read: {' '.join(READ_LOCATIONS)}")
 log.info(f"Locations with inherited ads: {INHERITED_LOCATIONS}")
@@ -139,25 +141,45 @@ df_dup_masids = (
     .where(F.col("AdsPerMASID") > 1)
 )
 if df_dup_masids.count() > 1:
+
     dup_masid_list = list(set([row[0] for row in (df_dup_masids
                                                   .select("MASIDToken")
                                                   .collect())]))
-    log.warning("Duplicate MASID suffixes assigned to Ads" +
-                f" in same AlgoDivision: {dup_masid_list}")
+
+    warn_dup_masid = ("Duplicate MASID suffixes assigned to Ads" +
+                      f" in same AlgoDivision: {dup_masid_list}")
+    log.warning(warn_dup_masid)
+
     for m in dup_masid_list:
-        log.info(f"Resolving conflict for MASID suffix: {m}")
+
+        res_conflict = f"Resolving conflict for MASID suffix: {m}"
+        log.info(res_conflict)
+        warn_dup_masid += "\n\n" + res_conflict
+
         df_dups_m = (
             df_processed
             .where(F.col("MASIDToken") == m)
             .select("UniqueAdID")
             ).collect()
+
         clashing_ids = list(set([row[0] for row in df_dups_m]))
         clashing_ids.sort()  # Sort alphabetically as proxy for latest
-        log.info(f"Keeping ad: {clashing_ids[-1]}")
+        keep_ad = f"Keeping ad: {clashing_ids[-1]}" 
+        log.info(keep_ad)
+        warn_dup_masid += "\n" + keep_ad
+
         ids_to_del = clashing_ids[:-1]
+
         for id_del in ids_to_del:
-            log.info(f"Dropping conflicting ad: {id_del}")
+
+            drop_ad = f"Dropping conflicting ad: {id_del}"
+            log.warning(drop_ad)
+            warn_dup_masid += "\n" + drop_ad
+
             df_processed = df_processed.where(F.col("UniqueAdID") != id_del)
+
+    if job_env == "prod":
+        gcp.post_to_webhook(WEBHOOK_URL, warn_dup_masid)
 
 
 target_cols = (
