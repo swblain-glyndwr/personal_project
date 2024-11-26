@@ -94,13 +94,13 @@ df_cust = (
 )
 
 
-log.info("Assigning Random Ads")
-df_assigned_rdm = assign_random_ads(
+log.info("Assigning Ads with Basic Targeting")
+df_assigned_basic = assign_random_ads(
     df_ads.select("UniqueAdID", "AlgoDivision"),
     df_cust,
     grp_col="AlgoDivision"
     )
-df_assigned_rdm.cache()
+df_assigned_basic.cache()
 
 
 log.info("Assigning Best Ads")
@@ -135,7 +135,7 @@ log.info("Assigning Best Ads (Challenger)")
 df_assigned_best_challenger = df_assigned_best
 
 
-# Assign Random, Best etc. based on assigned cells
+# Assign Basic, Best etc. based on assigned cells
 # TODO: Create dedicated Challenger split in overall_control_and_div
 log.info("Determining Ad to be shown based on assignments and fixed cells")
 df_assignments = (
@@ -143,9 +143,9 @@ df_assignments = (
     .withColumn("NoAd", F.lit("Z"))
     .join(
         (
-            df_assigned_rdm
+            df_assigned_basic
             .select("AccountNumber", "UniqueAdID")
-            .withColumnRenamed("UniqueAdID", "UniqueAdIDRandom")
+            .withColumnRenamed("UniqueAdID", "UniqueAdIDBasic")
         ),
         on="AccountNumber", how="left")
     .join(
@@ -222,7 +222,7 @@ df_ad_assigned_masid_output = (
     .select(
         "AccountNumber",
         "Location",
-        "UniqueAdIDRandom",
+        "UniqueAdIDBasic",
         "UniqueAdIDBest",
         "UniqueAdIDBestChallenger",
         "UniqueAdIDAssigned",
