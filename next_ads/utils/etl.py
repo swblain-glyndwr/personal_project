@@ -28,7 +28,7 @@ class JobParser(ArgumentParser):
             "--f",
             "--jobname",
             "--location",
-            "--macrolocation"
+            "--droptables"
             ]
 
         job_args = [j for j in job_arg_list if j in known_arg_list]
@@ -43,9 +43,9 @@ class JobParser(ArgumentParser):
             self.add_argument("--location",
                               nargs="?", const="HN1", type=str)
 
-        if "--macrolocation" in job_args:
-            self.add_argument("--macrolocation",
-                              nargs="?", const="HN", type=str)
+        if "--droptables" in job_args:
+            self.add_argument("--droptables",
+                              nargs="?", const="False", type=str)
 
         known_args, _ = self.parse_known_args()
         pargs = vars(known_args)
