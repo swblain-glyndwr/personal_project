@@ -260,5 +260,7 @@ if transient_cells:
     truncate_and_load(df_cells_transient,
                       TRANSIENT_CELLS_LATEST_TABLE,
                       pk_cols=["AccountNumber", "Cell"])
+else:
+    get_spark().sql(f"truncate table {TRANSIENT_CELLS_LATEST_TABLE}")
 
 log.info("Run complete")
