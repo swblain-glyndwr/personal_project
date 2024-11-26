@@ -243,22 +243,24 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                },
+                {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "HNTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -283,22 +285,24 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                },
+                {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "SBTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "SBTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -324,22 +328,24 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                },
+                {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "SBTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "SBTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "SBTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -357,22 +363,24 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                },
+                {
                     "when": [{"col": "OCTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "OCTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "OCTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "OCTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -391,21 +399,11 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -424,21 +422,11 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -457,21 +445,11 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -490,21 +468,11 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -523,21 +491,11 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -556,21 +514,11 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -589,28 +537,15 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
         "LP8": {
-            "constraints": {
-                "filter_ads": {"TradeDivision": "Sport"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -622,21 +557,11 @@
                 },
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDRandom"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
+                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LPTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -658,24 +583,28 @@
                 },
                 {
                     "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "2: Basic"},
-                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
+                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
+                        {"col": "Audience", "op": "eq", "val": "Womens"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"val": "PXXXX_CXXXX_Seasons_Womens_Ad"}
                 },
                 {
                     "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
+                        {"col": "Audience", "op": "eq", "val": "Bags"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"val": "PXXXX_CXXXX_Seasons_Bags_Ad"}
                 },
                 {
                     "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
+                        {"col": "Audience", "op": "eq", "val": "Shoes"}
                     ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
+                    "then": {"val": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                },
+                {
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
+                    "then": {"col": "UniqueAdIDBest"}
                 }
             ]
         },
@@ -696,25 +625,8 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "2: Basic"},
-                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
-                    ],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
-                    "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -735,64 +647,8 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "2: Basic"},
-                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
-                    ],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
-                    "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                }
-            ]
-        },
-        "PH6": {
-            "inherit_ads_from": "HN1",
-            "best_kwargs": {"return_ranks": [4]},
-            "map": [
-                {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Fallow Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "2: Basic"},
-                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}
-                    ],
-                    "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
-                    "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HNTest1", "op": "eq", "val": "1: Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         }
