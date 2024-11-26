@@ -220,7 +220,7 @@
     "transient_cells": {
         "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
         "Audiences": [
-            ["Seasons", {"account_col": "account_number", "label_col": "group_w_control"}]
+            ["Seasons", {"account_col": "account_number", "label_col": "segment"}]
         ]
     },
     
@@ -243,15 +243,15 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
                 },
                 {
@@ -285,15 +285,15 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
                 },
                 {
@@ -328,15 +328,15 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
                 },
                 {
@@ -363,15 +363,15 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Bags"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Shoes"}],
+                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
                     "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
                 },
                 {
@@ -584,21 +584,21 @@
                 {
                     "when": [
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
-                        {"col": "Audience", "op": "eq", "val": "Womens"}
+                        {"col": "Audience", "op": "eq", "val": "premium"}
                     ],
-                    "then": {"val": "PXXXX_CXXXX_Seasons_Womens_Ad"}
+                    "then": {"val": "PXXXX_CXXXX_Seasons_Premium_Ad"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
-                        {"col": "Audience", "op": "eq", "val": "Bags"}
+                        {"col": "Audience", "op": "eq", "val": "bags"}
                     ],
                     "then": {"val": "PXXXX_CXXXX_Seasons_Bags_Ad"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
-                        {"col": "Audience", "op": "eq", "val": "Shoes"}
+                        {"col": "Audience", "op": "eq", "val": "shoes"}
                     ],
                     "then": {"val": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
                 },
