@@ -382,7 +382,8 @@ bq_nextads_homepage_report = (
         "SessionDate",
         "Division"
     )
-    .where(F.col("MacroLocationCell") != "4: Overall")
+    .where(F.col("MacroLocationCell") != "4: Fallow Control")
+    # Avoid hard-coding?
 )
 # TODO: Export to BQ
 

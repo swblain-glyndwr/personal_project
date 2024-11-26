@@ -38,7 +38,11 @@ CONTROL_SHEET_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
 ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
-CUSTOMER_CELLS = map_schema(tbls["customer_cells"], SCHEMA)
+FIXED_CELLS_TABLE_LATEST = map_schema(
+    tbls["customer_cells_fixed_latest"], SCHEMA)
+TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"], SCHEMA)
+TRANSIENT_CELLS_TABLE_LATEST = map_schema(
+    tbls["customer_cells_transient_latest"], SCHEMA)
 
 VALID_LOCATIONS = set(LOCATIONS.keys())
 if req_location in VALID_LOCATIONS:
@@ -64,11 +68,23 @@ df_ads = (
 # TODO: Remove underperforming Ads
 
 
+# Inner join will remove customers that don't have transient cells
+# (e.g. AlgoDivision)
+# TODO: Will this bias the results?
 log.info("Getting customer cell assignments")
 df_cells = (
     get_spark()
-    .table(CUSTOMER_CELLS)
+    .table(FIXED_CELLS_TABLE_LATEST)
     .drop("rundate")
+    .join(
+        get_spark()
+        .table(TRANSIENT_CELLS_TABLE_LATEST)
+        .groupBy("AccountNumber")
+        .pivot("Cell")
+        .agg(F.max("CellValue")),
+        on="AccountNumber",
+        how="inner"
+    )
 )
 
 df_cust = (

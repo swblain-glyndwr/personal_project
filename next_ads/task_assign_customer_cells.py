@@ -2,7 +2,8 @@ import logging
 import logging.config
 import json
 from next_ads.Assignment import (assign_predetermined_audience,
-                                 get_algo_divisions_legacy)
+                                 get_algo_divisions_legacy,
+                                 melt_transient_cells)
 from next_ads.utils.dbc import get_spark
 from pyspark.sql import functions as F
 from next_ads.utils.etl import (assert_pk,
@@ -28,7 +29,7 @@ SCHEMA = rsc["schema"][job_env]
 tbls = rsc["tables"]["write"]
 FIXED_CELLS_TABLE = map_schema(tbls["customer_cells_fixed_latest"], SCHEMA)
 TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"], SCHEMA)
-TRANSIENT_CELLS_LATEST_TABLE = map_schema(
+TRANSIENT_CELLS_TABLE_LATEST = map_schema(
     tbls["customer_cells_transient_latest"], SCHEMA)
 
 TABLES_READ = rsc["tables"]["read"]
@@ -118,13 +119,14 @@ for fixed_cell in FIXED_CELLS:
         df_cells
         .withColumn(fixed_cell,
                     F.when(F.col("FallowControl"),
-                           F.lit("4: Overall")).otherwise(F.col(fixed_cell)))
+                           F.lit("4: Fallow Control")
+                           ).otherwise(F.col(fixed_cell)))
     )
 
 df_cells = (
     df_cells.withColumn("FallowControl",
                         F.when(F.col("FallowControl"),
-                               F.lit("NoAds")).otherwise(F.lit("Ads")))
+                               F.lit("No Ads")).otherwise(F.lit("Ads")))
 )
 
 df_cells_existing = (
@@ -132,6 +134,7 @@ df_cells_existing = (
     .table(FIXED_CELLS_TABLE)
     .drop("rundate")
 )
+df_cells_existing.cache()
 
 n_cust_existing = df_cells_existing.count()
 log.info(f"Existing customers: {n_cust_existing:,}")
@@ -191,11 +194,13 @@ if len(new_cols) > 0:
 else:
     df_cells_full = df_cells_existing_updated
 
+df_cells_full.cache()
+
 for ncol in new_cols:
     n_null = df_cells_full.where(F.col(ncol).isNull()).count()
     log.warning(f"{n_null:,} existing customers not assigned {ncol}")
 
-# Back up existing table before overwriting cells table
+log.info("Backing up fixed cells table")
 create_table_from_df(
     df=df_cells_existing,
     table=FIXED_CELLS_TABLE + "_backup",
@@ -204,8 +209,9 @@ create_table_from_df(
     drop_if_exists=True
     )
 
+log.info("Dropping and recreating fixed cells table")
 create_table_from_df(
-    df=df_cells,
+    df=df_cells_full,
     table=FIXED_CELLS_TABLE,
     partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"],
@@ -214,19 +220,8 @@ create_table_from_df(
 
 # TODO: Figure out what's going on with the Exponea load
 
-# Transient cells - append to history - store in long format
-
-
-def melt_transient_cells(df):
-    df_melted = df.unpivot(
-        ids="AccountNumber",
-        values=None,
-        variableColumnName="Cell",
-        valueColumnName="CellValue")
-    return df_melted
-
-
 if transient_cells:
+    log.info("Transient Cells requested")
     transient_cell_dfs = []
     if "AlgoDivision" in TRANSIENT_CELLS:
         # TODO: Review methodology of AlgoDivision assignment
@@ -252,15 +247,26 @@ if transient_cells:
             df_tc_long = melt_transient_cells(df_tc)
             df_cells_transient = df_cells_transient.unionByName(df_tc_long)
 
+    df_cells_transient.cache()
+
     delete_from_and_load(df_cells_transient,
                          TRANSIENT_CELLS_TABLE,
                          pk_cols=["AccountNumber", "Cell"],
                          del_where={"rundate": "current_date()"})
 
     truncate_and_load(df_cells_transient,
-                      TRANSIENT_CELLS_LATEST_TABLE,
+                      TRANSIENT_CELLS_TABLE_LATEST,
                       pk_cols=["AccountNumber", "Cell"])
 else:
-    get_spark().sql(f"truncate table {TRANSIENT_CELLS_LATEST_TABLE}")
+    log.info("No Transient Cells requested - truncating latest table")
+    get_spark().sql(f"truncate table {TRANSIENT_CELLS_TABLE_LATEST}")
+
+df_cust.unpersist()
+df_fallow.unpersist()
+df_test_ads.unpersist()
+df_cells.unpersist()
+df_cells_existing.unpersist()
+df_cells_full.unpersist()
+df_cells_transient.unpersist()
 
 log.info("Run complete")
