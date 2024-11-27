@@ -99,7 +99,7 @@ df_id_loc = (
 )
 # TODO: Warn Ads team if duplciates found in Input?
 active_locs = set([row[0] for row in df_id_loc.select('Location').collect()])
-log.info(f"Active Locations: {len(active_locs):,} {active_locs}")
+log.info(f"Active Locations: {len(active_locs):,} {sorted(active_locs)}")
 log.info(f"Active Ad-Locations: {df_id_loc.count():,}")
 
 

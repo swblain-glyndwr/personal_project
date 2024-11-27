@@ -386,7 +386,7 @@
         },
         "LP1": {
             "constraints": {
-                "filter_ads": {"AdDivision": "Womens"}
+                "filter_ads": {"AlgoDivision": "Womens"}
             },
             "map": [
                 {
@@ -409,7 +409,7 @@
         },
         "LP2": {
             "constraints": {
-                "filter_ads": {"AdDivision": "Mens"}
+                "filter_ads": {"AlgoDivision": "Mens"}
             },
             "map": [
                 {
@@ -432,7 +432,7 @@
         },
         "LP3": {
             "constraints": {
-                "filter_ads": {"AdDivision": "Boys"}
+                "filter_ads": {"AlgoDivision": "Boys"}
             },
             "map": [
                 {
@@ -455,7 +455,7 @@
         },
         "LP4": {
             "constraints": {
-                "filter_ads": {"AdDivision": "Girls"}
+                "filter_ads": {"AlgoDivision": "Girls"}
             },
             "map": [
                 {
@@ -478,7 +478,7 @@
         },
         "LP5": {
             "constraints": {
-                "filter_ads": {"AdDivision": "Home"}
+                "filter_ads": {"AlgoDivision": "Home"}
             },
             "map": [
                 {
@@ -501,7 +501,7 @@
         },
         "LP6": {
             "constraints": {
-                "filter_ads": {"AdDivision": "Beauty"}
+                "filter_ads": {"AlgoDivision": "Beauty"}
             },
             "map": [
                 {
@@ -586,21 +586,21 @@
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
                         {"col": "Audience", "op": "eq", "val": "premium"}
                     ],
-                    "then": {"val": "PXXXX_CXXXX_Seasons_Premium_Ad"}
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
                         {"col": "Audience", "op": "eq", "val": "bags"}
                     ],
-                    "then": {"val": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
                         {"col": "Audience", "op": "eq", "val": "shoes"}
                     ],
-                    "then": {"val": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
