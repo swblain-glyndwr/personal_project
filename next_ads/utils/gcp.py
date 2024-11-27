@@ -1,4 +1,3 @@
-import requests
 from next_ads.utils.etl import build_spark_schema
 import base64
 import ast
@@ -58,8 +57,3 @@ def spark_df_from_sheets(
         df = get_spark().createDataFrame(worksheet.get_all_records())
 
     return df
-
-
-def post_to_webhook(webhook_url: str, message: str) -> None:
-    requests.post(webhook_url, json={"text": message})
-    return None

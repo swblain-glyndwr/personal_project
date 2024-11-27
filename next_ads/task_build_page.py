@@ -11,10 +11,10 @@ from next_ads.utils.etl import (JobParser,
                                 build_spark_schema,
                                 chain_when_thens,
                                 map_schema,
-                                delete_from_and_load)
+                                delete_from_and_load,
+                                post_to_webhook)
 from pyspark.sql import functions as F
 from next_ads.utils.columnscalers import subtract_mean
-from next_ads.utils.gcp import post_to_webhook
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -187,7 +187,7 @@ df_ad_masid = (
 # TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
 ctrl_masid_cols = ["UniqueAdID", "MASID"]
-ctrl_masid_vals = [("Z", f"{LOCATION}_Z")]
+ctrl_masid_vals = [("NoAd", f"{LOCATION}_Z")]
 
 df_control_masid = (
     get_spark().createDataFrame(
@@ -215,7 +215,7 @@ if n_null_masid > 0:
     null_masid_msg = (f"{n_null_masid:,} accounts removed during assignment " +
                       "due to null MASID")
     log.warning(null_masid_msg)
-    if job_env == "dev":
+    if job_env == "prod":
         post_to_webhook(WEBHOOK_URL, null_masid_msg)
     df_ad_assigned_masid = (
         df_ad_assigned_masid

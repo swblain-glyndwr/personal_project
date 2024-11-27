@@ -4,6 +4,7 @@ from pyspark.sql.types import StructField, StructType
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 import sys
+import requests
 from next_ads.utils.dbc import get_spark
 from argparse import ArgumentParser
 
@@ -130,6 +131,11 @@ def chain_when_thens(when_thens: list):
 
 def map_schema(s: str, schema) -> str:
     return s.format_map({"schema": schema})
+
+
+def post_to_webhook(webhook_url: str, message: str) -> None:
+    requests.post(webhook_url, json={"text": message})
+    return None
 
 
 def build_spark_field(

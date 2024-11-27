@@ -9,7 +9,8 @@ from next_ads.utils.etl import (assert_pk,
                                 truncate_and_load,
                                 delete_from_and_load,
                                 JobParser,
-                                map_schema)
+                                map_schema,
+                                post_to_webhook)
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -179,7 +180,7 @@ if df_dup_masids.count() > 1:
             df_processed = df_processed.where(F.col("UniqueAdID") != id_del)
 
     if job_env == "prod":
-        gcp.post_to_webhook(WEBHOOK_URL, warn_dup_masid)
+        post_to_webhook(WEBHOOK_URL, warn_dup_masid)
 
 
 target_cols = (
