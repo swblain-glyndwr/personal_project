@@ -79,16 +79,6 @@
     },
     
     "files": {
-        "cell_assignment": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/TESTCONTROL_V3_JUL24",
-        "division_assignments": {
-            "Womens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/WomensFile",
-            "Mens": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/MensFile",
-            "Girls": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/GirlsFile",
-            "Boys": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/BoysFile",
-            "Baby": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/BabyFile",
-            "Beauty": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/BeautyFile",
-            "Home": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAdsV2/delta/HomeFile"
-        },
         "results": {
             "HN": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/HomepageResults/TargettedDivRandAdSumary",
             "SB": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/SB_Random_Remove"
