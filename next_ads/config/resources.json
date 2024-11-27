@@ -71,6 +71,7 @@
             "customer_cells_fixed_latest": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_fixed_latest",
             "customer_cells_transient": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_transient",
             "customer_cells_transient_latest": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_transient_latest",
+            "customer_cells_latest": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_latest",
             "targeting_scores_latest": "marketingdata_prod.{schema}.next_uk_nextads_targeting_scores_latest",
             "assignments": "marketingdata_prod.{schema}.next_uk_nextads_assignments",
             "assignments_latest": "marketingdata_prod.{schema}.next_uk_nextads_assignments_latest"
