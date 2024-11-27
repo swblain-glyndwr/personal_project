@@ -23,11 +23,8 @@ for table_ref in TABLES:
     table = map_schema(TABLES[table_ref], SCHEMA)
 
     if pargs["droptables"] == "True" and job_env == "dev":
-        try:
-            log.info(f"Dropping table {table} as --droptable set to 'True'")
-            get_spark().sql(f"drop table {table}")
-        except Exception as e:
-            print(e)
+        log.info(f"Dropping table {table} as --droptable set to 'True'")
+        get_spark().sql(f"drop table if exists {table}")
 
     if get_spark().catalog.tableExists(table):
         log.warning(f"Table {table} already exists - skipping")

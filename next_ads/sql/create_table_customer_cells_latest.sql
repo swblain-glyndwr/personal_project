@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.next_uk_nextads_customer_cells_fixed_latest (
+create table marketingdata_prod.{schema}.next_uk_nextads_customer_cells_latest (
     AccountNumber string not null,
     FallowControl string not null,
     HNTest1 string not null,
@@ -16,7 +16,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_customer_cells_fixed_la
     AdHocABTest9 string not null,
     ChampionChallenger string not null,
     rundate date not null,
-  constraint pk_next_uk_nextads_customer_cells_fixed_latest primary key (
+  constraint pk_next_uk_nextads_customer_cells_latest primary key (
     AccountNumber
     )
 )
