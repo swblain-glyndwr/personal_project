@@ -41,6 +41,8 @@ LEGACY_EXCL = rsc["legacy"]["account_exclusions"]
 
 FALLOW_PC = prm["fallow_control"]["proportion"]
 FALLOW_SEED = prm["fallow_control"]["seed"]
+FALLOW_TRUE_LABEL = prm["fallow_control"]["true_label"]
+FALLOW_FALSE_LABEL = prm["fallow_control"]["false_label"]
 FIXED_CELLS = prm["fixed_cells"]
 
 transient_cells = False
@@ -119,14 +121,15 @@ for fixed_cell in FIXED_CELLS:
         df_cells
         .withColumn(fixed_cell,
                     F.when(F.col("FallowControl"),
-                           F.lit("4: Fallow Control")
+                           F.lit(FALLOW_TRUE_LABEL)
                            ).otherwise(F.col(fixed_cell)))
     )
 
 df_cells = (
     df_cells.withColumn("FallowControl",
                         F.when(F.col("FallowControl"),
-                               F.lit("No Ads")).otherwise(F.lit("Ads")))
+                               F.lit(FALLOW_TRUE_LABEL)
+                               ).otherwise(F.lit(FALLOW_FALSE_LABEL)))
 )
 
 df_cells_existing = (

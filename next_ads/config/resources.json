@@ -95,7 +95,8 @@
     },
     
     "webhooks": {
-        "Input Warnings": "https://chat.googleapis.com/v1/spaces/AAAApHIxkXU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=ipWUokipGw7aIO1zso1qQsquwGMMiVOiUVgGI_PiSiA"
+        "Input Warnings": "https://chat.googleapis.com/v1/spaces/AAAApHIxkXU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=ipWUokipGw7aIO1zso1qQsquwGMMiVOiUVgGI_PiSiA",
+        "Assignment Warnings": "https://chat.googleapis.com/v1/spaces/AAAApHIxkXU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=dsDrAO-46pLYieDRuI3kW4q3FhCXUo7Xa_YeL7PDn6I"
     },
     
     "legacy": {

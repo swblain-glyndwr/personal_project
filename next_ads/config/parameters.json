@@ -1,7 +1,9 @@
 {
     "fallow_control": {
         "proportion": 0.1,
-        "seed": 101
+        "seed": 101,
+        "true_label": "No Ads",
+        "false_label": "Ads"
     },
 
     "fixed_cells": {
@@ -244,15 +246,15 @@
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "HNTest1", "op": "eq", "val": "2: Basic"}],
@@ -286,15 +288,15 @@
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "2: Basic"}],
@@ -329,15 +331,15 @@
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "SBTest1", "op": "eq", "val": "2: Basic"}],
@@ -364,15 +366,15 @@
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "OCTest1", "op": "eq", "val": "2: Basic"}],
@@ -385,9 +387,6 @@
             ]
         },
         "LP1": {
-            "constraints": {
-                "filter_ads": {"AlgoDivision": "Womens"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -408,9 +407,6 @@
             ]
         },
         "LP2": {
-            "constraints": {
-                "filter_ads": {"AlgoDivision": "Mens"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -431,9 +427,6 @@
             ]
         },
         "LP3": {
-            "constraints": {
-                "filter_ads": {"AlgoDivision": "Boys"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -454,9 +447,6 @@
             ]
         },
         "LP4": {
-            "constraints": {
-                "filter_ads": {"AlgoDivision": "Girls"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -477,9 +467,6 @@
             ]
         },
         "LP5": {
-            "constraints": {
-                "filter_ads": {"AlgoDivision": "Home"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -500,9 +487,6 @@
             ]
         },
         "LP6": {
-            "constraints": {
-                "filter_ads": {"AlgoDivision": "Beauty"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -523,9 +507,6 @@
             ]
         },
         "LP7": {
-            "constraints": {
-                "filter_ads": {"TradeDivision": "Brands"}
-            },
             "map": [
                 {
                     "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
@@ -586,21 +567,21 @@
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
                         {"col": "Audience", "op": "eq", "val": "premium"}
                     ],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Premium_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
                         {"col": "Audience", "op": "eq", "val": "bags"}
                     ],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Bags_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [
                         {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
                         {"col": "Audience", "op": "eq", "val": "shoes"}
                     ],
-                    "then": {"lit": "PXXXX_CXXXX_Seasons_Shoes_Ad"}
+                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],

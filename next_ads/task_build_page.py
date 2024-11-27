@@ -14,6 +14,7 @@ from next_ads.utils.etl import (JobParser,
                                 delete_from_and_load)
 from pyspark.sql import functions as F
 from next_ads.utils.columnscalers import subtract_mean
+from next_ads.utils.gcp import post_to_webhook
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -53,6 +54,7 @@ log.info(f"Assigning Ads for Location: {LOCATION}")
 
 CELL_MAP = LOCATIONS[LOCATION]
 
+WEBHOOK_URL = rsc["webhooks"]["Assignment Warnings"]
 
 log.info("Getting Ads")
 df_ads = (
@@ -103,7 +105,7 @@ df_assigned_basic = assign_random_ads(
 df_assigned_basic.cache()
 
 
-log.info("Assigning Best Ads")
+log.info("Assigning Ads with Best Targeting")
 
 best_kwargs = {
     "targeting_scores_table": TARGETING_SCORES_TABLE,
@@ -210,7 +212,11 @@ df_ad_assigned_masid.cache()
 # Check and warn if null MASID assignments exist
 n_null_masid = df_ad_assigned_masid.where(F.col("MASID").isNull()).count()
 if n_null_masid > 0:
-    log.warning(f"Removing {n_null_masid:,} accounts with null MASID")
+    null_masid_msg = (f"{n_null_masid:,} accounts removed during assignment " +
+                      "due to null MASID")
+    log.warning(null_masid_msg)
+    if job_env == "dev":
+        post_to_webhook(WEBHOOK_URL, null_masid_msg)
     df_ad_assigned_masid = (
         df_ad_assigned_masid
         .where(F.col("MASID").isNotNull())
