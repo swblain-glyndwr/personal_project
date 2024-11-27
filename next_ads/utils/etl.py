@@ -1,5 +1,7 @@
 import functools
 import operator
+from random import randint
+from time import sleep
 from pyspark.sql.types import StructField, StructType
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
@@ -7,6 +9,7 @@ import sys
 import requests
 from next_ads.utils.dbc import get_spark
 from argparse import ArgumentParser
+from delta.exceptions import ConcurrentAppendException
 
 
 class JobParser(ArgumentParser):
@@ -249,15 +252,27 @@ def delete_from_and_load(
         for k in del_where.keys():
             query_del = query_del + f"and {k} = {del_where[k]}"
 
-    get_spark().sql(query_del)
-
-    get_spark().sql(
-        f"""
-        insert into {table}
-        select *, current_date() as rundate
-        from df_load
-        """
-        )
+    i = 0
+    max_attempts = 5
+    while True:
+        i += 1
+        if i > max_attempts:
+            raise Exception("Max attempts exceded")
+        try:
+            get_spark().sql(query_del)
+            get_spark().sql(
+                f"""
+                insert into {table}
+                select *, current_date() as rundate
+                from df_load
+                """
+                )
+            break
+        except ConcurrentAppendException:
+            print("ConcurrentAppendException encountered during table load")
+            wait_seconds = randint(30, 90)
+            print(f"Waiting {wait_seconds} seconds before retrying")
+            sleep(wait_seconds)
 
     table_housekeeping(table)
 
@@ -283,18 +298,30 @@ def truncate_and_load(
 
     df.createOrReplaceTempView("df_load")
 
-    get_spark().sql(
-        f"""
-        truncate table {table}
-        """)
-
-    get_spark().sql(
-        f"""
-        insert into {table}
-        select *, current_date() as rundate
-        from df_load
-        """
-        )
+    i = 0
+    max_attempts = 5
+    while True:
+        i += 1
+        if i > max_attempts:
+            raise Exception("Max attempts exceded")
+        try:
+            get_spark().sql(
+                f"""
+                truncate table {table}
+                """)
+            get_spark().sql(
+                f"""
+                insert into {table}
+                select *, current_date() as rundate
+                from df_load
+                """
+                )
+            break
+        except ConcurrentAppendException:
+            print("ConcurrentAppendException encountered during table load")
+            wait_seconds = randint(30, 90)
+            print(f"Waiting {wait_seconds} seconds before retrying")
+            sleep(wait_seconds)
 
     table_housekeeping(table)
 
