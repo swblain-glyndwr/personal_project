@@ -7,18 +7,18 @@
     },
 
     "fixed_cells": {
-        "HNTest1": {
+        "HomePageTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomHNTest1", "op": "le", "val": 0.1}],
+                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 0.1}],
                     "then": {"lit": "3: Local Control"}
                 },
                 {
-                    "when": [{"col": "RandomHNTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 0.55}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
-                    "when": [{"col": "RandomHNTest1", "op": "le", "val": 1.0}],
+                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 1.0}],
                     "then": {"lit": "1: Best"}
                 }
             ],
@@ -27,18 +27,18 @@
             "screen": "Home",
             "reported_value": "SessionRevenue"
         },
-        "SBTest1": {
+        "ShoppingBagTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomSBTest1", "op": "le", "val": 0.1}],
+                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.1}],
                     "then": {"lit": "3: Local Control"}
                 },
                 {
-                    "when": [{"col": "RandomSBTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.55}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
-                    "when": [{"col": "RandomSBTest1", "op": "le", "val": 1.0}],
+                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 1.0}],
                     "then": {"lit": "1: Best"}
                 }
             ],
@@ -47,18 +47,18 @@
             "screen": "Cart",
             "reported_value": "ProductRevenuePostFirstHit"
         },
-        "OCTest1": {
+        "OrderCompleteTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomOCTest1", "op": "le", "val": 0.1}],
+                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 0.1}],
                     "then": {"lit": "3: Local Control"}
                 },
                 {
-                    "when": [{"col": "RandomOCTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 0.55}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
-                    "when": [{"col": "RandomOCTest1", "op": "le", "val": 1.0}],
+                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 1.0}],
                     "then": {"lit": "1: Best"}
                 }
             ],
@@ -67,18 +67,18 @@
 		    "screen": "Checkout Completed",
             "reported_value": "ProductRevenuePostFirstHit"
         },
-        "LPTest1": {
+        "LandingPageTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomLPTest1", "op": "le", "val": 0.1}],
+                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 0.1}],
                     "then": {"lit": "3: Local Control"}
                 },
                 {
-                    "when": [{"col": "RandomLPTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 0.55}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
-                    "when": [{"col": "RandomLPTest1", "op": "le", "val": 1.0}],
+                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 1.0}],
                     "then": {"lit": "1: Best"}
                 }
             ],
@@ -225,6 +225,12 @@
             ["Seasons", {"account_col": "account_number", "label_col": "segment"}]
         ]
     },
+
+    "exclude_ads_from_targeting": [
+       "P128_C1626_Seasons_Solus_Womens_Womens",
+       "P128_C1625_Seasons_Category_Womens_Bags_Womens",
+       "P128_C1676_Seasons_Category_Womens_Footwear_Womens"
+    ],
     
     "locations": {
         "HN1": {
@@ -233,11 +239,11 @@
             },
             "map": [
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -245,23 +251,11 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -272,81 +266,31 @@
             },
             "map": [
                 {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [
-                        {"col": "AdHocABTest3", "op": "eq", "val": "2: Variant B"},
-                        {"col": "AdHocABTest4", "op": "eq", "val": "1: Variant A"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
+                    "then": {"lit": "P128_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
+                    "then": {"lit": "P128_C1625_Seasons_Category_Womens_Bags_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
+                    "then": {"lit": "P128_C1676_Seasons_Category_Womens_Footwear_Womens"}
                 },
                 {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "1: Best"}],
-                    "then": {"col": "UniqueAdIDBest"}
-                }
-            ]
-        },
-        "SB2": {
-            "inherit_ads_from": "SB1",
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            },
-            "map": [
-                {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "4: Fallow Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [
-                        {"col": "AdHocABTest3", "op": "eq", "val": "2: Variant B"},
-                        {"col": "AdHocABTest4", "op": "eq", "val": "2: Variant B"}
-                    ],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "SBTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -357,31 +301,31 @@
             },
             "map": [
                 {
-                    "when": [{"col": "OCTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "OCTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
+                    "then": {"lit": "P128_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
+                    "then": {"lit": "P128_C1625_Seasons_Category_Womens_Bags_Womens"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
+                    "then": {"lit": "P128_C1676_Seasons_Category_Womens_Footwear_Womens"}
                 },
                 {
-                    "when": [{"col": "OCTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "OCTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -389,19 +333,19 @@
         "LP1": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -409,19 +353,19 @@
         "LP2": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -429,19 +373,19 @@
         "LP3": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -449,19 +393,19 @@
         "LP4": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -469,19 +413,19 @@
         "LP5": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -489,19 +433,19 @@
         "LP6": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -509,19 +453,19 @@
         "LP7": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -529,19 +473,79 @@
         "LP8": {
             "map": [
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "2: Basic"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "LPTest1", "op": "eq", "val": "1: Best"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "LP9": {
+            "map": [
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "LP10": {
+            "map": [
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "LP11": {
+            "map": [
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -551,37 +555,16 @@
             "best_kwargs": {"return_ranks": [1]},
             "map": [
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
                     "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [
-                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
-                        {"col": "Audience", "op": "eq", "val": "premium"}
-                    ],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [
-                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
-                        {"col": "Audience", "op": "eq", "val": "bags"}
-                    ],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [
-                        {"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"},
-                        {"col": "Audience", "op": "eq", "val": "shoes"}
-                    ],
-                    "then": {"lit": "P126_C1626_Seasons_Solus_Womens_Womens"}
                 },
                 {
                     "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
@@ -594,11 +577,11 @@
             "best_kwargs": {"return_ranks": [2]},
             "map": [
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -616,11 +599,11 @@
             "best_kwargs": {"return_ranks": [3]},
             "map": [
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "HNTest1", "op": "eq", "val": "3: Local Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
