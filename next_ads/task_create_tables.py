@@ -23,7 +23,7 @@ for table_ref in TABLES:
     table = map_schema(TABLES[table_ref], SCHEMA)
 
     if pargs["droptables"] == "True" and job_env == "dev":
-        log.info(f"Dropping table {table} as --droptable set to 'True'")
+        log.info(f"Dropping table {table} as --droptables set to 'True'")
         get_spark().sql(f"drop table if exists {table}")
 
     if get_spark().catalog.tableExists(table):
