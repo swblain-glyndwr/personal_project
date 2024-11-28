@@ -28,7 +28,7 @@ with open("config/parameters.json") as f:
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-req_location = pargs["location"] if pargs["location"] else "LP5"
+req_location = pargs["location"] if pargs["location"] else "SB1"
 log.info(f"Running in job environment: {job_env}")
 
 LOCATIONS = prm["locations"]
@@ -65,7 +65,13 @@ df_ads = (
 )
 # TODO: Remove underperforming Ads
 
-if df_ads.count() == 0:
+if "exclude_ads_from_targeting" in prm.keys():
+    df_ads_tgt = (
+        df_ads
+        .where(~F.col("UniqueAdID").isin(prm["exclude_ads_from_targeting"]))
+    )
+
+if df_ads_tgt.count() == 0:
 
     no_ads_msg = f"No ads found for Location: {LOCATION}"
     log.warning(no_ads_msg)
@@ -86,7 +92,7 @@ else:
 
     log.info("Assigning Ads with Basic Targeting")
     df_assigned_basic = assign_random_ads(
-        df_ads.select("UniqueAdID", "AlgoDivision"),
+        df_ads_tgt.select("UniqueAdID", "AlgoDivision"),
         df_cells.select("AccountNumber", "AlgoDivision"),
         grp_col="AlgoDivision"
         )
@@ -104,14 +110,14 @@ else:
 
     if "constraints" in LOCATIONS[LOCATION]:
         df_assigned_best = assign_best_ads_with_constraints(
-            df_ads=df_ads,
+            df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             constraints=LOCATIONS[LOCATION]["constraints"],
             best_kwargs=best_kwargs
         )
     else:
         df_assigned_best = assign_best_ads(
-            df_ads=df_ads,
+            df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             **best_kwargs
         )
@@ -122,8 +128,6 @@ else:
     # Assigning best to best_challenger effectively switches challenger off
     df_assigned_best_challenger = df_assigned_best
 
-    # Assign Basic, Best etc. based on assigned cells
-    # TODO: Create dedicated Challenger split in overall_control_and_div
     log.info("Determining Ad to be shown based on assignments and fixed cells")
     df_assignments = (
         df_cells
@@ -169,7 +173,6 @@ else:
         .drop("Location", "MASIDToken")
         .distinct()
         )
-    # TODO: Move to load_control_file? Concat XX_XXXX as MASIDSlot?
 
     ctrl_masid_cols = ["UniqueAdID", "MASID"]
     ctrl_masid_vals = [("NoAd", f"{LOCATION}_Z")]
