@@ -1,6 +1,7 @@
 import logging
 import logging.config
 import pyspark.sql.functions as F
+from datetime import date, timedelta
 from next_ads.Scoring import append_targeting_criteria
 import next_ads.utils.gcp as gcp
 import json
@@ -62,14 +63,48 @@ df_ctrl_raw = gcp.spark_df_from_sheets(
     schema=CONTROL_SHEET["read_schema"]
     )
 
+date_fmt = CONTROL_SHEET["date_format"]
+date_regex = CONTROL_SHEET["date_regex"]
 
-log.info("Processing Control Sheet")
+log.info("Stripping empty UniqueAdID entries")
+df_ctrl_not_empty = df_ctrl_raw.where(F.col("UniqueAdID") != "")
+df_ctrl_valid_date_fmt = (
+    df_ctrl_not_empty
+    .where(
+        (F.col("StartDate").rlike(date_regex))
+        & (F.col("EndDate").rlike(date_regex))
+        )
+)
+df_ctrl_valid_date_fmt.count()
 
+df_invalid_date_ads = (
+    df_ctrl_not_empty
+    .join(df_ctrl_valid_date_fmt,
+          on="UniqueAdID",
+          how="leftanti")
+    .select("UniqueAdID")
+)
+invalid_date_ads = [x[0] for x in df_invalid_date_ads.collect()]
+
+if len(invalid_date_ads) > 0:
+    date_fmt_msg = (
+        "Start or End date of the following ads was invlaid\n" +
+        "\n".join(invalid_date_ads) +
+        f"\nDate must be entered in the format: {date_fmt}"
+    )
+    log.warning(date_fmt_msg)
+    if job_env == "prod":
+        post_to_webhook(WEBHOOK_URL, date_fmt_msg)
+
+log.info("Getting active status of ads based on StartDate and EndDate")
+date_tomorrow = date.today() + timedelta(days=1)
 df_ctrl_active = (
-    df_ctrl_raw
-    .where(F.col("UniqueAdID") != "")
-    .where(F.col("Status") == "Active")
+    df_ctrl_valid_date_fmt
     .drop("Status")
+    .withColumn("StartDate", F.to_date(F.col("StartDate"), date_fmt))
+    .withColumn("EndDate", F.to_date(F.col("EndDate"), date_fmt))
+    .where(F.col("StartDate") <= date_tomorrow)
+    .where(F.col("EndDate") >= date_tomorrow)
 )
 log.info(f"Active Ads: {df_ctrl_active.count():,}")
 
@@ -79,7 +114,6 @@ df_ctrl_active = df_ctrl_active.withColumn(
     F.regexp_replace(F.upper(F.col("Items")), "-", "")
 )
 
-# Create columns for inherited locations
 if INHERITED_LOCATIONS:
     for k in INHERITED_LOCATIONS:
         df_ctrl_active = (
@@ -87,7 +121,6 @@ if INHERITED_LOCATIONS:
             .withColumn(k, F.col(LOCATIONS[k]["inherit_ads_from"]))
         )
 
-# Primary Key (UniqueAdID, Location)
 df_id_loc = (
     df_ctrl_active
     .unpivot(ids="UniqueAdID",
@@ -98,7 +131,7 @@ df_id_loc = (
     .drop_duplicates()
     .drop("Requested")
 )
-# TODO: Warn Ads team if duplciates found in Input?
+
 active_locs = set([row[0] for row in df_id_loc.select('Location').collect()])
 log.info(f"Active Locations: {len(active_locs):,} {sorted(active_locs)}")
 log.info(f"Active Ad-Locations: {df_id_loc.count():,}")
@@ -110,13 +143,6 @@ df_ad_attributes = (
     .drop_duplicates()
     .replace("", None)
 )
-
-
-for date_col in ["StartDate", "EndDate"]:
-    df_ad_attributes = df_ad_attributes.withColumn(
-        date_col, F.to_date(F.col(date_col), "dd/MM/yyyy")
-    )
-
 
 df_processed = (
     df_id_loc
@@ -165,7 +191,7 @@ if df_dup_masids.count() > 1:
 
         clashing_ids = list(set([row[0] for row in df_dups_m]))
         clashing_ids.sort()  # Sort alphabetically as proxy for latest
-        keep_ad = f"Keeping ad: {clashing_ids[-1]}" 
+        keep_ad = f"Keeping ad: {clashing_ids[-1]}"
         log.info(keep_ad)
         warn_dup_masid += "\n" + keep_ad
 
