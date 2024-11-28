@@ -33,7 +33,6 @@ TRANSIENT_CELLS_TABLE_LATEST = map_schema(
     tbls["customer_cells_transient_latest"], SCHEMA)
 
 TABLES_READ = rsc["tables"]["read"]
-# SVOC table used for customer base because it contains older accounts
 SVOC = TABLES_READ["svoc_pii"]
 RPID_WITH_ACCOUNTS = TABLES_READ["rpid_with_accounts"]
 MODEL_SCORES_LATEST = TABLES_READ["model_scores_latest"]
@@ -60,7 +59,7 @@ df_rpid_w_acc = (
         .distinct()
 )
 
-# SVOC table used because it contains older accounts too
+# SVOC table used because it contains older accounts too, apparently
 # Where clause inherited from legacy script
 df_cust = (
     get_spark()
@@ -78,7 +77,7 @@ df_cust = (
 
 assert_pk(df_cust, ["AccountNumber"])
 df_cust.cache()
-log.info(f"Customer base size: {df_cust.count():,}")
+log.info(f"Customer base: {df_cust.count():,}")
 
 df_fallow = (
     df_cust
@@ -113,7 +112,6 @@ df_cells = (
 )
 df_cells.cache()
 
-log.info(f"Base customers: {df_cust.count():,}")
 log.info(f"Customers not in fallow cell: {df_test_ads.count():,}")
 
 for fixed_cell in FIXED_CELLS:
