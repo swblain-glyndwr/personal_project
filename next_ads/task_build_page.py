@@ -28,7 +28,7 @@ with open("config/parameters.json") as f:
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-req_location = pargs["location"] if pargs["location"] else "SB1"
+LOCATION = pargs["location"] if pargs["location"] else "LP11"
 log.info(f"Running in job environment: {job_env}")
 
 LOCATIONS = prm["locations"]
@@ -41,16 +41,18 @@ ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
 CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
 
-VALID_LOCATIONS = set(LOCATIONS.keys())
-if req_location in VALID_LOCATIONS:
-    LOCATION = req_location
-else:
-    raise Exception(f"Invalid Location requested: {req_location}")
-log.info(f"Assigning Ads for Location: {LOCATION}")
-
-CELL_MAP = LOCATIONS[LOCATION]
-
 WEBHOOK_URL = rsc["webhooks"]["Assignment Warnings"]
+
+try:
+    CELL_MAP = LOCATIONS[LOCATION]
+except KeyError as ke:
+    loc_key_msg = f"{LOCATION} build requested but not in config"
+    log.warning(loc_key_msg)
+    if job_env == "prod":
+        post_to_webhook(WEBHOOK_URL, loc_key_msg)
+    raise ke
+
+log.info(f"Assigning Ads for Location: {LOCATION}")
 
 log.info("Getting Ads")
 df_ads = (
@@ -201,7 +203,7 @@ else:
     n_null_masid = df_ad_assigned_masid.where(F.col("MASID").isNull()).count()
     if n_null_masid > 0:
         null_masid_msg = (f"{n_null_masid:,} accounts removed during " +
-                          "assignment due to null MASID")
+                          f"assignment of {LOCATION} due to null MASID")
         log.warning(null_masid_msg)
         if job_env == "prod":
             post_to_webhook(WEBHOOK_URL, null_masid_msg)

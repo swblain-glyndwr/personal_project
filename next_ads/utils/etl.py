@@ -10,6 +10,7 @@ import requests
 from next_ads.utils.dbc import get_spark
 from argparse import ArgumentParser
 from delta.exceptions import ConcurrentAppendException
+from delta.tables import DeltaTable
 
 
 class JobParser(ArgumentParser):
@@ -374,6 +375,53 @@ def create_table_from_df(
     return None
 
 
+def copy_table_from_to(
+        table_from: str,
+        table_to: str,
+        history_days: int = 1,
+        copy_partitioning: bool = False,
+        copy_primary_key: bool = False,
+        overwrite_table_to: bool = False) -> None:
+
+    if overwrite_table_to:
+        get_spark().sql(f"drop table if exists {table_to}")
+
+    get_spark().sql(f"""
+                    create table {table_to} as
+                    select *
+                    from {table_from}
+                    where rundate >= current_date() - {history_days}
+                    """)
+
+    if copy_partitioning:
+        partitioned_by = get_table_partition_cols(table_from)
+        if partitioned_by:
+            get_spark().sql(
+                f"""
+                replace table {table_to}
+                partitioned by ({','.join(partitioned_by)})
+                as select * from {table_to}
+                """
+            )
+
+    if copy_primary_key:
+        pk_cols = get_table_pk_cols(table_from)
+        if pk_cols:
+            for pk_col in pk_cols:
+                get_spark().sql(
+                    f"""alter table {table_to}
+                    alter column {pk_col} set not null""")
+
+            table_to_name = table_to.split(".")[-1]
+            get_spark().sql(
+                f"""alter table {table_to} add constraint pk_{table_to_name}
+                primary key ({','.join(pk_cols)})""")
+
+    table_housekeeping(table_to)
+
+    return None
+
+
 def count_null_by_column(df: DataFrame) -> DataFrame:
     """
     Counts nulls in Spark dataframe by column.
@@ -386,3 +434,33 @@ def count_null_by_column(df: DataFrame) -> DataFrame:
     )
 
     return df_n
+
+
+def get_table_partition_cols(table: str) -> list:
+
+    df = DeltaTable.forName(get_spark(), table)
+
+    return df.detail().select("partitionColumns").collect()[0][0]
+
+
+def get_table_pk_cols(table: str) -> list:
+
+    catalog = table.split(".")[0]
+    schema = table.split(".")[1]
+    table_name = table.split(".")[2]
+
+    query = f"""
+        select column_name
+        from `system`.information_schema.key_column_usage cu
+        join `system`.information_schema.table_constraints tc
+        using (constraint_catalog, constraint_schema, constraint_name)
+        where cu.table_catalog = '{catalog}'
+        and cu.table_schema = '{schema}'
+        and cu.table_name = '{table_name}'
+        and tc.constraint_type = 'PRIMARY KEY'
+        order by cu.ordinal_position
+        """
+
+    df = get_spark().sql(query)
+
+    return [x[0] for x in df.collect()]

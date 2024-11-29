@@ -1,7 +1,7 @@
 {
     "fallow_control": {
         "proportion": 0.1,
-        "seed": 101,
+        "seed": 111,
         "true_label": "No Ads",
         "false_label": "Ads"
     },
@@ -22,7 +22,7 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 201,
+            "seed": 211,
             "page": "/",
             "screen": "Home",
             "reported_value": "SessionRevenue"
@@ -42,7 +42,7 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 202,
+            "seed": 212,
             "page": "/shoppingbag",
             "screen": "Cart",
             "reported_value": "ProductRevenuePostFirstHit"
@@ -62,7 +62,7 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 203,
+            "seed": 213,
             "page": "%checkout/complete%",
 		    "screen": "Checkout Completed",
             "reported_value": "ProductRevenuePostFirstHit"
@@ -82,7 +82,7 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 204,
+            "seed": 214,
             "page": "",
 		    "screen": "",
             "reported_value": "SessionRevenue"
@@ -98,7 +98,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 301
+            "seed": 311
         },
         "AdHocABTest2": {
             "cells": [
@@ -111,7 +111,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 302
+            "seed": 312
         },
         "AdHocABTest3": {
             "cells": [
@@ -124,7 +124,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 303
+            "seed": 313
         },
         "AdHocABTest4": {
             "cells": [
@@ -137,7 +137,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 304
+            "seed": 314
         },
         "AdHocABTest5": {
             "cells": [
@@ -150,7 +150,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 305
+            "seed": 315
         },
         "AdHocABTest6": {
             "cells": [
@@ -163,7 +163,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 306
+            "seed": 316
         },
         "AdHocABTest7": {
             "cells": [
@@ -176,7 +176,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 307
+            "seed": 317
         },
         "AdHocABTest8": {
             "cells": [
@@ -189,7 +189,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 308
+            "seed": 318
         },
         "AdHocABTest9": {
             "cells": [
@@ -202,7 +202,7 @@
                     "then": {"lit": "B"}
                 }
             ],
-            "seed": 309
+            "seed": 319
         },
         "ChampionChallenger": {
             "cells": [
@@ -215,7 +215,7 @@
                     "then": {"lit": "Challenger"}
                 }
             ],
-            "seed": 401
+            "seed": 411
         }
     },
     
@@ -239,7 +239,7 @@
             },
             "map": [
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -247,7 +247,7 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -266,7 +266,7 @@
             },
             "map": [
                 {
-                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -301,7 +301,7 @@
             },
             "map": [
                 {
-                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -333,7 +333,7 @@
         "LP1": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -342,7 +342,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -353,7 +353,7 @@
         "LP2": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -362,7 +362,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -373,7 +373,7 @@
         "LP3": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -382,7 +382,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -393,7 +393,7 @@
         "LP4": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -402,7 +402,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -413,7 +413,7 @@
         "LP5": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -422,7 +422,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -433,7 +433,7 @@
         "LP6": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -442,7 +442,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -453,7 +453,7 @@
         "LP7": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -462,7 +462,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -473,7 +473,7 @@
         "LP8": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -482,7 +482,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -493,7 +493,7 @@
         "LP9": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -502,7 +502,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -513,7 +513,7 @@
         "LP10": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -522,7 +522,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -533,7 +533,7 @@
         "LP11": {
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -542,7 +542,7 @@
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "1: Best"}],
@@ -555,7 +555,7 @@
             "best_kwargs": {"return_ranks": [1]},
             "map": [
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -563,11 +563,11 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "A"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -577,7 +577,7 @@
             "best_kwargs": {"return_ranks": [2]},
             "map": [
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -585,11 +585,11 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "A"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -599,7 +599,7 @@
             "best_kwargs": {"return_ranks": [3]},
             "map": [
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "4: Fallow Control"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
@@ -607,11 +607,11 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "1: Variant A"}],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "A"}],
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "2: Variant B"}],
+                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
