@@ -41,7 +41,7 @@ ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
 CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
 
-WEBHOOK_URL = rsc["webhooks"]["Assignment Warnings"]
+WEBHOOK_URL = rsc["webhooks"]["Algo Warnings"]
 
 try:
     CELL_MAP = LOCATIONS[LOCATION]
