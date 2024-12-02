@@ -55,15 +55,15 @@
         "read": {
             "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
             "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
-            "bq_uk_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
-            "bq_uk_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
-            "bq_uk_add_to_basket": "marketingdata_prod.warehouse.bq_atbs_next_uk",
-            "bq_uk_transactions": "marketingdata_prod.warehouse.bq_transactions_next_uk",
-            "bq_uk_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
-            "bq_uk_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
-            "bq_uk_add_to_basket_app": "marketingdata_prod.warehouse.bq_atbs_next_uk_app",
-            "bq_uk_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
-            "uk_preference_framework": "marketingdata_prod.warehouse.uk_pf",
+            "bq_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
+            "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
+            "bq_add_to_basket": "marketingdata_prod.warehouse.bq_atbs_next_uk",
+            "bq_transactions": "marketingdata_prod.warehouse.bq_transactions_next_uk",
+            "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
+            "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
+            "bq_add_to_basket_app": "marketingdata_prod.warehouse.bq_atbs_next_uk_app",
+            "bq_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
+            "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "Seasons": "marketingdata_prod.ds_sandbox.next_uk_nextads_premium_audience_20241126"
         },
@@ -89,7 +89,7 @@
     
     "webhooks": {
         "Input Warnings": "https://chat.googleapis.com/v1/spaces/AAAA_rFP3_s/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MhMWyk0iva0jwnyeH5pfkVd5m4SVy306sqj4hDqLAhU",
-        "Algo Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw"
+        "DS Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw"
     },
     
     "legacy": {
