@@ -2,7 +2,8 @@ import logging
 import logging.config
 import json
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import JobParser, map_schema
+from next_ads.utils.etl import (
+    JobParser, assert_pk, get_table_pk_cols, map_schema)
 from pyspark.sql import functions as F
 
 
@@ -99,3 +100,12 @@ df_noad_z = (
 )
 df_noad_z_n = df_noad_z.count()
 assert df_noad_z_n == 0, "Non _Z-ending MASIDs found for NoAd assignments"
+
+
+log.info('Checking validity of process table Primary Keys')
+for tbl in tbls:
+    tbl_mapped = map_schema(tbls[tbl], SCHEMA)
+    pk_cols = get_table_pk_cols(tbl_mapped)
+    log.info(f'Asserting {pk_cols} as PK for {tbl_mapped}')
+    df_tbl_pk = get_spark().table(tbl_mapped)
+    assert_pk(df_tbl_pk, pk_cols)
