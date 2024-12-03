@@ -5,6 +5,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_customer_cells_transien
     rundate date not null,
   constraint pk_next_uk_nextads_customer_cells_transient primary key (
     AccountNumber,
+    Cell,
     rundate
     )
 )
