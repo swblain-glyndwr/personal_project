@@ -41,7 +41,6 @@ create table marketingdata_prod.{schema}.next_uk_nextads_control_sheet_latest (
   rundate date not null,
   constraint pk_next_uk_nextads_control_sheet_latest primary key (
     UniqueAdID,
-    Location,
-    rundate)
+    Location)
 )
 partitioned by (Location)

@@ -5,8 +5,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_targeting_scores_latest
     rundate date not null,
   constraint pk_next_uk_nextads_targeting_scores_latest primary key (
     AccountNumber,
-    TargetingCriteria,
-    rundate
+    TargetingCriteria
     )
 )
 partitioned by (rundate)
