@@ -102,8 +102,11 @@ df_noad_z_n = df_noad_z.count()
 assert df_noad_z_n == 0, "Non _Z-ending MASIDs found for NoAd assignments"
 
 
-log.info('Checking validity of process table Primary Keys')
+log.info('Checking Primary Key validity of latest process tables')
+# Checking history tables too would progressively increase process runtime
 for tbl in tbls:
+    if not tbl.endswith('_latest'):
+        continue
     tbl_mapped = map_schema(tbls[tbl], SCHEMA)
     pk_cols = get_table_pk_cols(tbl_mapped)
     log.info(f'Asserting {pk_cols} as PK for {tbl_mapped}')
