@@ -449,18 +449,31 @@ def get_table_pk_cols(table: str) -> list:
     schema = table.split(".")[1]
     table_name = table.split(".")[2]
 
-    query = f"""
-        select column_name
-        from `system`.information_schema.key_column_usage cu
-        join `system`.information_schema.table_constraints tc
-        using (constraint_catalog, constraint_schema, constraint_name)
-        where cu.table_catalog = '{catalog}'
-        and cu.table_schema = '{schema}'
-        and cu.table_name = '{table_name}'
-        and tc.constraint_type = 'PRIMARY KEY'
-        order by cu.ordinal_position
-        """
+    join_cols = ['constraint_catalog', 'constraint_schema', 'constraint_name']
 
-    df = get_spark().sql(query)
+    df = (
+        get_spark()
+        .table('system.information_schema.key_column_usage')
+        .select(*join_cols,
+                'table_catalog',
+                'table_schema',
+                'table_name',
+                'column_name',
+                'ordinal_position')
+        .join(
+            (
+                get_spark()
+                .table('system.information_schema.table_constraints')
+                .select(*join_cols,
+                        'constraint_type')
+            ),
+            on=join_cols, how='inner')
+        .where(F.col('table_catalog') == catalog)
+        .where(F.col('table_schema') == schema)
+        .where(F.col('table_name') == table_name)
+        .where(F.col('constraint_type') == 'PRIMARY KEY')
+        .orderBy('ordinal_position')
+        .select('column_name')
+    )
 
     return [x[0] for x in df.collect()]
