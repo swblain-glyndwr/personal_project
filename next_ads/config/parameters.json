@@ -3,7 +3,8 @@
         "proportion": 0.1,
         "seed": 111,
         "true_label": "No Ads",
-        "false_label": "Ads"
+        "false_label": "Ads",
+        "cycle": 1
     },
 
     "fixed_cells": {
@@ -83,7 +84,7 @@
                 }
             ],
             "seed": 214,
-            "page": "",
+            "page": ["/women", "/men", "/boys", "/girls", "/homeware", "/beauty", "/branded", "/sports", "/newborn", "/gift-ideas", "/outdoor"],
 		    "screen": "",
             "reported_value": "SessionRevenue"
         },
@@ -234,43 +235,6 @@
     
     "locations": {
         "HN1": {
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            },
-            "map": [
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P128_C1626_Seasons_Solus_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P128_C1625_Seasons_Category_Womens_Bags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P128_C1676_Seasons_Category_Womens_Footwear_Womens"}
-                },
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "1: Best"}],
-                    "then": {"col": "UniqueAdIDBest"}
-                }
-            ]
         },
         "SB1": {
             "constraints": {
@@ -575,10 +539,6 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "A"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
                     "then": {"lit": "P128_C1626_Seasons_Solus_Womens_Womens"}
                 },
@@ -591,7 +551,11 @@
                     "then": {"lit": "P128_C1676_Seasons_Category_Womens_Footwear_Womens"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -609,11 +573,11 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "A"}],
-                    "then": {"lit": "NoAd"}
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -631,11 +595,11 @@
                     "then": {"lit": "NoAd"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "A"}],
-                    "then": {"lit": "NoAd"}
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
                 },
                 {
-                    "when": [{"col": "AdHocABTest2", "op": "eq", "val": "B"}],
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "1: Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
