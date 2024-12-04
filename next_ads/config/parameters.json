@@ -235,6 +235,27 @@
     
     "locations": {
         "HN1": {
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
+                    "then": {"lit": "NoAd"}
+                },
+                {
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "1: Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
         },
         "SB1": {
             "constraints": {
