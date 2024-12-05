@@ -14,7 +14,7 @@ with open("config/resources.json") as f:
     rsc = json.load(f)
 
 parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
+pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
 
@@ -35,7 +35,7 @@ for (k, v) in TABLE_DICT.items():
     copy_table_from_to(
         table_from=tbl_prod,
         table_to=tbl_dev,
-        history_days=1,
+        history_days=7,
         copy_partitioning=True,
         copy_primary_key=True,
         overwrite_table_to=True
