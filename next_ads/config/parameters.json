@@ -24,8 +24,6 @@
                 }
             ],
             "seed": 211,
-            "page": "/",
-            "screen": "Home",
             "reported_value": "SessionRevenue"
         },
         "ShoppingBagTest1": {
@@ -44,8 +42,6 @@
                 }
             ],
             "seed": 212,
-            "page": "/shoppingbag",
-            "screen": "Cart",
             "reported_value": "ProductRevenuePostFirstHit"
         },
         "OrderCompleteTest1": {
@@ -64,8 +60,6 @@
                 }
             ],
             "seed": 213,
-            "page": "%checkout/complete%",
-		    "screen": "Checkout Completed",
             "reported_value": "ProductRevenuePostFirstHit"
         },
         "LandingPageTest1": {
@@ -84,8 +78,6 @@
                 }
             ],
             "seed": 214,
-            "page": ["/women", "/men", "/boys", "/girls", "/homeware", "/beauty", "/branded", "/sports", "/newborn", "/gift-ideas", "/outdoor"],
-		    "screen": "",
             "reported_value": "SessionRevenue"
         },
         "AdHocABTest1": {
@@ -232,9 +224,12 @@
        "P128_C1625_Seasons_Category_Womens_Bags_Womens",
        "P128_C1676_Seasons_Category_Womens_Footwear_Womens"
     ],
-    
+
     "locations": {
         "HN1": {
+            "pf_col": "HN_slot_1",
+            "page": "/",
+            "screen": "Home",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -258,6 +253,9 @@
             ]
         },
         "SB1": {
+            "pf_col": "SB_slot_1",
+            "page": "/shoppingbag",
+            "screen": "Cart",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -293,6 +291,9 @@
             ]
         },
         "OC1": {
+            "pf_col": "OC_slot_1",
+            "page": "/secure/checkout/complete",
+		    "screen": "Checkout Completed",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -328,6 +329,8 @@
             ]
         },
         "LP1": {
+            "pf_col": "LP_slot_1",
+            "page": "/women",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -348,6 +351,8 @@
             ]
         },
         "LP2": {
+            "pf_col": "LP_slot_2",
+            "page": "/men",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -368,6 +373,8 @@
             ]
         },
         "LP3": {
+            "pf_col": "LP_slot_3",
+            "page": "/boys",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -388,6 +395,8 @@
             ]
         },
         "LP4": {
+            "pf_col": "LP_slot_4",
+            "page": "/girls",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -408,6 +417,8 @@
             ]
         },
         "LP5": {
+            "pf_col": "LP_slot_5",
+            "page": "/homeware",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -428,6 +439,8 @@
             ]
         },
         "LP6": {
+            "pf_col": "LP_slot_6",
+            "page": "/beauty",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -448,6 +461,8 @@
             ]
         },
         "LP7": {
+            "pf_col": "LP_slot_7",
+            "page": "/brands",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -468,6 +483,8 @@
             ]
         },
         "LP8": {
+            "pf_col": "LP_slot_8",
+            "page": "/sports",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -488,6 +505,8 @@
             ]
         },
         "LP9": {
+            "pf_col": "LP_slot_9",
+            "page": "/newborn",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -508,6 +527,8 @@
             ]
         },
         "LP10": {
+            "pf_col": "LP_slot_10",
+            "page": "/gift-ideas",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -528,6 +549,8 @@
             ]
         },
         "LP11": {
+            "pf_col": "LP_slot_11",
+            "page": "/outdoor",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -548,6 +571,9 @@
             ]
         },
         "PH3": {
+            "pf_col": "hp_slot_3",
+            "page": "/",
+            "screen": "Home",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1]},
             "map": [
@@ -582,6 +608,9 @@
             ]
         },
         "PH4": {
+            "pf_col": "hp_slot_4",
+            "page": "/",
+            "screen": "Home",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [2]},
             "map": [
@@ -604,6 +633,9 @@
             ]
         },
         "PH5": {
+            "pf_col": "hp_slot_5",
+            "page": "/",
+            "screen": "Home",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3]},
             "map": [

@@ -92,6 +92,12 @@
         "DS Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw"
     },
     
+    "big_query": {
+        "temporaryGcsBucket": "to_discovery/tableau",
+        "parentProject": "big-query-156009",
+        "table": "big-query-156009.Misc_eu.next_uk_nextads_nextads_results_topline_example"
+    },
+
     "legacy": {
         "account_exclusions": [
             "420356A449144ED854830CF2ABB970629FB0D3620798632BA5F1F0A659DC9070"

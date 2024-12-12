@@ -28,7 +28,7 @@ with open("config/parameters.json") as f:
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-LOCATION = pargs["location"] if pargs["location"] else "LP11"
+LOCATION = pargs["location"] if pargs["location"] else "LP1"
 log.info(f"Running in job environment: {job_env}")
 
 LOCATIONS = prm["locations"]
@@ -164,6 +164,27 @@ else:
                         chain_when_thens(CELL_MAP["map"]))
         )
 
+    df_ad_treatments = (
+        df_assignments
+        .drop('UniqueAdIDBasic'
+              'UniqueAdIDBest'
+              'UniqueAdIDBestChallenger')
+        .withColumns(
+            {
+                'UniqueAdIDBasic': F.lit('2: Basic'),
+                'UniqueAdIDBest': F.lit('1: Best'),
+                'UniqueAdIDBestChallenger': F.lit('1: Best (Challenger)')
+            }
+        )
+        .withColumn('Treatment', chain_when_thens(CELL_MAP['map']))
+        .select('AccountNumber', 'Treatment')
+    )
+
+    df_ad_assigned = (
+        df_ad_assigned.join(df_ad_treatments,
+                            on='AccountNumber', how='left')
+    )
+
     df_ad_masid = (
         df_ads
         .select("UniqueAdID", "MASIDToken")
@@ -221,6 +242,7 @@ else:
             "UniqueAdIDBasic",
             "UniqueAdIDBest",
             "UniqueAdIDBestChallenger",
+            "Treatment",
             "UniqueAdIDAssigned",
             "MASID")
     )
