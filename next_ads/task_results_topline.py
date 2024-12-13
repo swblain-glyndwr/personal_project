@@ -60,6 +60,7 @@ for k in LOCATIONS:
 pf2loc = {v: k for k, v in loc2pf.items()}
 pf_cols = list(pf2loc.keys())
 
+oc_pagepaths = [loc2page['OC1'], loc2screen['OC1']]
 
 # Assignments run the evening before, therefore SessionDate == rundate + 1 day
 df_assignments = (
@@ -246,19 +247,68 @@ df_sessions = (
 )
 
 
-df_sessions_ads = (
+df_sessions_pages = (
     df_sessions
     .join(df_pages,
           on=['SessionDate', 'UniqueVisitID'],
           how='inner')
 )
-df_sessions_ads.cache()
+df_sessions_pages.cache()
 
+w_session = Window().partitionBy(
+    ['SessionDate', 'UniqueVisitID'])
+
+# Remove the last Order Complete page, and any hits after it from each session
+# Rationale: If would be unfair to attribute any Session value to an ad
+# on Order Complete when ad is seen after session spend is committed
+df_sessions_pages_trimmed = (
+    df_sessions_pages
+    .withColumn('LastOrderComplete',
+                F.max(
+                    F.when(
+                        F.col('PagePath').isin(oc_pagepaths),
+                        F.col('FirstTimestamp'))).over(w_session))
+    .withColumn('AfterLastOC',
+                F.when(F.col('FirstTimestamp') >= F.col('LastOrderComplete'),
+                       1).otherwise(0))
+    .where(F.col('AfterLastOC') == 0)
+    .select(df_sessions_pages.columns)
+)
+
+df_sessions_pre_trim = (
+    df_sessions_pages
+    .groupBy('SessionDate')
+    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'))
+)
+df_sessions_post_trim = (
+    df_sessions_pages_trimmed
+    .groupBy('SessionDate')
+    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'))
+)
+
+sdates = [x[0] for x in df_sessions_pre_trim.select('SessionDate').collect()]
+sdates.sort()
+
+for d in sdates:
+    nspret = (
+        df_sessions_pre_trim
+        .where(F.col('SessionDate') == d)
+        .select('Sessions')
+        .collect()[0][0]
+    )
+    nspostt = (
+        df_sessions_post_trim
+        .where(F.col('SessionDate') == d)
+        .select('Sessions')
+        .collect()[0][0]
+    )
+    nsdiff = nspret - nspostt
+    log.info(f'{nsdiff:,} sessions dropped due to OrderComplete trimming')
 
 df_fixed_cells = get_spark().table(FIXED_CELLS_LATEST_TABLE)
 
 df_sessions_ads_valid = (
-    df_sessions_ads
+    df_sessions_pages
     .join(
         df_fixed_cells.select('AccountNumber', 'FallowControl'),
         on='AccountNumber', how='inner')
@@ -273,7 +323,6 @@ df_sessions_ads_valid = (
 )
 df_sessions_ads_valid.cache()
 
-# TODO: EXPORT
 df_results_topline = (
     df_sessions_ads_valid
     .groupBy('SessionDate', 'Device', 'FallowControl', 'UniqueVisitID')
@@ -378,8 +427,6 @@ totals_topline = (
 
 # Check for consistency in totals after appending ad and treatment data
 # < 0.01 threshold used to allow for limitations of floating point arithmetic
-sdates = [x[0] for x in totals_topline.select('SessionDate').collect()]
-sdates.sort()
 for d in sdates:
     d_fmt = d.strftime('%Y-%m-%d')
     log.info(f'Checking consistency of totals for SessionDate: {d_fmt}')
@@ -425,8 +472,6 @@ df_sessions_master = (
 # TODO: Remove Order Complete from Data before apportioning revenue
 # Calculate Order Complete performance separately
 
-w_session = Window().partitionBy(
-    ['SessionDate', 'UniqueVisitID'])
 w_session_page = Window().partitionBy(
     ['SessionDate', 'UniqueVisitID', 'PagePath'])
 
@@ -517,7 +562,7 @@ for fc in ['Ads', 'No Ads']:
 ad_level_pk = [
     'SessionDate', 'UniqueAdID', 'Device', 'PageSet', 'FallowControl'
     ]
-df_ad_level_agg = (
+df_results_ad_level = (
     df_apportioned_location_set
     .withColumn('PageSet', F.array_sort(F.col('PageSet')))
     .withColumn('PageSet', F.concat_ws(' + ', F.col('PageSet')))
@@ -536,7 +581,7 @@ df_ad_level_agg = (
 )
 
 totals_ad_level = (
-    df_ad_level_agg
+    df_results_ad_level
     .groupBy('SessionDate')
     .agg(
         F.sum('SessionRevenue').alias('SessionRevenue'),
@@ -565,12 +610,15 @@ for d in sdates:
                 f'{tr2_eval:,.2f} ({tr2_eval_pc:.2%}) less than topline total')
     assert tr2_eval > 0
 
-# TODO: Export Ad-Level
+# TODO: EXPORT df_results_topline
+
+# TODO: EXPORT df_results_ad_level
 # Dashboard should be select only one Ad, and Sessions will be summable,
 # RPS-able, and t-test-able
+# Select multiple ads and Sessions will not be summable
 
 # TODO:
 # Create latest Ad Metadata view for reporting
-# Aggregate by AlgoDivision, by day & by week and do marginal contributions
 # Aggregate by Page, by day & by week and do marginal contributions
-
+#   Compare to Page-wise control method
+# Aggregate by AlgoDivision, by day & by week and do marginal contributions
