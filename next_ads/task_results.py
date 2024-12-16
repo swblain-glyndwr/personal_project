@@ -4,7 +4,7 @@ import json
 from next_ads.Results import validate_assignments_match_pf
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
-                                assert_pk,
+                                assert_pk, delete_from_and_load,
                                 map_schema,
                                 post_to_webhook)
 from pyspark.sql import functions as F
@@ -37,15 +37,25 @@ tbls = rsc["tables"]["write"]
 FIXED_CELLS_LATEST_TABLE = map_schema(tbls["customer_cells_fixed_latest"],
                                       SCHEMA)
 ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
+TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"],
+                                   SCHEMA)
 CONTROL_SHEET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
+RESULTS_TOPLINE_TABLE = map_schema(tbls["results_topline"], SCHEMA)
+
 
 LOCATIONS = prm['locations']
 FIXED_CELLS = prm['fixed_cells']
 
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
-SESSION_DATE_START = date.today() - timedelta(days=13)
-SESSION_DATE_END = date.today() - timedelta(days=13)
+SESSION_DATE_START = date.today() - timedelta(days=8)
+SESSION_DATE_END = date.today() - timedelta(days=8)
+
+ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
+sdates = [SESSION_DATE_END - timedelta(days=x) for x in range(ndays)]
+sdates.sort()
+
+log.info(f'Processing results from {SESSION_DATE_START} to {SESSION_DATE_END}')
 
 loc2page = dict()
 loc2screen = dict()
@@ -104,6 +114,7 @@ df_pf_long = (
 
 assert_pk(df_pf_long, pk_cols=['AccountNumber', 'SessionDate', 'Location'])
 
+
 # Validating assignments vs PF addresses any discrepancies or overrides
 # that might have occurred during MASID creation
 df_asgn_pf = df_assignments.join(
@@ -148,6 +159,16 @@ df_valid_assignments = (
     .drop('MASIDPF')
 )
 
+sdates_valid = [
+    x[0].date() for x in
+    df_valid_assignments.select('SessionDate').distinct().collect()
+    ]
+sdates_valid.sort()
+
+sdates_missing = list(set(sdates).difference(set(sdates_valid)))
+if sdates_missing:
+    log.warning('No valid assignments found for dates: ' +
+                f'{[x.strftime("%Y-%m-%d") for x in sdates_missing]}')
 
 # Get pages visited, limiting to pages showing Ads on given SessionDate
 df_days_locations = (
@@ -286,10 +307,7 @@ df_sessions_post_trim = (
     .agg(F.countDistinct('UniqueVisitID').alias('Sessions'))
 )
 
-sdates = [x[0] for x in df_sessions_pre_trim.select('SessionDate').collect()]
-sdates.sort()
-
-for d in sdates:
+for d in sdates_valid:
     nspret = (
         df_sessions_pre_trim
         .where(F.col('SessionDate') == d)
@@ -303,14 +321,20 @@ for d in sdates:
         .collect()[0][0]
     )
     nsdiff = nspret - nspostt
-    log.info(f'{nsdiff:,} sessions dropped due to OrderComplete trimming')
+    dfmt = d.strftime('%Y-%m-%d')
+    log.info(f'{nsdiff:,} sessions dropped from ' +
+             f'{dfmt} due to OrderComplete trimming')
 
 df_fixed_cells = get_spark().table(FIXED_CELLS_LATEST_TABLE)
 
 df_sessions_ads_valid = (
     df_sessions_pages
     .join(
-        df_fixed_cells.select('AccountNumber', 'FallowControl'),
+        df_fixed_cells.select('AccountNumber', 'FallowControl',
+                              'HomePageTest1',
+                              'ShoppingBagTest1',
+                              'OrderCompleteTest1',
+                              'LandingPageTest1'),
         on='AccountNumber', how='inner')
     .join(
         (
@@ -331,6 +355,17 @@ df_results_topline = (
     .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
          F.sum('Revenue').alias('Revenue'))
 )
+
+for d in sdates_valid:
+    d_fmt = d.strftime('%Y-%m-%d')
+    log.info(f'Loading topline results for {d_fmt} ' +
+             f'to table: {RESULTS_TOPLINE_TABLE}')
+    delete_from_and_load(
+        df_results_topline,
+        RESULTS_TOPLINE_TABLE,
+        pk_cols=['SessionDate', 'Device', 'FallowControl'],
+        del_where={'SessionDate': d_fmt}
+    )
 
 
 df_valid_assignments_mapped = (
@@ -427,7 +462,7 @@ totals_topline = (
 
 # Check for consistency in totals after appending ad and treatment data
 # < 0.01 threshold used to allow for limitations of floating point arithmetic
-for d in sdates:
+for d in sdates_valid:
     d_fmt = d.strftime('%Y-%m-%d')
     log.info(f'Checking consistency of totals for SessionDate: {d_fmt}')
     for c in ['TotalSessions', 'TotalRevenue']:
@@ -497,7 +532,7 @@ totals_apportioned = (
          F.sum('AdRevenue').alias('TotalRevenue'))
 )
 
-for d in sdates:
+for d in sdates_valid:
     d_fmt = d.strftime('%Y-%m-%d')
     log.info(f'Checking consistency post-apportioning: {d_fmt}')
     tsa = (
@@ -551,12 +586,22 @@ df_apportioned_location_set = (
     .where(F.col('UniqueAdID').isNotNull())
 )
 
-for fc in ['Ads', 'No Ads']:
-    df_pre = df_apportioned.where(F.col('FallowControl') == fc)
-    df_post = df_apportioned_location_set.where(F.col('FallowControl') == fc)
-    n_diff = df_pre.count() - df_post.count()
-    if n_diff != 0:
-        log.warning(f'{n_diff:,} cases dropped from {fc} group due to null Ad')
+for d in sdates_valid:
+    for fc in ['Ads', 'No Ads']:
+        df_pre = (
+            df_apportioned
+            .where(F.col('SessionDate') == d)
+            .where(F.col('FallowControl') == fc)
+        )
+        df_post = (
+            df_apportioned_location_set
+            .where(F.col('SessionDate') == d)
+            .where(F.col('FallowControl') == fc)
+        )
+        n_diff = df_pre.count() - df_post.count()
+        if n_diff != 0:
+            log.warning(f'{n_diff:,} cases dropped from {fc} group ' +
+                        f'on {d} due to null Ad')
 
 
 ad_level_pk = [
@@ -590,7 +635,7 @@ totals_ad_level = (
     )
 )
 
-for d in sdates:
+for d in sdates_valid:
     d_fmt = d.strftime('%Y-%m-%d')
     log.info(f'Checking consistency of ad-level totals for: {d_fmt}')
 
@@ -622,3 +667,98 @@ for d in sdates:
 # Aggregate by Page, by day & by week and do marginal contributions
 #   Compare to Page-wise control method
 # Aggregate by AlgoDivision, by day & by week and do marginal contributions
+
+
+(
+    df_apportioned_location_set
+    .groupBy('SessionDate', 'FallowControl')
+    .agg(
+        F.countDistinct('UniqueVisitID').alias('Sessions'),
+        F.sum('AdRevenue').alias('Revenue')
+        )
+    # .groupBy('SessionDate')
+    # .pivot('FallowControl')
+    # .agg(
+    #     F.first('Sessions').alias('Sessions'),
+    #     F.sum('Revenue').alias('Revenue')
+    #     )
+    .orderBy('SessionDate', 'FallowControl')
+)
+
+
+df_results_topline = (
+    df_sessions_ads_valid
+    .groupBy('SessionDate', 'Device', 'FallowControl', 'UniqueVisitID')
+    .agg(F.first('Revenue').alias('Revenue'))
+    .groupBy('SessionDate', 'Device', 'FallowControl')
+    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
+         F.sum('Revenue').alias('Revenue'))
+)
+
+df_results_topline = (
+    df_sessions_ads_valid
+    .groupBy('SessionDate', 'FallowControl', 'UniqueVisitID')
+    .agg(F.first('Revenue').alias('Revenue'))
+    .groupBy('SessionDate', 'FallowControl')
+    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
+         F.sum('Revenue').alias('Revenue'))
+    .orderBy('SessionDate', 'FallowControl')
+)
+
+
+(
+    df_sessions_ads_valid
+    .groupBy('SessionDate', 'FallowControl', 'UniqueVisitID')
+    .agg(F.first('Revenue').alias('Revenue'))
+    .groupBy('FallowControl')
+    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
+         F.sum('Revenue').alias('Revenue'))
+    .orderBy('FallowControl')
+)
+
+
+lcs = [
+    'HomePageTest1',
+    'ShoppingBagTest1',
+    'OrderCompleteTest1',
+    'LandingPageTest1'
+]
+df_lcs = []
+for lc in lcs:
+    print(f'Running: {lc}')
+    df_lc = (
+        df_sessions_ads_valid
+        .where(F.col('FallowControl') == 'Ads')
+        .withColumn('LocalControl',
+                    F.when(F.col(lc) == '3: Local Control',
+                           f'{lc}_NoAds').otherwise(f'{lc}_Ads'))
+        .groupBy('SessionDate', 'LocalControl', 'UniqueVisitID')
+        .agg(F.first('Revenue').alias('Revenue'))
+        .groupBy('LocalControl')
+        .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
+             F.sum('Revenue').alias('Revenue'))
+        .orderBy('LocalControl')
+    )
+    df_lcs.append(df_lc)
+
+
+df_transient = (
+    get_spark()
+    .table(TRANSIENT_CELLS_TABLE)
+    .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
+    .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
+    .withColumn('SessionDate', F.col('rundate') + timedelta(days=1))
+    .where(F.col('Cell') == 'AlgoDivision')
+    .select('SessionDate', 'AccountNumber', 'Cell', 'CellValue')
+)
+
+(
+    df_sessions_ads_valid
+    .join(df_transient, on=['SessionDate', 'AccountNumber'], how='left')
+    .groupBy('SessionDate', 'FallowControl', 'CellValue', 'UniqueVisitID')
+    .agg(F.first('Revenue').alias('Revenue'))
+    .groupBy('FallowControl', 'CellValue')
+    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
+         F.sum('Revenue').alias('Revenue'))
+    .orderBy('FallowControl', 'CellValue')
+)
