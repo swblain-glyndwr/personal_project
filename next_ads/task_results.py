@@ -24,6 +24,7 @@ with open("config/parameters.json") as f:
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
+
 RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
 PREFERENCE_FRAMEWORK = rsc["tables"]["read"]["preference_framework"]
 BQ_SESSIONS = rsc["tables"]["read"]['bq_sessions']
@@ -361,7 +362,7 @@ for d in sdates_valid:
     log.info(f'Loading topline results for {d_fmt} ' +
              f'to table: {RESULTS_TOPLINE_TABLE}')
     delete_from_and_load(
-        df_results_topline,
+        df_results_topline.where(F.col('SessionDate') == d),
         RESULTS_TOPLINE_TABLE,
         pk_cols=['SessionDate', 'Device', 'FallowControl'],
         del_where={'SessionDate': d_fmt}

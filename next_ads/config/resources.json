@@ -96,7 +96,9 @@
     "big_query": {
         "temporaryGcsBucket": "to_discovery/tableau",
         "parentProject": "big-query-156009",
-        "table": "big-query-156009.Misc_eu.next_uk_nextads_nextads_results_topline_example"
+        "tables": {
+            "results_topline": "big-query-156009.Misc_eu.next_uk_nextads_nextads_results_topline"
+        }
     },
 
     "legacy": {
