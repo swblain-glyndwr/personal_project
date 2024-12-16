@@ -2,7 +2,7 @@ import logging
 import logging.config
 import json
 from next_ads.Results import validate_assignments_match_pf
-from next_ads.utils.dbc import get_spark
+from next_ads.utils.dbc import get_display, get_spark
 from next_ads.utils.etl import (JobParser,
                                 assert_pk, delete_from_and_load,
                                 map_schema,
@@ -32,7 +32,6 @@ BQ_SESSIONS_APP = rsc["tables"]["read"]['bq_sessions_app']
 BQ_PAGES = rsc["tables"]["read"]['bq_pages']
 BQ_SCREENS = rsc["tables"]["read"]['bq_screens']
 
-# SCHEMA = rsc["schema"][job_env]
 SCHEMA = 'warehouse'
 tbls = rsc["tables"]["write"]
 FIXED_CELLS_LATEST_TABLE = map_schema(tbls["customer_cells_fixed_latest"],
@@ -49,8 +48,12 @@ FIXED_CELLS = prm['fixed_cells']
 
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
-SESSION_DATE_START = date.today() - timedelta(days=8)
-SESSION_DATE_END = date.today() - timedelta(days=8)
+if job_env == 'dev':
+    SESSION_DATE_START = date(2024, 11, 30)
+    SESSION_DATE_END = date(2024, 12, 2)
+else:
+    SESSION_DATE_START = date.today() - timedelta(days=2)
+    SESSION_DATE_END = date.today() - timedelta(days=1)
 
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
 sdates = [SESSION_DATE_END - timedelta(days=x) for x in range(ndays)]
@@ -71,6 +74,7 @@ for k in LOCATIONS:
 pf2loc = {v: k for k, v in loc2pf.items()}
 pf_cols = list(pf2loc.keys())
 
+# TODO: Generalise
 oc_pagepaths = [loc2page['OC1'], loc2screen['OC1']]
 
 # Assignments run the evening before, therefore SessionDate == rundate + 1 day
@@ -329,7 +333,7 @@ for d in sdates_valid:
 df_fixed_cells = get_spark().table(FIXED_CELLS_LATEST_TABLE)
 
 df_sessions_ads_valid = (
-    df_sessions_pages
+    df_sessions_pages_trimmed
     .join(
         df_fixed_cells.select('AccountNumber', 'FallowControl',
                               'HomePageTest1',
@@ -357,16 +361,17 @@ df_results_topline = (
          F.sum('Revenue').alias('Revenue'))
 )
 
-for d in sdates_valid:
-    d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
-    log.info(f'Loading topline results for {d_fmt} ' +
-             f'to table: {RESULTS_TOPLINE_TABLE}')
-    delete_from_and_load(
-        df_results_topline.where(F.col('SessionDate') == d),
-        RESULTS_TOPLINE_TABLE,
-        pk_cols=['SessionDate', 'Device', 'FallowControl'],
-        del_where={'SessionDate': d_fmt}
-    )
+if job_env == 'prod':
+    for d in sdates_valid:
+        d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
+        log.info(f'Loading topline results for {d_fmt} ' +
+                 f'to table: {RESULTS_TOPLINE_TABLE}')
+        delete_from_and_load(
+            df_results_topline.where(F.col('SessionDate') == d),
+            RESULTS_TOPLINE_TABLE,
+            pk_cols=['SessionDate', 'Device', 'FallowControl'],
+            del_where={'SessionDate': d_fmt}
+        )
 
 
 df_valid_assignments_mapped = (
@@ -466,15 +471,22 @@ totals_topline = (
 for d in sdates_valid:
     d_fmt = d.strftime('%Y-%m-%d')
     log.info(f'Checking consistency of totals for SessionDate: {d_fmt}')
-    for c in ['TotalSessions', 'TotalRevenue']:
-        tm = (
-            totals_master.where(F.col('SessionDate') == d).select(c)
-            ).collect()[0][0]
-        tt = (
-            totals_topline.where(F.col('SessionDate') == d).select(c)
-            ).collect()[0][0]
-        msg = f'> 0.01 discrepancy found when comparing {c}'
-        assert abs(tm - tt) < 0.01, msg
+    for fc in ['Ads', 'No Ads']:
+        for c in ['TotalSessions', 'TotalRevenue']:
+            tm = (
+                totals_master
+                .where(F.col('SessionDate') == d)
+                .where(F.col('FallowControl') == fc)
+                .select(c)
+                ).collect()[0][0]
+            tt = (
+                totals_topline
+                .where(F.col('SessionDate') == d)
+                .where(F.col('FallowControl') == fc)
+                .select(c)
+                ).collect()[0][0]
+            msg = f'> 0.01 discrepancy found when comparing {c} for {fc}'
+            assert abs(tm - tt) < 0.01, msg
 
 
 df_sessions_master = (
@@ -505,156 +517,262 @@ df_sessions_master = (
     )
 )
 
-# TODO: Remove Order Complete from Data before apportioning revenue
-# Calculate Order Complete performance separately
+w_session_ad = Window().partitionBy('SessionDate',
+                                    'FallowControl',
+                                    'UniqueVisitID',
+                                    'UniqueAdIDMeasurement')
 
-w_session_page = Window().partitionBy(
-    ['SessionDate', 'UniqueVisitID', 'PagePath'])
-
-df_apportioned = (
+df_ad_pageset_level = (
     df_sessions_master
     .withColumn(
-        'SessionPages',
-        F.size(F.collect_set('PagePath').over(w_session)))
-    .withColumn(
-        'PageLocations',
-        F.size(F.collect_set('Location').over(w_session_page)))
-    .withColumn('PageRevenue', F.col('Revenue') / F.col("SessionPages"))
-    .withColumn('AdRevenue',
-                F.col('PageRevenue') / F.col("PageLocations"))
-    .withColumnRenamed('Revenue', 'SessionRevenue')
-)
-
-# vs Topline again
-totals_apportioned = (
-    df_apportioned
-    .groupBy('SessionDate')
-    .agg(F.countDistinct('UniqueVisitID').alias('TotalSessions'),
-         F.sum('AdRevenue').alias('TotalRevenue'))
-)
-
-for d in sdates_valid:
-    d_fmt = d.strftime('%Y-%m-%d')
-    log.info(f'Checking consistency post-apportioning: {d_fmt}')
-    tsa = (
-        totals_apportioned
-        .where(F.col('SessionDate') == d)
-        .select('TotalSessions')
-        ).collect()[0][0]
-    tst = (
-        totals_topline
-        .where(F.col('SessionDate') == d)
-        .select('TotalSessions')
-        ).collect()[0][0]
-    # Dropping ~10% of sessions from apportioning may be acceptable if
-    # page-level controls are being implemented, hence assert <15% dropped
-    session_drop_thresh = 0.15
-    ts_eval = tst - tsa
-    msg = (f'More than {session_drop_thresh:.2%} of sessions dropped ' +
-           'while apportioning revenue')
-    assert ts_eval < tst * session_drop_thresh, msg
-
-    tra = (
-        totals_apportioned
-        .where(F.col('SessionDate') == d)
-        .select('TotalRevenue')
-        ).collect()[0][0]
-    trt = (
-        totals_topline
-        .where(F.col('SessionDate') == d)
-        .select('TotalRevenue')
-        ).collect()[0][0]
-    tr_eval = trt - tra
-    tr_eval_pc = tr_eval / trt
-    log.warning(f'{tr_eval:,.2f} ({tr_eval_pc:.2%}) revenue dropped ' +
-                'during apportioning')
-
-
-# Ad-PageSet level
-w_session_ad = Window().partitionBy('SessionDate',
-                                    'UniqueVisitID',
-                                    'UniqueAdID')
-
-df_apportioned_location_set = (
-    df_apportioned
-    .withColumn(
-        'UniqueAdID',
-        F.when(
-            F.col('FallowControl') == 'No Ads',
-            F.coalesce('UniqueAdIDBasic', 'UniqueAdIDBest')
-            ).otherwise(F.col('UniqueAdIDAssigned')))
+        'UniqueAdIDMeasurement',
+        F.when(F.col('FallowControl') == 'Ads', F.col('UniqueAdIDAssigned'))
+        .when(F.col('FallowControl') == 'No Ads', F.col('UniqueAdIDBasic'))
+    )
     .withColumn('PageSet', F.collect_set('PagePath').over(w_session_ad))
-    .where(F.col('UniqueAdID').isNotNull())
-)
-
-for d in sdates_valid:
-    for fc in ['Ads', 'No Ads']:
-        df_pre = (
-            df_apportioned
-            .where(F.col('SessionDate') == d)
-            .where(F.col('FallowControl') == fc)
+    .groupBy(
+        'SessionDate',
+        'FallowControl',
+        'UniqueVisitID',
+        'UniqueAdIDMeasurement',
+        'PageSet'
         )
-        df_post = (
-            df_apportioned_location_set
-            .where(F.col('SessionDate') == d)
-            .where(F.col('FallowControl') == fc)
-        )
-        n_diff = df_pre.count() - df_post.count()
-        if n_diff != 0:
-            log.warning(f'{n_diff:,} cases dropped from {fc} group ' +
-                        f'on {d} due to null Ad')
-
-
-ad_level_pk = [
-    'SessionDate', 'UniqueAdID', 'Device', 'PageSet', 'FallowControl'
-    ]
-df_results_ad_level = (
-    df_apportioned_location_set
-    .withColumn('PageSet', F.array_sort(F.col('PageSet')))
-    .withColumn('PageSet', F.concat_ws(' + ', F.col('PageSet')))
-    .groupBy(*ad_level_pk)
     .agg(
-        F.countDistinct('UniqueVisitID').alias('Sessions'),
+        F.max('Converted').alias('SessionConverted'),
         F.sum('SoftImpressions').alias('SoftImpressions'),
         F.sum('SoftClicks').alias('SoftClicks'),
-        F.countDistinct(
-            F.when(F.col('Converted') == 1, F.col('UniqueVisitID'))
-                ).alias('Conversions'),
-        F.sum('SessionRevenue').alias('SessionRevenue'),
-        F.sum('PageRevenue').alias('PageRevenue'),
-        F.sum('AdRevenue').alias('AdRevenue'),
+        F.sum('Revenue').alias('SessionRevenue')
+        )
+    .groupBy(
+        'SessionDate',
+        'FallowControl',
+        'UniqueAdIDMeasurement',
+        'PageSet'
+    )
+    .agg(
+        F.countDistinct('UniqueVisitID').alias('Sessions'),
+        F.sum('SessionConverted').alias('Conversions'),
+        F.sum('SoftImpressions').alias('SoftImpressions'),
+        F.sum('SoftClicks').alias('SoftClicks'),
+        F.sum('SessionRevenue').alias('TotalSessionRevenue')
+    )
+)
+df_ad_pageset_level.cache()
+
+df_ad_pageset_level_agg = (
+    df_ad_pageset_level
+    .groupBy('SessionDate', 'FallowControl', 'UniqueAdIDMeasurement')
+    .agg(
+        F.sum('Sessions').alias('Sessions'),
+        F.sum('TotalSessionRevenue').alias('Revenue')
+        )
+    .withColumn('RPS', F.col('Revenue')/F.col('Sessions'))
+    .groupBy('SessionDate', 'UniqueAdIDMeasurement')
+    .pivot('FallowControl')
+    .agg(
+        F.first('Sessions').alias('Sessions'),
+        F.first('RPS').alias('RPS')
+        )
+    .withColumn('Inc_RPS', F.col('Ads_RPS') - F.col('No Ads_RPS'))
+    .withColumn('Inc_RPS_Percent', F.col('Ads_RPS'))
+    .withColumn('Estimated_Inc_RPS', F.col('Inc_RPS') * F.col('Ads_Sessions'))
+)
+
+# BOOKMARK - Can we get good ad-level results with UniqueAdIDMeasurement
+# concept...or do we need to scrap the page controls and get full
+# UniqueAdIDAssigned coverage?
+# TODO: Resolve fesibility of Shapley approach - this will determine
+# whether page controls can be scrapped
+
+# Average Ad performance?
+(
+    df_ad_pageset_level_agg
+    .groupBy('SessionDate')
+    .agg(
+        F.mean('Estimated_Inc_RPS'),
+        F.median('Estimated_Inc_RPS'),
+        F.sum('Estimated_Inc_RPS')
         )
 )
 
-totals_ad_level = (
-    df_results_ad_level
-    .groupBy('SessionDate')
-    .agg(
-        F.sum('SessionRevenue').alias('SessionRevenue'),
-        F.sum('PageRevenue').alias('PageRevenue'),
-        F.sum('AdRevenue').alias('AdRevenue')
-    )
-)
-
+# Top ads by day?
 for d in sdates_valid:
-    d_fmt = d.strftime('%Y-%m-%d')
-    log.info(f'Checking consistency of ad-level totals for: {d_fmt}')
+    get_display(
+        df_ad_pageset_level_agg
+        .where(F.col('SessionDate') == d)
+        .orderBy(F.desc('Estimated_Inc_RPS'))
+        .limit(10)
+        )
 
-    tr2a = (
-        totals_ad_level
-        .where(F.col('SessionDate') == d)
-        .select('AdRevenue')
-        ).collect()[0][0]
-    tr2t = (
-        totals_topline
-        .where(F.col('SessionDate') == d)
-        .select('TotalRevenue')
-        ).collect()[0][0]
-    tr2_eval = tr2t - tr2a
-    tr2_eval_pc = tr2_eval / tr2t
-    log.warning('Total of apportioned ad-level revenue is ' +
-                f'{tr2_eval:,.2f} ({tr2_eval_pc:.2%}) less than topline total')
-    assert tr2_eval > 0
+# vvv APPORTIONING - Scrap?
+
+# df_apportioned_location_set = (
+#     df_apportioned
+#     .withColumn(
+#         'UniqueAdID',
+#         F.when(
+#             F.col('FallowControl') == 'No Ads',
+#             F.coalesce('UniqueAdIDBasic', 'UniqueAdIDBest')
+#             ).otherwise(F.col('UniqueAdIDAssigned')))
+#     .withColumn('PageSet', F.collect_set('PagePath').over(w_session_ad))
+#     .where(F.col('UniqueAdID').isNotNull())
+# )
+
+
+# w_session_page = Window().partitionBy(
+#     ['SessionDate', 'UniqueVisitID', 'PagePath'])
+
+# df_apportioned = (
+#     df_sessions_master
+#     .withColumn(
+#         'SessionPages',
+#         F.size(F.collect_set('PagePath').over(w_session)))
+#     .withColumn(
+#         'PageLocations',
+#         F.size(F.collect_set('Location').over(w_session_page)))
+#     .withColumn('PageRevenue', F.col('Revenue') / F.col("SessionPages"))
+#     .withColumn('AdRevenue',
+#                 F.col('PageRevenue') / F.col("PageLocations"))
+#     .withColumnRenamed('Revenue', 'SessionRevenue')
+# )
+
+# # vs Topline again
+# totals_apportioned = (
+#     df_apportioned
+#     .groupBy('SessionDate')
+#     .agg(F.countDistinct('UniqueVisitID').alias('TotalSessions'),
+#          F.sum('AdRevenue').alias('TotalRevenue'))
+# )
+
+# for d in sdates_valid:
+#     for fc in ['Ads', 'No Ads']:
+#         d_fmt = d.strftime('%Y-%m-%d')
+#         log.info(f'Checking consistency post-apportioning: {d_fmt}')
+#         tsa = (
+#             totals_apportioned
+#             .where(F.col('SessionDate') == d)
+#             .where(F.col('FallowControl') == fc)
+#             .select('TotalSessions')
+#             ).collect()[0][0]
+#         tst = (
+#             totals_topline
+#             .where(F.col('SessionDate') == d)
+#             .where(F.col('FallowControl') == fc)
+#             .select('TotalSessions')
+#             ).collect()[0][0]
+#         # Dropping ~10% of sessions from apportioning may be acceptable if
+#         # page-level controls are being implemented, hence assert
+#         # <15% dropped
+#         session_drop_thresh = 0.15
+#         ts_eval = tst - tsa
+#         msg = (f'More than {session_drop_thresh:.2%} of sessions dropped ' +
+#                f'from {fc} group while apportioning revenue')
+#         assert ts_eval < tst * session_drop_thresh, msg
+
+#         tra = (
+#             totals_apportioned
+#             .where(F.col('SessionDate') == d)
+#             .select('TotalRevenue')
+#             ).collect()[0][0]
+#         trt = (
+#             totals_topline
+#             .where(F.col('SessionDate') == d)
+#             .select('TotalRevenue')
+#             ).collect()[0][0]
+#         tr_eval = trt - tra
+#         tr_eval_pc = tr_eval / trt
+#         log.warning(f'{tr_eval:,.2f} ({tr_eval_pc:.2%}) revenue dropped ' +
+#                     f'from {fc} group while apportioning')
+
+
+# # Ad-PageSet level
+# w_session_ad = Window().partitionBy('SessionDate',
+#                                     'UniqueVisitID',
+#                                     'UniqueAdID')
+
+# df_apportioned_location_set = (
+#     df_apportioned
+#     .withColumn(
+#         'UniqueAdID',
+#         F.when(
+#             F.col('FallowControl') == 'No Ads',
+#             F.coalesce('UniqueAdIDBasic', 'UniqueAdIDBest')
+#             ).otherwise(F.col('UniqueAdIDAssigned')))
+#     .withColumn('PageSet', F.collect_set('PagePath').over(w_session_ad))
+#     .where(F.col('UniqueAdID').isNotNull())
+# )
+
+# for d in sdates_valid:
+#     for fc in ['Ads', 'No Ads']:
+#         df_pre = (
+#             df_apportioned
+#             .where(F.col('SessionDate') == d)
+#             .where(F.col('FallowControl') == fc)
+#         )
+#         df_post = (
+#             df_apportioned_location_set
+#             .where(F.col('SessionDate') == d)
+#             .where(F.col('FallowControl') == fc)
+#         )
+#         n_diff = df_pre.count() - df_post.count()
+#         if n_diff != 0:
+#             log.warning(f'{n_diff:,} cases dropped from {fc} group ' +
+#                         f'on {d} due to null Ad')
+
+
+# ad_level_pk = [
+#     'SessionDate', 'UniqueAdID', 'Device', 'PageSet', 'FallowControl'
+#     ]
+# df_results_ad_level = (
+#     df_apportioned_location_set
+#     .withColumn('PageSet', F.array_sort(F.col('PageSet')))
+#     .withColumn('PageSet', F.concat_ws(' + ', F.col('PageSet')))
+#     .groupBy(*ad_level_pk)
+#     .agg(
+#         F.countDistinct('UniqueVisitID').alias('Sessions'),
+#         F.sum('SoftImpressions').alias('SoftImpressions'),
+#         F.sum('SoftClicks').alias('SoftClicks'),
+#         F.countDistinct(
+#             F.when(F.col('Converted') == 1, F.col('UniqueVisitID'))
+#                 ).alias('Conversions'),
+#         F.sum('SessionRevenue').alias('SessionRevenue'),
+#         F.sum('PageRevenue').alias('PageRevenue'),
+#         F.sum('AdRevenue').alias('AdRevenue'),
+#         )
+# )
+
+# totals_ad_level = (
+#     df_results_ad_level
+#     .groupBy('SessionDate')
+#     .agg(
+#         F.sum('SessionRevenue').alias('SessionRevenue'),
+#         F.sum('PageRevenue').alias('PageRevenue'),
+#         F.sum('AdRevenue').alias('AdRevenue')
+#     )
+# )
+
+# for d in sdates_valid:
+#     d_fmt = d.strftime('%Y-%m-%d')
+#     log.info(f'Checking consistency of ad-level totals for: {d_fmt}')
+
+#     tr2a = (
+#         totals_ad_level
+#         .where(F.col('SessionDate') == d)
+#         .select('AdRevenue')
+#         ).collect()[0][0]
+#     tr2t = (
+#         totals_topline
+#         .where(F.col('SessionDate') == d)
+#         .select('TotalRevenue')
+#         ).collect()[0][0]
+#     tr2_eval = tr2t - tr2a
+#     tr2_eval_pc = tr2_eval / tr2t
+#     log.warning('Total of apportioned ad-level revenue is ' +
+#                 f'{tr2_eval:,.2f} ({tr2_eval_pc:.2%}) less than ' +
+#                 'topline total')
+#     assert tr2_eval > 0
+
+# ^^^ APPORTIONING - Scrap?
 
 # TODO: EXPORT df_results_topline
 
@@ -668,98 +786,3 @@ for d in sdates_valid:
 # Aggregate by Page, by day & by week and do marginal contributions
 #   Compare to Page-wise control method
 # Aggregate by AlgoDivision, by day & by week and do marginal contributions
-
-
-(
-    df_apportioned_location_set
-    .groupBy('SessionDate', 'FallowControl')
-    .agg(
-        F.countDistinct('UniqueVisitID').alias('Sessions'),
-        F.sum('AdRevenue').alias('Revenue')
-        )
-    # .groupBy('SessionDate')
-    # .pivot('FallowControl')
-    # .agg(
-    #     F.first('Sessions').alias('Sessions'),
-    #     F.sum('Revenue').alias('Revenue')
-    #     )
-    .orderBy('SessionDate', 'FallowControl')
-)
-
-
-df_results_topline = (
-    df_sessions_ads_valid
-    .groupBy('SessionDate', 'Device', 'FallowControl', 'UniqueVisitID')
-    .agg(F.first('Revenue').alias('Revenue'))
-    .groupBy('SessionDate', 'Device', 'FallowControl')
-    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
-         F.sum('Revenue').alias('Revenue'))
-)
-
-df_results_topline = (
-    df_sessions_ads_valid
-    .groupBy('SessionDate', 'FallowControl', 'UniqueVisitID')
-    .agg(F.first('Revenue').alias('Revenue'))
-    .groupBy('SessionDate', 'FallowControl')
-    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
-         F.sum('Revenue').alias('Revenue'))
-    .orderBy('SessionDate', 'FallowControl')
-)
-
-
-(
-    df_sessions_ads_valid
-    .groupBy('SessionDate', 'FallowControl', 'UniqueVisitID')
-    .agg(F.first('Revenue').alias('Revenue'))
-    .groupBy('FallowControl')
-    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
-         F.sum('Revenue').alias('Revenue'))
-    .orderBy('FallowControl')
-)
-
-
-lcs = [
-    'HomePageTest1',
-    'ShoppingBagTest1',
-    'OrderCompleteTest1',
-    'LandingPageTest1'
-]
-df_lcs = []
-for lc in lcs:
-    print(f'Running: {lc}')
-    df_lc = (
-        df_sessions_ads_valid
-        .where(F.col('FallowControl') == 'Ads')
-        .withColumn('LocalControl',
-                    F.when(F.col(lc) == '3: Local Control',
-                           f'{lc}_NoAds').otherwise(f'{lc}_Ads'))
-        .groupBy('SessionDate', 'LocalControl', 'UniqueVisitID')
-        .agg(F.first('Revenue').alias('Revenue'))
-        .groupBy('LocalControl')
-        .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
-             F.sum('Revenue').alias('Revenue'))
-        .orderBy('LocalControl')
-    )
-    df_lcs.append(df_lc)
-
-
-df_transient = (
-    get_spark()
-    .table(TRANSIENT_CELLS_TABLE)
-    .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
-    .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
-    .withColumn('SessionDate', F.col('rundate') + timedelta(days=1))
-    .where(F.col('Cell') == 'AlgoDivision')
-    .select('SessionDate', 'AccountNumber', 'Cell', 'CellValue')
-)
-
-(
-    df_sessions_ads_valid
-    .join(df_transient, on=['SessionDate', 'AccountNumber'], how='left')
-    .groupBy('SessionDate', 'FallowControl', 'CellValue', 'UniqueVisitID')
-    .agg(F.first('Revenue').alias('Revenue'))
-    .groupBy('FallowControl', 'CellValue')
-    .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
-         F.sum('Revenue').alias('Revenue'))
-    .orderBy('FallowControl', 'CellValue')
-)

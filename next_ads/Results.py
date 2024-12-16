@@ -42,3 +42,46 @@ def validate_assignments_match_pf(
         return mismatch_msgs
     else:
         return dict()
+
+
+def estimate_incremental_rps(
+        df,
+        group_cols: list[str],
+        sessions_col: str = 'Sessions',
+        revenue_col: str = 'Revenue',
+        control_col: str = 'FallowControl',
+        test_label: str = 'Ads',
+        control_label: str = 'No Ads') -> DataFrame:
+
+    df_inc = (
+        df
+        .replace({
+            test_label: 'test',
+            control_label: 'control'
+        }, subset=[control_col])
+        .groupBy(*group_cols, control_col)
+        .agg(
+            F.sum(sessions_col).alias('Sessions'),
+            F.sum(revenue_col).alias('Revenue')
+            )
+        .withColumn('RPS', F.col('Revenue')/F.col('Sessions'))
+        .groupBy(*group_cols)
+        .pivot(control_col)
+        .agg(
+            F.first('Sessions').alias('Sessions'),
+            F.first('Revenue').alias('Revenue'),
+            F.first('RPS').alias('RPS'),
+        )
+        .withColumn('Inc_RPS', F.col('test_RPS') - F.col('control_RPS'))
+        .withColumn('Inc_RPS_Percent', F.col('Inc_RPS') / F.col('control_RPS'))
+        .withColumn('Estimated_Inc_Revenue',
+                    F.col('Inc_RPS') * F.col('test_Sessions'))
+    )
+
+    return df_inc
+
+
+# def marginal_contributions(
+#         df: DataFrame,
+#         contributions_col: str,
+#         ):
