@@ -357,7 +357,7 @@ df_results_topline = (
 )
 
 for d in sdates_valid:
-    d_fmt = d.strftime('%Y-%m-%d')
+    d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
     log.info(f'Loading topline results for {d_fmt} ' +
              f'to table: {RESULTS_TOPLINE_TABLE}')
     delete_from_and_load(
