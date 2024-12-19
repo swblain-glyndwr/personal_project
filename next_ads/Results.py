@@ -1,5 +1,8 @@
+from statistics import mean
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
+from itertools import chain, combinations, permutations
+from collections.abc import Callable
 
 
 def validate_assignments_match_pf(
@@ -44,44 +47,128 @@ def validate_assignments_match_pf(
         return dict()
 
 
-def estimate_incremental_rps(
-        df,
-        group_cols: list[str],
-        sessions_col: str = 'Sessions',
+def summarise_sessions(
+        df: DataFrame,
+        session_id_col: str,
+        page_id_col: str,
         revenue_col: str = 'Revenue',
-        control_col: str = 'FallowControl',
-        test_label: str = 'Ads',
-        control_label: str = 'No Ads') -> DataFrame:
+        impressions_col: str = 'Impressions',
+        clicks_col: str = 'Clicks',
+        group_cols: list[str] = []) -> DataFrame:
+
+    df_summary = (
+        df
+        .withColumn('Converted',
+                    F.when(F.col(revenue_col) > 0, 1).otherwise(0))
+        .groupBy(*group_cols, session_id_col, page_id_col)
+        .agg(
+            F.first(revenue_col).alias(revenue_col),
+            F.max('Converted').alias('Converted'),
+            F.first(impressions_col).alias(impressions_col),
+            F.sum(clicks_col).alias(clicks_col),
+            )
+        .groupBy(*group_cols, session_id_col)
+        .agg(
+            F.first(revenue_col).alias(revenue_col),
+            F.max('Converted').alias('Converted'),
+            F.sum(impressions_col).alias(impressions_col),
+            F.sum(clicks_col).alias(clicks_col),
+            )
+        .groupBy(*group_cols)
+        .agg(
+            F.countDistinct(session_id_col).alias('Sessions'),
+            F.sum(revenue_col).alias(revenue_col),
+            F.sum('Converted').alias('Conversions'),
+            F.sum(impressions_col).alias(impressions_col),
+            F.sum(clicks_col).alias(clicks_col)
+            )
+    )
+
+    return df_summary
+
+
+def estimate_incremental_value(
+        df: DataFrame,
+        session_col: str,
+        value_col: str,
+        control_col: str,
+        test_label: str,
+        control_label: str,
+        group_cols: list[str] = []) -> DataFrame:
 
     df_inc = (
         df
+        .groupBy(*group_cols, control_col, session_col)
+        .agg(F.first(value_col).alias('Value'))
         .replace({
-            test_label: 'test',
-            control_label: 'control'
+            test_label: 'T',
+            control_label: 'C'
         }, subset=[control_col])
         .groupBy(*group_cols, control_col)
         .agg(
-            F.sum(sessions_col).alias('Sessions'),
-            F.sum(revenue_col).alias('Revenue')
+            F.countDistinct(session_col).alias('Sessions'),
+            F.sum('Value').alias('Value')
             )
-        .withColumn('RPS', F.col('Revenue')/F.col('Sessions'))
+        .withColumn('AvgValue', F.col('Value')/F.col('Sessions'))
         .groupBy(*group_cols)
         .pivot(control_col)
         .agg(
             F.first('Sessions').alias('Sessions'),
-            F.first('Revenue').alias('Revenue'),
-            F.first('RPS').alias('RPS'),
+            F.first('Value').alias('Value'),
+            F.first('AvgValue').alias('AvgValue'),
         )
-        .withColumn('Inc_RPS', F.col('test_RPS') - F.col('control_RPS'))
-        .withColumn('Inc_RPS_Percent', F.col('Inc_RPS') / F.col('control_RPS'))
-        .withColumn('Estimated_Inc_Revenue',
-                    F.col('Inc_RPS') * F.col('test_Sessions'))
+        .withColumn('IncValue', F.col('T_AvgValue') - F.col('C_AvgValue'))
+        .withColumn('IncValuePercent', F.col('IncValue') / F.col('C_AvgValue'))
+        .withColumn('EstIncValue',
+                    F.col('IncValue') * F.col('T_Sessions'))
     )
 
     return df_inc
 
 
-# def marginal_contributions(
-#         df: DataFrame,
-#         contributions_col: str,
-#         ):
+def marginal_contributions(
+        df: DataFrame,
+        contributions_col: str,
+        value_function: Callable,
+        value_function_kwargs: dict = {},
+        value_function_return_col: str = "",
+        ) -> dict:
+
+    grand_coalition = set(
+        [x[0] for x in df.select(contributions_col).distinct().collect()]
+        )
+
+    combo_sizes = range(1, len(grand_coalition) + 1)
+    powerset = chain.from_iterable(
+        combinations(grand_coalition, x) for x in combo_sizes)
+
+    contributions = list()
+    for x in powerset:
+        df_coalition = df.where(F.col(contributions_col).isin(list(x)))
+        coalition_result = value_function(
+            df_coalition,
+            **value_function_kwargs)
+        if value_function_return_col:
+            coalition_result = (
+                coalition_result
+                .select(value_function_return_col)
+                .collect()[0][0]
+            )
+        contributions.append((set(x), coalition_result))
+
+    perms = permutations(grand_coalition)
+    marginal_contributions = {k: [] for k in grand_coalition}
+
+    for perm in perms:
+        coalition = set()
+        perm_total = 0
+        for i in range(len(perm)):
+            coalition.add(perm[i])
+            contribution = [v for (k, v) in contributions if k == coalition][0]
+            marginal_contribution = contribution - perm_total
+            # if marginal_contribution < 0:
+            #     marginal_contribution = 0
+            marginal_contributions[perm[i]].append(marginal_contribution)
+            perm_total += marginal_contribution
+
+    return {k: mean(v) for (k, v) in marginal_contributions.items()}

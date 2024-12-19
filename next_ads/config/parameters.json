@@ -230,6 +230,7 @@
             "pf_col": "HN_slot_1",
             "page": "/",
             "screen": "Home",
+            "page_group": "HomePage",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -256,6 +257,7 @@
             "pf_col": "SB_slot_1",
             "page": "/shoppingbag",
             "screen": "Cart",
+            "page_group": "ShoppingBag",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -294,6 +296,7 @@
             "pf_col": "OC_slot_1",
             "page": "/secure/checkout/complete",
 		    "screen": "Checkout Completed",
+            "page_group": "OrderComplete",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -331,6 +334,7 @@
         "LP1": {
             "pf_col": "LP_slot_1",
             "page": "/women",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -353,6 +357,7 @@
         "LP2": {
             "pf_col": "LP_slot_2",
             "page": "/men",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -375,6 +380,7 @@
         "LP3": {
             "pf_col": "LP_slot_3",
             "page": "/boys",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -397,6 +403,7 @@
         "LP4": {
             "pf_col": "LP_slot_4",
             "page": "/girls",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -419,6 +426,7 @@
         "LP5": {
             "pf_col": "LP_slot_5",
             "page": "/homeware",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -441,6 +449,7 @@
         "LP6": {
             "pf_col": "LP_slot_6",
             "page": "/beauty",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -463,6 +472,7 @@
         "LP7": {
             "pf_col": "LP_slot_7",
             "page": "/brands",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -485,6 +495,7 @@
         "LP8": {
             "pf_col": "LP_slot_8",
             "page": "/sports",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -507,6 +518,7 @@
         "LP9": {
             "pf_col": "LP_slot_9",
             "page": "/newborn",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -529,6 +541,7 @@
         "LP10": {
             "pf_col": "LP_slot_10",
             "page": "/gift-ideas",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -551,6 +564,7 @@
         "LP11": {
             "pf_col": "LP_slot_11",
             "page": "/outdoor",
+            "page_group": "LandingPage",
             "map": [
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
@@ -574,6 +588,7 @@
             "pf_col": "hp_slot_3",
             "page": "/",
             "screen": "Home",
+            "page_group": "HomePage",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1]},
             "map": [
@@ -611,6 +626,7 @@
             "pf_col": "hp_slot_4",
             "page": "/",
             "screen": "Home",
+            "page_group": "HomePage",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [2]},
             "map": [
@@ -636,6 +652,7 @@
             "pf_col": "hp_slot_5",
             "page": "/",
             "screen": "Home",
+            "page_group": "HomePage",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3]},
             "map": [

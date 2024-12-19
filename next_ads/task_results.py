@@ -1,8 +1,9 @@
 import logging
 import logging.config
 import json
-from next_ads.Results import validate_assignments_match_pf
-from next_ads.utils.dbc import get_display, get_spark
+from next_ads.Results import (summarise_sessions,
+                              validate_assignments_match_pf)
+from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
                                 assert_pk, delete_from_and_load,
                                 map_schema,
@@ -40,7 +41,11 @@ ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"],
                                    SCHEMA)
 CONTROL_SHEET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
-RESULTS_TOPLINE_TABLE = map_schema(tbls["results_topline"], SCHEMA)
+
+RESULTS_DEVICE_OS_TABLE = map_schema(tbls["results_device_os"], SCHEMA)
+RESULTS_AD_WITH_BENCHMARK_TABLE = map_schema(
+    tbls["results_ad_with_benchmark"], SCHEMA)
+RESULTS_AD_METADATA_TABLE = map_schema(tbls["results_ad_metadata"], SCHEMA)
 
 
 LOCATIONS = prm['locations']
@@ -49,7 +54,7 @@ FIXED_CELLS = prm['fixed_cells']
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
 if job_env == 'dev':
-    SESSION_DATE_START = date(2024, 11, 30)
+    SESSION_DATE_START = date(2024, 12, 1)
     SESSION_DATE_END = date(2024, 12, 2)
 else:
     SESSION_DATE_START = date.today() - timedelta(days=2)
@@ -64,6 +69,7 @@ log.info(f'Processing results from {SESSION_DATE_START} to {SESSION_DATE_END}')
 loc2page = dict()
 loc2screen = dict()
 loc2pf = dict()
+loc2pagegroup = dict()
 for k in LOCATIONS:
     if 'page' in LOCATIONS[k]:
         loc2page[k] = LOCATIONS[k]['page']
@@ -71,6 +77,9 @@ for k in LOCATIONS:
         loc2screen[k] = LOCATIONS[k]['screen']
     if 'pf_col' in LOCATIONS[k]:
         loc2pf[k] = LOCATIONS[k]['pf_col']
+    if 'page_group' in LOCATIONS[k]:
+        loc2pagegroup[k] = LOCATIONS[k]['page_group']
+
 pf2loc = {v: k for k, v in loc2pf.items()}
 pf_cols = list(pf2loc.keys())
 
@@ -236,10 +245,12 @@ df_sessions = (
     .table(BQ_SESSIONS)
     .where(F.col('date') >= SESSION_DATE_START)
     .where(F.col('date') <= SESSION_DATE_END)
+    .withColumn('operating_system', F.lit('NA'))
     .select('UniqueVisitID',
             'TransactionRevenue',
             'RPID',
             'Device',
+            'operating_system',
             'date')
     .unionByName(
         get_spark()
@@ -250,9 +261,11 @@ df_sessions = (
                 'TransactionRevenue',
                 'RPID',
                 'Device',
+                'operating_system',
                 'date')
         )
     .withColumnRenamed('date', 'SessionDate')
+    .withColumnRenamed('operating_system', 'OS')
     .join(
         get_spark()
         .table(RPID_WITH_ACCOUNTS)
@@ -264,10 +277,8 @@ df_sessions = (
         .drop_duplicates(),
         on='RPID', how='inner'
     )
-    .groupBy('AccountNumber', 'SessionDate', 'UniqueVisitID', 'Device')
+    .groupBy('AccountNumber', 'SessionDate', 'UniqueVisitID', 'Device', 'OS')
     .agg(F.min('TransactionRevenue').alias('Revenue'))
-    .withColumn('Converted',
-                F.when(F.col('Revenue').isNotNull(), 1).otherwise(0))
     .where(F.col('Device').isNotNull())
     .fillna({'Revenue': 0})
 )
@@ -349,30 +360,18 @@ df_sessions_ads_valid = (
         ),
         on=['AccountNumber', 'SessionDate'], how='inner'
          )
+    .where(F.col('Device') != 'App')
 )
 df_sessions_ads_valid.cache()
 
 df_results_topline = (
     df_sessions_ads_valid
-    .groupBy('SessionDate', 'Device', 'FallowControl', 'UniqueVisitID')
+    .groupBy('SessionDate', 'Device', 'OS', 'FallowControl', 'UniqueVisitID')
     .agg(F.first('Revenue').alias('Revenue'))
-    .groupBy('SessionDate', 'Device', 'FallowControl')
+    .groupBy('SessionDate', 'Device', 'OS', 'FallowControl')
     .agg(F.countDistinct('UniqueVisitID').alias('Sessions'),
          F.sum('Revenue').alias('Revenue'))
 )
-
-if job_env == 'prod':
-    for d in sdates_valid:
-        d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
-        log.info(f'Loading topline results for {d_fmt} ' +
-                 f'to table: {RESULTS_TOPLINE_TABLE}')
-        delete_from_and_load(
-            df_results_topline.where(F.col('SessionDate') == d),
-            RESULTS_TOPLINE_TABLE,
-            pk_cols=['SessionDate', 'Device', 'FallowControl'],
-            del_where={'SessionDate': d_fmt}
-        )
-
 
 df_valid_assignments_mapped = (
     df_valid_assignments
@@ -396,6 +395,7 @@ df_valid_assignments_mapped = (
     )
 )
 
+
 df_ad_metadata = (
     get_spark()
     .table(CONTROL_SHEET_TABLE)
@@ -410,87 +410,6 @@ df_sessions_ads_valid_clicks = (
     .join(df_valid_assignments_mapped,
           on=['AccountNumber', 'SessionDate', 'Device', 'PagePath'],
           how='left')
-    .join(
-        (
-            df_ad_metadata
-            .select('SessionDate', 'UniqueAdID', 'Location', 'URL')
-            .withColumnRenamed('UniqueAdID', 'UniqueAdIDAssigned')
-        ),
-        on=['SessionDate', 'Location', 'UniqueAdIDAssigned'], how='left'
-    )
-    .withColumn(
-        'Clicked',
-        F.when(F.col('NextPagePath') == F.col('URL'), 1).otherwise(0)
-        )
-)
-
-df_sessions_master = (
-    df_sessions_ads_valid_clicks
-    .groupBy('AccountNumber',
-             'FallowControl',
-             'SessionDate',
-             'Device',
-             'UniqueVisitID',
-             'PagePath',
-             'Location',
-             'UniqueAdIDBasic',
-             'UniqueAdIDBest',
-             'UniqueAdIDBestChallenger',
-             'Treatment',
-             'UniqueAdIDAssigned',
-             'Revenue',
-             'Converted'
-             )
-    .agg(
-        F.countDistinct('FirstTimestamp').alias('SoftImpressions'),
-        F.max('Clicked').alias('SoftClicks'),
-        F.min('FirstTimestamp').alias('FirstTimestamp')
-        )
-)
-
-df_sessions_master.cache()
-
-totals_master = (
-    df_sessions_master
-    .groupBy('SessionDate', 'UniqueVisitID')
-    .agg(F.first('Revenue').alias('Revenue'))
-    .groupBy('SessionDate')
-    .agg(F.countDistinct('UniqueVisitID').alias('TotalSessions'),
-         F.sum('Revenue').alias('TotalRevenue'))
-)
-
-totals_topline = (
-    df_results_topline
-    .groupBy('SessionDate')
-    .agg(F.sum('Sessions').alias('TotalSessions'),
-         F.sum('Revenue').alias('TotalRevenue'))
-)
-
-# Check for consistency in totals after appending ad and treatment data
-# < 0.01 threshold used to allow for limitations of floating point arithmetic
-for d in sdates_valid:
-    d_fmt = d.strftime('%Y-%m-%d')
-    log.info(f'Checking consistency of totals for SessionDate: {d_fmt}')
-    for fc in ['Ads', 'No Ads']:
-        for c in ['TotalSessions', 'TotalRevenue']:
-            tm = (
-                totals_master
-                .where(F.col('SessionDate') == d)
-                .where(F.col('FallowControl') == fc)
-                .select(c)
-                ).collect()[0][0]
-            tt = (
-                totals_topline
-                .where(F.col('SessionDate') == d)
-                .where(F.col('FallowControl') == fc)
-                .select(c)
-                ).collect()[0][0]
-            msg = f'> 0.01 discrepancy found when comparing {c} for {fc}'
-            assert abs(tm - tt) < 0.01, msg
-
-
-df_sessions_master = (
-    df_sessions_master
     .withColumn(
         'TreatmentInferred',
         F.when((F.col('UniqueAdIDAssigned') == 'NoAd'), 'NoAd')
@@ -510,99 +429,407 @@ df_sessions_master = (
                     F.col('Treatment').isNull(),
                     F.col('TreatmentInferred')
                     ).otherwise(F.col('Treatment')))
-    .where(~(
-        (F.col('FallowControl') == 'Ads')
-        & (F.col('UniqueAdIDAssigned') == 'NoAd')
-        )
-    )
-)
-
-w_session_ad = Window().partitionBy('SessionDate',
-                                    'FallowControl',
-                                    'UniqueVisitID',
-                                    'UniqueAdIDMeasurement')
-
-df_ad_pageset_level = (
-    df_sessions_master
     .withColumn(
         'UniqueAdIDMeasurement',
         F.when(F.col('FallowControl') == 'Ads', F.col('UniqueAdIDAssigned'))
         .when(F.col('FallowControl') == 'No Ads', F.col('UniqueAdIDBasic'))
     )
-    .withColumn('PageSet', F.collect_set('PagePath').over(w_session_ad))
-    .groupBy(
-        'SessionDate',
-        'FallowControl',
-        'UniqueVisitID',
-        'UniqueAdIDMeasurement',
-        'PageSet'
-        )
-    .agg(
-        F.max('Converted').alias('SessionConverted'),
-        F.sum('SoftImpressions').alias('SoftImpressions'),
-        F.sum('SoftClicks').alias('SoftClicks'),
-        F.sum('Revenue').alias('SessionRevenue')
-        )
-    .groupBy(
-        'SessionDate',
-        'FallowControl',
-        'UniqueAdIDMeasurement',
-        'PageSet'
+    .join(
+        (
+            df_ad_metadata
+            .select('SessionDate', 'UniqueAdID', 'Location', 'URL')
+            .withColumnRenamed('UniqueAdID', 'UniqueAdIDMeasurement')
+        ),
+        on=['SessionDate', 'Location', 'UniqueAdIDMeasurement'],
+        how='left'
     )
+    .withColumn(
+        'Clicked',
+        F.when(F.col('NextPagePath') == F.col('URL'), 1).otherwise(0)
+        )
+)
+
+df_sessions_master = (
+    df_sessions_ads_valid_clicks
+    .withColumn('PageGroup', F.col('Location'))
+    .replace(loc2pagegroup, subset=['PageGroup'])
+    .groupBy('AccountNumber',
+             'FallowControl',
+             'SessionDate',
+             'Device',
+             'OS',
+             'UniqueVisitID',
+             'PagePath',
+             'PageGroup',
+             'Location',
+             'UniqueAdIDBasic',
+             'UniqueAdIDBest',
+             'UniqueAdIDBestChallenger',
+             'Treatment',
+             'UniqueAdIDAssigned',
+             'UniqueAdIDMeasurement',
+             'Revenue'
+             )
     .agg(
-        F.countDistinct('UniqueVisitID').alias('Sessions'),
-        F.sum('SessionConverted').alias('Conversions'),
-        F.sum('SoftImpressions').alias('SoftImpressions'),
-        F.sum('SoftClicks').alias('SoftClicks'),
-        F.sum('SessionRevenue').alias('TotalSessionRevenue')
+        F.countDistinct('FirstTimestamp').alias('SoftImpressions'),
+        F.max('Clicked').alias('SoftClicks'),
+        F.min('FirstTimestamp').alias('FirstTimestamp')
+        )
+)
+
+df_sessions_master.cache()
+
+reporting_metadata_cols = [
+    'PotNumber',
+    'CampaignNumber',
+    'Title',
+    'AlgoDivision',
+    'TradeDivision',
+    'Brand',
+    'MASIDToken',
+    'Segment',
+    'AdDriver',
+    'TemplateName',
+    'TargetingCriteria',
+    'AdCategory',
+    'AdMission',
+    'AdTrend',
+    'AdSubcategory',
+    'AdBrandName',
+    'AdCampaign'
+]
+
+df_ad_metadata_non_loc = (
+    df_ad_metadata
+    .select('SessionDate', 'UniqueAdID', *reporting_metadata_cols)
+    .distinct()
+)
+
+assert_pk(
+    df_ad_metadata_non_loc,
+    pk_cols=['SessionDate', 'UniqueAdID']
+    )
+
+
+df_sessions_master_meta = (
+    df_sessions_master
+    .join(
+        (
+            df_ad_metadata_non_loc
+            .select('SessionDate', 'UniqueAdID', *reporting_metadata_cols)
+            .distinct()
+            .withColumnRenamed('UniqueAdID', 'UniqueAdIDMeasurement')
+        ),
+        on=['SessionDate', 'UniqueAdIDMeasurement'],
+        how='left'
     )
 )
-df_ad_pageset_level.cache()
 
-df_ad_pageset_level_agg = (
-    df_ad_pageset_level
-    .groupBy('SessionDate', 'FallowControl', 'UniqueAdIDMeasurement')
-    .agg(
-        F.sum('Sessions').alias('Sessions'),
-        F.sum('TotalSessionRevenue').alias('Revenue')
-        )
-    .withColumn('RPS', F.col('Revenue')/F.col('Sessions'))
-    .groupBy('SessionDate', 'UniqueAdIDMeasurement')
-    .pivot('FallowControl')
-    .agg(
-        F.first('Sessions').alias('Sessions'),
-        F.first('RPS').alias('RPS')
-        )
-    .withColumn('Inc_RPS', F.col('Ads_RPS') - F.col('No Ads_RPS'))
-    .withColumn('Inc_RPS_Percent', F.col('Ads_RPS'))
-    .withColumn('Estimated_Inc_RPS', F.col('Inc_RPS') * F.col('Ads_Sessions'))
+
+totals_master = (
+    df_sessions_master
+    .groupBy('SessionDate', 'FallowControl', 'UniqueVisitID')
+    .agg(F.first('Revenue').alias('Revenue'))
+    .groupBy('SessionDate', 'FallowControl')
+    .agg(F.countDistinct('UniqueVisitID').alias('TotalSessions'),
+         F.sum('Revenue').alias('TotalRevenue'))
 )
 
-# BOOKMARK - Can we get good ad-level results with UniqueAdIDMeasurement
-# concept...or do we need to scrap the page controls and get full
-# UniqueAdIDAssigned coverage?
-# TODO: Resolve fesibility of Shapley approach - this will determine
-# whether page controls can be scrapped
-
-# Average Ad performance?
-(
-    df_ad_pageset_level_agg
-    .groupBy('SessionDate')
-    .agg(
-        F.mean('Estimated_Inc_RPS'),
-        F.median('Estimated_Inc_RPS'),
-        F.sum('Estimated_Inc_RPS')
-        )
+totals_master_meta = (
+    df_sessions_master_meta
+    .groupBy('SessionDate', 'FallowControl', 'UniqueVisitID')
+    .agg(F.first('Revenue').alias('Revenue'))
+    .groupBy('SessionDate', 'FallowControl')
+    .agg(F.countDistinct('UniqueVisitID').alias('TotalSessions'),
+         F.sum('Revenue').alias('TotalRevenue'))
 )
 
-# Top ads by day?
+
+totals_topline = (
+    df_results_topline
+    .groupBy('SessionDate', 'FallowControl')
+    .agg(F.sum('Sessions').alias('TotalSessions'),
+         F.sum('Revenue').alias('TotalRevenue'))
+)
+
+
+col_args_dict = {
+    'session_id_col': 'UniqueVisitID',
+    'page_id_col': 'PagePath',
+    'revenue_col': 'Revenue',
+    'impressions_col': 'SoftImpressions',
+    'clicks_col': 'SoftClicks'
+}
+
+df_summary_device_os = summarise_sessions(
+    df_sessions_master_meta,
+    **col_args_dict,
+    group_cols=['SessionDate', 'FallowControl', 'Device', 'OS']
+)
+
+df_summary_ad = (
+    summarise_sessions(
+        df_sessions_master_meta,
+        **col_args_dict,
+        group_cols=[
+            'SessionDate', 'FallowControl', 'UniqueAdIDMeasurement',
+            *reporting_metadata_cols
+            ]
+    )
+    .where(F.col('UniqueAdIDMeasurement') != 'NoAd')
+    .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
+)
+
+df_summary_algo_division = summarise_sessions(
+    df_sessions_master_meta,
+    **col_args_dict,
+    group_cols=['SessionDate', 'FallowControl', 'AlgoDivision']
+)
+
+df_summary_trade_division = summarise_sessions(
+    df_sessions_master_meta,
+    **col_args_dict,
+    group_cols=['SessionDate', 'FallowControl', 'TradeDivision']
+)
+
+df_summary_page_group = summarise_sessions(
+    df_sessions_master_meta,
+    **col_args_dict,
+    group_cols=['SessionDate', 'FallowControl', 'PageGroup']
+)
+
+df_summary_page_path = summarise_sessions(
+    df_sessions_master_meta,
+    **col_args_dict,
+    group_cols=['SessionDate', 'FallowControl', 'PagePath']
+)
+
+
+# Additional 'benchmark' to add to ad-level table
+# This is added for two reasons
+# 1 - At ad-level, control groups can become very small
+# 2 - Legacy, the ad-level results for the latter half of 2024 used
+# within-division averages as a pseudo control group (due to point 1)
+df_ad_benchmarks = (
+    df_summary_algo_division
+    .where(F.col('FallowControl') == 'Ads')
+    .where(F.col('AlgoDivision').isNotNull())
+    .drop('FallowControl')
+)
+
+join_cols = ['SessionDate', 'AlgoDivision']
+kpi_cols = [
+    c for c in df_ad_benchmarks.columns if c not in join_cols
+]
+
+df_summary_ad_benchmark = (
+    df_summary_ad
+    .where(F.col('FallowControl') == 'Ads')
+    .drop(*kpi_cols)
+    .distinct()
+    .join(df_ad_benchmarks, on=join_cols, how='left')
+    .withColumn('FallowControl', F.lit('Benchmark'))
+    .select(df_summary_ad.columns)
+)
+
+df_summary_ad_with_benchmark = (
+    df_summary_ad
+    .unionByName(df_summary_ad_benchmark)
+    .withColumnRenamed('FallowControl', 'TestGroup')
+)
+
+
 for d in sdates_valid:
-    get_display(
-        df_ad_pageset_level_agg
-        .where(F.col('SessionDate') == d)
-        .orderBy(F.desc('Estimated_Inc_RPS'))
-        .limit(10)
+    d_fmt = d.strftime('%Y-%m-%d')
+    log.info('Checking consistency of pre- and post-processing ' +
+             f'totals for SessionDate: {d_fmt}')
+    for fc in ['Ads', 'No Ads']:
+        for c in ['Sessions', 'Revenue']:
+            tpre = (
+                df_results_topline
+                .where(F.col('SessionDate') == d)
+                .where(F.col('FallowControl') == fc)
+                .groupBy('SessionDate', 'FallowControl')
+                .agg(F.sum(c).alias(c))
+                .select(c)
+                ).collect()[0][0]
+            tpost = (
+                df_summary_device_os
+                .where(F.col('SessionDate') == d)
+                .where(F.col('FallowControl') == fc)
+                .groupBy('SessionDate', 'FallowControl')
+                .agg(F.sum(c).alias(c))
+                .select(c)
+                ).collect()[0][0]
+            # Check match to < 0.01 to allow for floating point arithmetic
+            msg = f'Pre- and post- total for {c} does not match for {fc}'
+            assert abs(tpost - tpre) < 0.01, msg
+
+
+if job_env == 'prod':
+    for d in sdates_valid:
+        d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
+
+        log.info(f'Loading results_device_os for {d_fmt} ' +
+                 f'to table: {RESULTS_DEVICE_OS_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_device_os
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'Device',
+                        'OS',
+                        'FallowControl',
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks')
+            ),
+            RESULTS_DEVICE_OS_TABLE,
+            pk_cols=['SessionDate', 'Device', 'OS', 'FallowControl'],
+            del_where={'SessionDate': d_fmt}
         )
+
+        log.info(f'Loading results_ad_with_benchmark for {d_fmt} ' +
+                 f'to table: {RESULTS_AD_WITH_BENCHMARK_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_ad_with_benchmark
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'TestGroup',
+                        'UniqueAdID',
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks')
+            ),
+            RESULTS_AD_WITH_BENCHMARK_TABLE,
+            pk_cols=['SessionDate', 'TestGroup', 'UniqueAdID'],
+            del_where={'SessionDate': d_fmt}
+        )
+
+        log.info(f'Loading results_device_os for {d_fmt} ' +
+                 f'to table: {RESULTS_AD_METADATA_TABLE}')
+        delete_from_and_load(
+            (
+                df_ad_metadata_non_loc
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'UniqueAdID',
+                        'PotNumber',
+                        'CampaignNumber',
+                        'Title',
+                        'AlgoDivision',
+                        'TradeDivision',
+                        'Brand',
+                        'MASIDToken',
+                        'Segment',
+                        'AdDriver',
+                        'TemplateName',
+                        'TargetingCriteria',
+                        'AdCategory',
+                        'AdMission',
+                        'AdTrend',
+                        'AdSubcategory',
+                        'AdBrandName',
+                        'AdCampaign')
+            ),
+            RESULTS_AD_METADATA_TABLE,
+            pk_cols=['SessionDate', 'UniqueAdID'],
+            del_where={'SessionDate': d_fmt}
+        )
+
+
+# w_session_ad = Window().partitionBy('SessionDate',
+#                                     'FallowControl',
+#                                     'UniqueVisitID',
+#                                     'UniqueAdIDMeasurement')
+
+# df_summary_ad_page_set = summarise_sessions(
+#     (
+#         df_sessions_master_meta
+#         .withColumn('PageSet', F.collect_set('PagePath').over(w_session_ad))
+#     ),
+#     **col_args_dict,
+#     group_cols=['SessionDate',
+#                 'FallowControl',
+#                 'UniqueAdIDMeasurement',
+#                 'PageSet']
+# ).withColumn('PageSetStr', F.col('PageSet').cast('string'))
+
+
+# df_ad_pageset = (
+#     df_sessions_master_meta
+#     .withColumn('PageSet', F.collect_set('PagePath').over(w_session_ad))
+#     .groupBy(
+#         'SessionDate',
+#         'FallowControl',
+#         'UniqueVisitID',
+#         'UniqueAdIDMeasurement',
+#         'PageSet'
+#         )
+#     .agg(
+#         F.max('Converted').alias('SessionConverted'),
+#         F.sum('SoftImpressions').alias('SoftImpressions'),
+#         F.sum('SoftClicks').alias('SoftClicks'),
+#         F.sum('Revenue').alias('SessionRevenue')
+#         )
+#     .groupBy(
+#         'SessionDate',
+#         'FallowControl',
+#         'UniqueAdIDMeasurement',
+#         'PageSet'
+#     )
+#     .agg(
+#         F.countDistinct('UniqueVisitID').alias('Sessions'),
+#         F.sum('SessionConverted').alias('Conversions'),
+#         F.sum('SoftImpressions').alias('SoftImpressions'),
+#         F.sum('SoftClicks').alias('SoftClicks'),
+#         F.sum('SessionRevenue').alias('TotalSessionRevenue')
+#     )
+# )
+# df_ad_pageset.cache()
+
+# df_ad_agg = (
+#     df_ad_pageset
+#     .groupBy('SessionDate', 'FallowControl', 'UniqueAdIDMeasurement')
+#     .agg(
+#         F.sum('Sessions').alias('Sessions'),
+#         F.sum('TotalSessionRevenue').alias('Revenue')
+#         )
+#     .withColumn('RPS', F.col('Revenue')/F.col('Sessions'))
+#     .groupBy('SessionDate', 'UniqueAdIDMeasurement')
+#     .pivot('FallowControl')
+#     .agg(
+#         F.first('Sessions').alias('Sessions'),
+#         F.first('RPS').alias('RPS')
+#         )
+#     .withColumn('Inc_RPS', F.col('Ads_RPS') - F.col('No Ads_RPS'))
+#     .withColumn('Inc_RPS_Percent', F.col('Ads_RPS'))
+#     .withColumn('Estimated_Inc_RPS',
+#                 F.col('Inc_RPS') * F.col('Ads_Sessions'))
+# )
+
+# # BOOKMARK - Can we get good ad-level results with UniqueAdIDMeasurement
+# # concept...or do we need to scrap the page controls and get full
+# # UniqueAdIDAssigned coverage?
+# # TODO: Resolve fesibility of Shapley approach - this will determine
+# # whether page controls can be scrapped
+
+# # Average Ad performance?
+# (
+#     df_ad_pageset_level_agg
+#     .groupBy('SessionDate')
+#     .agg(
+#         F.mean('Estimated_Inc_RPS'),
+#         F.median('Estimated_Inc_RPS'),
+#         F.sum('Estimated_Inc_RPS')
+#         )
+# )
+
 
 # vvv APPORTIONING - Scrap?
 
