@@ -711,7 +711,7 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_device_os for {d_fmt} ' +
+        log.info(f'Loading results_ad_metadata for {d_fmt} ' +
                  f'to table: {RESULTS_AD_METADATA_TABLE}')
         delete_from_and_load(
             (
