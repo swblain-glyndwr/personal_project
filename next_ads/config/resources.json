@@ -99,7 +99,9 @@
         "temporaryGcsBucket": "to_discovery/tableau",
         "parentProject": "big-query-156009",
         "tables": {
-            "results_topline": "big-query-156009.Misc_eu.next_uk_nextads_nextads_results_topline"
+            "results_device_os": "big-query-156009.Misc_eu.next_uk_nextads_nextads_results_device_os",
+            "results_ad_with_benchmark": "big-query-156009.Misc_eu.next_uk_nextads_nextads_results_ad_with_benchmark",
+            "results_ad_metadata": "big-query-156009.Misc_eu.next_uk_nextads_nextads_results_ad_metadata"
         }
     },
 

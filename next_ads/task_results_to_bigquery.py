@@ -17,21 +17,27 @@ parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
-# SCHEMA = rsc["schema"][job_env]
 SCHEMA = 'warehouse'
 tbls = rsc["tables"]["write"]
-RESULTS_TOPLINE_TABLE = map_schema(tbls["results_topline"], SCHEMA)
+
 BQ_OPTIONS = rsc['big_query']
+RESULTS_EXPORTS = [
+    'results_device_os',
+    'results_ad_with_benchmark',
+    'results_ad_metadata'
+    ]
 
-log.info('Exporting results (topline) to Big Query')
-df_results_topline = get_spark().table(RESULTS_TOPLINE_TABLE)
+for results_export in RESULTS_EXPORTS:
+    results_table = map_schema(tbls[results_export], SCHEMA)
+    log.info(f'Exporting {results_export} to Big Query')
+    df_export = get_spark().table(results_table)
 
-(
-    df_results_topline
-    .write.format('bigquery')
-    .mode('overwrite')
-    .option('temporaryGcsBucket', BQ_OPTIONS['temporaryGcsBucket'])
-    .option('parentProject', BQ_OPTIONS['parentProject'])
-    .option('table', BQ_OPTIONS['tables']['results_topline'])
-    .save()
-)
+    (
+        df_export
+        .write.format('bigquery')
+        .mode('overwrite')
+        .option('temporaryGcsBucket', BQ_OPTIONS['temporaryGcsBucket'])
+        .option('parentProject', BQ_OPTIONS['parentProject'])
+        .option('table', BQ_OPTIONS['tables'][results_export])
+        .save()
+    )
