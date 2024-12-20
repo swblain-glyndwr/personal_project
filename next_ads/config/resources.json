@@ -78,6 +78,7 @@
             "assignments": "marketingdata_prod.{schema}.next_uk_nextads_assignments",
             "assignments_latest": "marketingdata_prod.{schema}.next_uk_nextads_assignments_latest",
             "results_device_os": "marketingdata_prod.{schema}.next_uk_nextads_results_device_os",
+            "results_aggregates": "marketingdata_prod.{schema}.next_uk_nextads_results_aggregates",
             "results_ad_with_benchmark": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_with_benchmark",
             "results_ad_metadata": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_metadata"
         }

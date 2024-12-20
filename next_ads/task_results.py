@@ -43,10 +43,10 @@ TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"],
 CONTROL_SHEET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
 
 RESULTS_DEVICE_OS_TABLE = map_schema(tbls["results_device_os"], SCHEMA)
+RESULTS_AGGREGATES_TABLE = map_schema(tbls["results_aggregates"], SCHEMA)
 RESULTS_AD_WITH_BENCHMARK_TABLE = map_schema(
     tbls["results_ad_with_benchmark"], SCHEMA)
 RESULTS_AD_METADATA_TABLE = map_schema(tbls["results_ad_metadata"], SCHEMA)
-
 
 LOCATIONS = prm['locations']
 FIXED_CELLS = prm['fixed_cells']
@@ -86,7 +86,7 @@ pf_cols = list(pf2loc.keys())
 # TODO: Generalise
 oc_pagepaths = [loc2page['OC1'], loc2screen['OC1']]
 
-# Assignments run the evening before, therefore SessionDate == rundate + 1 day
+# Assignments run the evening before, therefore SessionDate is rundate + 1 day
 df_assignments = (
     get_spark()
     .table(ASSIGNMENTS_TABLE)
@@ -104,7 +104,7 @@ df_assignments = (
             'MASID')
 )
 
-# MASID runs after midnight, therefore SessionDate == rundate
+# MASID runs after midnight, therefore SessionDate is rundate
 df_pf = (
     get_spark()
     .table(PREFERENCE_FRAMEWORK)
@@ -561,12 +561,42 @@ col_args_dict = {
     'clicks_col': 'SoftClicks'
 }
 
+# Topline view
 df_summary_device_os = summarise_sessions(
     df_sessions_master_meta,
     **col_args_dict,
     group_cols=['SessionDate', 'FallowControl', 'Device', 'OS']
 )
 
+# Aggregate views
+agg_cols = [
+    'AlgoDivision',
+    'TradeDivision',
+    'PageGroup',
+    'PagePath'
+]
+
+agg_summaries = []
+for ac in agg_cols:
+    df_summary_ac = summarise_sessions(
+        df_sessions_master_meta,
+        **col_args_dict,
+        group_cols=['SessionDate', 'FallowControl', ac]
+    )
+    df_summary_ac_renamed = (
+        df_summary_ac
+        .withColumnRenamed(ac, 'AggColumn')
+        .withColumn('AggValue', F.lit(ac))
+    )
+    agg_summaries.append(df_summary_ac_renamed)
+
+if agg_summaries:
+    df_summary_agg = agg_summaries.pop()
+    while agg_summaries:
+        df_summary_agg = df_summary_agg.unionByName(agg_summaries.pop())
+
+
+# Ad-level view
 df_summary_ad = (
     summarise_sessions(
         df_sessions_master_meta,
@@ -580,44 +610,22 @@ df_summary_ad = (
     .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
 )
 
-df_summary_algo_division = summarise_sessions(
-    df_sessions_master_meta,
-    **col_args_dict,
-    group_cols=['SessionDate', 'FallowControl', 'AlgoDivision']
-)
-
-df_summary_trade_division = summarise_sessions(
-    df_sessions_master_meta,
-    **col_args_dict,
-    group_cols=['SessionDate', 'FallowControl', 'TradeDivision']
-)
-
-df_summary_page_group = summarise_sessions(
-    df_sessions_master_meta,
-    **col_args_dict,
-    group_cols=['SessionDate', 'FallowControl', 'PageGroup']
-)
-
-df_summary_page_path = summarise_sessions(
-    df_sessions_master_meta,
-    **col_args_dict,
-    group_cols=['SessionDate', 'FallowControl', 'PagePath']
-)
-
 
 # Additional 'benchmark' to add to ad-level table
 # This is added for two reasons
 # 1 - At ad-level, control groups can become very small
 # 2 - Legacy, the ad-level results for the latter half of 2024 used
 # within-division averages as a pseudo control group (due to point 1)
+benchmark_col = 'AlgoDivision'
 df_ad_benchmarks = (
-    df_summary_algo_division
+    df_summary_agg
+    .where(F.col('AggCol') == benchmark_col)
     .where(F.col('FallowControl') == 'Ads')
     .where(F.col('AlgoDivision').isNotNull())
     .drop('FallowControl')
 )
 
-join_cols = ['SessionDate', 'AlgoDivision']
+join_cols = ['SessionDate', benchmark_col]
 kpi_cols = [
     c for c in df_ad_benchmarks.columns if c not in join_cols
 ]
@@ -688,6 +696,27 @@ if job_env == 'prod':
             ),
             RESULTS_DEVICE_OS_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS', 'FallowControl'],
+            del_where={'SessionDate': d_fmt}
+        )
+
+        log.info(f'Loading results_aggregates for {d_fmt} ' +
+                 f'to table: {RESULTS_AGGREGATES_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_agg
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'AggCol',
+                        'AggValue',
+                        'FallowControl',
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks')
+            ),
+            RESULTS_AGGREGATES_TABLE,
+            pk_cols=['SessionDate', 'AggCol', 'AggValue', 'FallowControl'],
             del_where={'SessionDate': d_fmt}
         )
 

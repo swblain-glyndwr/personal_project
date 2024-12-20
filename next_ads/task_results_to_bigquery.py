@@ -23,6 +23,7 @@ tbls = rsc["tables"]["write"]
 BQ_OPTIONS = rsc['big_query']
 RESULTS_EXPORTS = [
     'results_device_os',
+    'results_aggregates',
     'results_ad_with_benchmark',
     'results_ad_metadata'
     ]
