@@ -700,7 +700,8 @@ if job_env == 'prod':
                         'SoftClicks')
             ),
             RESULTS_DEVICE_OS_TABLE,
-            pk_cols=['SessionDate', 'Device', 'OS', 'FallowControl'],
+            pk_cols=['SessionDate', 'Device', 'OS',
+                     'FallowControl'],
             del_where={'SessionDate': d_fmt}
         )
 
@@ -711,6 +712,8 @@ if job_env == 'prod':
                 df_summary_agg
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
+                        'Device',
+                        'OS',
                         'AggCol',
                         'AggValue',
                         'FallowControl',
@@ -721,7 +724,8 @@ if job_env == 'prod':
                         'SoftClicks')
             ),
             RESULTS_AGGREGATES_TABLE,
-            pk_cols=['SessionDate', 'AggCol', 'AggValue', 'FallowControl'],
+            pk_cols=['SessionDate', 'Device', 'OS',
+                     'AggCol', 'AggValue', 'FallowControl'],
             del_where={'SessionDate': d_fmt}
         )
 
@@ -732,6 +736,8 @@ if job_env == 'prod':
                 df_summary_ad_with_benchmark
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
+                        'Device',
+                        'OS',
                         'TestGroup',
                         'UniqueAdID',
                         'Sessions',
@@ -741,7 +747,8 @@ if job_env == 'prod':
                         'SoftClicks')
             ),
             RESULTS_AD_WITH_BENCHMARK_TABLE,
-            pk_cols=['SessionDate', 'TestGroup', 'UniqueAdID'],
+            pk_cols=['SessionDate', 'Device', 'OS',
+                     'TestGroup', 'UniqueAdID'],
             del_where={'SessionDate': d_fmt}
         )
 
