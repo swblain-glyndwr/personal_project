@@ -16,4 +16,4 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_device_os (
     FallowControl,
     rundate)
 )
-partitioned by (rundate)
+partitioned by (SessionDate)

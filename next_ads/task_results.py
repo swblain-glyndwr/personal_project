@@ -561,11 +561,13 @@ col_args_dict = {
     'clicks_col': 'SoftClicks'
 }
 
+session_level_cols = ['SessionDate', 'Device', 'OS']
+
 # Topline view
 df_summary_device_os = summarise_sessions(
     df_sessions_master_meta,
     **col_args_dict,
-    group_cols=['SessionDate', 'FallowControl', 'Device', 'OS']
+    group_cols=session_level_cols + ['FallowControl']
 )
 
 # Aggregate views
@@ -581,12 +583,12 @@ for ac in agg_cols:
     df_summary_ac = summarise_sessions(
         df_sessions_master_meta,
         **col_args_dict,
-        group_cols=['SessionDate', 'FallowControl', ac]
+        group_cols=session_level_cols + ['FallowControl', ac]
     )
     df_summary_ac_renamed = (
         df_summary_ac
-        .withColumnRenamed(ac, 'AggColumn')
-        .withColumn('AggValue', F.lit(ac))
+        .withColumnRenamed(ac, 'AggValue')
+        .withColumn('AggColumn', F.lit(ac))
     )
     agg_summaries.append(df_summary_ac_renamed)
 
@@ -601,10 +603,11 @@ df_summary_ad = (
     summarise_sessions(
         df_sessions_master_meta,
         **col_args_dict,
-        group_cols=[
-            'SessionDate', 'FallowControl', 'UniqueAdIDMeasurement',
-            *reporting_metadata_cols
-            ]
+        group_cols=(
+            session_level_cols
+            + ['FallowControl', 'UniqueAdIDMeasurement']
+            + reporting_metadata_cols
+            )
     )
     .where(F.col('UniqueAdIDMeasurement') != 'NoAd')
     .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
@@ -619,9 +622,11 @@ df_summary_ad = (
 benchmark_col = 'AlgoDivision'
 df_ad_benchmarks = (
     df_summary_agg
-    .where(F.col('AggCol') == benchmark_col)
+    .where(F.col('AggColumn') == benchmark_col)
+    .drop('AggColumn')
     .where(F.col('FallowControl') == 'Ads')
-    .where(F.col('AlgoDivision').isNotNull())
+    .where(F.col('AggValue').isNotNull())
+    .withColumnRenamed('AggValue', benchmark_col)
     .drop('FallowControl')
 )
 

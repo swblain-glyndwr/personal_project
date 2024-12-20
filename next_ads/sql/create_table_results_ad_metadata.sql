@@ -24,4 +24,4 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_ad_metadata (
     UniqueAdID,
     rundate)
 )
-partitioned by (rundate)
+partitioned by (SessionDate)

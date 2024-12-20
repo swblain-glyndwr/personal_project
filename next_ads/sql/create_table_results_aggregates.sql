@@ -1,7 +1,9 @@
 create table marketingdata_prod.{schema}.next_uk_nextads_results_aggregates (
     SessionDate date not null,
+    Device string not null,
+    OS string not null,
     AggColumn string not null,
-    AggValue not null,
+    AggValue string not null,
     FallowControl string not null,
     Sessions int,
     Revenue double,
@@ -11,9 +13,11 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_aggregates (
     rundate date not null,
   constraint pk_next_uk_nextads_results_aggregates primary key (
     SessionDate,
+    Device,
+    OS,
     AggColumn,
     AggValue,
     FallowControl,
     rundate)
 )
-partitioned by (rundate)
+partitioned by (SessionDate)

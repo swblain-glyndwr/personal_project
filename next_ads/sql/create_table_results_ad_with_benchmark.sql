@@ -1,5 +1,7 @@
 create table marketingdata_prod.{schema}.next_uk_nextads_results_ad_with_benchmark (
     SessionDate date not null,
+    Device string not null,
+    OS string not null,
     TestGroup string not null,
     UniqueAdID string not null,
     Sessions int,
@@ -10,8 +12,10 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_ad_with_benchma
     rundate date not null,
   constraint pk_next_uk_nextads_results_ad_with_benchmark primary key (
     SessionDate,
+    Device,
+    OS,
     TestGroup,
     UniqueAdID,
     rundate)
 )
-partitioned by (rundate)
+partitioned by (SessionDate)
