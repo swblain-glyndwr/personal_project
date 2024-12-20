@@ -589,6 +589,7 @@ for ac in agg_cols:
         df_summary_ac
         .withColumnRenamed(ac, 'AggValue')
         .withColumn('AggColumn', F.lit(ac))
+        .where(F.col('AggValue').isNotNull())
     )
     agg_summaries.append(df_summary_ac_renamed)
 
@@ -714,7 +715,7 @@ if job_env == 'prod':
                 .select('SessionDate',
                         'Device',
                         'OS',
-                        'AggCol',
+                        'AggColumn',
                         'AggValue',
                         'FallowControl',
                         'Sessions',
@@ -725,7 +726,7 @@ if job_env == 'prod':
             ),
             RESULTS_AGGREGATES_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
-                     'AggCol', 'AggValue', 'FallowControl'],
+                     'AggColumn', 'AggValue', 'FallowControl'],
             del_where={'SessionDate': d_fmt}
         )
 
