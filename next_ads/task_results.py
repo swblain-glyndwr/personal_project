@@ -54,8 +54,8 @@ FIXED_CELLS = prm['fixed_cells']
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
 if job_env == 'dev':
-    SESSION_DATE_START = date(2024, 12, 1)
-    SESSION_DATE_END = date(2024, 12, 2)
+    SESSION_DATE_START = date(2024, 12, 14)
+    SESSION_DATE_END = date(2024, 12, 20)
 else:
     SESSION_DATE_START = date.today() - timedelta(days=2)
     SESSION_DATE_END = date.today() - timedelta(days=1)
