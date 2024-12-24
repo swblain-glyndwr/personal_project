@@ -28,7 +28,7 @@ with open("config/parameters.json") as f:
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-LOCATION = pargs["location"] if pargs["location"] else "LP1"
+LOCATION = pargs["location"] if pargs["location"] else "PH4"
 log.info(f"Running in job environment: {job_env}")
 
 LOCATIONS = prm["locations"]
@@ -40,6 +40,8 @@ TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
 ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
 CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
+
+FALLOW_TRUE_LABEL = prm["fallow_control"]["true_label"]
 
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
@@ -133,7 +135,7 @@ else:
     log.info("Determining Ad to be shown based on assignments and fixed cells")
     df_assignments = (
         df_cells
-        .withColumn("NoAd", F.lit("Z"))
+        .withColumn("AdSuppressed", F.lit("AdSuppressed"))
         .join(
             (
                 df_assigned_basic
@@ -160,20 +162,31 @@ else:
 
     df_ad_assigned = (
             df_assignments
-            .withColumn("UniqueAdIDAssigned",
-                        chain_when_thens(CELL_MAP["map"]))
+            .withColumn(
+                "UniqueAdIDMeasurement",
+                chain_when_thens(CELL_MAP["map"])
+                )
+            .withColumn(
+                "UniqueAdIDAssigned",
+                F.when(
+                    F.col('FallowControl') == FALLOW_TRUE_LABEL,
+                    F.lit('NoAd')
+                    ).otherwise(F.col('UniqueAdIDMeasurement'))
+                )
         )
 
     df_ad_treatments = (
         df_assignments
-        .drop('UniqueAdIDBasic'
+        .drop('AdSuppressed',
+              'UniqueAdIDBasic'
               'UniqueAdIDBest'
               'UniqueAdIDBestChallenger')
         .withColumns(
             {
-                'UniqueAdIDBasic': F.lit('2: Basic'),
-                'UniqueAdIDBest': F.lit('1: Best'),
-                'UniqueAdIDBestChallenger': F.lit('1: Best (Challenger)')
+                'AdSuppressed': F.lit('AdSuppressed'),
+                'UniqueAdIDBasic': F.lit('Basic'),
+                'UniqueAdIDBest': F.lit('Best'),
+                'UniqueAdIDBestChallenger': F.lit('BestChallenger')
             }
         )
         .withColumn('Treatment', chain_when_thens(CELL_MAP['map']))
@@ -243,6 +256,7 @@ else:
             "UniqueAdIDBest",
             "UniqueAdIDBestChallenger",
             "Treatment",
+            "UniqueAdIDMeasurement",
             "UniqueAdIDAssigned",
             "MASID")
     )

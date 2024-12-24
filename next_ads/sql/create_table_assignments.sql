@@ -5,6 +5,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_assignments (
     UniqueAdIDBest string,
     UniqueAdIDBestChallenger string,
     Treatment string,
+    UniqueAdIDMeasurement string,
     UniqueAdIDAssigned string not null,
     MASID string not null,
     rundate date not null,

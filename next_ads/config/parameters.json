@@ -2,7 +2,7 @@
     "fallow_control": {
         "proportion": 0.1,
         "seed": 111,
-        "true_label": "No Ads",
+        "true_label": "NoAds",
         "false_label": "Ads",
         "cycle": 1
     },
@@ -11,11 +11,7 @@
         "HomePageTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 0.1}],
-                    "then": {"lit": "3: Local Control"}
-                },
-                {
-                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 0.5}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
@@ -23,17 +19,12 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 211,
-            "reported_value": "SessionRevenue"
+            "seed": 211
         },
         "ShoppingBagTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.1}],
-                    "then": {"lit": "3: Local Control"}
-                },
-                {
-                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.5}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
@@ -41,17 +32,12 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 212,
-            "reported_value": "ProductRevenuePostFirstHit"
+            "seed": 212
         },
         "OrderCompleteTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 0.1}],
-                    "then": {"lit": "3: Local Control"}
-                },
-                {
-                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 0.5}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
@@ -59,17 +45,12 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 213,
-            "reported_value": "ProductRevenuePostFirstHit"
+            "seed": 213
         },
         "LandingPageTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 0.1}],
-                    "then": {"lit": "3: Local Control"}
-                },
-                {
-                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 0.55}],
+                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 0.5}],
                     "then": {"lit": "2: Basic"}
                 },
                 {
@@ -77,8 +58,7 @@
                     "then": {"lit": "1: Best"}
                 }
             ],
-            "seed": 214,
-            "reported_value": "SessionRevenue"
+            "seed": 214
         },
         "AdHocABTest1": {
             "cells": [
@@ -236,14 +216,6 @@
             },
             "map": [
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
@@ -262,14 +234,6 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
-                {
-                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
                     "then": {"lit": "P128_C1626_Seasons_Solus_Womens_Womens"}
@@ -302,14 +266,6 @@
             },
             "map": [
                 {
-                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
                     "then": {"lit": "P128_C1626_Seasons_Solus_Womens_Womens"}
                 },
@@ -337,14 +293,6 @@
             "page_group": "LandingPage",
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
                 },
@@ -359,14 +307,6 @@
             "page": "/men",
             "page_group": "LandingPage",
             "map": [
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
@@ -383,14 +323,6 @@
             "page_group": "LandingPage",
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
                 },
@@ -405,14 +337,6 @@
             "page": "/girls",
             "page_group": "LandingPage",
             "map": [
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
@@ -429,14 +353,6 @@
             "page_group": "LandingPage",
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
                 },
@@ -451,14 +367,6 @@
             "page": "/beauty",
             "page_group": "LandingPage",
             "map": [
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
@@ -475,14 +383,6 @@
             "page_group": "LandingPage",
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
                 },
@@ -497,14 +397,6 @@
             "page": "/sports",
             "page_group": "LandingPage",
             "map": [
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
@@ -521,14 +413,6 @@
             "page_group": "LandingPage",
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
                 },
@@ -544,14 +428,6 @@
             "page_group": "LandingPage",
             "map": [
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
                 },
@@ -566,14 +442,6 @@
             "page": "/outdoor",
             "page_group": "LandingPage",
             "map": [
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "LandingPageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
@@ -592,14 +460,6 @@
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1]},
             "map": [
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
                     "then": {"lit": "P128_C1626_Seasons_Solus_Womens_Womens"}
@@ -631,14 +491,6 @@
             "best_kwargs": {"return_ranks": [2]},
             "map": [
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
                     "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
                 },
@@ -656,14 +508,6 @@
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3]},
             "map": [
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "No Ads"}],
-                    "then": {"lit": "NoAd"}
-                },
-                {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "3: Local Control"}],
-                    "then": {"lit": "NoAd"}
-                },
                 {
                     "when": [{"col": "HomePageTest1", "op": "eq", "val": "2: Basic"}],
                     "then": {"col": "UniqueAdIDBest"}

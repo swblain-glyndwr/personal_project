@@ -88,40 +88,26 @@ df_fallow = (
 df_fallow.cache()
 # TODO: Calibrate spend per customer of fallow and test group?
 
-df_test_ads = (
-    df_fallow
-    .where(~F.col("FallowControl"))
-    .select("AccountNumber")
-)
+df_fc = df_fallow.select("AccountNumber")
 
 for fixed_cell in FIXED_CELLS:
-    df_test_ads = (
-        df_test_ads
+    df_fc = (
+        df_fc
         .orderBy(F.col("AccountNumber"))
         .withColumn(f"Random{fixed_cell}",
                     F.rand(seed=FIXED_CELLS[fixed_cell]["seed"]))
         .withColumn(fixed_cell,
                     chain_when_thens(FIXED_CELLS[fixed_cell]["cells"]))
     )
-df_test_ads.cache()
+df_fc.cache()
 
 df_cells = (
     df_fallow
-    .join(df_test_ads, on="AccountNumber", how="left")
+    .join(df_fc, on="AccountNumber", how="left")
     .select("AccountNumber", "FallowControl", *list(FIXED_CELLS.keys()))
 )
 df_cells.cache()
 
-log.info(f"Customers not in fallow cell: {df_test_ads.count():,}")
-
-for fixed_cell in FIXED_CELLS:
-    df_cells = (
-        df_cells
-        .withColumn(fixed_cell,
-                    F.when(F.col("FallowControl"),
-                           F.lit(FALLOW_TRUE_LABEL)
-                           ).otherwise(F.col(fixed_cell)))
-    )
 
 df_cells = (
     df_cells.withColumn("FallowControl",
@@ -264,7 +250,7 @@ else:
 
 df_cust.unpersist()
 df_fallow.unpersist()
-df_test_ads.unpersist()
+df_fc.unpersist()
 df_cells.unpersist()
 df_cells_existing.unpersist()
 df_cells_full.unpersist()
