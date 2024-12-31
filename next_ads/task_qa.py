@@ -124,7 +124,7 @@ teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
 w_acc = Window().partitionBy('AccountNumber')
 
 df_partial_teasers = (
-    df_assignments_w_cells
+    df_assigned
     .where(F.col('Location').isin(teaser_locs))
     .withColumn(
         'TeaserAssigned',
