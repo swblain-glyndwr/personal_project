@@ -415,14 +415,14 @@ df_sessions_ads_valid_clicks = (
         F.when((F.col('UniqueAdIDAssigned') == 'NoAd'), 'NoAd')
         .when(
             F.col('UniqueAdIDAssigned') == F.col('UniqueAdIDBasic'),
-            "2: Basic")
+            "Basic")
         .when(
             F.col('UniqueAdIDBest') == F.col('UniqueAdIDBest'),
-            "1: Best")
+            "Best")
         .when(
             (F.col('UniqueAdIDBestChallenger') ==
              F.col('UniqueAdIDBestChallenger')),
-            "1: Best (Challenger)")
+            "Best (Challenger)")
     )
     .withColumn('Treatment',
                 F.when(
