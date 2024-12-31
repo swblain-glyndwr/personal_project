@@ -3,8 +3,9 @@ import logging.config
 import json
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (
-    JobParser, assert_pk, get_table_pk_cols, map_schema)
+    JobParser, assert_pk, get_table_pk_cols, map_schema, post_to_webhook)
 from pyspark.sql import functions as F
+from pyspark.sql import Window
 
 
 logging.config.fileConfig("config/logging.conf")
@@ -30,6 +31,8 @@ CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
 
 FALLOW_TRUE = prm["fallow_control"]["true_label"]
 FIXED_CELLS = prm["fixed_cells"]
+
+WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
 df_assigned = get_spark().table(ASSIGNMENTS_TABLE_LATEST)
 df_cells = get_spark().table(CELLS_TABLE_LATEST)
@@ -115,9 +118,14 @@ for tbl in tbls:
 
 
 log.info('Checking for partial Homepage Teaser assignments')
+
+teaser_locs = ['PH3', 'PH4', 'PH5']
+teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
+w_acc = Window().partitionBy('AccountNumber')
+
 df_partial_teasers = (
     df_assignments_w_cells
-    .where(F.col('Location').startswith('PH'))
+    .where(F.col('Location').isin(teaser_locs))
     .withColumn(
         'TeaserAssigned',
         F.when(
@@ -125,11 +133,31 @@ df_partial_teasers = (
             F.lit(0)
             ).otherwise(F.lit(1))
         )
-    .groupBy('AccountNumber')
-    .agg(F.sum('TeaserAssigned').alias('TeasersAssigned'))
-    .groupBy('TeasersAssigned')
-    .agg(F.countDistinct('AccountNumber').alias('Accounts'))
+    .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_acc))
     .where(~F.col('TeasersAssigned').isin(0, 3))
 )
 
-assert df_partial_teasers.count(), 'Partial Teaser assignments found'
+if df_partial_teasers.count() > 0:
+
+    df_partial_teaser_accounts = (
+        df_partial_teasers
+        .select('AccountNumber')
+        .distinct()
+    )
+
+    n_pt = df_partial_teaser_accounts.count()
+    msg_pt = f'{n_pt:,} accounts found with partial HomePage Teasers'
+    log.warning(msg_pt)
+    if job_env == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_pt)
+
+    df_partial_teaser_accounts.createOrReplaceTempView("df_pt_accs")
+    sql_del_partials = f'''
+    delete from {ASSIGNMENTS_TABLE_LATEST}
+    where AccountNumber in (select AccountNumber from df_pt_accs)
+    and Location in ({', '.join(teaser_locs_fmt)})
+    '''
+    log.warning(f'Deleting affected accounts from {ASSIGNMENTS_TABLE_LATEST}')
+    get_spark().sql(sql_del_partials)
+
+    raise AssertionError('Partial Teaser assignments found')
