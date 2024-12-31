@@ -112,3 +112,24 @@ for tbl in tbls:
     log.info(f'Asserting {pk_cols} as PK for {tbl_mapped}')
     df_tbl_pk = get_spark().table(tbl_mapped)
     assert_pk(df_tbl_pk, pk_cols)
+
+
+log.info('Checking for partial Homepage Teaser assignments')
+df_partial_teasers = (
+    df_assignments_w_cells
+    .where(F.col('Location').startswith('PH'))
+    .withColumn(
+        'TeaserAssigned',
+        F.when(
+            F.col('MASID').endswith('_Z'),
+            F.lit(0)
+            ).otherwise(F.lit(1))
+        )
+    .groupBy('AccountNumber')
+    .agg(F.sum('TeaserAssigned').alias('TeasersAssigned'))
+    .groupBy('TeasersAssigned')
+    .agg(F.countDistinct('AccountNumber').alias('Accounts'))
+    .where(~F.col('TeasersAssigned').isin(0, 3))
+)
+
+assert df_partial_teasers.count(), 'Partial Teaser assignments found'
