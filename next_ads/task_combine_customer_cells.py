@@ -32,9 +32,7 @@ CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
 
 
 log.info("Combining latest fixed and transient cell assignments")
-# Inner join will remove customers that don't have transient cells
-# (e.g. AlgoDivision)
-# TODO: Will this bias the results? Address when reviewing AlgoDivision.
+
 df_cells_fixed = (
     get_spark()
     .table(FIXED_CELLS_TABLE_LATEST)
@@ -48,7 +46,11 @@ df_cells_transient = (
     .groupBy("AccountNumber")
     .pivot("Cell")
     .agg(F.max("CellValue"))
+    .where(F.col('AlgoDivision').isNotNull())
 )
+
+# Inner join will remove customers that don't have AlgoDivision
+# TODO: Will this bias the results? Address when reviewing AlgoDivision.
 
 if df_cells_transient.count() > 0:
     df_cells = (
