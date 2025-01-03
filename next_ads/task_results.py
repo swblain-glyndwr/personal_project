@@ -297,6 +297,28 @@ df_sessions_pages = (
 df_sessions_pages.cache()
 
 
+# Next Ads measurement cannot currently accomodate sessions associated with
+# multiple accounts - check for and remove any cases of this
+df_multi_account_sessions = (
+    df_sessions_pages
+    .groupBy('SessionDate', 'Device', 'OS', 'UniqueVisitID')
+    .agg(F.countDistinct('AccountNumber').alias('nAcc'))
+    .where(F.col('nAcc') > 1)
+)
+
+n_multi_account_sessions = df_multi_account_sessions.count()
+
+if n_multi_account_sessions > 0:
+    df_sessions_pages = (
+        df_sessions_pages
+        .join(
+            df_multi_account_sessions.select('SessionDate', 'UniqueVisitID'),
+            on=['SessionDate', 'UniqueVisitID'], how='leftanti'
+        )
+    )
+    log.warning(f'{n_multi_account_sessions:,} multi-account sessions removed')
+
+
 # Remove the last Order Complete page, and any hits after it from each session
 # Rationale: If would be unfair to attribute any Session value to an ad
 # on Order Complete when ad is seen after session spend is committed
