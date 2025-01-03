@@ -486,7 +486,8 @@ df_sessions_master = (
         F.when(
             (F.col('UniqueAdIDMeasurement').isNull())
             & (F.col('FallowControl') == FALLOW_FALSE)
-            & (F.col('SessionDate') < '2025-01-02'),
+            & (F.col('SessionDate') < '2025-01-02')
+            & (F.col('UniqueAdIDAssigned') != 'NoAd'),
             F.col('UniqueAdIDAssigned')
             ).otherwise(F.col('UniqueAdIDMeasurement'))
         )
