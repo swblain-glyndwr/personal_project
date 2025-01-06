@@ -104,6 +104,7 @@
             "results_device_os": "big-query-156009.Misc_eu.next_uk_nextads_results_device_os",
             "results_aggregates": "big-query-156009.Misc_eu.next_uk_nextads_results_aggregates",
             "results_ad_with_benchmark": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_with_benchmark",
+            "results_ad_location": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_location",
             "results_ad_metadata": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_metadata"
         }
     },
