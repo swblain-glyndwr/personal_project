@@ -157,7 +157,10 @@ if df_partial_teasers.count() > 0:
     where AccountNumber in (select AccountNumber from df_pt_accs)
     and Location in ({', '.join(teaser_locs_fmt)})
     '''
-    log.warning(f'Deleting affected accounts from {ASSIGNMENTS_TABLE_LATEST}')
+    msg_pt_rm = (
+        'Removing Teaser assignments for affected accounts ' +
+        f'from table read by PF: {ASSIGNMENTS_TABLE_LATEST}')
+    log.warning(msg_pt_rm)
+    if job_env == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_pt)
     get_spark().sql(sql_del_partials)
-
-    raise AssertionError('Partial Teaser assignments found')
