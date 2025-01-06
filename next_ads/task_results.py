@@ -1,7 +1,9 @@
 import logging
 import logging.config
 import json
-from next_ads.Results import (summarise_sessions,
+from next_ads.Results import (check_for_missing_dates,
+                              patch_missing_dates,
+                              summarise_sessions,
                               validate_assignments_match_pf)
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
@@ -57,8 +59,8 @@ FALLOW_FALSE = prm["fallow_control"]["false_label"]
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
 if job_env == 'dev':
-    SESSION_DATE_START = date(2024, 12, 31)
-    SESSION_DATE_END = date(2025, 1, 2)
+    SESSION_DATE_START = date(2024, 12, 28)
+    SESSION_DATE_END = date(2025, 1, 3)
 else:
     SESSION_DATE_START = date.today() - timedelta(days=2)
     SESSION_DATE_END = date.today() - timedelta(days=1)
@@ -108,6 +110,21 @@ df_assignments = (
             'MASID')
 )
 
+# Check for missing Assignment dates (e.g. failure in scheduled run) and patch
+dates_asgn = [x[0].date() for x in
+              df_assignments.select('SessionDate').distinct().collect()]
+dates_asgn.sort()
+date_patch_asgn = check_for_missing_dates(
+    SESSION_DATE_START, SESSION_DATE_END, dates_asgn)
+if date_patch_asgn:
+    log.warning('Missing dates found in Assignments during results period')
+    for date_p in date_patch_asgn:
+        log.warning(f'Patching missing Assignmnets date {date_p[0]} ' +
+                    f'with last non-missing date: {date_p[1]}')
+    df_asgn_patches = patch_missing_dates(
+        date_patch_asgn, df_assignments, date_col='SessionDate')
+    df_assignments = df_assignments.unionByName(df_asgn_patches)
+
 # MASID runs after midnight, therefore SessionDate is rundate
 df_pf = (
     get_spark()
@@ -120,6 +137,39 @@ df_pf = (
 df_pf = df_pf.withColumnRenamed('account_number', 'AccountNumber')
 df_pf = df_pf.withColumnRenamed('rundate', 'SessionDate')
 df_pf = df_pf.withColumnsRenamed(pf2loc)
+
+
+# Check for missing PF dates (e.g. failure in scheduled run) and patch
+dates_pf = [x[0] for x in
+            df_pf.select('SessionDate').distinct().collect()]
+dates_pf.sort()
+date_patch_pf = check_for_missing_dates(
+    SESSION_DATE_START, SESSION_DATE_END, dates_pf)
+if date_patch_pf:
+    log.warning('Missing dates found in PF during results period')
+
+    # If PF failed, but Assignments didn't Assignments will need to
+    # reflect the last date that PF ran in order to match
+    missing_pf_dates = [x[0] for x in date_patch_pf]
+    log.warning('Removing affected PF dates from Assignments')
+    df_assignments = (
+        df_assignments
+        .where(~F.col('SessionDate').isin(missing_pf_dates))
+    )
+
+    for date_p in date_patch_pf:
+        log.warning(f'Patching missing PF date {date_p[0]} ' +
+                    'in PF and Assignments data '
+                    f'with last non-missing PF date: {date_p[1]}')
+
+    df_pf_patches = patch_missing_dates(
+        date_patch_pf, df_pf, date_col='SessionDate')
+    df_assignments_patches = patch_missing_dates(
+        date_patch_pf, df_assignments, date_col='SessionDate')
+
+    df_pf = df_pf.unionByName(df_pf_patches)
+    df_assignments = df_assignments.unionByName(df_assignments_patches)
+
 
 id_cols = ['AccountNumber', 'SessionDate']
 df_pf_long = (
@@ -176,6 +226,48 @@ df_valid_assignments = (
     .where(F.col('MASID') == F.col('MASIDPF'))
     .drop('MASIDPF')
 )
+
+df_valid_proportions = (
+    (
+        df_asgn_pf
+        .groupBy('SessionDate')
+        .agg(F.count('AccountNumber').alias('Cases'))
+        .orderBy('SessionDate')
+    ).join(
+        df_valid_assignments
+        .groupBy('SessionDate')
+        .agg(F.count('AccountNumber').alias('ValidCases'))
+        .orderBy('SessionDate'),
+        on='SessionDate', how='left'
+    )
+    .fillna({'ValidCases': 0})
+    .withColumn('ValidCasesPC', F.col('ValidCases')/F.col('Cases'))
+)
+
+valid_assignment_threshold = 0.95
+df_invalid_dates = (
+    df_valid_proportions
+    .where(F.col('ValidCasesPC') < valid_assignment_threshold)
+    .select('SessionDate')
+)
+invalid_dates = [x[0].strftime('%Y-%m-%d') for x in df_invalid_dates.collect()]
+
+if invalid_dates:
+    msg_invalid_dates = (
+        f'Removing date(s) {", " .join(invalid_dates)} ' +
+        'from results processing ' +
+        f'due to valid case rate of < {valid_assignment_threshold:.0%}'
+    )
+
+    log.warning(msg_invalid_dates)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, '\n'.join(msg_invalid_dates))
+
+    df_valid_assignments = (
+        df_valid_assignments
+        .join(df_invalid_dates, on='SessionDate', how='leftanti')
+    )
+
 
 sdates_valid = [
     x[0].date() for x in

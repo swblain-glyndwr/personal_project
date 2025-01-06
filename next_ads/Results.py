@@ -1,8 +1,67 @@
+import datetime
 from statistics import mean
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from itertools import chain, combinations, permutations
 from collections.abc import Callable
+
+
+def check_for_missing_dates(
+        date_start: datetime.date,
+        date_end: datetime.date,
+        data_dates: list[datetime.date]) -> list:
+
+    date_i = date_start
+    dates = [date_i]
+    date_patches = []
+
+    while date_i < date_end:
+        dates.append(date_i + datetime.timedelta(days=1))
+        date_i = date_i + datetime.timedelta(days=1)
+
+    data_dates.sort()
+
+    if dates[0] != data_dates[0]:
+        raise Exception(
+            'Data missing from first date of results period - ' +
+            're-run results with an earlier start date')
+
+    if max(dates) > max(data_dates):
+        date_tail = [d for d in dates if d > max(data_dates)]
+        for d in date_tail:
+            date_patches.append((d, max(data_dates)))
+
+    i, j = 0, 0
+    while i < len(data_dates):
+        if data_dates[i] == dates[j]:
+            i += 1
+            j += 1
+        else:
+            date_patches.append((dates[j], data_dates[i-1]))
+            j += 1
+
+    return date_patches
+
+
+def patch_missing_dates(
+        date_patch: list[tuple],
+        df: DataFrame,
+        date_col: str) -> DataFrame:
+
+    df_patched = []
+    for date_p in date_patch:
+        date_missing = date_p[0]
+        date_copy = date_p[1]
+        df_patched.append(
+            df
+            .where(F.col(date_col) == date_copy)
+            .withColumn(date_col, F.lit(date_missing))
+        )
+    df_rtn = df_patched.pop()
+    for df_i in df_patched:
+        df_rtn = df_rtn.unionByName(df_i)
+
+    return df_rtn
 
 
 def validate_assignments_match_pf(
