@@ -25,6 +25,7 @@ RESULTS_EXPORTS = [
     'results_device_os',
     'results_aggregates',
     'results_ad_with_benchmark',
+    'results_ad_location',
     'results_ad_metadata'
     ]
 
