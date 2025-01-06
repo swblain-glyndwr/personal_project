@@ -230,6 +230,7 @@ df_valid_assignments = (
 df_valid_proportions = (
     (
         df_asgn_pf
+        .where(F.col('MASIDPF').isNotNull())
         .groupBy('SessionDate')
         .agg(F.count('AccountNumber').alias('Cases'))
         .orderBy('SessionDate')
@@ -244,7 +245,7 @@ df_valid_proportions = (
     .withColumn('ValidCasesPC', F.col('ValidCases')/F.col('Cases'))
 )
 
-valid_assignment_threshold = 0.95
+valid_assignment_threshold = 0.999
 df_invalid_dates = (
     df_valid_proportions
     .where(F.col('ValidCasesPC') < valid_assignment_threshold)
@@ -256,7 +257,7 @@ if invalid_dates:
     msg_invalid_dates = (
         f'Removing date(s) {", " .join(invalid_dates)} ' +
         'from results processing ' +
-        f'due to valid case rate of < {valid_assignment_threshold:.0%}'
+        f'(valid case rate < {valid_assignment_threshold:.1%})'
     )
 
     log.warning(msg_invalid_dates)
