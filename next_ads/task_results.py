@@ -618,7 +618,7 @@ assert_pk(
     df_ad_metadata_non_loc,
     pk_cols=['SessionDate', 'UniqueAdID']
     )
-
+df_ad_metadata_non_loc.cache()
 
 df_sessions_master_meta = (
     df_sessions_master
@@ -651,6 +651,7 @@ df_summary_device_os = summarise_sessions(
     **col_args_dict,
     group_cols=session_level_cols + ['FallowControl']
 )
+df_summary_device_os.cache()
 
 # Aggregate views
 agg_cols = [
@@ -679,6 +680,7 @@ if agg_summaries:
     df_summary_agg = agg_summaries.pop()
     while agg_summaries:
         df_summary_agg = df_summary_agg.unionByName(agg_summaries.pop())
+df_summary_agg.cache()
 
 
 # Ad-level view
@@ -733,6 +735,7 @@ df_summary_ad_with_benchmark = (
     .unionByName(df_summary_ad_benchmark)
     .withColumnRenamed('FallowControl', 'TestGroup')
 )
+df_summary_ad_with_benchmark.cache()
 
 # Ad x LocationSet view
 w_visit_ad = Window.partitionBy('UniqueVisitID', 'UniqueAdIDMeasurement')
@@ -756,7 +759,7 @@ df_summary_ad_locset = (
     .withColumn('LocationSet',
                 F.concat_ws('+', (F.array_sort(F.col('LocationSet')))))
 )
-
+df_summary_ad_locset.cache()
 
 for d in sdates_valid:
     d_fmt = d.strftime('%Y-%m-%d')
