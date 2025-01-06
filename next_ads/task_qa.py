@@ -162,5 +162,5 @@ if df_partial_teasers.count() > 0:
         f'from table read by PF: {ASSIGNMENTS_TABLE_LATEST}')
     log.warning(msg_pt_rm)
     if job_env == "prod":
-        post_to_webhook(WEBHOOK_URL, msg_pt)
+        post_to_webhook(WEBHOOK_URL, msg_pt_rm)
     get_spark().sql(sql_del_partials)
