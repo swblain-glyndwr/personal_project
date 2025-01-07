@@ -44,11 +44,10 @@ TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"],
                                    SCHEMA)
 CONTROL_SHEET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
 
-RESULTS_DEVICE_OS_TABLE = map_schema(tbls["results_device_os"], SCHEMA)
-RESULTS_AGGREGATES_TABLE = map_schema(tbls["results_aggregates"], SCHEMA)
-RESULTS_AD_WITH_BENCHMARK_TABLE = map_schema(
-    tbls["results_ad_with_benchmark"], SCHEMA)
-RESULTS_AD_LOCATION_TABLE = map_schema(tbls["results_ad_location"], SCHEMA)
+RESULTS_DEVICE_OS_TABLE = map_schema(tbls["results_topline"], SCHEMA)
+RESULTS_AGGREGATES_TABLE = map_schema(tbls["results_aggregated"], SCHEMA)
+RESULTS_AD_WITH_BENCHMARK_TABLE = map_schema(tbls["results_ads"], SCHEMA)
+RESULTS_AD_LOCATION_TABLE = map_schema(tbls["results_ads_location"], SCHEMA)
 RESULTS_AD_METADATA_TABLE = map_schema(tbls["results_ad_metadata"], SCHEMA)
 
 LOCATIONS = prm['locations']
@@ -850,7 +849,7 @@ if job_env == 'prod':
     for d in sdates_valid:
         d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
 
-        log.info(f'Loading results_device_os for {d_fmt} ' +
+        log.info(f'Loading results_topline for {d_fmt} ' +
                  f'to table: {RESULTS_DEVICE_OS_TABLE}')
         delete_from_and_load(
             (
@@ -875,7 +874,7 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_aggregates for {d_fmt} ' +
+        log.info(f'Loading results_aggregated for {d_fmt} ' +
                  f'to table: {RESULTS_AGGREGATES_TABLE}')
         delete_from_and_load(
             (
@@ -903,7 +902,7 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ad_with_benchmark for {d_fmt} ' +
+        log.info(f'Loading results_ads for {d_fmt} ' +
                  f'to table: {RESULTS_AD_WITH_BENCHMARK_TABLE}')
         delete_from_and_load(
             (
@@ -929,7 +928,7 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ad_location for {d_fmt} ' +
+        log.info(f'Loading results_ads_location for {d_fmt} ' +
                  f'to table: {RESULTS_AD_LOCATION_TABLE}')
         delete_from_and_load(
             (
