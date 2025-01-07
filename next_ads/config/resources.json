@@ -77,10 +77,10 @@
             "targeting_scores_latest": "marketingdata_prod.{schema}.next_uk_nextads_targeting_scores_latest",
             "assignments": "marketingdata_prod.{schema}.next_uk_nextads_assignments",
             "assignments_latest": "marketingdata_prod.{schema}.next_uk_nextads_assignments_latest",
-            "results_device_os": "marketingdata_prod.{schema}.next_uk_nextads_results_device_os",
-            "results_aggregates": "marketingdata_prod.{schema}.next_uk_nextads_results_aggregates",
-            "results_ad_with_benchmark": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_with_benchmark",
-            "results_ad_location": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_location",
+            "results_topline": "marketingdata_prod.{schema}.next_uk_nextads_results_topline",
+            "results_aggregated": "marketingdata_prod.{schema}.next_uk_nextads_results_aggregated",
+            "results_ads": "marketingdata_prod.{schema}.next_uk_nextads_results_ads",
+            "results_ads_location": "marketingdata_prod.{schema}.next_uk_nextads_results_ads_location",
             "results_ad_metadata": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_metadata"
         }
     },
@@ -101,10 +101,10 @@
         "temporaryGcsBucket": "to_discovery/tableau",
         "parentProject": "big-query-156009",
         "tables": {
-            "results_device_os": "big-query-156009.Misc_eu.next_uk_nextads_results_device_os",
-            "results_aggregates": "big-query-156009.Misc_eu.next_uk_nextads_results_aggregates",
-            "results_ad_with_benchmark": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_with_benchmark",
-            "results_ad_location": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_location",
+            "results_topline": "big-query-156009.Misc_eu.next_uk_nextads_results_topline",
+            "results_aggregated": "big-query-156009.Misc_eu.next_uk_nextads_results_aggregated",
+            "results_ads": "big-query-156009.Misc_eu.next_uk_nextads_results_ads",
+            "results_ads_location": "big-query-156009.Misc_eu.next_uk_nextads_results_ads_location",
             "results_ad_metadata": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_metadata"
         }
     },

@@ -651,7 +651,31 @@ df_summary_device_os = summarise_sessions(
     **col_args_dict,
     group_cols=session_level_cols + ['FallowControl']
 )
-df_summary_device_os.cache()
+
+df_summary_device_os_wide = (
+    df_summary_device_os
+    .where(F.col('FallowControl').isin(FALLOW_FALSE, FALLOW_TRUE))
+    .groupBy('SessionDate', 'Device', 'OS')
+    .pivot('FallowControl')
+    .agg(
+        F.first('Sessions').alias('Sessions'),
+        F.first('Revenue').alias('Revenue'),
+        F.first('Conversions').alias('Conversions'),
+        F.first('SoftImpressions').alias('SoftImpressions'),
+        F.first('SoftClicks').alias('SoftClicks'),
+    )
+)
+
+for c in df_summary_device_os_wide.columns:
+    df_summary_device_os_wide = (
+        df_summary_device_os_wide
+        .withColumnRenamed(
+            c,
+            c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
+    )
+
+df_summary_device_os_wide.cache()
+
 
 # Aggregate views
 agg_cols = [
@@ -680,7 +704,30 @@ if agg_summaries:
     df_summary_agg = agg_summaries.pop()
     while agg_summaries:
         df_summary_agg = df_summary_agg.unionByName(agg_summaries.pop())
-df_summary_agg.cache()
+
+df_summary_agg_wide = (
+    df_summary_agg
+    .where(F.col('FallowControl').isin(FALLOW_FALSE, FALLOW_TRUE))
+    .groupBy('SessionDate', 'Device', 'OS', 'AggColumn', 'AggValue')
+    .pivot('FallowControl')
+    .agg(
+        F.first('Sessions').alias('Sessions'),
+        F.first('Revenue').alias('Revenue'),
+        F.first('Conversions').alias('Conversions'),
+        F.first('SoftImpressions').alias('SoftImpressions'),
+        F.first('SoftClicks').alias('SoftClicks'),
+    )
+)
+
+for c in df_summary_agg_wide.columns:
+    df_summary_agg_wide = (
+        df_summary_agg_wide
+        .withColumnRenamed(
+            c,
+            c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
+    )
+
+df_summary_agg_wide.cache()
 
 
 # Ad-level view
@@ -691,51 +738,36 @@ df_summary_ad = (
         group_cols=(
             session_level_cols
             + ['FallowControl', 'UniqueAdIDMeasurement']
-            + reporting_metadata_cols
             )
     )
     .where(F.col('UniqueAdIDMeasurement').isNotNull())
     .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
 )
 
-
-# Additional 'benchmark' to add to ad-level table
-# This is added for two reasons
-# 1 - At ad-level, control groups can become very small
-# 2 - Legacy, the ad-level results for the latter half of 2024 used
-# within-division averages as a pseudo control group (due to point 1)
-benchmark_col = 'AlgoDivision'
-df_ad_benchmarks = (
-    df_summary_agg
-    .where(F.col('AggColumn') == benchmark_col)
-    .drop('AggColumn')
-    .where(F.col('FallowControl') == FALLOW_FALSE)
-    .where(F.col('AggValue').isNotNull())
-    .withColumnRenamed('AggValue', benchmark_col)
-    .drop('FallowControl')
-)
-
-join_cols = ['SessionDate', benchmark_col]
-kpi_cols = [
-    c for c in df_ad_benchmarks.columns if c not in join_cols
-]
-
-df_summary_ad_benchmark = (
+df_summary_ad_wide = (
     df_summary_ad
-    .where(F.col('FallowControl') == FALLOW_FALSE)
-    .drop(*kpi_cols)
-    .distinct()
-    .join(df_ad_benchmarks, on=join_cols, how='left')
-    .withColumn('FallowControl', F.lit('Benchmark'))
-    .select(df_summary_ad.columns)
+    .where(F.col('FallowControl').isin(FALLOW_FALSE, FALLOW_TRUE))
+    .groupBy('SessionDate', 'Device', 'OS', 'UniqueAdID')
+    .pivot('FallowControl')
+    .agg(
+        F.first('Sessions').alias('Sessions'),
+        F.first('Revenue').alias('Revenue'),
+        F.first('Conversions').alias('Conversions'),
+        F.first('SoftImpressions').alias('SoftImpressions'),
+        F.first('SoftClicks').alias('SoftClicks'),
+    )
 )
 
-df_summary_ad_with_benchmark = (
-    df_summary_ad
-    .unionByName(df_summary_ad_benchmark)
-    .withColumnRenamed('FallowControl', 'TestGroup')
-)
-df_summary_ad_with_benchmark.cache()
+for c in df_summary_ad_wide.columns:
+    df_summary_ad_wide = (
+        df_summary_ad_wide
+        .withColumnRenamed(
+            c,
+            c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
+    )
+
+df_summary_ad_wide.cache()
+
 
 # Ad x LocationSet view
 w_visit_ad = Window.partitionBy('UniqueVisitID', 'UniqueAdIDMeasurement')
@@ -755,11 +787,34 @@ df_summary_ad_locset = (
     )
     .where(F.col('UniqueAdIDMeasurement').isNotNull())
     .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
-    .withColumnRenamed('FallowControl', 'TestGroup')
     .withColumn('LocationSet',
                 F.concat_ws('+', (F.array_sort(F.col('LocationSet')))))
 )
-df_summary_ad_locset.cache()
+
+df_summary_ad_locset_wide = (
+    df_summary_ad_locset
+    .where(F.col('FallowControl').isin(FALLOW_FALSE, FALLOW_TRUE))
+    .groupBy('SessionDate', 'Device', 'OS', 'UniqueAdID', 'LocationSet')
+    .pivot('FallowControl')
+    .agg(
+        F.first('Sessions').alias('Sessions'),
+        F.first('Revenue').alias('Revenue'),
+        F.first('Conversions').alias('Conversions'),
+        F.first('SoftImpressions').alias('SoftImpressions'),
+        F.first('SoftClicks').alias('SoftClicks'),
+    )
+)
+
+for c in df_summary_ad_locset_wide.columns:
+    df_summary_ad_locset_wide = (
+        df_summary_ad_locset_wide
+        .withColumnRenamed(
+            c,
+            c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
+    )
+
+df_summary_ad_locset_wide.cache()
+
 
 for d in sdates_valid:
     d_fmt = d.strftime('%Y-%m-%d')
@@ -775,13 +830,16 @@ for d in sdates_valid:
                 .agg(F.sum(c).alias(c))
                 .select(c)
                 ).collect()[0][0]
+            if fc == FALLOW_TRUE:
+                c_piv = 'C_' + c
+            else:
+                c_piv = c
             tpost = (
-                df_summary_device_os
+                df_summary_device_os_wide
                 .where(F.col('SessionDate') == d)
-                .where(F.col('FallowControl') == fc)
-                .groupBy('SessionDate', 'FallowControl')
-                .agg(F.sum(c).alias(c))
-                .select(c)
+                .groupBy('SessionDate')
+                .agg(F.sum(c_piv).alias(c_piv))
+                .select(c_piv)
                 ).collect()[0][0]
             # Check match to < 0.01 to allow for floating point arithmetic
             msg = f'Pre- and post- total for {c} does not match for {fc}'
@@ -796,21 +854,24 @@ if job_env == 'prod':
                  f'to table: {RESULTS_DEVICE_OS_TABLE}')
         delete_from_and_load(
             (
-                df_summary_device_os
+                df_summary_device_os_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
                         'OS',
-                        'FallowControl',
                         'Sessions',
                         'Revenue',
                         'Conversions',
                         'SoftImpressions',
-                        'SoftClicks')
+                        'SoftClicks',
+                        'C_Sessions',
+                        'C_Revenue',
+                        'C_Conversions',
+                        'C_SoftImpressions',
+                        'C_SoftClicks')
             ),
             RESULTS_DEVICE_OS_TABLE,
-            pk_cols=['SessionDate', 'Device', 'OS',
-                     'FallowControl'],
+            pk_cols=['SessionDate', 'Device', 'OS'],
             del_where={'SessionDate': d_fmt}
         )
 
@@ -818,23 +879,27 @@ if job_env == 'prod':
                  f'to table: {RESULTS_AGGREGATES_TABLE}')
         delete_from_and_load(
             (
-                df_summary_agg
+                df_summary_agg_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
                         'OS',
                         'AggColumn',
                         'AggValue',
-                        'FallowControl',
                         'Sessions',
                         'Revenue',
                         'Conversions',
                         'SoftImpressions',
-                        'SoftClicks')
+                        'SoftClicks',
+                        'C_Sessions',
+                        'C_Revenue',
+                        'C_Conversions',
+                        'C_SoftImpressions',
+                        'C_SoftClicks')
             ),
             RESULTS_AGGREGATES_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
-                     'AggColumn', 'AggValue', 'FallowControl'],
+                     'AggColumn', 'AggValue'],
             del_where={'SessionDate': d_fmt}
         )
 
@@ -842,22 +907,25 @@ if job_env == 'prod':
                  f'to table: {RESULTS_AD_WITH_BENCHMARK_TABLE}')
         delete_from_and_load(
             (
-                df_summary_ad_with_benchmark
+                df_summary_ad_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
                         'OS',
-                        'TestGroup',
                         'UniqueAdID',
                         'Sessions',
                         'Revenue',
                         'Conversions',
                         'SoftImpressions',
-                        'SoftClicks')
+                        'SoftClicks',
+                        'C_Sessions',
+                        'C_Revenue',
+                        'C_Conversions',
+                        'C_SoftImpressions',
+                        'C_SoftClicks')
             ),
             RESULTS_AD_WITH_BENCHMARK_TABLE,
-            pk_cols=['SessionDate', 'Device', 'OS',
-                     'TestGroup', 'UniqueAdID'],
+            pk_cols=['SessionDate', 'Device', 'OS', 'UniqueAdID'],
             del_where={'SessionDate': d_fmt}
         )
 
@@ -865,23 +933,27 @@ if job_env == 'prod':
                  f'to table: {RESULTS_AD_LOCATION_TABLE}')
         delete_from_and_load(
             (
-                df_summary_ad_locset
+                df_summary_ad_locset_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
                         'OS',
-                        'TestGroup',
                         'UniqueAdID',
                         'LocationSet',
                         'Sessions',
                         'Revenue',
                         'Conversions',
                         'SoftImpressions',
-                        'SoftClicks')
+                        'SoftClicks',
+                        'C_Sessions',
+                        'C_Revenue',
+                        'C_Conversions',
+                        'C_SoftImpressions',
+                        'C_SoftClicks')
             ),
             RESULTS_AD_LOCATION_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
-                     'TestGroup', 'UniqueAdID', 'LocationSet'],
+                     'UniqueAdID', 'LocationSet'],
             del_where={'SessionDate': d_fmt}
         )
 
