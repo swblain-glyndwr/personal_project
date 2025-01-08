@@ -379,7 +379,7 @@
         },
         "LP7": {
             "pf_col": "LP_slot_7",
-            "page": "/brands",
+            "page": "/branded",
             "page_group": "LandingPage",
             "map": [
                 {
