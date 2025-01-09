@@ -18,6 +18,8 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_ad_metadata (
     AdSubcategory string,
     AdBrandName string,
     AdCampaign string,
+    EligibleLocations string,
+    ServedLocations string,
     rundate date not null,
   constraint pk_next_uk_nextads_results_ad_metadata primary key (
     SessionDate,
