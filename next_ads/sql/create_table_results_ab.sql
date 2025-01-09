@@ -1,0 +1,31 @@
+create table marketingdata_prod.{schema}.next_uk_nextads_results_ab (
+    SessionDate date not null,
+    Device string not null,
+    OS string not null,
+    HomePageTest1 string,
+    ShoppingBagTest1 string,
+    OrderCompleteTest1 string,
+    LandingPageTest1 string,
+    AdHocABTest1 string,
+    AdHocABTest2 string,
+    AdHocABTest3 string,
+    AdHocABTest4 string,
+    AdHocABTest5 string,
+    AdHocABTest6 string,
+    AdHocABTest7 string,
+    AdHocABTest8 string,
+    AdHocABTest9 string,
+    ChampionChallenger string,
+    Sessions int,
+    Revenue double,
+    Conversions int,
+    SoftImpressions int,
+    SoftClicks int,
+    rundate date not null,
+  constraint pk_next_uk_nextads_results_ab primary key (
+    SessionDate,
+    Device,
+    OS,
+    rundate)
+)
+partitioned by (SessionDate)
