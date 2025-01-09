@@ -44,10 +44,11 @@ TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"],
                                    SCHEMA)
 CONTROL_SHEET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
 
-RESULTS_DEVICE_OS_TABLE = map_schema(tbls["results_topline"], SCHEMA)
-RESULTS_AGGREGATES_TABLE = map_schema(tbls["results_aggregated"], SCHEMA)
-RESULTS_AD_WITH_BENCHMARK_TABLE = map_schema(tbls["results_ads"], SCHEMA)
-RESULTS_AD_LOCATION_TABLE = map_schema(tbls["results_ads_location"], SCHEMA)
+RESULTS_TOPLINE_TABLE = map_schema(tbls["results_topline"], SCHEMA)
+RESULTS_AGGREGATED_TABLE = map_schema(tbls["results_aggregated"], SCHEMA)
+RESULTS_AB_TABLE = map_schema(tbls["results_ab"], SCHEMA)
+RESULTS_ADS_TABLE = map_schema(tbls["results_ads"], SCHEMA)
+RESULTS_ADS_LOCATION_TABLE = map_schema(tbls["results_ads_location"], SCHEMA)
 RESULTS_AD_METADATA_TABLE = map_schema(tbls["results_ad_metadata"], SCHEMA)
 
 LOCATIONS = prm['locations']
@@ -58,7 +59,7 @@ FALLOW_FALSE = prm["fallow_control"]["false_label"]
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
 if job_env == 'dev':
-    SESSION_DATE_START = date(2024, 12, 28)
+    SESSION_DATE_START = date(2025, 1, 2)
     SESSION_DATE_END = date(2025, 1, 3)
 else:
     SESSION_DATE_START = date.today() - timedelta(days=2)
@@ -517,7 +518,7 @@ df_ad_metadata = (
     .table(CONTROL_SHEET_TABLE)
     .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
     .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
-    .withColumn('SessionDate', F.col('rundate') + timedelta(days=1))
+    .withColumn('SessionDate', F.to_date(F.col('rundate') + timedelta(days=1)))
 )
 df_ad_metadata.cache()
 
@@ -728,6 +729,35 @@ for c in df_summary_agg_wide.columns:
 
 df_summary_agg_wide.cache()
 
+# AB test aggregates
+ab_cols = [
+    'HomePageTest1',
+    'ShoppingBagTest1',
+    'OrderCompleteTest1',
+    'LandingPageTest1',
+    'AdHocABTest1',
+    'AdHocABTest2',
+    'AdHocABTest3',
+    'AdHocABTest4',
+    'AdHocABTest5',
+    'AdHocABTest6',
+    'AdHocABTest7',
+    'AdHocABTest8',
+    'AdHocABTest9',
+    'ChampionChallenger'
+]
+
+df_summary_ab = summarise_sessions(
+        (
+            df_sessions_master_meta
+            .where(F.col('FallowControl') == FALLOW_FALSE)
+            .join(df_fixed_cells, on='AccountNumber', how='inner')
+        ),
+        **col_args_dict,
+        group_cols=session_level_cols + ab_cols
+    )
+df_summary_ab.cache()
+
 
 # Ad-level view
 df_summary_ad = (
@@ -815,6 +845,48 @@ for c in df_summary_ad_locset_wide.columns:
 df_summary_ad_locset_wide.cache()
 
 
+# Create additional filters for ads table
+w_date_ad = Window().partitionBy('SessionDate', 'UniqueAdID')
+
+# EligibleLocations (i.e. those toggled 'on' in the control sheet)
+df_ad_elig_locs = (
+    df_ad_metadata
+    .withColumn('EligibleLocations',
+                F.collect_set(F.col('Location')).over(w_date_ad))
+    .select('SessionDate', 'UniqueAdID', 'EligibleLocations')
+    .distinct()
+    .withColumn('EligibleLocations',
+                F.concat_ws(' ', (F.array_sort(F.col('EligibleLocations')))))
+)
+assert_pk(df_ad_elig_locs, pk_cols=['SessionDate', 'UniqueAdID'])
+df_ad_elig_locs.cache()
+
+# ServedLocations (those where the ad was actually served)
+df_ad_served_locs = (
+    df_sessions_master_meta
+    .where(F.col('UniqueAdIDMeasurement').isNotNull())
+    .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
+    .withColumn('ServedLocations',
+                F.collect_set(F.col('Location')).over(w_date_ad))
+    .select('SessionDate', 'UniqueAdID', 'ServedLocations')
+    .distinct()
+    .withColumn('ServedLocations',
+                F.concat_ws(' ', (F.array_sort(F.col('ServedLocations')))))
+)
+assert_pk(df_ad_served_locs, pk_cols=['SessionDate', 'UniqueAdID'])
+df_ad_served_locs.cache()
+
+df_ad_metadata_full = (
+    df_ad_metadata_non_loc
+    .join(df_ad_elig_locs,
+          on=['SessionDate', 'UniqueAdID'], how='left')
+    .join(df_ad_served_locs,
+          on=['SessionDate', 'UniqueAdID'], how='left')
+)
+assert_pk(df_ad_metadata_full, pk_cols=['SessionDate', 'UniqueAdID'])
+df_ad_metadata_full.cache()
+
+
 for d in sdates_valid:
     d_fmt = d.strftime('%Y-%m-%d')
     log.info('Checking consistency of pre- and post-processing ' +
@@ -850,7 +922,7 @@ if job_env == 'prod':
         d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
 
         log.info(f'Loading results_topline for {d_fmt} ' +
-                 f'to table: {RESULTS_DEVICE_OS_TABLE}')
+                 f'to table: {RESULTS_TOPLINE_TABLE}')
         delete_from_and_load(
             (
                 df_summary_device_os_wide
@@ -869,13 +941,13 @@ if job_env == 'prod':
                         'C_SoftImpressions',
                         'C_SoftClicks')
             ),
-            RESULTS_DEVICE_OS_TABLE,
+            RESULTS_TOPLINE_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS'],
             del_where={'SessionDate': d_fmt}
         )
 
         log.info(f'Loading results_aggregated for {d_fmt} ' +
-                 f'to table: {RESULTS_AGGREGATES_TABLE}')
+                 f'to table: {RESULTS_AGGREGATED_TABLE}')
         delete_from_and_load(
             (
                 df_summary_agg_wide
@@ -896,14 +968,35 @@ if job_env == 'prod':
                         'C_SoftImpressions',
                         'C_SoftClicks')
             ),
-            RESULTS_AGGREGATES_TABLE,
+            RESULTS_AGGREGATED_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
                      'AggColumn', 'AggValue'],
             del_where={'SessionDate': d_fmt}
         )
 
+        log.info(f'Loading results_ab for {d_fmt} ' +
+                 f'to table: {RESULTS_AB_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_ab
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'Device',
+                        'OS',
+                        *ab_cols,
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks')
+            ),
+            RESULTS_AB_TABLE,
+            pk_cols=['SessionDate', 'Device', 'OS'],
+            del_where={'SessionDate': d_fmt}
+        )
+
         log.info(f'Loading results_ads for {d_fmt} ' +
-                 f'to table: {RESULTS_AD_WITH_BENCHMARK_TABLE}')
+                 f'to table: {RESULTS_ADS_TABLE}')
         delete_from_and_load(
             (
                 df_summary_ad_wide
@@ -923,13 +1016,13 @@ if job_env == 'prod':
                         'C_SoftImpressions',
                         'C_SoftClicks')
             ),
-            RESULTS_AD_WITH_BENCHMARK_TABLE,
+            RESULTS_ADS_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS', 'UniqueAdID'],
             del_where={'SessionDate': d_fmt}
         )
 
         log.info(f'Loading results_ads_location for {d_fmt} ' +
-                 f'to table: {RESULTS_AD_LOCATION_TABLE}')
+                 f'to table: {RESULTS_ADS_LOCATION_TABLE}')
         delete_from_and_load(
             (
                 df_summary_ad_locset_wide
@@ -950,7 +1043,7 @@ if job_env == 'prod':
                         'C_SoftImpressions',
                         'C_SoftClicks')
             ),
-            RESULTS_AD_LOCATION_TABLE,
+            RESULTS_ADS_LOCATION_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
                      'UniqueAdID', 'LocationSet'],
             del_where={'SessionDate': d_fmt}
@@ -960,7 +1053,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_AD_METADATA_TABLE}')
         delete_from_and_load(
             (
-                df_ad_metadata_non_loc
+                df_ad_metadata_full
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'UniqueAdID',
@@ -980,7 +1073,9 @@ if job_env == 'prod':
                         'AdTrend',
                         'AdSubcategory',
                         'AdBrandName',
-                        'AdCampaign')
+                        'AdCampaign',
+                        'EligibleLocations',
+                        'ServedLocations')
             ),
             RESULTS_AD_METADATA_TABLE,
             pk_cols=['SessionDate', 'UniqueAdID'],

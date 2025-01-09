@@ -79,6 +79,7 @@
             "assignments_latest": "marketingdata_prod.{schema}.next_uk_nextads_assignments_latest",
             "results_topline": "marketingdata_prod.{schema}.next_uk_nextads_results_topline",
             "results_aggregated": "marketingdata_prod.{schema}.next_uk_nextads_results_aggregated",
+            "results_ab": "marketingdata_prod.{schema}.next_uk_nextads_results_ab",
             "results_ads": "marketingdata_prod.{schema}.next_uk_nextads_results_ads",
             "results_ads_location": "marketingdata_prod.{schema}.next_uk_nextads_results_ads_location",
             "results_ad_metadata": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_metadata"
