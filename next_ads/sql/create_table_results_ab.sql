@@ -21,11 +21,6 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_ab (
     Conversions int,
     SoftImpressions int,
     SoftClicks int,
-    rundate date not null,
-  constraint pk_next_uk_nextads_results_ab primary key (
-    SessionDate,
-    Device,
-    OS,
-    rundate)
+    rundate date not null
 )
 partitioned by (SessionDate)

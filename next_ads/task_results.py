@@ -991,7 +991,7 @@ if job_env == 'prod':
                         'SoftClicks')
             ),
             RESULTS_AB_TABLE,
-            pk_cols=['SessionDate', 'Device', 'OS'],
+            pk_cols=['SessionDate', 'Device', 'OS', *ab_cols],
             del_where={'SessionDate': d_fmt}
         )
 
