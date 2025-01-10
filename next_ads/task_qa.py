@@ -38,6 +38,55 @@ df_assigned = get_spark().table(ASSIGNMENTS_TABLE_LATEST)
 df_cells = get_spark().table(CELLS_TABLE_LATEST)
 
 
+log.info('Checking for partial Homepage Teaser assignments')
+
+teaser_locs = ['PH3', 'PH4', 'PH5']
+teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
+w_acc = Window().partitionBy('AccountNumber')
+
+df_partial_teasers = (
+    df_assigned
+    .where(F.col('Location').isin(teaser_locs))
+    .withColumn(
+        'TeaserAssigned',
+        F.when(
+            F.col('MASID').endswith('_Z'),
+            F.lit(0)
+            ).otherwise(F.lit(1))
+        )
+    .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_acc))
+    .where(~F.col('TeasersAssigned').isin(0, 3))
+)
+
+if df_partial_teasers.count() > 0:
+
+    df_partial_teaser_accounts = (
+        df_partial_teasers
+        .select('AccountNumber')
+        .distinct()
+    )
+
+    n_pt = df_partial_teaser_accounts.count()
+    msg_pt = f'{n_pt:,} accounts found with partial HomePage Teasers'
+    log.warning(msg_pt)
+    if job_env == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_pt)
+
+    df_partial_teaser_accounts.createOrReplaceTempView("df_pt_accs")
+    sql_del_partials = f'''
+    delete from {ASSIGNMENTS_TABLE_LATEST}
+    where AccountNumber in (select AccountNumber from df_pt_accs)
+    and Location in ({', '.join(teaser_locs_fmt)})
+    '''
+    msg_pt_rm = (
+        'Removing Teaser assignments for affected accounts ' +
+        f'from table read by PF: {ASSIGNMENTS_TABLE_LATEST}')
+    log.warning(msg_pt_rm)
+    if job_env == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_pt_rm)
+    get_spark().sql(sql_del_partials)
+
+
 df_assigned_dt = (df_assigned.select("rundate").distinct())
 df_cells_dt = (df_cells.select("rundate").distinct())
 assigned_dts = [x[0] for x in df_assigned_dt.collect()]
@@ -96,13 +145,13 @@ for lc in lc_to_location:
 
 
 log.info("Checking that all NoAd assignments map to MASID ending _Z")
-df_noad_z = (
+df_noad_nonz = (
     df_assignments_w_cells
     .where(F.col("UniqueAdIDAssigned") == "NoAd")
     .where(~F.col("MASID").endswith("_Z"))
 )
-df_noad_z_n = df_noad_z.count()
-assert df_noad_z_n == 0, "Non _Z-ending MASIDs found for NoAd assignments"
+df_noad_nonz_n = df_noad_nonz.count()
+assert df_noad_nonz_n == 0, "Non _Z-ending MASIDs found for NoAd assignments"
 
 
 log.info('Checking Primary Key validity of latest process tables')
@@ -115,52 +164,3 @@ for tbl in tbls:
     log.info(f'Asserting {pk_cols} as PK for {tbl_mapped}')
     df_tbl_pk = get_spark().table(tbl_mapped)
     assert_pk(df_tbl_pk, pk_cols)
-
-
-log.info('Checking for partial Homepage Teaser assignments')
-
-teaser_locs = ['PH3', 'PH4', 'PH5']
-teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
-w_acc = Window().partitionBy('AccountNumber')
-
-df_partial_teasers = (
-    df_assigned
-    .where(F.col('Location').isin(teaser_locs))
-    .withColumn(
-        'TeaserAssigned',
-        F.when(
-            F.col('MASID').endswith('_Z'),
-            F.lit(0)
-            ).otherwise(F.lit(1))
-        )
-    .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_acc))
-    .where(~F.col('TeasersAssigned').isin(0, 3))
-)
-
-if df_partial_teasers.count() > 0:
-
-    df_partial_teaser_accounts = (
-        df_partial_teasers
-        .select('AccountNumber')
-        .distinct()
-    )
-
-    n_pt = df_partial_teaser_accounts.count()
-    msg_pt = f'{n_pt:,} accounts found with partial HomePage Teasers'
-    log.warning(msg_pt)
-    if job_env == "prod":
-        post_to_webhook(WEBHOOK_URL, msg_pt)
-
-    df_partial_teaser_accounts.createOrReplaceTempView("df_pt_accs")
-    sql_del_partials = f'''
-    delete from {ASSIGNMENTS_TABLE_LATEST}
-    where AccountNumber in (select AccountNumber from df_pt_accs)
-    and Location in ({', '.join(teaser_locs_fmt)})
-    '''
-    msg_pt_rm = (
-        'Removing Teaser assignments for affected accounts ' +
-        f'from table read by PF: {ASSIGNMENTS_TABLE_LATEST}')
-    log.warning(msg_pt_rm)
-    if job_env == "prod":
-        post_to_webhook(WEBHOOK_URL, msg_pt_rm)
-    get_spark().sql(sql_del_partials)
