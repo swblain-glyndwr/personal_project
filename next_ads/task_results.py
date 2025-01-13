@@ -586,7 +586,6 @@ df_sessions_master = (
         )
 )
 
-df_sessions_master.cache()
 
 reporting_metadata_cols = [
     'PotNumber',
@@ -633,6 +632,8 @@ df_sessions_master_meta = (
         how='left'
     )
 )
+
+df_sessions_master_meta.cache()
 
 
 col_args_dict = {
