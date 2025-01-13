@@ -67,8 +67,7 @@ def assign_best_ads(
         df_cust: DataFrame = None,
         score_scale_fn: Callable = None,
         score_scale_partition: list[str] = ["TargetingCriteria"],
-        return_ranks: list = [1],
-        tie_breaker: Callable = None
+        return_ranks: list = [1]
         ) -> DataFrame:
     """
     Assigns "best" Ad to each customer based on scores provided.
@@ -79,9 +78,8 @@ def assign_best_ads(
         targeting_scores_table - Name of table containing TargetingScores
         df_cust - Filter customers (Dataframe with col: AccountNumber)
         score_scale_fn - Function for scaling the score
-        score_scale_within - Partition for scaling
+        score_scale_partition - Partition for scaling
         return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
-        tie_breaker - TODO - How to break tie when one Targeting has many Ads
     """
 
     df_adscores = (
@@ -111,13 +109,13 @@ def assign_best_ads(
         Window
         .partitionBy([F.col("AccountNumber")])
         .orderBy(F.col("TargetingScoreScaled").desc(),
-                 F.col("UniqueAdID").desc())
+                 F.col("TieBreaker"))
     )
-    # Will take last Ad ID alphabetically (proxy for newest) if scores are tied
-    # TODO: Probably quite a rare occurence, but need a better method
-
+    # TieBreaker column creates a random split when multiple ads
+    # are targeted using the same TargetingCriteria
     df_return = (
         df_adscores
+        .withColumn('TieBreaker', F.rand(seed=99))
         .withColumn("AdRank", F.rank().over(w))
         .where(F.col("AdRank").isin(return_ranks))
         .select("AccountNumber",
@@ -126,12 +124,6 @@ def assign_best_ads(
                 "AdRank",
                 "UniqueAdID")
     )
-
-    if tie_breaker:
-        # TODO: Tie breaker condition
-        # e.g. ads with common TargetingCriteria
-        # utilise assign_random_ads within TargetingCriteria
-        pass
 
     return df_return
 
