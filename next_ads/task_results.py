@@ -49,6 +49,7 @@ RESULTS_AGGREGATED_TABLE = map_schema(tbls["results_aggregated"], SCHEMA)
 RESULTS_AB_TABLE = map_schema(tbls["results_ab"], SCHEMA)
 RESULTS_ADS_TABLE = map_schema(tbls["results_ads"], SCHEMA)
 RESULTS_ADS_LOCATION_TABLE = map_schema(tbls["results_ads_location"], SCHEMA)
+RESULTS_ADS_TARGETING_TABLE = map_schema(tbls["results_ads_targeting"], SCHEMA)
 RESULTS_AD_METADATA_TABLE = map_schema(tbls["results_ad_metadata"], SCHEMA)
 
 LOCATIONS = prm['locations']
@@ -59,8 +60,8 @@ FALLOW_FALSE = prm["fallow_control"]["false_label"]
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
 if job_env == 'dev':
-    SESSION_DATE_START = date(2025, 1, 2)
-    SESSION_DATE_END = date(2025, 1, 3)
+    SESSION_DATE_START = date(2025, 1, 11)
+    SESSION_DATE_END = date(2025, 1, 11)
 else:
     SESSION_DATE_START = date.today() - timedelta(days=2)
     SESSION_DATE_END = date.today() - timedelta(days=1)
@@ -410,6 +411,55 @@ if n_multi_account_sessions > 0:
         )
     )
     log.warning(f'{n_multi_account_sessions:,} multi-account sessions removed')
+
+# Next Ads measurement cannot currently accomodate sessions that span
+# midnight - check for and remove any cases of this
+df_sessions_spanning_midnight = (
+    df_sessions_pages
+    .groupBy('UniqueVisitID')
+    .agg(
+        F.to_date(F.min('FirstTimestamp')).alias('SessionStart'),
+        F.to_date(F.max('FirstTimestamp')).alias('SessionEnd')
+    )
+    .where(F.col('SessionStart') != F.col('SessionEnd'))
+)
+
+n_sessions_spanning = df_sessions_spanning_midnight.count()
+
+if n_sessions_spanning > 0:
+    df_sessions_pages = (
+        df_sessions_pages
+        .join(
+            df_sessions_spanning_midnight.select('UniqueVisitID'),
+            on=['UniqueVisitID'], how='leftanti'
+        )
+    )
+    log.warning(f'{n_sessions_spanning:,} sessions spanning midnight removed')
+
+# Next Ads rely on the MASID to be served on site, which isn't refreshed
+# until around 3am
+# To align with assignments at 'day' level, the decision has been made to
+# exclude sessions starting before 3am on a given date to minimise any
+# discrepancy during measurement - check for and remove these cases
+df_sessions_pre_masid = (
+    df_sessions_pages
+    .groupBy('UniqueVisitID')
+    .agg(F.min('FirstTimestamp').alias('SessionStart'))
+    .withColumn('SessionStartHour', F.hour(F.col('SessionStart')))
+    .where(F.col('SessionStartHour') < 3)
+)
+
+n_sessions_pre_masid = df_sessions_pre_masid.count()
+
+if n_sessions_pre_masid > 0:
+    df_sessions_pages = (
+        df_sessions_pages
+        .join(
+            df_sessions_pre_masid.select('UniqueVisitID'),
+            on=['UniqueVisitID'], how='leftanti'
+        )
+    )
+    log.warning(f'{n_sessions_pre_masid:,} sessions pre-MASID refresh removed')
 
 
 # Remove the last Order Complete page, and any hits after it from each session
@@ -846,6 +896,31 @@ for c in df_summary_ad_locset_wide.columns:
 df_summary_ad_locset_wide.cache()
 
 
+# Ad-Targeting view
+df_summary_ad_targeting = (
+    summarise_sessions(
+        (
+            df_sessions_master_meta
+            .withColumn('Targeting',
+                        F.when(
+                            F.col('FallowControl') == FALLOW_TRUE,
+                            F.lit('Control')
+                            ).otherwise(F.col('Treatment'))
+                        )
+        ),
+        **col_args_dict,
+        group_cols=(
+            session_level_cols
+            + ['UniqueAdIDMeasurement', 'Targeting']
+            )
+    )
+    .where(F.col('UniqueAdIDMeasurement').isNotNull())
+    .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
+)
+
+df_summary_ad_targeting.cache()
+
+
 # Create additional filters for ads table
 w_date_ad = Window().partitionBy('SessionDate', 'UniqueAdID')
 
@@ -1047,6 +1122,29 @@ if job_env == 'prod':
             RESULTS_ADS_LOCATION_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
                      'UniqueAdID', 'LocationSet'],
+            del_where={'SessionDate': d_fmt}
+        )
+
+        log.info(f'Loading results_ads_targeting for {d_fmt} ' +
+                 f'to table: {RESULTS_ADS_TARGETING_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_ad_targeting
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'Device',
+                        'OS',
+                        'UniqueAdID',
+                        'Targeting',
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks')
+            ),
+            RESULTS_ADS_TARGETING_TABLE,
+            pk_cols=['SessionDate', 'Device', 'OS',
+                     'UniqueAdID', 'Targeting'],
             del_where={'SessionDate': d_fmt}
         )
 

@@ -26,6 +26,7 @@ RESULTS_EXPORTS = [
     'results_aggregated',
     'results_ads',
     'results_ads_location',
+    'results_ads_targeting',
     'results_ad_metadata'
     ]
 

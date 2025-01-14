@@ -82,6 +82,7 @@
             "results_ab": "marketingdata_prod.{schema}.next_uk_nextads_results_ab",
             "results_ads": "marketingdata_prod.{schema}.next_uk_nextads_results_ads",
             "results_ads_location": "marketingdata_prod.{schema}.next_uk_nextads_results_ads_location",
+            "results_ads_targeting": "marketingdata_prod.{schema}.next_uk_nextads_results_ads_targeting",
             "results_ad_metadata": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_metadata"
         }
     },
@@ -106,6 +107,7 @@
             "results_aggregated": "big-query-156009.Misc_eu.next_uk_nextads_results_aggregated",
             "results_ads": "big-query-156009.Misc_eu.next_uk_nextads_results_ads",
             "results_ads_location": "big-query-156009.Misc_eu.next_uk_nextads_results_ads_location",
+            "results_ads_targeting": "big-query-156009.Misc_eu.next_uk_nextads_results_ads_targeting",
             "results_ad_metadata": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_metadata"
         }
     },
