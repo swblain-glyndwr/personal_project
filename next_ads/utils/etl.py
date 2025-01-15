@@ -33,7 +33,9 @@ class JobParser(ArgumentParser):
             "--f",
             "--jobname",
             "--location",
-            "--droptables"
+            "--droptables",
+            "--datestart",
+            "--dateend"
             ]
 
         job_args = [j for j in job_arg_list if j in known_arg_list]
@@ -51,6 +53,14 @@ class JobParser(ArgumentParser):
         if "--droptables" in job_args:
             self.add_argument("--droptables",
                               nargs="?", const="False", type=str)
+
+        if "--datestart" in job_args:
+            self.add_argument("--datestart",
+                              nargs="?", const="", type=str)
+
+        if "--dateend" in job_args:
+            self.add_argument("--dateend",
+                              nargs="?", const="", type=str)
 
         known_args, _ = self.parse_known_args()
         pargs = vars(known_args)

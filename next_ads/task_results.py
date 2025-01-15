@@ -25,7 +25,9 @@ with open("config/parameters.json") as f:
     prm = json.load(f)
 
 parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname"])
+pargs, job_env = parser.parse_job_args(["--jobname",
+                                        "--datestart",
+                                        "--dateend"])
 log.info(f"Running in job environment: {job_env}")
 
 RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
@@ -59,13 +61,24 @@ FALLOW_FALSE = prm["fallow_control"]["false_label"]
 
 WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
 
-if job_env == 'dev':
-    SESSION_DATE_START = date(2025, 1, 11)
-    SESSION_DATE_END = date(2025, 1, 11)
-else:
+dates_provided = True if (pargs['datestart'] and pargs['dateend']) else False
+
+if job_env == 'prod' and not dates_provided:
+    # If no date args provided default to last two days
     SESSION_DATE_START = date.today() - timedelta(days=2)
     SESSION_DATE_END = date.today() - timedelta(days=1)
+elif dates_provided:
+    # If date args are provided (e.g. for backdating)
+    ds_num = [int(x) for x in pargs['datestart'].split('-')]
+    de_num = [int(x) for x in pargs['dateend'].split('-')]
+    SESSION_DATE_START = date(ds_num[0], ds_num[1], ds_num[2])
+    SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
+else:
+    # For interactive debugging
+    SESSION_DATE_START = date(2025, 1, 2)
+    SESSION_DATE_END = date(2025, 1, 3)
 
+assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
 sdates = [SESSION_DATE_END - timedelta(days=x) for x in range(ndays)]
 sdates.sort()
@@ -201,7 +214,7 @@ if mismatch_msg_days:
         for msg in mismatch_msgs:
             log.warning(msg)
         if job_env == 'prod':
-            post_to_webhook(WEBHOOK_URL, '\n'.join(mismatch_msgs))
+            post_to_webhook(WEBHOOK_URL, '\n'.join([f'{d}'] + mismatch_msgs))
 
 df_asgn_pf_nulls = (
     df_asgn_pf
@@ -866,6 +879,7 @@ df_summary_ad_locset = (
             )
     )
     .where(F.col('UniqueAdIDMeasurement').isNotNull())
+    .where(F.col('LocationSet').isNotNull())
     .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
     .withColumn('LocationSet',
                 F.concat_ws('+', (F.array_sort(F.col('LocationSet')))))
@@ -911,10 +925,12 @@ df_summary_ad_targeting = (
         **col_args_dict,
         group_cols=(
             session_level_cols
-            + ['UniqueAdIDMeasurement', 'Targeting']
+            + ['UniqueAdIDMeasurement', 'PageGroup', 'Targeting']
             )
     )
     .where(F.col('UniqueAdIDMeasurement').isNotNull())
+    .where(F.col('PageGroup').isNotNull())
+    .where(F.col('Targeting').isNotNull())
     .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
 )
 
@@ -1135,6 +1151,7 @@ if job_env == 'prod':
                         'Device',
                         'OS',
                         'UniqueAdID',
+                        'PageGroup',
                         'Targeting',
                         'Sessions',
                         'Revenue',
@@ -1144,7 +1161,7 @@ if job_env == 'prod':
             ),
             RESULTS_ADS_TARGETING_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
-                     'UniqueAdID', 'Targeting'],
+                     'UniqueAdID', 'PageGroup', 'Targeting'],
             del_where={'SessionDate': d_fmt}
         )
 
