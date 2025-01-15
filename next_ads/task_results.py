@@ -233,7 +233,7 @@ if df_asgn_pf_nulls.count() > 0:
         )
         log.warning(missing_msg)
         if job_env == 'prod':
-            post_to_webhook(WEBHOOK_URL, '\n'.join(missing_msg))
+            post_to_webhook(WEBHOOK_URL, missing_msg)
 
 df_valid_assignments = (
     df_asgn_pf
