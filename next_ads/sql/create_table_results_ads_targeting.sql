@@ -3,6 +3,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_ads_targeting (
     Device string not null,
     OS string not null,
     UniqueAdID string not null,
+    PageGroup string not null,
     Targeting string not null,
     Sessions int,
     Revenue double,
@@ -15,6 +16,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_ads_targeting (
     Device,
     OS,
     UniqueAdID,
+    PageGroup,
     Targeting,
     rundate)
 )
