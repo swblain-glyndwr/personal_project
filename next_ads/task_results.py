@@ -124,7 +124,16 @@ df_assignments = (
             'MASID')
 )
 
-# Check for missing Assignment dates (e.g. failure in scheduled run) and patch
+df_ad_metadata = (
+    get_spark()
+    .table(CONTROL_SHEET_TABLE)
+    .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
+    .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
+    .withColumn('SessionDate', F.to_date(F.col('rundate') + timedelta(days=1)))
+)
+df_ad_metadata.cache()
+
+# Check for missing dates (e.g. failure in scheduled run) and patch
 dates_asgn = [x[0].date() for x in
               df_assignments.select('SessionDate').distinct().collect()]
 dates_asgn.sort()
@@ -132,12 +141,22 @@ date_patch_asgn = check_for_missing_dates(
     SESSION_DATE_START, SESSION_DATE_END, dates_asgn)
 if date_patch_asgn:
     log.warning('Missing dates found in Assignments during results period')
+    missing_asgn_dates = [x[0] for x in date_patch_asgn]
+    log.warning('Removing affected Assignment dates from Metadata')
+    df_ad_metadata = (
+        df_ad_metadata
+        .where(~F.col('SessionDate').isin(missing_asgn_dates))
+    )
     for date_p in date_patch_asgn:
-        log.warning(f'Patching missing Assignmnets date {date_p[0]} ' +
+        log.warning(f'Patching missing Assignments date {date_p[0]} ' +
+                    f'in Assignments and Metadata '
                     f'with last non-missing date: {date_p[1]}')
     df_asgn_patches = patch_missing_dates(
         date_patch_asgn, df_assignments, date_col='SessionDate')
+    df_meta_patches = patch_missing_dates(
+        date_patch_asgn, df_ad_metadata, date_col='SessionDate')
     df_assignments = df_assignments.unionByName(df_asgn_patches)
+    df_ad_metadata = df_ad_metadata.unionByName(df_meta_patches)
 
 # MASID runs after midnight, therefore SessionDate is rundate
 df_pf = (
@@ -165,24 +184,31 @@ if date_patch_pf:
     # If PF failed, but Assignments didn't Assignments will need to
     # reflect the last date that PF ran in order to match
     missing_pf_dates = [x[0] for x in date_patch_pf]
-    log.warning('Removing affected PF dates from Assignments')
+    log.warning('Removing affected PF dates from Assignments and Metadata')
     df_assignments = (
         df_assignments
+        .where(~F.col('SessionDate').isin(missing_pf_dates))
+    )
+    df_ad_metadata = (
+        df_ad_metadata
         .where(~F.col('SessionDate').isin(missing_pf_dates))
     )
 
     for date_p in date_patch_pf:
         log.warning(f'Patching missing PF date {date_p[0]} ' +
-                    'in PF and Assignments data '
+                    'in PF, Assignments and Metadata '
                     f'with last non-missing PF date: {date_p[1]}')
 
     df_pf_patches = patch_missing_dates(
         date_patch_pf, df_pf, date_col='SessionDate')
     df_assignments_patches = patch_missing_dates(
         date_patch_pf, df_assignments, date_col='SessionDate')
+    df_meta_patches = patch_missing_dates(
+        date_patch_pf, df_ad_metadata, date_col='SessionDate')
 
     df_pf = df_pf.unionByName(df_pf_patches)
     df_assignments = df_assignments.unionByName(df_assignments_patches)
+    df_ad_metadata = df_ad_metadata.unionByName(df_meta_patches)
 
 
 id_cols = ['AccountNumber', 'SessionDate']
@@ -575,15 +601,6 @@ df_valid_assignments_mapped = (
     )
 )
 
-
-df_ad_metadata = (
-    get_spark()
-    .table(CONTROL_SHEET_TABLE)
-    .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
-    .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
-    .withColumn('SessionDate', F.to_date(F.col('rundate') + timedelta(days=1)))
-)
-df_ad_metadata.cache()
 
 df_sessions_ads_valid_clicks = (
     df_sessions_ads_valid
