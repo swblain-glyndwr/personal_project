@@ -38,8 +38,7 @@ df_scores_required = (
 
 df_ms_agg = aggregate_model_scores(
     df_scores_required.select("Models", "ModelCombination"),
-    model_score_table=MODEL_SCORE_TABLE,
-    patch_model_refs=True
+    model_score_table=MODEL_SCORE_TABLE
 )
 df_ms_agg.cache()
 
