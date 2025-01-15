@@ -28,7 +28,7 @@ with open("config/parameters.json") as f:
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-LOCATION = pargs["location"] if pargs["location"] else "PH4"
+LOCATION = pargs["location"] if pargs["location"] else "SB1"
 log.info(f"Running in job environment: {job_env}")
 
 LOCATIONS = prm["locations"]

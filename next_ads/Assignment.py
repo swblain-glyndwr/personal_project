@@ -105,18 +105,27 @@ def assign_best_ads(
     assert_pk(df_adscores,
               ["AccountNumber", "UniqueAdID", "TargetingCriteria"])
 
-    w = (
+    w_ad = (
         Window
         .partitionBy([F.col("AccountNumber")])
-        .orderBy(F.col("TargetingScoreScaled").desc(),
-                 F.col("TieBreaker"))
+        .orderBy(F.col("TargetingScoreScaled").desc())
+    )
+
+    w_ad_tb = (
+        Window
+        .partitionBy([F.col("AccountNumber"), F.col("AdRank")])
+        .orderBy(F.col("TieBreaker").desc())
     )
     # TieBreaker column creates a random split when multiple ads
     # are targeted using the same TargetingCriteria
+    # Only one ad of those with matching TargetingCriteria will
+    # be returned
     df_return = (
         df_adscores
         .withColumn('TieBreaker', F.rand(seed=99))
-        .withColumn("AdRank", F.rank().over(w))
+        .withColumn("AdRank", F.dense_rank().over(w_ad))
+        .withColumn("AdRankTB", F.dense_rank().over(w_ad_tb))
+        .where(F.col("AdRankTB") == 1)
         .where(F.col("AdRank").isin(return_ranks))
         .select("AccountNumber",
                 "TargetingCriteria",
