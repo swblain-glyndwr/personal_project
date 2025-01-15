@@ -11,6 +11,9 @@ def check_for_missing_dates(
         date_end: datetime.date,
         data_dates: list[datetime.date]) -> list:
 
+    if not data_dates:
+        raise Exception('No dates found during period')
+
     date_i = date_start
     dates = [date_i]
     date_patches = []
