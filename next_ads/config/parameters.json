@@ -199,12 +199,6 @@
         ]
     },
 
-    "exclude_ads_from_targeting": [
-       "P128_C1626_Seasons_Solus_Womens_Womens",
-       "P128_C1625_Seasons_Category_Womens_Bags_Womens",
-       "P128_C1676_Seasons_Category_Womens_Footwear_Womens"
-    ],
-
     "locations": {
         "HN1": {
             "pf_col": "HN_slot_1",

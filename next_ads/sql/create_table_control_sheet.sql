@@ -13,6 +13,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_control_sheet (
   TemplateName string,
   StartDate date,
   EndDate date,
+  AudienceOnly int,
   Models string,
   ModelCombination string,
   TargetingCriteria string,

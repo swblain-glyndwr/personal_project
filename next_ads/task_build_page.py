@@ -65,15 +65,20 @@ df_ads = (
         "UniqueAdID",
         "AlgoDivision",
         "MASIDToken",
-        "TargetingCriteria")
+        "TargetingCriteria",
+        "AudienceOnly")
 )
 # TODO: Remove underperforming Ads
 
-if "exclude_ads_from_targeting" in prm.keys():
-    df_ads_tgt = (
-        df_ads
-        .where(~F.col("UniqueAdID").isin(prm["exclude_ads_from_targeting"]))
-    )
+df_ads_tgt = (
+    df_ads
+    .fillna(0, subset=['AudienceOnly'])
+    .where((F.col("AudienceOnly") != 1))
+    .drop('AudienceOnly')
+)
+
+df_ads = df_ads.drop('AudienceOnly')
+
 
 if df_ads_tgt.count() == 0:
 

@@ -114,6 +114,14 @@ df_ctrl_active = df_ctrl_active.withColumn(
     F.regexp_replace(F.upper(F.col("Items")), "-", "")
 )
 
+df_ctrl_active = (
+    df_ctrl_active
+    .withColumn('AudienceOnlyInt',
+                F.when(F.col('AudienceOnly') == 'TRUE', 1).otherwise(0))
+    .drop('AudienceOnly')
+    .withColumnRenamed('AudienceOnlyInt', 'AudienceOnly')
+)
+
 if INHERITED_LOCATIONS:
     for k in INHERITED_LOCATIONS:
         df_ctrl_active = (

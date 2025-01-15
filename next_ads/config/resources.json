@@ -19,6 +19,7 @@
             ["StartDate", "string", "null"],
             ["EndDate", "string", "null"],
             ["Status", "string", "null"],
+            ["AudienceOnly", "string", "null"],
             ["Models", "string", "null"],
             ["ModelCombination", "string", "null"],
             ["URL", "string", "null"],
