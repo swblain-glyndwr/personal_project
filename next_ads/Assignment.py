@@ -20,7 +20,7 @@ def assign_random_ads(
     """
     # TODO: Generalise function to assign_random_entity?
 
-    w = Window().partitionBy(grp_col).orderBy("UniqueAdID")
+    w = Window.partitionBy(grp_col).orderBy("UniqueAdID")
     df_ads = df_ads.withColumn("RandomKey", F.row_number().over(w))
 
     # Dictionary of Ads per group (max RandomKey)
@@ -36,7 +36,7 @@ def assign_random_ads(
     # orderBy first for deterministic output
     # TODO: Avoid for loop by passing nAds as arg to F.ntile()
     grp_cust_rdm_list = []
-    w = Window().partitionBy(F.lit(1)).orderBy("RandomValue")
+    w = Window.partitionBy(F.lit(1)).orderBy("RandomValue")
     for grp_k in grp_ads:
         df_cust_rdm_grp = (
             df_cust_grp
@@ -372,7 +372,7 @@ def get_algo_divisions_legacy() -> DataFrame:
 
     standard_individual = all_scores
     cols = standard_individual.drop('account_number').columns
-    w = Window().partitionBy(F.lit(1))
+    w = Window.partitionBy(F.lit(1))
 
     for i in cols:
         standard_individual = (

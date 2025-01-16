@@ -42,7 +42,7 @@ log.info('Checking for partial Homepage Teaser assignments')
 
 teaser_locs = ['PH3', 'PH4', 'PH5']
 teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
-w_acc = Window().partitionBy('AccountNumber')
+w_acc = Window.partitionBy('AccountNumber')
 
 df_partial_teasers = (
     df_assigned

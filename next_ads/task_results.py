@@ -505,7 +505,7 @@ if n_sessions_pre_masid > 0:
 # Rationale: If would be unfair to attribute any Session value to an ad
 # on Order Complete when ad is seen after session spend is committed
 
-w_session = Window().partitionBy(
+w_session = Window.partitionBy(
     ['SessionDate', 'UniqueVisitID'])
 
 df_sessions_pages_trimmed = (
@@ -955,7 +955,7 @@ df_summary_ad_targeting.cache()
 
 
 # Create additional filters for ads table
-w_date_ad = Window().partitionBy('SessionDate', 'UniqueAdID')
+w_date_ad = Window.partitionBy('SessionDate', 'UniqueAdID')
 
 # EligibleLocations (i.e. those toggled 'on' in the control sheet)
 df_ad_elig_locs = (
