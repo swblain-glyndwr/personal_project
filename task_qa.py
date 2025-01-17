@@ -8,31 +8,30 @@ from pyspark.sql import functions as F
 from pyspark.sql import Window
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-log.info("Configuring run")
-with open("config/resources.json") as f:
-    rsc = json.load(f)
-with open("config/parameters.json") as f:
-    prm = json.load(f)
-
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
-LOCATIONS = prm["locations"]
-SCHEMA = rsc["schema"][job_env]
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
 
-tbls = rsc["tables"]["write"]
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
+
+LOCATIONS = cfg["locations"]
+SCHEMA = cfg["schema"][job_env]
+
+tbls = cfg["tables"]["write"]
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
 CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
 
-FALLOW_TRUE = prm["fallow_control"]["true_label"]
-FIXED_CELLS = prm["fixed_cells"]
+FALLOW_TRUE = cfg["fallow_control"]["true_label"]
+FIXED_CELLS = cfg["fixed_cells"]
 
-WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
+WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
 df_assigned = get_spark().table(ASSIGNMENTS_TABLE_LATEST)
 df_cells = get_spark().table(CELLS_TABLE_LATEST)

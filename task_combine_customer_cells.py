@@ -6,24 +6,24 @@ from next_ads.utils.etl import JobParser, create_table_from_df, map_schema
 import pyspark.sql.functions as F
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-log.info("Configuring run")
-with open("config/resources.json") as f:
-    rsc = json.load(f)
-with open("config/parameters.json") as f:
-    prm = json.load(f)
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
-tbls = rsc["tables"]["write"]
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
 
-SCHEMA = rsc["schema"][job_env]
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
 
-tbls = rsc["tables"]["write"]
+tbls = cfg["tables"]["write"]
+
+SCHEMA = cfg["schema"][job_env]
+
+tbls = cfg["tables"]["write"]
 FIXED_CELLS_TABLE_LATEST = map_schema(
     tbls["customer_cells_fixed_latest"], SCHEMA)
 TRANSIENT_CELLS_TABLE_LATEST = map_schema(

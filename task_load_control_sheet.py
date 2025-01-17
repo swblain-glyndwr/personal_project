@@ -14,20 +14,20 @@ from next_ads.utils.etl import (assert_pk,
                                 post_to_webhook)
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-log.info("Configuring run")
-with open("config/parameters.json") as f:
-    prm = json.load(f)
-with open("config/resources.json") as f:
-    rsc = json.load(f)
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
-LOCATIONS = prm["locations"]
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
+
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
+
+LOCATIONS = cfg["locations"]
 VALID_LOCATIONS = list(LOCATIONS.keys())
 READ_LOCATIONS = list()
 INHERITED_LOCATIONS = dict()
@@ -37,15 +37,15 @@ for k in VALID_LOCATIONS:
     else:
         READ_LOCATIONS.append(k)
 
-CONTROL_SHEET = rsc["control_sheet"]
+CONTROL_SHEET = cfg["control_sheet"]
 
-SCHEMA = rsc["schema"][job_env]
+SCHEMA = cfg["schema"][job_env]
 
-tbls = rsc["tables"]["write"]
+tbls = cfg["tables"]["write"]
 TARGET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
 TARGET_TABLE_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 
-WEBHOOK_URL = rsc["webhooks"]["Input Warnings"]
+WEBHOOK_URL = cfg["webhooks"]["Input Warnings"]
 
 log.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
 log.info(f"Locations to read: {' '.join(READ_LOCATIONS)}")

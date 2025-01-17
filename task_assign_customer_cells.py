@@ -13,41 +13,42 @@ from next_ads.utils.etl import (assert_pk,
                                 chain_when_thens, truncate_and_load)
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-with open("config/resources.json") as f:
-    rsc = json.load(f)
-with open("config/parameters.json") as f:
-    prm = json.load(f)
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
-SCHEMA = rsc["schema"][job_env]
-tbls = rsc["tables"]["write"]
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
+
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
+
+SCHEMA = cfg["schema"][job_env]
+tbls = cfg["tables"]["write"]
 FIXED_CELLS_TABLE = map_schema(tbls["customer_cells_fixed_latest"], SCHEMA)
 TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"], SCHEMA)
 TRANSIENT_CELLS_TABLE_LATEST = map_schema(
     tbls["customer_cells_transient_latest"], SCHEMA)
 
-TABLES_READ = rsc["tables"]["read"]
+TABLES_READ = cfg["tables"]["read"]
 SVOC = TABLES_READ["svoc_pii"]
 RPID_WITH_ACCOUNTS = TABLES_READ["rpid_with_accounts"]
 MODEL_SCORES_LATEST = TABLES_READ["model_scores_latest"]
-LEGACY_EXCL = rsc["legacy"]["account_exclusions"]
+LEGACY_EXCL = cfg["legacy"]["account_exclusions"]
 
-FALLOW_PC = prm["fallow_control"]["proportion"]
-FALLOW_SEED = prm["fallow_control"]["seed"]
-FALLOW_TRUE_LABEL = prm["fallow_control"]["true_label"]
-FALLOW_FALSE_LABEL = prm["fallow_control"]["false_label"]
-FIXED_CELLS = prm["fixed_cells"]
+FALLOW_PC = cfg["fallow_control"]["proportion"]
+FALLOW_SEED = cfg["fallow_control"]["seed"]
+FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
+FALLOW_FALSE_LABEL = cfg["fallow_control"]["false_label"]
+FIXED_CELLS = cfg["fixed_cells"]
 
 transient_cells = False
-if "transient_cells" in prm:
+if "transient_cells" in cfg:
     transient_cells = True
-    TRANSIENT_CELLS = prm["transient_cells"]
+    TRANSIENT_CELLS = cfg["transient_cells"]
 
 # Query inherited from legacy script
 # TODO: Should we take lastest updated record to de-dup instead?

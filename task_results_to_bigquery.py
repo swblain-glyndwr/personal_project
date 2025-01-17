@@ -6,21 +6,23 @@ from next_ads.utils.etl import (JobParser,
                                 map_schema)
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-log.info("Configuring run")
-with open("config/resources.json") as f:
-    rsc = json.load(f)
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
-SCHEMA = 'warehouse'
-tbls = rsc["tables"]["write"]
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
 
-BQ_OPTIONS = rsc['big_query']
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
+
+SCHEMA = 'warehouse'
+tbls = cfg["tables"]["write"]
+
+BQ_OPTIONS = cfg['big_query']
 RESULTS_EXPORTS = [
     'results_topline',
     'results_aggregated',

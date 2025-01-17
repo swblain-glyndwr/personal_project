@@ -67,10 +67,20 @@ class JobParser(ArgumentParser):
 
         if not pargs["jobname"]:
             job_env = "dev"
-        elif pargs["jobname"].startswith("dev_"):
-            job_env = "dev"
+            pargs["domain"] = None
         else:
-            job_env = "prod"
+            jlist = pargs['jobname'].split('_')
+            i = 0
+            if jlist[i] == 'dev':
+                job_env = "dev"
+                i += 1
+            else:
+                job_env = "prod"
+            pargs['domain'] = f'{jlist[i+1]}_{jlist[i+2]}'
+
+        if pargs['jobname']:
+            msg = 'Cannot run as job without specified domain'
+            assert pargs['domain'], msg
 
         return pargs, job_env
 

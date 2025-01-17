@@ -15,14 +15,8 @@ from pyspark.sql import Window
 from datetime import date, timedelta
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-log.info("Configuring run")
-with open("config/resources.json") as f:
-    rsc = json.load(f)
-with open("config/parameters.json") as f:
-    prm = json.load(f)
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname",
@@ -30,15 +24,21 @@ pargs, job_env = parser.parse_job_args(["--jobname",
                                         "--dateend"])
 log.info(f"Running in job environment: {job_env}")
 
-RPID_WITH_ACCOUNTS = rsc["tables"]["read"]["rpid_with_accounts"]
-PREFERENCE_FRAMEWORK = rsc["tables"]["read"]["preference_framework"]
-BQ_SESSIONS = rsc["tables"]["read"]['bq_sessions']
-BQ_SESSIONS_APP = rsc["tables"]["read"]['bq_sessions_app']
-BQ_PAGES = rsc["tables"]["read"]['bq_pages']
-BQ_SCREENS = rsc["tables"]["read"]['bq_screens']
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
+
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
+
+RPID_WITH_ACCOUNTS = cfg["tables"]["read"]["rpid_with_accounts"]
+PREFERENCE_FRAMEWORK = cfg["tables"]["read"]["preference_framework"]
+BQ_SESSIONS = cfg["tables"]["read"]['bq_sessions']
+BQ_SESSIONS_APP = cfg["tables"]["read"]['bq_sessions_app']
+BQ_PAGES = cfg["tables"]["read"]['bq_pages']
+BQ_SCREENS = cfg["tables"]["read"]['bq_screens']
 
 SCHEMA = 'warehouse'
-tbls = rsc["tables"]["write"]
+tbls = cfg["tables"]["write"]
 FIXED_CELLS_LATEST_TABLE = map_schema(tbls["customer_cells_fixed_latest"],
                                       SCHEMA)
 ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
@@ -54,12 +54,12 @@ RESULTS_ADS_LOCATION_TABLE = map_schema(tbls["results_ads_location"], SCHEMA)
 RESULTS_ADS_TARGETING_TABLE = map_schema(tbls["results_ads_targeting"], SCHEMA)
 RESULTS_AD_METADATA_TABLE = map_schema(tbls["results_ad_metadata"], SCHEMA)
 
-LOCATIONS = prm['locations']
-FIXED_CELLS = prm['fixed_cells']
-FALLOW_TRUE = prm["fallow_control"]["true_label"]
-FALLOW_FALSE = prm["fallow_control"]["false_label"]
+LOCATIONS = cfg['locations']
+FIXED_CELLS = cfg['fixed_cells']
+FALLOW_TRUE = cfg["fallow_control"]["true_label"]
+FALLOW_FALSE = cfg["fallow_control"]["false_label"]
 
-WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
+WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
 dates_provided = True if (pargs['datestart'] and pargs['dateend']) else False
 

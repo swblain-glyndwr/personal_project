@@ -17,33 +17,33 @@ from pyspark.sql import functions as F
 from next_ads.utils.columnscalers import subtract_mean
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-log.info("Configuring run")
-with open("config/resources.json") as f:
-    rsc = json.load(f)
-with open("config/parameters.json") as f:
-    prm = json.load(f)
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
 LOCATION = pargs["location"] if pargs["location"] else "SB1"
 log.info(f"Running in job environment: {job_env}")
 
-LOCATIONS = prm["locations"]
-SCHEMA = rsc["schema"][job_env]
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
 
-tbls = rsc["tables"]["write"]
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
+
+LOCATIONS = cfg["locations"]
+SCHEMA = cfg["schema"][job_env]
+
+tbls = cfg["tables"]["write"]
 CONTROL_SHEET_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
 TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
 ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
 ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
 CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
 
-FALLOW_TRUE_LABEL = prm["fallow_control"]["true_label"]
+FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 
-WEBHOOK_URL = rsc["webhooks"]["DS Warnings"]
+WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
 try:
     CELL_MAP = LOCATIONS[LOCATION]

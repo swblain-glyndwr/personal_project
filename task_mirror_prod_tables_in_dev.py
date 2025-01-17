@@ -6,21 +6,22 @@ from next_ads.utils.etl import (JobParser,
                                 copy_table_from_to)
 
 
-logging.config.fileConfig("config/logging.conf")
+logging.config.fileConfig("logging.conf")
 log = logging.getLogger("mylog")
-
-log.info("Configuring run")
-with open("config/resources.json") as f:
-    rsc = json.load(f)
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname"])
 log.info(f"Running in job environment: {job_env}")
 
+DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
 
-SCHEMA_DICT = rsc["schema"]
+log.info(f"Configuring run for domain: {DOMAIN}")
+with open(f"config/{DOMAIN}.json") as f:
+    cfg = json.load(f)
 
-TABLE_DICT = rsc["tables"]["write"]
+SCHEMA_DICT = cfg["schema"]
+
+TABLE_DICT = cfg["tables"]["write"]
 
 for (k, v) in TABLE_DICT.items():
 
