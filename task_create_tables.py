@@ -2,7 +2,7 @@ import logging
 import logging.config
 import json
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import JobParser, map_schema
+from next_ads.utils.etl import JobParser, map_tbl
 
 
 logging.config.fileConfig("logging.conf")
@@ -18,11 +18,12 @@ log.info(f"Configuring run for domain: {DOMAIN}")
 with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
-SCHEMA = cfg["schema"][job_env]
 TABLES = cfg["tables"]["write"]
+SCHEMA = cfg["schema"][job_env]
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
 
 for table_ref in TABLES:
-    table = map_schema(TABLES[table_ref], SCHEMA)
+    table = map_tbl(TABLES[table_ref], **tbl_args)
 
     if pargs["droptables"] == "True" and job_env == "dev":
         log.info(f"Dropping table {table} as --droptables set to 'True'")
@@ -33,7 +34,7 @@ for table_ref in TABLES:
         continue
 
     with open(f"sql/create_table_{table_ref}.sql") as f:
-        query = map_schema("".join(f.readlines()), SCHEMA)
+        query = map_tbl("".join(f.readlines()), **tbl_args)
 
     log.info(f"Creating {table_ref} table as: {table}")
     get_spark().sql(query)

@@ -153,8 +153,9 @@ def chain_when_thens(when_thens: list):
         return cond
 
 
-def map_schema(s: str, schema) -> str:
-    return s.format_map({"schema": schema})
+def map_tbl(s: str, schema: str, domain: str) -> str:
+    sf = s.format_map({"schema": schema, "domain": domain})
+    return sf
 
 
 def post_to_webhook(webhook_url: str, message: str) -> None:

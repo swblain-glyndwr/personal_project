@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.next_uk_nextads_assignments (
+create table marketingdata_prod.{schema}.{domain}_nextads_assignments (
     AccountNumber string not null,
     Location string not null,
     UniqueAdIDBasic string,
@@ -9,7 +9,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_assignments (
     UniqueAdIDAssigned string not null,
     MASID string not null,
     rundate date not null,
-  constraint pk_next_uk_nextads_assignments primary key (
+  constraint pk_{domain}_nextads_assignments primary key (
     AccountNumber,
     Location,
     rundate)

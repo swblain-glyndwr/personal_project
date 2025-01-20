@@ -2,7 +2,7 @@ import logging
 import logging.config
 import json
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import JobParser, create_table_from_df, map_schema
+from next_ads.utils.etl import JobParser, create_table_from_df, map_tbl
 import pyspark.sql.functions as F
 
 
@@ -20,15 +20,13 @@ with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
-
 SCHEMA = cfg["schema"][job_env]
-
-tbls = cfg["tables"]["write"]
-FIXED_CELLS_TABLE_LATEST = map_schema(
-    tbls["customer_cells_fixed_latest"], SCHEMA)
-TRANSIENT_CELLS_TABLE_LATEST = map_schema(
-    tbls["customer_cells_transient_latest"], SCHEMA)
-CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+FIXED_CELLS_TABLE_LATEST = map_tbl(
+    tbls["customer_cells_fixed_latest"], **tbl_args)
+TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
+    tbls["customer_cells_transient_latest"], **tbl_args)
+CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
 
 log.info("Combining latest fixed and transient cell assignments")

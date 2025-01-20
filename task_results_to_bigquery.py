@@ -3,7 +3,7 @@ import logging.config
 import json
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
-                                map_schema)
+                                map_tbl)
 
 
 logging.config.fileConfig("logging.conf")
@@ -19,8 +19,9 @@ log.info(f"Configuring run for domain: {DOMAIN}")
 with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
-SCHEMA = 'warehouse'
 tbls = cfg["tables"]["write"]
+SCHEMA = 'warehouse'
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
 
 BQ_OPTIONS = cfg['big_query']
 RESULTS_EXPORTS = [
@@ -33,7 +34,7 @@ RESULTS_EXPORTS = [
     ]
 
 for results_export in RESULTS_EXPORTS:
-    results_table = map_schema(tbls[results_export], SCHEMA)
+    results_table = map_tbl(tbls[results_export], **tbl_args)
     log.info(f'Exporting {results_export} to Big Query')
     df_export = get_spark().table(results_table)
 
@@ -43,6 +44,7 @@ for results_export in RESULTS_EXPORTS:
         .mode('overwrite')
         .option('temporaryGcsBucket', BQ_OPTIONS['temporaryGcsBucket'])
         .option('parentProject', BQ_OPTIONS['parentProject'])
-        .option('table', BQ_OPTIONS['tables'][results_export])
+        .option('table',
+                map_tbl(BQ_OPTIONS['tables'][results_export], **tbl_args))
         .save()
     )

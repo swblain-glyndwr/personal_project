@@ -3,7 +3,7 @@ import logging.config
 import json
 from pyspark.sql import functions as F
 from next_ads.Scoring import aggregate_model_scores
-from next_ads.utils.etl import truncate_and_load, JobParser, map_schema
+from next_ads.utils.etl import truncate_and_load, JobParser, map_tbl
 from next_ads.utils.dbc import get_spark
 
 
@@ -21,10 +21,11 @@ with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 MODEL_SCORE_TABLE = cfg["tables"]["read"]["model_scores_latest"]
 
-SCHEMA = cfg["schema"][job_env]
 tbls = cfg["tables"]["write"]
-TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
-CONTROL_SHEET_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
+SCHEMA = cfg["schema"][job_env]
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+TARGETING_SCORES_TABLE = map_tbl(tbls["targeting_scores_latest"], **tbl_args)
+CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
 
 df_scores_required = (
     get_spark()

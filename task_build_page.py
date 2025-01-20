@@ -10,7 +10,7 @@ from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
                                 build_spark_schema,
                                 chain_when_thens,
-                                map_schema,
+                                map_tbl,
                                 delete_from_and_load,
                                 post_to_webhook)
 from pyspark.sql import functions as F
@@ -32,14 +32,14 @@ with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
 LOCATIONS = cfg["locations"]
-SCHEMA = cfg["schema"][job_env]
-
 tbls = cfg["tables"]["write"]
-CONTROL_SHEET_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
-TARGETING_SCORES_TABLE = map_schema(tbls["targeting_scores_latest"], SCHEMA)
-ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
-ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
-CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
+SCHEMA = cfg["schema"][job_env]
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
+TARGETING_SCORES_TABLE = map_tbl(tbls["targeting_scores_latest"], **tbl_args)
+ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
+ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
+CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
 FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 

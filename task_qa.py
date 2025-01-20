@@ -3,7 +3,7 @@ import logging.config
 import json
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (
-    JobParser, assert_pk, get_table_pk_cols, map_schema, post_to_webhook)
+    JobParser, assert_pk, get_table_pk_cols, map_tbl, post_to_webhook)
 from pyspark.sql import functions as F
 from pyspark.sql import Window
 
@@ -22,11 +22,12 @@ with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
 LOCATIONS = cfg["locations"]
-SCHEMA = cfg["schema"][job_env]
 
 tbls = cfg["tables"]["write"]
-ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
-CELLS_TABLE_LATEST = map_schema(tbls["customer_cells_latest"], SCHEMA)
+SCHEMA = cfg["schema"][job_env]
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
+CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
 FALLOW_TRUE = cfg["fallow_control"]["true_label"]
 FIXED_CELLS = cfg["fixed_cells"]
@@ -37,53 +38,58 @@ df_assigned = get_spark().table(ASSIGNMENTS_TABLE_LATEST)
 df_cells = get_spark().table(CELLS_TABLE_LATEST)
 
 
-log.info('Checking for partial Homepage Teaser assignments')
+log.info('Checking for invalid Homepage Teaser assignments')
 
 teaser_locs = ['PH3', 'PH4', 'PH5']
 teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
 w_acc = Window.partitionBy('AccountNumber')
 
-df_partial_teasers = (
+df_invalid_teasers = (
     df_assigned
     .where(F.col('Location').isin(teaser_locs))
     .withColumn(
         'TeaserAssigned',
-        F.when(
-            F.col('MASID').endswith('_Z'),
-            F.lit(0)
-            ).otherwise(F.lit(1))
+        F.when(F.col('MASID').endswith('_Z'), F.lit(0)).otherwise(F.lit(1))
         )
     .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_acc))
-    .where(~F.col('TeasersAssigned').isin(0, 3))
+    .drop('TeaserAssigned')
+    .withColumn('MASIDToken', F.split('MASID', '_')[1])
+    .withColumn('TokenSet', F.collect_set(F.col('MASIDToken')).over(w_acc))
+    .withColumn('UniqueTokens', F.array_size('TokenSet'))
+    .where(
+        (F.col('TeasersAssigned') < len(teaser_locs))
+        | (F.col('UniqueTokens') < len(teaser_locs))
+        )
+    .where(F.col('TokenSet') != F.array(F.lit('Z')))
 )
 
-if df_partial_teasers.count() > 0:
+if df_invalid_teasers.count() > 0:
 
-    df_partial_teaser_accounts = (
-        df_partial_teasers
+    df_invalid_teaser_accounts = (
+        df_invalid_teasers
         .select('AccountNumber')
         .distinct()
     )
 
-    n_pt = df_partial_teaser_accounts.count()
-    msg_pt = f'{n_pt:,} accounts found with partial HomePage Teasers'
-    log.warning(msg_pt)
+    n_it = df_invalid_teaser_accounts.count()
+    msg_it = f'{n_it:,} accounts found with invalid HomePage Teasers'
+    log.warning(msg_it)
     if job_env == "prod":
-        post_to_webhook(WEBHOOK_URL, msg_pt)
+        post_to_webhook(WEBHOOK_URL, msg_it)
 
-    df_partial_teaser_accounts.createOrReplaceTempView("df_pt_accs")
-    sql_del_partials = f'''
+    df_invalid_teaser_accounts.createOrReplaceTempView("df_it_accs")
+    sql_del_invalid = f'''
     delete from {ASSIGNMENTS_TABLE_LATEST}
-    where AccountNumber in (select AccountNumber from df_pt_accs)
+    where AccountNumber in (select AccountNumber from df_it_accs)
     and Location in ({', '.join(teaser_locs_fmt)})
     '''
-    msg_pt_rm = (
+    msg_it_rm = (
         'Removing Teaser assignments for affected accounts ' +
         f'from table read by PF: {ASSIGNMENTS_TABLE_LATEST}')
-    log.warning(msg_pt_rm)
+    log.warning(msg_it_rm)
     if job_env == "prod":
-        post_to_webhook(WEBHOOK_URL, msg_pt_rm)
-    get_spark().sql(sql_del_partials)
+        post_to_webhook(WEBHOOK_URL, msg_it_rm)
+    get_spark().sql(sql_del_invalid)
 
 
 df_assigned_dt = (df_assigned.select("rundate").distinct())
@@ -158,7 +164,7 @@ log.info('Checking Primary Key validity of latest process tables')
 for tbl in tbls:
     if not tbl.endswith('_latest'):
         continue
-    tbl_mapped = map_schema(tbls[tbl], SCHEMA)
+    tbl_mapped = map_tbl(tbls[tbl], **tbl_args)
     pk_cols = get_table_pk_cols(tbl_mapped)
     log.info(f'Asserting {pk_cols} as PK for {tbl_mapped}')
     df_tbl_pk = get_spark().table(tbl_mapped)

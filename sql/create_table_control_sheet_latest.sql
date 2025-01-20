@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.next_uk_nextads_control_sheet_latest (
+create table marketingdata_prod.{schema}.{domain}_nextads_control_sheet_latest (
   UniqueAdID string not null,
   PotNumber string not null,
   CampaignNumber string,
@@ -39,7 +39,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_control_sheet_latest (
   FlatJPG string,
   Tags string,
   rundate date not null,
-  constraint pk_next_uk_nextads_control_sheet_latest primary key (
+  constraint pk_{domain}_nextads_control_sheet_latest primary key (
     UniqueAdID,
     Location)
 )

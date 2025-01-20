@@ -8,7 +8,7 @@ from next_ads.Results import (check_for_missing_dates,
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
                                 assert_pk, delete_from_and_load,
-                                map_schema,
+                                map_tbl,
                                 post_to_webhook)
 from pyspark.sql import functions as F
 from pyspark.sql import Window
@@ -37,22 +37,24 @@ BQ_SESSIONS_APP = cfg["tables"]["read"]['bq_sessions_app']
 BQ_PAGES = cfg["tables"]["read"]['bq_pages']
 BQ_SCREENS = cfg["tables"]["read"]['bq_screens']
 
-SCHEMA = 'warehouse'
 tbls = cfg["tables"]["write"]
-FIXED_CELLS_LATEST_TABLE = map_schema(tbls["customer_cells_fixed_latest"],
-                                      SCHEMA)
-ASSIGNMENTS_TABLE = map_schema(tbls["assignments"], SCHEMA)
-TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"],
-                                   SCHEMA)
-CONTROL_SHEET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
+SCHEMA = 'warehouse'
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+FIXED_CELLS_LATEST_TABLE = map_tbl(tbls["customer_cells_fixed_latest"],
+                                   **tbl_args)
+ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
+TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"],
+                                **tbl_args)
+CONTROL_SHEET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
 
-RESULTS_TOPLINE_TABLE = map_schema(tbls["results_topline"], SCHEMA)
-RESULTS_AGGREGATED_TABLE = map_schema(tbls["results_aggregated"], SCHEMA)
-RESULTS_AB_TABLE = map_schema(tbls["results_ab"], SCHEMA)
-RESULTS_ADS_TABLE = map_schema(tbls["results_ads"], SCHEMA)
-RESULTS_ADS_LOCATION_TABLE = map_schema(tbls["results_ads_location"], SCHEMA)
-RESULTS_ADS_TARGETING_TABLE = map_schema(tbls["results_ads_targeting"], SCHEMA)
-RESULTS_AD_METADATA_TABLE = map_schema(tbls["results_ad_metadata"], SCHEMA)
+RESULTS_TOPLINE_TABLE = map_tbl(tbls["results_topline"], **tbl_args)
+RESULTS_AGGREGATED_TABLE = map_tbl(tbls["results_aggregated"], **tbl_args)
+RESULTS_AB_TABLE = map_tbl(tbls["results_ab"], **tbl_args)
+RESULTS_ADS_TABLE = map_tbl(tbls["results_ads"], **tbl_args)
+RESULTS_ADS_LOCATION_TABLE = map_tbl(tbls["results_ads_location"], **tbl_args)
+RESULTS_ADS_TARGETING_TABLE = map_tbl(tbls["results_ads_targeting"],
+                                      **tbl_args)
+RESULTS_AD_METADATA_TABLE = map_tbl(tbls["results_ad_metadata"], **tbl_args)
 
 LOCATIONS = cfg['locations']
 FIXED_CELLS = cfg['fixed_cells']
@@ -64,9 +66,9 @@ WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 dates_provided = True if (pargs['datestart'] and pargs['dateend']) else False
 
 if job_env == 'prod' and not dates_provided:
-    # If no date args provided default to last two days
-    SESSION_DATE_START = date.today() - timedelta(days=2)
-    SESSION_DATE_END = date.today() - timedelta(days=1)
+    # If no date args provided, use default set of recent days
+    SESSION_DATE_START = date.today() - timedelta(days=4)
+    SESSION_DATE_END = date.today() - timedelta(days=2)
 elif dates_provided:
     # If date args are provided (e.g. for backdating)
     ds_num = [int(x) for x in pargs['datestart'].split('-')]

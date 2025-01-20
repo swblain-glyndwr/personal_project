@@ -9,7 +9,7 @@ from pyspark.sql import functions as F
 from next_ads.utils.etl import (assert_pk,
                                 JobParser,
                                 create_table_from_df, delete_from_and_load,
-                                map_schema,
+                                map_tbl,
                                 chain_when_thens, truncate_and_load)
 
 
@@ -26,12 +26,13 @@ log.info(f"Configuring run for domain: {DOMAIN}")
 with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
-SCHEMA = cfg["schema"][job_env]
 tbls = cfg["tables"]["write"]
-FIXED_CELLS_TABLE = map_schema(tbls["customer_cells_fixed_latest"], SCHEMA)
-TRANSIENT_CELLS_TABLE = map_schema(tbls["customer_cells_transient"], SCHEMA)
-TRANSIENT_CELLS_TABLE_LATEST = map_schema(
-    tbls["customer_cells_transient_latest"], SCHEMA)
+SCHEMA = cfg["schema"][job_env]
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+FIXED_CELLS_TABLE = map_tbl(tbls["customer_cells_fixed_latest"], **tbl_args)
+TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"], **tbl_args)
+TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
+    tbls["customer_cells_transient_latest"], **tbl_args)
 
 TABLES_READ = cfg["tables"]["read"]
 SVOC = TABLES_READ["svoc_pii"]
@@ -216,7 +217,7 @@ if transient_cells:
         # Due to time constraints, old methodology was ported across without
         # full review
         log.info("[Legacy] Assigning AlgoDivision via legacy method")
-        df_divs = get_algo_divisions_legacy()
+        df_divs = get_algo_divisions_legacy(MODEL_SCORES_LATEST)
         transient_cell_dfs.append(df_divs)
 
     if "Audiences" in TRANSIENT_CELLS:

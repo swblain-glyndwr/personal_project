@@ -513,6 +513,7 @@
             ]
         }
     },
+
     "control_sheet": {
         "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
         "sheet": "Control Sheet",
@@ -583,22 +584,22 @@
             "Seasons": "marketingdata_prod.ds_sandbox.next_uk_nextads_premium_audience_20241126"
         },
         "write": {
-            "control_sheet": "marketingdata_prod.{schema}.next_uk_nextads_control_sheet",
-            "control_sheet_latest": "marketingdata_prod.{schema}.next_uk_nextads_control_sheet_latest",
-            "customer_cells_fixed_latest": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_fixed_latest",
-            "customer_cells_transient": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_transient",
-            "customer_cells_transient_latest": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_transient_latest",
-            "customer_cells_latest": "marketingdata_prod.{schema}.next_uk_nextads_customer_cells_latest",
-            "targeting_scores_latest": "marketingdata_prod.{schema}.next_uk_nextads_targeting_scores_latest",
-            "assignments": "marketingdata_prod.{schema}.next_uk_nextads_assignments",
-            "assignments_latest": "marketingdata_prod.{schema}.next_uk_nextads_assignments_latest",
-            "results_topline": "marketingdata_prod.{schema}.next_uk_nextads_results_topline",
-            "results_aggregated": "marketingdata_prod.{schema}.next_uk_nextads_results_aggregated",
-            "results_ab": "marketingdata_prod.{schema}.next_uk_nextads_results_ab",
-            "results_ads": "marketingdata_prod.{schema}.next_uk_nextads_results_ads",
-            "results_ads_location": "marketingdata_prod.{schema}.next_uk_nextads_results_ads_location",
-            "results_ads_targeting": "marketingdata_prod.{schema}.next_uk_nextads_results_ads_targeting",
-            "results_ad_metadata": "marketingdata_prod.{schema}.next_uk_nextads_results_ad_metadata"
+            "control_sheet": "marketingdata_prod.{schema}.{domain}_nextads_control_sheet",
+            "control_sheet_latest": "marketingdata_prod.{schema}.{domain}_nextads_control_sheet_latest",
+            "customer_cells_fixed_latest": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_fixed_latest",
+            "customer_cells_transient": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_transient",
+            "customer_cells_transient_latest": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_transient_latest",
+            "customer_cells_latest": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_latest",
+            "targeting_scores_latest": "marketingdata_prod.{schema}.{domain}_nextads_targeting_scores_latest",
+            "assignments": "marketingdata_prod.{schema}.{domain}_nextads_assignments",
+            "assignments_latest": "marketingdata_prod.{schema}.{domain}_nextads_assignments_latest",
+            "results_topline": "marketingdata_prod.{schema}.{domain}_nextads_results_topline",
+            "results_aggregated": "marketingdata_prod.{schema}.{domain}_nextads_results_aggregated",
+            "results_ab": "marketingdata_prod.{schema}.{domain}_nextads_results_ab",
+            "results_ads": "marketingdata_prod.{schema}.{domain}_nextads_results_ads",
+            "results_ads_location": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_location",
+            "results_ads_targeting": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_targeting",
+            "results_ad_metadata": "marketingdata_prod.{schema}.{domain}_nextads_results_ad_metadata"
         }
     },
     
@@ -618,12 +619,12 @@
         "temporaryGcsBucket": "to_discovery/tableau",
         "parentProject": "big-query-156009",
         "tables": {
-            "results_topline": "big-query-156009.Misc_eu.next_uk_nextads_results_topline",
-            "results_aggregated": "big-query-156009.Misc_eu.next_uk_nextads_results_aggregated",
-            "results_ads": "big-query-156009.Misc_eu.next_uk_nextads_results_ads",
-            "results_ads_location": "big-query-156009.Misc_eu.next_uk_nextads_results_ads_location",
-            "results_ads_targeting": "big-query-156009.Misc_eu.next_uk_nextads_results_ads_targeting",
-            "results_ad_metadata": "big-query-156009.Misc_eu.next_uk_nextads_results_ad_metadata"
+            "results_topline": "big-query-156009.Misc_eu.{domain}_nextads_results_topline",
+            "results_aggregated": "big-query-156009.Misc_eu.{domain}_nextads_results_aggregated",
+            "results_ads": "big-query-156009.Misc_eu.{domain}_nextads_results_ads",
+            "results_ads_location": "big-query-156009.Misc_eu.{domain}_nextads_results_ads_location",
+            "results_ads_targeting": "big-query-156009.Misc_eu.{domain}_nextads_results_ads_targeting",
+            "results_ad_metadata": "big-query-156009.Misc_eu.{domain}_nextads_results_ad_metadata"
         }
     },
 

@@ -2,7 +2,7 @@ import logging
 import logging.config
 import json
 from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import map_schema, JobParser
+from next_ads.utils.etl import map_tbl, JobParser
 
 
 logging.config.fileConfig("logging.conf")
@@ -18,10 +18,10 @@ log.info(f"Configuring run for domain: {DOMAIN}")
 with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
-SCHEMA = cfg["schema"][job_env]
-
 tbls = cfg["tables"]["write"]
-ASSIGNMENTS_TABLE_LATEST = map_schema(tbls["assignments_latest"], SCHEMA)
+SCHEMA = cfg["schema"][job_env]
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 
 log.info(f'Truncating {ASSIGNMENTS_TABLE_LATEST} ' +
          'to remove any discontinued assignments')

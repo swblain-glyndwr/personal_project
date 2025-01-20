@@ -2,7 +2,7 @@ import logging
 import logging.config
 import json
 from next_ads.utils.etl import (JobParser,
-                                map_schema,
+                                map_tbl,
                                 copy_table_from_to)
 
 
@@ -19,16 +19,15 @@ log.info(f"Configuring run for domain: {DOMAIN}")
 with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
-SCHEMA_DICT = cfg["schema"]
-
 TABLE_DICT = cfg["tables"]["write"]
+SCHEMA_DICT = cfg["schema"]
 
 for (k, v) in TABLE_DICT.items():
 
     log.info(f"Mirroring {k} table")
 
-    tbl_prod = map_schema(v, SCHEMA_DICT["prod"])
-    tbl_dev = map_schema(v, SCHEMA_DICT["dev"])
+    tbl_prod = map_tbl(v, schema=SCHEMA_DICT["prod"], domain=DOMAIN)
+    tbl_dev = map_tbl(v, schema=SCHEMA_DICT["dev"], domain=DOMAIN)
 
     log.info(f"From {tbl_prod}")
     log.info(f"To {tbl_dev}")

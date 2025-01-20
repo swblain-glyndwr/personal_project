@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.next_uk_nextads_results_ab (
+create table marketingdata_prod.{schema}.{domain}_nextads_results_ab (
     SessionDate date not null,
     Device string not null,
     OS string not null,

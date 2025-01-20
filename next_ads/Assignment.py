@@ -274,7 +274,7 @@ def melt_transient_cells(df: DataFrame) -> DataFrame:
     return df_melted
 
 
-def get_algo_divisions_legacy() -> DataFrame:
+def get_algo_divisions_legacy(model_scores_latest_table: str) -> DataFrame:
     """
     Approach of assigning each customer their 'best' Division.
     Code ported across from legacy code due to time constraints.
@@ -356,17 +356,17 @@ def get_algo_divisions_legacy() -> DataFrame:
     # TODO: Change to collective model view
     all_scores = (
         get_spark()
-        .table('warehouse.next_uk_division_model_latest')
+        .table(model_scores_latest_table)
         .drop('rundate')
         .select(
             'account_number',
-            F.col('WW').alias('womens'),
-            F.col('MW').alias('mens'),
-            F.col('BW').alias('boys'),
-            F.col('GW').alias('girls'),
-            F.col('BL').alias('beauty'),
-            F.col('HW').alias('home'),
-            F.col('NB').alias('newborn')
+            F.col('div_womens').alias('womens'),
+            F.col('div_mens').alias('mens'),
+            F.col('div_boys').alias('boys'),
+            F.col('div_girls').alias('girls'),
+            F.col('div_beauty').alias('beauty'),
+            F.col('div_home').alias('home'),
+            F.col('div_baby').alias('newborn')
             )
         )
 

@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.next_uk_nextads_results_ads_targeting (
+create table marketingdata_prod.{schema}.{domain}_nextads_results_ads_targeting (
     SessionDate date not null,
     Device string not null,
     OS string not null,
@@ -11,7 +11,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_results_ads_targeting (
     SoftImpressions int,
     SoftClicks int,
     rundate date not null,
-  constraint pk_next_uk_nextads_results_ads_targeting primary key (
+  constraint pk_{domain}_nextads_results_ads_targeting primary key (
     SessionDate,
     Device,
     OS,

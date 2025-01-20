@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.next_uk_nextads_customer_cells_fixed_history (
+create table marketingdata_prod.{schema}.{domain}_nextads_customer_cells_fixed_history (
     AccountNumber string not null,
     FallowControl string not null,
     HomePageTest1 string not null,
@@ -18,7 +18,7 @@ create table marketingdata_prod.{schema}.next_uk_nextads_customer_cells_fixed_hi
     RunDateFrom date not null,
     RunDateTo date not null,
     ControlCycle int not null,
-  constraint pk_next_uk_nextads_customer_cells_fixed_history primary key (
+  constraint pk_{domain}_nextads_customer_cells_fixed_history primary key (
     AccountNumber,
     ControlCycle
     )

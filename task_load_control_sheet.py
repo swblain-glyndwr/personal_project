@@ -10,7 +10,7 @@ from next_ads.utils.etl import (assert_pk,
                                 truncate_and_load,
                                 delete_from_and_load,
                                 JobParser,
-                                map_schema,
+                                map_tbl,
                                 post_to_webhook)
 
 
@@ -39,11 +39,11 @@ for k in VALID_LOCATIONS:
 
 CONTROL_SHEET = cfg["control_sheet"]
 
-SCHEMA = cfg["schema"][job_env]
-
 tbls = cfg["tables"]["write"]
-TARGET_TABLE = map_schema(tbls["control_sheet"], SCHEMA)
-TARGET_TABLE_LATEST = map_schema(tbls["control_sheet_latest"], SCHEMA)
+SCHEMA = cfg["schema"][job_env]
+tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+TARGET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
+TARGET_TABLE_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
 
 WEBHOOK_URL = cfg["webhooks"]["Input Warnings"]
 
