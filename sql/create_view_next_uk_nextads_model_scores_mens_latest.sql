@@ -1,4 +1,4 @@
-create view marketingdata_prod.warehouse.next_uk_nextads_model_scores_mens as
+create view marketingdata_prod.warehouse.next_uk_nextads_model_scores_mens_latest as
 select
     a.*,
     b.adidas,
@@ -57,16 +57,12 @@ select
     e.mw_golf,
     e.mw_fredperry,
     e.mw_allsaints
-from marketingdata_prod.warehouse.next_uk_division_model a
-inner join marketingdata_prod.warehouse.next_uk_mens_cat_brands b
+from marketingdata_prod.warehouse.next_uk_division_model_latest a
+inner join marketingdata_prod.warehouse.next_uk_mens_cat_brands_latest b
     on a.account_number=b.account_number
-    and a.rundate=b.rundate
-inner join marketingdata_prod.warehouse.next_uk_mens_nextads_models c
+inner join marketingdata_prod.warehouse.next_uk_mens_nextads_models_latest c
     on a.account_number=c.account_number
-    and a.rundate=c.rundate
-inner join marketingdata_prod.warehouse.next_uk_clearance_model d
+inner join marketingdata_prod.warehouse.next_uk_clearance_model_latest d
     on a.account_number=d.account_number
-    and a.rundate=d.rundate
-inner join marketingdata_prod.warehouse.next_uk_mens_nextadsbrands_models e
+inner join marketingdata_prod.warehouse.next_uk_mens_nextadsbrands_models_latest e
     on a.account_number=e.account_number
-    and a.rundate=e.rundate

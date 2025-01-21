@@ -1,4 +1,4 @@
-create view marketingdata_prod.warehouse.next_uk_nextads_model_scores as
+create view marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest as
 select
     div.account_number as account_number,
 
@@ -494,28 +494,20 @@ select
     beauty.travel_minis as beauty_travel_minis,
     beauty.urban_decay as beauty_urban_decay,
     beauty.victorias_secret_beauty as beauty_victorias_secret_beauty,
-    beauty.ysl as beauty_ysl,
+    beauty.ysl as beauty_ysl
 
-    div.rundate
+from marketingdata_prod.warehouse.next_uk_division_model_latest as div
 
-from marketingdata_prod.warehouse.next_uk_division_model as div
-
-inner join marketingdata_prod.warehouse.next_uk_kids_category_model kids
+inner join marketingdata_prod.warehouse.next_uk_kids_category_model_latest kids
     on div.account_number = kids.account_number
-    and div.rundate = kids.rundate
-inner join marketingdata_prod.warehouse.next_uk_home_category_model as home
+inner join marketingdata_prod.warehouse.next_uk_home_category_model_latest as home
     on div.account_number = home.account_number
-    and div.rundate = home.rundate
 
-left join marketingdata_prod.warehouse.next_uk_clearance_model as clr
+left join marketingdata_prod.warehouse.next_uk_clearance_model_latest as clr
     on div.account_number = clr.account_number
-    and div.rundate = clr.rundate
-left join marketingdata_prod.warehouse.next_uk_nextads_model_scores_womens as ww
+left join marketingdata_prod.warehouse.next_uk_nextads_model_scores_womens_latest as ww
     on div.account_number = ww.account_number
-    and div.rundate = ww.rundate
-left join marketingdata_prod.warehouse.next_uk_nextads_model_scores_mens as mw
+left join marketingdata_prod.warehouse.next_uk_nextads_model_scores_mens_latest as mw
     on div.account_number = mw.account_number
-    and div.rundate = mw.rundate
-left join marketingdata_prod.warehouse.next_uk_beauty_category_model as beauty
+left join marketingdata_prod.warehouse.next_uk_beauty_category_model_latest as beauty
     on div.account_number = beauty.account_number
-    and div.rundate = beauty.rundate

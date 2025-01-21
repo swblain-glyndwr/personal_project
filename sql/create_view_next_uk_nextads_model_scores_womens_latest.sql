@@ -1,4 +1,4 @@
-create view marketingdata_prod.warehouse.next_uk_nextads_model_scores_womens as
+create view marketingdata_prod.warehouse.next_uk_nextads_model_scores_womens_latest as
 select
     a.*,
     b.WW_adidas,
@@ -117,25 +117,18 @@ select
     h.ww_straightlegjeans,
     h.ww_skinnyjeans,
     h.ww_flaredbootcutjeans
-from marketingdata_prod.warehouse.next_uk_division_model a 
-inner join marketingdata_prod.warehouse.next_uk_womens_category_model b
-    on a.account_number=b.account_number
-    and a.rundate=b.rundate
-inner join marketingdata_prod.warehouse.next_uk_womens_nextads_models c
-    on a.account_number=c.account_number
-    and a.rundate=c.rundate
-inner join marketingdata_prod.warehouse.next_uk_womens_styles_models d
-    on a.account_number=d.account_number
-    and a.rundate=d.rundate
-inner join marketingdata_prod.warehouse.next_uk_clearance_model e
-    on a.account_number=e.account_number
-    and a.rundate=e.rundate
-inner join marketingdata_prod.warehouse.next_uk_womens_dd_model f
-    on a.account_number=f.account_number
-    and a.rundate=f.rundate
-inner join marketingdata_prod.warehouse.next_uk_womens_nextads_additional_brand_models g
-    on a.account_number=g.account_number
-    and a.rundate=g.rundate
-inner join marketingdata_prod.warehouse.next_uk_womens_nextads_style_models h
+from marketingdata_prod.warehouse.next_uk_division_model_latest a 
+inner join marketingdata_prod.warehouse.next_uk_womens_category_model_latest b
+    on a.account_number=b.account_number 
+inner join marketingdata_prod.warehouse.next_uk_womens_nextads_models_latest c
+    on a.account_number=c.account_number 
+inner join marketingdata_prod.warehouse.next_uk_womens_styles_models_latest d
+    on a.account_number=d.account_number 
+inner join marketingdata_prod.warehouse.next_uk_clearance_model_latest e
+    on a.account_number=e.account_number 
+inner join marketingdata_prod.warehouse.next_uk_womens_dd_model_latest f
+    on a.account_number=f.account_number 
+inner join marketingdata_prod.warehouse.next_uk_womens_nextads_additional_brand_models_latest g
+    on a.account_number=g.account_number 
+inner join marketingdata_prod.warehouse.next_uk_womens_nextads_style_models_latest h
     on a.account_number=h.account_number
-    and a.rundate=h.rundate
