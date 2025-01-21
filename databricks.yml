@@ -11,9 +11,7 @@ targets:
     default: true
     workspace:
       host: https://adb-6188831950334199.19.azuredatabricks.net
-
-  ## Optionally, there could be 'staging' or 'prod' targets here.
-  #
-  # prod:
-  #   workspace:
-  #     host: https://adb-6188831950334199.19.azuredatabricks.net
+  
+  prod:
+    workspace:
+      host: https://adb-6188831950334199.19.azuredatabricks.net
