@@ -40,7 +40,7 @@ BQ_SCREENS = cfg["tables"]["read"]['bq_screens']
 tbls = cfg["tables"]["write"]
 SCHEMA = 'warehouse'
 tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
-# Always read assignments from production
+
 FIXED_CELLS_LATEST_TABLE = map_tbl(tbls["customer_cells_fixed_latest"],
                                    **tbl_args)
 ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
@@ -48,8 +48,6 @@ TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"],
                                 **tbl_args)
 CONTROL_SHEET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
 
-# Write to tables in schema dependent on job_env
-tbl_args = tbl_args | {'schema': cfg["schema"][job_env]}
 RESULTS_TOPLINE_TABLE = map_tbl(tbls["results_topline"], **tbl_args)
 RESULTS_AGGREGATED_TABLE = map_tbl(tbls["results_aggregated"], **tbl_args)
 RESULTS_AB_TABLE = map_tbl(tbls["results_ab"], **tbl_args)
