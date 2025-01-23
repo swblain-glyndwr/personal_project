@@ -20,7 +20,7 @@ with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = 'warehouse'
+SCHEMA = cfg["schema"][job_env]
 tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
 
 BQ_OPTIONS = cfg['big_query']
@@ -33,18 +33,19 @@ RESULTS_EXPORTS = [
     'results_ad_metadata'
     ]
 
-for results_export in RESULTS_EXPORTS:
-    results_table = map_tbl(tbls[results_export], **tbl_args)
-    log.info(f'Exporting {results_export} to Big Query')
-    df_export = get_spark().table(results_table)
+if job_env == 'prod':
+    for results_export in RESULTS_EXPORTS:
+        results_table = map_tbl(tbls[results_export], **tbl_args)
+        log.info(f'Exporting {results_export} to Big Query')
+        df_export = get_spark().table(results_table)
 
-    (
-        df_export
-        .write.format('bigquery')
-        .mode('overwrite')
-        .option('temporaryGcsBucket', BQ_OPTIONS['temporaryGcsBucket'])
-        .option('parentProject', BQ_OPTIONS['parentProject'])
-        .option('table',
-                map_tbl(BQ_OPTIONS['tables'][results_export], **tbl_args))
-        .save()
-    )
+        (
+            df_export
+            .write.format('bigquery')
+            .mode('overwrite')
+            .option('temporaryGcsBucket', BQ_OPTIONS['temporaryGcsBucket'])
+            .option('parentProject', BQ_OPTIONS['parentProject'])
+            .option('table',
+                    map_tbl(BQ_OPTIONS['tables'][results_export], **tbl_args))
+            .save()
+        )

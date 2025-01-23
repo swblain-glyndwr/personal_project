@@ -38,7 +38,7 @@ BQ_PAGES = cfg["tables"]["read"]['bq_pages']
 BQ_SCREENS = cfg["tables"]["read"]['bq_screens']
 
 tbls = cfg["tables"]["write"]
-SCHEMA = 'warehouse'
+SCHEMA = cfg["schema"][job_env]
 tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
 FIXED_CELLS_LATEST_TABLE = map_tbl(tbls["customer_cells_fixed_latest"],
                                    **tbl_args)
