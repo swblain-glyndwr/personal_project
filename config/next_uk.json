@@ -598,6 +598,7 @@
             "results_ab": "marketingdata_prod.{schema}.{domain}_nextads_results_ab",
             "results_ads": "marketingdata_prod.{schema}.{domain}_nextads_results_ads",
             "results_ads_location": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_location",
+            "results_ads_page": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_page",
             "results_ads_targeting": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_targeting",
             "results_ad_metadata": "marketingdata_prod.{schema}.{domain}_nextads_results_ad_metadata"
         }

@@ -52,6 +52,7 @@ RESULTS_AGGREGATED_TABLE = map_tbl(tbls["results_aggregated"], **tbl_args)
 RESULTS_AB_TABLE = map_tbl(tbls["results_ab"], **tbl_args)
 RESULTS_ADS_TABLE = map_tbl(tbls["results_ads"], **tbl_args)
 RESULTS_ADS_LOCATION_TABLE = map_tbl(tbls["results_ads_location"], **tbl_args)
+RESULTS_ADS_PAGE_TABLE = map_tbl(tbls["results_ads_page"], **tbl_args)
 RESULTS_ADS_TARGETING_TABLE = map_tbl(tbls["results_ads_targeting"],
                                       **tbl_args)
 RESULTS_AD_METADATA_TABLE = map_tbl(tbls["results_ad_metadata"], **tbl_args)
@@ -77,8 +78,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 1, 2)
-    SESSION_DATE_END = date(2025, 1, 3)
+    SESSION_DATE_START = date(2025, 1, 20)
+    SESSION_DATE_END = date(2025, 1, 21)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -428,6 +429,12 @@ df_sessions_pages = (
     .join(df_pages,
           on=['SessionDate', 'UniqueVisitID'],
           how='inner')
+    .where(
+        (F.col('Device').isin('Desktop', 'Mobile'))
+        |
+        ((F.col('Device') == 'App')
+         & (F.col('PagePath').isin('Home', 'Cart')))
+    )
 )
 df_sessions_pages.cache()
 
@@ -765,7 +772,11 @@ agg_cols = [
     'AlgoDivision',
     'TradeDivision',
     'PageGroup',
-    'PagePath'
+    'PagePath',
+    'CampaignNumber',
+    'PotNumber',
+    'TemplateName',
+    'Treatment'
 ]
 
 agg_summaries = []
@@ -927,6 +938,54 @@ for c in df_summary_ad_locset_wide.columns:
     )
 
 df_summary_ad_locset_wide.cache()
+
+
+# Ad x PageGroupSet view
+w_visit_ad = Window.partitionBy('UniqueVisitID', 'UniqueAdIDMeasurement')
+df_summary_ad_pagegroupset = (
+    summarise_sessions(
+        (
+            df_sessions_master_meta
+            .withColumn('PageGroupSet',
+                        F.collect_set('PageGroup').over(w_visit_ad))
+        ),
+        **col_args_dict,
+        group_cols=(
+            session_level_cols
+            + ['FallowControl', 'UniqueAdIDMeasurement']
+            + ['PageGroupSet']
+            )
+    )
+    .where(F.col('UniqueAdIDMeasurement').isNotNull())
+    .where(F.col('PageGroupSet').isNotNull())
+    .withColumnRenamed('UniqueAdIDMeasurement', 'UniqueAdID')
+    .withColumn('PageGroupSet',
+                F.concat_ws('+', (F.array_sort(F.col('PageGroupSet')))))
+)
+
+df_summary_ad_pagegroupset_wide = (
+    df_summary_ad_pagegroupset
+    .where(F.col('FallowControl').isin(FALLOW_FALSE, FALLOW_TRUE))
+    .groupBy('SessionDate', 'Device', 'OS', 'UniqueAdID', 'PageGroupSet')
+    .pivot('FallowControl')
+    .agg(
+        F.first('Sessions').alias('Sessions'),
+        F.first('Revenue').alias('Revenue'),
+        F.first('Conversions').alias('Conversions'),
+        F.first('SoftImpressions').alias('SoftImpressions'),
+        F.first('SoftClicks').alias('SoftClicks'),
+    )
+)
+
+for c in df_summary_ad_pagegroupset_wide.columns:
+    df_summary_ad_pagegroupset_wide = (
+        df_summary_ad_pagegroupset_wide
+        .withColumnRenamed(
+            c,
+            c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
+    )
+
+df_summary_ad_pagegroupset_wide.cache()
 
 
 # Ad-Targeting view
@@ -1157,6 +1216,34 @@ if job_env == 'prod':
             RESULTS_ADS_LOCATION_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
                      'UniqueAdID', 'LocationSet'],
+            del_where={'SessionDate': d_fmt}
+        )
+
+        log.info(f'Loading results_ads_page for {d_fmt} ' +
+                 f'to table: {RESULTS_ADS_PAGE_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_ad_pagegroupset_wide
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'Device',
+                        'OS',
+                        'UniqueAdID',
+                        'PageGroupSet',
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks',
+                        'C_Sessions',
+                        'C_Revenue',
+                        'C_Conversions',
+                        'C_SoftImpressions',
+                        'C_SoftClicks')
+            ),
+            RESULTS_ADS_PAGE_TABLE,
+            pk_cols=['SessionDate', 'Device', 'OS',
+                     'UniqueAdID', 'PageGroupSet'],
             del_where={'SessionDate': d_fmt}
         )
 
