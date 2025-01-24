@@ -1411,7 +1411,7 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ads_targeting for {d_fmt} ' +
+        log.info(f'Loading results_page_targeting for {d_fmt} ' +
                  f'to table: {RESULTS_PAGE_TARGETING_TABLE}')
         delete_from_and_load(
             (
