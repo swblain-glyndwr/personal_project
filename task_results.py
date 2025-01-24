@@ -54,8 +54,11 @@ RESULTS_AB_TABLE = map_tbl(tbls["results_ab"], **tbl_args)
 RESULTS_ADS_TABLE = map_tbl(tbls["results_ads"], **tbl_args)
 RESULTS_ADS_LOCATION_TABLE = map_tbl(tbls["results_ads_location"], **tbl_args)
 RESULTS_ADS_PAGE_TABLE = map_tbl(tbls["results_ads_page"], **tbl_args)
+RESULTS_DIV_PAGE_TABLE = map_tbl(tbls["results_div_page"], **tbl_args)
 RESULTS_ADS_TARGETING_TABLE = map_tbl(tbls["results_ads_targeting"],
                                       **tbl_args)
+RESULTS_PAGE_TARGETING_TABLE = map_tbl(tbls["results_page_targeting"],
+                                       **tbl_args)
 RESULTS_AD_METADATA_TABLE = map_tbl(tbls["results_ad_metadata"], **tbl_args)
 
 LOCATIONS = cfg['locations']
@@ -79,8 +82,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 1, 20)
-    SESSION_DATE_END = date(2025, 1, 21)
+    SESSION_DATE_START = date(2025, 1, 18)
+    SESSION_DATE_END = date(2025, 1, 19)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -576,7 +579,6 @@ df_sessions_ads_valid = (
         ),
         on=['AccountNumber', 'SessionDate'], how='inner'
          )
-    .where(F.col('Device') != 'App')
 )
 df_sessions_ads_valid.cache()
 
@@ -694,7 +696,8 @@ reporting_metadata_cols = [
     'AdTrend',
     'AdSubcategory',
     'AdBrandName',
-    'AdCampaign'
+    'AdCampaign',
+    'Tags'
 ]
 
 df_ad_metadata_non_loc = (
@@ -794,6 +797,42 @@ for ac in agg_cols:
         .where(F.col('AggValue').isNotNull())
     )
     agg_summaries.append(df_summary_ac_renamed)
+
+agg_tags = [
+    'AdCategory',
+    'AdMission',
+    'AdTrend',
+    'AdSubcategory',
+    'AdBrandName',
+    'AdCampaign',
+    'AdTrend',
+    'AdReactive',
+    'AdNiche',
+    'AdSocial'
+]
+
+for agg_tag in agg_tags:
+    df_summary_agg_tag = summarise_sessions(
+        (
+            df_sessions_master_meta
+            .withColumn('TagArr', F.split('Tags', ', '))
+            .withColumn(
+                'Tagged',
+                F.when(
+                    F.array_contains(F.col('TagArr'), agg_tag),
+                    1).otherwise(0))
+            .where(F.col('Tagged') == 1)
+            .drop('TagArr', 'Tagged')
+        ),
+        **col_args_dict,
+        group_cols=session_level_cols + ['FallowControl']
+    )
+    df_summary_agg_tag_renamed = (
+        df_summary_agg_tag
+        .withColumn('AggValue', F.lit(agg_tag))
+        .withColumn('AggColumn', F.lit('Tagged'))
+    )
+    agg_summaries.append(df_summary_agg_tag_renamed)
 
 if agg_summaries:
     df_summary_agg = agg_summaries.pop()
@@ -989,6 +1028,53 @@ for c in df_summary_ad_pagegroupset_wide.columns:
 df_summary_ad_pagegroupset_wide.cache()
 
 
+# Division X PageGroupSet view
+w_visit_div = Window.partitionBy('UniqueVisitID', 'AlgoDivision')
+df_summary_div_pagegroupset = (
+    summarise_sessions(
+        (
+            df_sessions_master_meta
+            .withColumn('PageGroupSet',
+                        F.collect_set('PageGroup').over(w_visit_ad))
+        ),
+        **col_args_dict,
+        group_cols=(
+            session_level_cols
+            + ['FallowControl', 'AlgoDivision']
+            + ['PageGroupSet']
+            )
+    )
+    .where(F.col('AlgoDivision').isNotNull())
+    .where(F.col('PageGroupSet').isNotNull())
+    .withColumn('PageGroupSet',
+                F.concat_ws('+', (F.array_sort(F.col('PageGroupSet')))))
+)
+
+df_summary_div_pagegroupset_wide = (
+    df_summary_div_pagegroupset
+    .where(F.col('FallowControl').isin(FALLOW_FALSE, FALLOW_TRUE))
+    .groupBy('SessionDate', 'Device', 'OS', 'AlgoDivision', 'PageGroupSet')
+    .pivot('FallowControl')
+    .agg(
+        F.first('Sessions').alias('Sessions'),
+        F.first('Revenue').alias('Revenue'),
+        F.first('Conversions').alias('Conversions'),
+        F.first('SoftImpressions').alias('SoftImpressions'),
+        F.first('SoftClicks').alias('SoftClicks'),
+    )
+)
+
+for c in df_summary_div_pagegroupset_wide.columns:
+    df_summary_div_pagegroupset_wide = (
+        df_summary_div_pagegroupset_wide
+        .withColumnRenamed(
+            c,
+            c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
+    )
+
+df_summary_div_pagegroupset_wide.cache()
+
+
 # Ad-Targeting view
 df_summary_ad_targeting = (
     summarise_sessions(
@@ -1014,6 +1100,31 @@ df_summary_ad_targeting = (
 )
 
 df_summary_ad_targeting.cache()
+
+
+# Ad-Targeting view
+df_summary_page_targeting = (
+    summarise_sessions(
+        (
+            df_sessions_master_meta
+            .withColumn('Targeting',
+                        F.when(
+                            F.col('FallowControl') == FALLOW_TRUE,
+                            F.lit('Control')
+                            ).otherwise(F.col('Treatment'))
+                        )
+        ),
+        **col_args_dict,
+        group_cols=(
+            session_level_cols
+            + ['PageGroup', 'Targeting']
+            )
+    )
+    .where(F.col('PageGroup').isNotNull())
+    .where(F.col('Targeting').isNotNull())
+)
+
+df_summary_page_targeting.cache()
 
 
 # Create additional filters for ads table
@@ -1248,6 +1359,34 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
+        log.info(f'Loading results_div_page for {d_fmt} ' +
+                 f'to table: {RESULTS_DIV_PAGE_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_div_pagegroupset_wide
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'Device',
+                        'OS',
+                        'AlgoDivision',
+                        'PageGroupSet',
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks',
+                        'C_Sessions',
+                        'C_Revenue',
+                        'C_Conversions',
+                        'C_SoftImpressions',
+                        'C_SoftClicks')
+            ),
+            RESULTS_DIV_PAGE_TABLE,
+            pk_cols=['SessionDate', 'Device', 'OS',
+                     'AlgoDivision', 'PageGroupSet'],
+            del_where={'SessionDate': d_fmt}
+        )
+
         log.info(f'Loading results_ads_targeting for {d_fmt} ' +
                  f'to table: {RESULTS_ADS_TARGETING_TABLE}')
         delete_from_and_load(
@@ -1269,6 +1408,29 @@ if job_env == 'prod':
             RESULTS_ADS_TARGETING_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
                      'UniqueAdID', 'PageGroup', 'Targeting'],
+            del_where={'SessionDate': d_fmt}
+        )
+
+        log.info(f'Loading results_ads_targeting for {d_fmt} ' +
+                 f'to table: {RESULTS_PAGE_TARGETING_TABLE}')
+        delete_from_and_load(
+            (
+                df_summary_page_targeting
+                .where(F.col('SessionDate') == d)
+                .select('SessionDate',
+                        'Device',
+                        'OS',
+                        'PageGroup',
+                        'Targeting',
+                        'Sessions',
+                        'Revenue',
+                        'Conversions',
+                        'SoftImpressions',
+                        'SoftClicks')
+            ),
+            RESULTS_PAGE_TARGETING_TABLE,
+            pk_cols=['SessionDate', 'Device', 'OS',
+                     'PageGroup', 'Targeting'],
             del_where={'SessionDate': d_fmt}
         )
 
@@ -1297,6 +1459,7 @@ if job_env == 'prod':
                         'AdSubcategory',
                         'AdBrandName',
                         'AdCampaign',
+                        'Tags',
                         'EligibleLocations',
                         'ServedLocations')
             ),
