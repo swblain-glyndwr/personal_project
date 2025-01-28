@@ -309,7 +309,7 @@ if invalid_dates:
 
     log.warning(msg_invalid_dates)
     if job_env == 'prod':
-        post_to_webhook(WEBHOOK_URL, '\n'.join(msg_invalid_dates))
+        post_to_webhook(WEBHOOK_URL, msg_invalid_dates)
 
     df_valid_assignments = (
         df_valid_assignments
