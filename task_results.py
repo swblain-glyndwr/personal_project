@@ -82,8 +82,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 1, 18)
-    SESSION_DATE_END = date(2025, 1, 19)
+    SESSION_DATE_START = date(2025, 1, 26)
+    SESSION_DATE_END = date(2025, 1, 27)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -798,18 +798,15 @@ for ac in agg_cols:
     )
     agg_summaries.append(df_summary_ac_renamed)
 
-agg_tags = [
-    'AdCategory',
-    'AdMission',
-    'AdTrend',
-    'AdSubcategory',
-    'AdBrandName',
-    'AdCampaign',
-    'AdTrend',
-    'AdReactive',
-    'AdNiche',
-    'AdSocial'
-]
+all_tags = (
+    df_ad_metadata_non_loc
+    .withColumn('TagsSplit', F.split('Tags', ', '))
+    .select('TagsSplit')
+    .distinct()
+    .where(F.col('TagsSplit').isNotNull())
+).collect()
+
+agg_tags = list(set([x for y in all_tags for x in y[0]]))
 
 for agg_tag in agg_tags:
     df_summary_agg_tag = summarise_sessions(
