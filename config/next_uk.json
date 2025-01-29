@@ -193,10 +193,7 @@
     },
     
     "transient_cells": {
-        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
-        "Audiences": [
-            ["Seasons", {"account_col": "account_number", "label_col": "segment"}]
-        ]
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
     },
 
     "locations": {
@@ -229,18 +226,6 @@
             },
             "map": [
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P131_C1626_Seasons_Womens_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P128_C1625_Seasons_Category_Womens_Bags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P128_C1676_Seasons_Category_Womens_Footwear_Womens"}
-                },
-                {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
@@ -259,18 +244,6 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P131_C1626_Seasons_Womens_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P128_C1625_Seasons_Category_Womens_Bags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P128_C1676_Seasons_Category_Womens_Footwear_Womens"}
-                },
                 {
                     "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -451,21 +424,12 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1]},
             "map": [
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "premium"}],
-                    "then": {"lit": "P131_C1626_Seasons_Womens_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "bags"}],
-                    "then": {"lit": "P128_C1625_Seasons_Category_Womens_Bags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "shoes"}],
-                    "then": {"lit": "P128_C1676_Seasons_Category_Womens_Footwear_Womens"}
-                },
                 {
                     "when": [{"col": "HomePageTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBest"}
@@ -481,6 +445,9 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [2]},
             "map": [
@@ -499,6 +466,9 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3]},
             "map": [
@@ -580,8 +550,7 @@
             "bq_add_to_basket_app": "marketingdata_prod.warehouse.bq_atbs_next_uk_app",
             "bq_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
-            "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-            "Seasons": "marketingdata_prod.ds_sandbox.next_uk_nextads_premium_audience_20241126"
+            "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest"
         },
         "write": {
             "control_sheet": "marketingdata_prod.{schema}.{domain}_nextads_control_sheet",
