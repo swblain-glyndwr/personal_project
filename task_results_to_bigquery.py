@@ -24,14 +24,7 @@ SCHEMA = cfg["schema"][job_env]
 tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
 
 BQ_OPTIONS = cfg['big_query']
-RESULTS_EXPORTS = [
-    'results_topline',
-    'results_aggregated',
-    'results_ads',
-    'results_ads_location',
-    'results_ads_targeting',
-    'results_ad_metadata'
-    ]
+RESULTS_EXPORTS = list(BQ_OPTIONS['tables'].keys())
 
 if job_env == 'prod':
     for results_export in RESULTS_EXPORTS:
