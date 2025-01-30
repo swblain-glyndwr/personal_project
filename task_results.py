@@ -630,7 +630,10 @@ df_sessions_ads_valid_clicks = (
     )
     .withColumn(
         'Clicked',
-        F.when(F.col('NextPagePath') == F.col('URL'), 1).otherwise(0)
+        F.when(
+            (F.col('NextPagePath') == F.col('URL'))
+            & (F.col('URL').isNotNull()),
+            1).otherwise(0)
         )
 )
 
@@ -1032,7 +1035,7 @@ df_summary_div_pagegroupset = (
         (
             df_sessions_master_meta
             .withColumn('PageGroupSet',
-                        F.collect_set('PageGroup').over(w_visit_ad))
+                        F.collect_set('PageGroup').over(w_visit_div))
         ),
         **col_args_dict,
         group_cols=(
