@@ -72,8 +72,8 @@ dates_provided = True if (pargs['datestart'] and pargs['dateend']) else False
 
 if job_env == 'prod' and not dates_provided:
     # If no date args provided, use default set of recent days
-    SESSION_DATE_START = date.today() - timedelta(days=4)
-    SESSION_DATE_END = date.today() - timedelta(days=2)
+    SESSION_DATE_START = date.today() - timedelta(days=3)
+    SESSION_DATE_END = date.today() - timedelta(days=1)
 elif dates_provided:
     # If date args are provided (e.g. for backdating)
     ds_num = [int(x) for x in pargs['datestart'].split('-')]
