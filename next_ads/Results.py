@@ -1,6 +1,6 @@
 import datetime
 from statistics import mean
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 from itertools import chain, combinations, permutations
 from collections.abc import Callable
@@ -234,3 +234,32 @@ def marginal_contributions(
             perm_total += marginal_contribution
 
     return {k: mean(v) for (k, v) in marginal_contributions.items()}
+
+
+def rebase_sessions(
+        df_total: DataFrame,
+        df_subtotal: DataFrame,
+        session_level_cols: list[str]) -> DataFrame:
+
+    w_sl = Window.partitionBy(session_level_cols)
+
+    df_rebased = (
+        df_subtotal
+        .withColumn('SessionsSummed', F.sum(F.col('Sessions')).over(w_sl))
+        .join(
+            df_total
+            .select(*session_level_cols, 'Sessions')
+            .withColumnRenamed('Sessions', 'SessionsTotal'),
+            on=session_level_cols, how='inner'
+        )
+        .withColumn(
+            'SessionsRebaseFactor',
+            F.col('SessionsSummed')/F.col('SessionsTotal')
+            )
+        .withColumn(
+            'SessionsRebased',
+            F.col('Sessions') / F.col('SessionsRebaseFactor')
+            )
+    )
+
+    return df_rebased.select(*df_subtotal.columns, 'SessionsRebased')
