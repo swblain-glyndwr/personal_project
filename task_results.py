@@ -66,6 +66,9 @@ FIXED_CELLS = cfg['fixed_cells']
 FALLOW_TRUE = cfg["fallow_control"]["true_label"]
 FALLOW_FALSE = cfg["fallow_control"]["false_label"]
 
+VALID_ASSIGNMENT_THRESHOLD = cfg['results_prm']['valid_assignment_threshold']
+MASID_REFRESH_HOUR = cfg['results_prm']['masid_refresh_hour']
+
 WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
 dates_provided = True if (pargs['datestart'] and pargs['dateend']) else False
@@ -292,10 +295,9 @@ df_valid_proportions = (
     .withColumn('ValidCasesPC', F.col('ValidCases')/F.col('Cases'))
 )
 
-valid_assignment_threshold = 0.999
 df_invalid_dates = (
     df_valid_proportions
-    .where(F.col('ValidCasesPC') < valid_assignment_threshold)
+    .where(F.col('ValidCasesPC') < VALID_ASSIGNMENT_THRESHOLD)
     .select('SessionDate')
 )
 invalid_dates = [x[0].strftime('%Y-%m-%d') for x in df_invalid_dates.collect()]
@@ -304,7 +306,7 @@ if invalid_dates:
     msg_invalid_dates = (
         f'Removing date(s) {", " .join(invalid_dates)} ' +
         'from results processing ' +
-        f'(valid case rate < {valid_assignment_threshold:.1%})'
+        f'(valid case rate < {VALID_ASSIGNMENT_THRESHOLD:.1%})'
     )
 
     log.warning(msg_invalid_dates)
@@ -488,17 +490,17 @@ if n_sessions_spanning > 0:
     )
     log.warning(f'{n_sessions_spanning:,} sessions spanning midnight removed')
 
-# Next Ads rely on the MASID to be served on site, which isn't refreshed
-# until around 3am
+# Next Ads rely on the MASID to be served on site, which is refreshed
+# after midnight
 # To align with assignments at 'day' level, the decision has been made to
-# exclude sessions starting before 3am on a given date to minimise any
+# exclude sessions starting before the refresh on a given date to minimise any
 # discrepancy during measurement - check for and remove these cases
 df_sessions_pre_masid = (
     df_sessions_pages
     .groupBy('UniqueVisitID')
     .agg(F.min('FirstTimestamp').alias('SessionStart'))
     .withColumn('SessionStartHour', F.hour(F.col('SessionStart')))
-    .where(F.col('SessionStartHour') < 3)
+    .where(F.col('SessionStartHour') < MASID_REFRESH_HOUR)
 )
 
 n_sessions_pre_masid = df_sessions_pre_masid.count()

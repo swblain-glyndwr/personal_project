@@ -602,6 +602,11 @@
         }
     },
 
+    "results_prm": {
+        "valid_assignment_threshold": 0.999,
+        "masid_refresh_hour": 4
+    },
+
     "legacy": {
         "account_exclusions": [
             "420356A449144ED854830CF2ABB970629FB0D3620798632BA5F1F0A659DC9070"
