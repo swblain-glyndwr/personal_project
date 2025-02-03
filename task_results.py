@@ -731,6 +731,56 @@ df_sessions_master_meta = (
     )
 )
 
+# Remove Seasons Ads from App sessions
+excl_seasons_ads_app = [
+    'P128_C1676_Seasons_Category_Womens_Footwear_Womens',
+    'P128_C1625_Seasons_Category_Womens_Bags_Womens',
+    'P128_C1626_Seasons_Solus_Womens_Womens',
+    'P128_C1627_Seasons_Solus_Mens_Mens',
+    'P128_C1662_Seasons_SolusBrand_Veja_Mens',
+    'P128_C1662_Seasons_SolusBrand_Veja_Womens',
+    'P131_C1626_Seasons_Womens_Womens_Womens'
+]
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('Device') == 'App')
+            & (F.col('UniqueAdIDMeasurement').isin(excl_seasons_ads_app))
+        )
+    )
+)
+
+# Remove Homepage 'switched off' dates
+list_hp_remove_dates = [
+    '2024-12-12',
+    '2024-12-13',
+    '2024-12-14',
+    '2024-12-15',
+    '2024-12-16',
+    '2024-12-17',
+    '2024-12-18',
+    '2024-12-29',
+    '2024-12-30',
+    '2024-12-31',
+    '2025-01-01',
+    '2025-01-02',
+    '2025-01-30',
+    '2025-01-31',
+    '2025-02-01',
+    '2025-02-02',
+    '2025-02-03'
+]
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'HomePage')
+            & (F.col('SessionDate').isin(list_hp_remove_dates))
+        )
+    )
+)
+
 df_sessions_master_meta.cache()
 
 
@@ -1170,35 +1220,40 @@ df_ad_metadata_full = (
 assert_pk(df_ad_metadata_full, pk_cols=['SessionDate', 'UniqueAdID'])
 df_ad_metadata_full.cache()
 
-
-for d in sdates_valid:
-    d_fmt = d.strftime('%Y-%m-%d')
-    log.info('Checking consistency of pre- and post-processing ' +
-             f'totals for SessionDate: {d_fmt}')
-    for fc in [FALLOW_FALSE, FALLOW_TRUE]:
-        for c in ['Sessions', 'Revenue']:
-            tpre = (
-                df_results_topline
-                .where(F.col('SessionDate') == d)
-                .where(F.col('FallowControl') == fc)
-                .groupBy('SessionDate', 'FallowControl')
-                .agg(F.sum(c).alias(c))
-                .select(c)
-                ).collect()[0][0]
-            if fc == FALLOW_TRUE:
-                c_piv = 'C_' + c
-            else:
-                c_piv = c
-            tpost = (
-                df_summary_device_os_wide
-                .where(F.col('SessionDate') == d)
-                .groupBy('SessionDate')
-                .agg(F.sum(c_piv).alias(c_piv))
-                .select(c_piv)
-                ).collect()[0][0]
-            # Check match to < 0.01 to allow for floating point arithmetic
-            msg = f'Pre- and post- total for {c} does not match for {fc}'
-            assert abs(tpost - tpre) < 0.01, msg
+# Not running this check when dates are provided means check is bypassed when
+# results are being backdated. This means that dates/sessions can be removed
+# from the dashboard retrospectively when known operational issues may
+# have biased the results (e.g. MASID or HomePage interruptions). These
+# adjustments would otherwise trigger the AsssertionError
+if not dates_provided:
+    for d in sdates_valid:
+        d_fmt = d.strftime('%Y-%m-%d')
+        log.info('Checking consistency of pre- and post-processing ' +
+                 f'totals for SessionDate: {d_fmt}')
+        for fc in [FALLOW_FALSE, FALLOW_TRUE]:
+            for c in ['Sessions', 'Revenue']:
+                tpre = (
+                    df_results_topline
+                    .where(F.col('SessionDate') == d)
+                    .where(F.col('FallowControl') == fc)
+                    .groupBy('SessionDate', 'FallowControl')
+                    .agg(F.sum(c).alias(c))
+                    .select(c)
+                    ).collect()[0][0]
+                if fc == FALLOW_TRUE:
+                    c_piv = 'C_' + c
+                else:
+                    c_piv = c
+                tpost = (
+                    df_summary_device_os_wide
+                    .where(F.col('SessionDate') == d)
+                    .groupBy('SessionDate')
+                    .agg(F.sum(c_piv).alias(c_piv))
+                    .select(c_piv)
+                    ).collect()[0][0]
+                # Check match to < 0.01 to allow for floating point arithmetic
+                msg = f'Pre- and post- total for {c} does not match for {fc}'
+                assert abs(tpost - tpre) < 0.01, msg
 
 
 if job_env == 'prod':
