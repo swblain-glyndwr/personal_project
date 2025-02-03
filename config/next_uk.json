@@ -584,7 +584,8 @@
     
     "webhooks": {
         "Input Warnings": "https://chat.googleapis.com/v1/spaces/AAAA_rFP3_s/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MhMWyk0iva0jwnyeH5pfkVd5m4SVy306sqj4hDqLAhU",
-        "DS Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw"
+        "DS Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw",
+        "Results Warnings": "https://chat.googleapis.com/v1/spaces/AAAARUglEZU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=4SCef6fR-CuhJntPgdGS_lslDsACOjDsrMVTrYxLfnc"
     },
     
     "big_query": {
@@ -604,7 +605,8 @@
 
     "results_prm": {
         "valid_assignment_threshold": 0.999,
-        "masid_refresh_hour": 4
+        "masid_refresh_hour": 4,
+        "min_c_sessions": 10000
     },
 
     "legacy": {
