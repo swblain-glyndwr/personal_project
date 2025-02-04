@@ -149,6 +149,38 @@ def summarise_sessions(
     return df_summary
 
 
+def summarise_apportioned_sessions(
+        df: DataFrame,
+        session_id_col: str,
+        revenue_col: str = 'ApportionedRevenue',
+        impressions_col: str = 'Impressions',
+        clicks_col: str = 'Clicks',
+        group_cols: list[str] = []) -> DataFrame:
+
+    df_summary = (
+        df
+        .withColumn('Converted',
+                    F.when(F.col(revenue_col) > 0, 1).otherwise(0))
+        .groupBy(*group_cols, session_id_col)
+        .agg(
+            F.sum(revenue_col).alias(revenue_col),
+            F.max('Converted').alias('Converted'),
+            F.sum(impressions_col).alias(impressions_col),
+            F.sum(clicks_col).alias(clicks_col),
+            )
+        .groupBy(*group_cols)
+        .agg(
+            F.countDistinct(session_id_col).alias('Sessions'),
+            F.sum(revenue_col).alias(revenue_col),
+            F.sum('Converted').alias('Conversions'),
+            F.sum(impressions_col).alias(impressions_col),
+            F.sum(clicks_col).alias(clicks_col)
+            )
+    )
+
+    return df_summary
+
+
 def estimate_incremental_value(
         df: DataFrame,
         session_col: str,
@@ -236,7 +268,7 @@ def marginal_contributions(
     return {k: mean(v) for (k, v) in marginal_contributions.items()}
 
 
-def rebase_sessions(
+def append_sessions_rebase_factor(
         df_total: DataFrame,
         df_subtotal: DataFrame,
         session_level_cols: list[str]) -> DataFrame:
@@ -262,4 +294,21 @@ def rebase_sessions(
             )
     )
 
-    return df_rebased.select(*df_subtotal.columns, 'SessionsRebased')
+    return df_rebased.select(*df_subtotal.columns,
+                             'SessionsSummed',
+                             'SessionsTotal',
+                             'SessionsRebaseFactor')
+
+
+def append_inc_cols(df: DataFrame) -> DataFrame:
+    inc_cols = ['RPS', 'C_RPS', 'IncRPS', 'IncRPSPct', 'EstIncRev']
+    df_return = (
+        df
+        .drop(*inc_cols)
+        .withColumn('RPS', F.col('Revenue')/F.col('Sessions'))
+        .withColumn('C_RPS', F.col('C_Revenue')/F.col('C_Sessions'))
+        .withColumn('IncRPS', F.col('RPS')-F.col('C_RPS'))
+        .withColumn('IncRPSPct', F.col('IncRPS')/F.col('C_RPS'))
+        .withColumn('EstIncRev', F.col('IncRPS')*F.col('Sessions'))
+    )
+    return df_return
