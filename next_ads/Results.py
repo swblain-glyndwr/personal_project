@@ -114,6 +114,7 @@ def summarise_sessions(
         session_id_col: str,
         page_id_col: str,
         revenue_col: str = 'Revenue',
+        apportioned_revenue_col: str = '',
         impressions_col: str = 'Impressions',
         clicks_col: str = 'Clicks',
         group_cols: list[str] = []) -> DataFrame:
@@ -146,37 +147,17 @@ def summarise_sessions(
             )
     )
 
-    return df_summary
-
-
-def summarise_apportioned_sessions(
-        df: DataFrame,
-        session_id_col: str,
-        revenue_col: str = 'ApportionedRevenue',
-        impressions_col: str = 'Impressions',
-        clicks_col: str = 'Clicks',
-        group_cols: list[str] = []) -> DataFrame:
-
-    df_summary = (
-        df
-        .withColumn('Converted',
-                    F.when(F.col(revenue_col) > 0, 1).otherwise(0))
-        .groupBy(*group_cols, session_id_col)
-        .agg(
-            F.sum(revenue_col).alias(revenue_col),
-            F.max('Converted').alias('Converted'),
-            F.sum(impressions_col).alias(impressions_col),
-            F.sum(clicks_col).alias(clicks_col),
-            )
-        .groupBy(*group_cols)
-        .agg(
-            F.countDistinct(session_id_col).alias('Sessions'),
-            F.sum(revenue_col).alias(revenue_col),
-            F.sum('Converted').alias('Conversions'),
-            F.sum(impressions_col).alias(impressions_col),
-            F.sum(clicks_col).alias(clicks_col)
-            )
-    )
+    if apportioned_revenue_col:
+        df_summary_apportioned = (
+            df
+            .groupBy(*group_cols)
+            .agg(F.sum(apportioned_revenue_col).alias('ApportionedRevenue'))
+        )
+        df_summary = (
+            df_summary
+            .join(df_summary_apportioned,
+                  on=group_cols, how='left')
+        )
 
     return df_summary
 
@@ -268,14 +249,14 @@ def marginal_contributions(
     return {k: mean(v) for (k, v) in marginal_contributions.items()}
 
 
-def append_sessions_rebase_factor(
+def append_session_overlap_ratio(
         df_total: DataFrame,
         df_subtotal: DataFrame,
         session_level_cols: list[str]) -> DataFrame:
 
     w_sl = Window.partitionBy(session_level_cols)
 
-    df_rebased = (
+    df_ratio = (
         df_subtotal
         .withColumn('SessionsSummed', F.sum(F.col('Sessions')).over(w_sl))
         .join(
@@ -285,19 +266,12 @@ def append_sessions_rebase_factor(
             on=session_level_cols, how='inner'
         )
         .withColumn(
-            'SessionsRebaseFactor',
+            'SessionOverlapRatio',
             F.col('SessionsSummed')/F.col('SessionsTotal')
-            )
-        .withColumn(
-            'SessionsRebased',
-            F.col('Sessions') / F.col('SessionsRebaseFactor')
             )
     )
 
-    return df_rebased.select(*df_subtotal.columns,
-                             'SessionsSummed',
-                             'SessionsTotal',
-                             'SessionsRebaseFactor')
+    return df_ratio.select(*df_subtotal.columns, 'SessionOverlapRatio')
 
 
 def append_inc_cols(df: DataFrame) -> DataFrame:

@@ -605,7 +605,7 @@
 
     "results_prm": {
         "valid_assignment_threshold": 0.999,
-        "masid_refresh_hour": 4,
+        "masid_refresh_hour": 3,
         "min_c_sessions": 10000
     },
 

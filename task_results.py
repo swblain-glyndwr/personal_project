@@ -1,10 +1,10 @@
 import logging
 import logging.config
 import json
-from next_ads.Results import (append_sessions_rebase_factor,
+from next_ads.Results import (append_session_overlap_ratio,
                               check_for_missing_dates,
                               patch_missing_dates,
-                              summarise_apportioned_sessions,
+                              summarise_sessions,
                               validate_assignments_match_pf)
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
@@ -732,55 +732,55 @@ df_sessions_master_meta = (
     )
 )
 
-# Remove Seasons Ads from App sessions
-excl_seasons_ads_app = [
-    'P128_C1676_Seasons_Category_Womens_Footwear_Womens',
-    'P128_C1625_Seasons_Category_Womens_Bags_Womens',
-    'P128_C1626_Seasons_Solus_Womens_Womens',
-    'P128_C1627_Seasons_Solus_Mens_Mens',
-    'P128_C1662_Seasons_SolusBrand_Veja_Mens',
-    'P128_C1662_Seasons_SolusBrand_Veja_Womens',
-    'P131_C1626_Seasons_Womens_Womens_Womens'
-]
-df_sessions_master_meta = (
-    df_sessions_master_meta
-    .where(
-        ~(
-            (F.col('Device') == 'App')
-            & (F.col('UniqueAdIDMeasurement').isin(excl_seasons_ads_app))
-        )
-    )
-)
+# # Remove Seasons Ads from App sessions
+# excl_seasons_ads_app = [
+#     'P128_C1676_Seasons_Category_Womens_Footwear_Womens',
+#     'P128_C1625_Seasons_Category_Womens_Bags_Womens',
+#     'P128_C1626_Seasons_Solus_Womens_Womens',
+#     'P128_C1627_Seasons_Solus_Mens_Mens',
+#     'P128_C1662_Seasons_SolusBrand_Veja_Mens',
+#     'P128_C1662_Seasons_SolusBrand_Veja_Womens',
+#     'P131_C1626_Seasons_Womens_Womens_Womens'
+# ]
+# df_sessions_master_meta = (
+#     df_sessions_master_meta
+#     .where(
+#         ~(
+#             (F.col('Device') == 'App')
+#             & (F.col('UniqueAdIDMeasurement').isin(excl_seasons_ads_app))
+#         )
+#     )
+# )
 
-# Remove Homepage 'switched off' dates
-list_hp_remove_dates = [
-    '2024-12-12',
-    '2024-12-13',
-    '2024-12-14',
-    '2024-12-15',
-    '2024-12-16',
-    '2024-12-17',
-    '2024-12-18',
-    '2024-12-29',
-    '2024-12-30',
-    '2024-12-31',
-    '2025-01-01',
-    '2025-01-02',
-    '2025-01-30',
-    '2025-01-31',
-    '2025-02-01',
-    '2025-02-02',
-    '2025-02-03'
-]
-df_sessions_master_meta = (
-    df_sessions_master_meta
-    .where(
-        ~(
-            (F.col('PageGroup') == 'HomePage')
-            & (F.col('SessionDate').isin(list_hp_remove_dates))
-        )
-    )
-)
+# # Remove Homepage 'switched off' dates
+# list_hp_remove_dates = [
+#     '2024-12-12',
+#     '2024-12-13',
+#     '2024-12-14',
+#     '2024-12-15',
+#     '2024-12-16',
+#     '2024-12-17',
+#     '2024-12-18',
+#     '2024-12-29',
+#     '2024-12-30',
+#     '2024-12-31',
+#     '2025-01-01',
+#     '2025-01-02',
+#     '2025-01-30',
+#     '2025-01-31',
+#     '2025-02-01',
+#     '2025-02-02',
+#     '2025-02-03'
+# ]
+# df_sessions_master_meta = (
+#     df_sessions_master_meta
+#     .where(
+#         ~(
+#             (F.col('PageGroup') == 'HomePage')
+#             & (F.col('SessionDate').isin(list_hp_remove_dates))
+#         )
+#     )
+# )
 
 
 session_level_cols = ['SessionDate', 'Device', 'OS']
@@ -790,9 +790,9 @@ df_sessions_master_meta = (
     df_sessions_master_meta
     .withColumn('SessionPortions',
                 F.count('*').over(w_apportion))
-    .withColumn('Revenue',
+    .withColumn('ApportionedRevenue',
                 F.col('Revenue')/F.col('SessionPortions'))
-    .drop('SessionPortions', 'ApportionedRevenue')
+    .drop('SessionPortions')
 )
 
 df_sessions_master_meta.cache()
@@ -800,13 +800,15 @@ df_sessions_master_meta.cache()
 
 col_args_dict = {
     'session_id_col': 'UniqueVisitID',
+    'page_id_col': 'PagePath',
     'revenue_col': 'Revenue',
     'impressions_col': 'SoftImpressions',
-    'clicks_col': 'SoftClicks'
+    'clicks_col': 'SoftClicks',
+    'apportioned_revenue_col': 'ApportionedRevenue'
 }
 
 # Topline view
-df_summary_device_os = summarise_apportioned_sessions(
+df_summary_device_os = summarise_sessions(
     df_sessions_master_meta,
     **col_args_dict,
     group_cols=session_level_cols + ['FallowControl']
@@ -823,6 +825,7 @@ df_summary_device_os_wide = (
         F.first('Conversions').alias('Conversions'),
         F.first('SoftImpressions').alias('SoftImpressions'),
         F.first('SoftClicks').alias('SoftClicks'),
+        F.first('ApportionedRevenue').alias('ApportionedRevenue')
     )
 )
 
@@ -836,6 +839,12 @@ for c in df_summary_device_os_wide.columns:
 
 df_summary_device_os_wide.cache()
 
+total_r = df_summary_device_os_wide.agg(F.sum('Revenue')).collect()[0][0]
+total_apr = (
+    df_summary_device_os_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0]
+    )
+msg = 'Total of ApportionedRevenue != TotalRevenue'
+assert abs(total_r - total_apr) < 0.01, msg
 
 # Aggregate views
 agg_cols = [
@@ -851,7 +860,7 @@ agg_cols = [
 
 agg_summaries = []
 for ac in agg_cols:
-    df_summary_ac = summarise_apportioned_sessions(
+    df_summary_ac = summarise_sessions(
         df_sessions_master_meta,
         **col_args_dict,
         group_cols=session_level_cols + ['FallowControl', ac]
@@ -875,7 +884,7 @@ all_tags = (
 agg_tags = list(set([x for y in all_tags for x in y[0]]))
 
 for agg_tag in agg_tags:
-    df_summary_agg_tag = summarise_apportioned_sessions(
+    df_summary_agg_tag = summarise_sessions(
         (
             df_sessions_master_meta
             .withColumn('TagArr', F.split('Tags', ', '))
@@ -913,6 +922,7 @@ df_summary_agg_wide = (
         F.first('Conversions').alias('Conversions'),
         F.first('SoftImpressions').alias('SoftImpressions'),
         F.first('SoftClicks').alias('SoftClicks'),
+        F.first('ApportionedRevenue').alias('ApportionedRevenue')
     )
 )
 
@@ -944,7 +954,7 @@ ab_cols = [
     'ChampionChallenger'
 ]
 
-df_summary_ab = summarise_apportioned_sessions(
+df_summary_ab = summarise_sessions(
         (
             df_sessions_master_meta
             .where(F.col('FallowControl') == FALLOW_FALSE)
@@ -958,7 +968,7 @@ df_summary_ab.cache()
 
 # Ad-level view
 df_summary_ad = (
-    summarise_apportioned_sessions(
+    summarise_sessions(
         df_sessions_master_meta,
         **col_args_dict,
         group_cols=(
@@ -981,6 +991,7 @@ df_summary_ad_wide = (
         F.first('Conversions').alias('Conversions'),
         F.first('SoftImpressions').alias('SoftImpressions'),
         F.first('SoftClicks').alias('SoftClicks'),
+        F.first('ApportionedRevenue').alias('ApportionedRevenue')
     )
 )
 
@@ -994,11 +1005,15 @@ for c in df_summary_ad_wide.columns:
 
 df_summary_ad_wide.cache()
 
+total_apr_ad = (
+    df_summary_ad_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0])
+msg = 'Total of ApportionedRevenue (ads) != TotalRevenue'
+assert abs(total_r - total_apr_ad) < 0.001*total_r, msg
 
 # Ad x LocationSet view
 w_visit_ad = Window.partitionBy('UniqueVisitID', 'UniqueAdIDMeasurement')
 df_summary_ad_locset = (
-    summarise_apportioned_sessions(
+    summarise_sessions(
         (
             df_sessions_master_meta
             .withColumn('LocationSet',
@@ -1029,6 +1044,7 @@ df_summary_ad_locset_wide = (
         F.first('Conversions').alias('Conversions'),
         F.first('SoftImpressions').alias('SoftImpressions'),
         F.first('SoftClicks').alias('SoftClicks'),
+        F.first('ApportionedRevenue').alias('ApportionedRevenue')
     )
 )
 
@@ -1046,7 +1062,7 @@ df_summary_ad_locset_wide.cache()
 # Ad x PageGroupSet view
 w_visit_ad = Window.partitionBy('UniqueVisitID', 'UniqueAdIDMeasurement')
 df_summary_ad_pagegroupset = (
-    summarise_apportioned_sessions(
+    summarise_sessions(
         (
             df_sessions_master_meta
             .withColumn('PageGroupSet',
@@ -1077,6 +1093,7 @@ df_summary_ad_pagegroupset_wide = (
         F.first('Conversions').alias('Conversions'),
         F.first('SoftImpressions').alias('SoftImpressions'),
         F.first('SoftClicks').alias('SoftClicks'),
+        F.first('ApportionedRevenue').alias('ApportionedRevenue')
     )
 )
 
@@ -1094,7 +1111,7 @@ df_summary_ad_pagegroupset_wide.cache()
 # Division X PageGroupSet view
 w_visit_div = Window.partitionBy('UniqueVisitID', 'AlgoDivision')
 df_summary_div_pagegroupset = (
-    summarise_apportioned_sessions(
+    summarise_sessions(
         (
             df_sessions_master_meta
             .withColumn('PageGroupSet',
@@ -1124,6 +1141,7 @@ df_summary_div_pagegroupset_wide = (
         F.first('Conversions').alias('Conversions'),
         F.first('SoftImpressions').alias('SoftImpressions'),
         F.first('SoftClicks').alias('SoftClicks'),
+        F.first('ApportionedRevenue').alias('ApportionedRevenue')
     )
 )
 
@@ -1140,7 +1158,7 @@ df_summary_div_pagegroupset_wide.cache()
 
 # Ad-Targeting view
 df_summary_ad_targeting = (
-    summarise_apportioned_sessions(
+    summarise_sessions(
         (
             df_sessions_master_meta
             .withColumn('Targeting',
@@ -1167,7 +1185,7 @@ df_summary_ad_targeting.cache()
 
 # Ad-Targeting view
 df_summary_page_targeting = (
-    summarise_apportioned_sessions(
+    summarise_sessions(
         (
             df_sessions_master_meta
             .withColumn('Targeting',
@@ -1234,72 +1252,44 @@ df_ad_metadata_full.cache()
 
 # Rebase revenue proportionally to the degree of session overlap
 # within a given aggregation
-df_summary_ad_wide_rb = (
-    append_sessions_rebase_factor(
+df_summary_ad_wide = (
+    append_session_overlap_ratio(
         df_summary_device_os_wide,
         df_summary_ad_wide,
         session_level_cols
         )
-    .withColumn('Revenue', F.col('Revenue')/F.col('SessionsRebaseFactor'))
-    .withColumn('C_Revenue', F.col('C_Revenue')/F.col('SessionsRebaseFactor'))
 )
 
-df_summary_agg_wide_rb = (
-    append_sessions_rebase_factor(
+df_summary_agg_wide = (
+    append_session_overlap_ratio(
         df_summary_device_os_wide,
         df_summary_agg_wide,
         session_level_cols + ['AggColumn']
         )
-    .withColumn('Revenue', F.col('Revenue')/F.col('SessionsRebaseFactor'))
-    .withColumn('C_Revenue', F.col('C_Revenue')/F.col('SessionsRebaseFactor'))
 )
 
-df_summary_ad_locset_wide_rb = (
-    append_sessions_rebase_factor(
+df_summary_ad_locset_wide = (
+    append_session_overlap_ratio(
         df_summary_device_os_wide,
         df_summary_ad_locset_wide,
         session_level_cols
         )
-    .withColumn('Revenue', F.col('Revenue')/F.col('SessionsRebaseFactor'))
-    .withColumn('C_Revenue', F.col('C_Revenue')/F.col('SessionsRebaseFactor'))
 )
 
-df_summary_ad_pagegroupset_wide_rb = (
-    append_sessions_rebase_factor(
+df_summary_ad_pagegroupset_wide = (
+    append_session_overlap_ratio(
         df_summary_device_os_wide,
         df_summary_ad_pagegroupset_wide,
         session_level_cols
         )
-    .withColumn('Revenue', F.col('Revenue')/F.col('SessionsRebaseFactor'))
-    .withColumn('C_Revenue', F.col('C_Revenue')/F.col('SessionsRebaseFactor'))
 )
 
-df_summary_div_pagegroupset_wide_rb = (
-    append_sessions_rebase_factor(
+df_summary_div_pagegroupset_wide = (
+    append_session_overlap_ratio(
         df_summary_device_os_wide,
         df_summary_div_pagegroupset_wide,
         session_level_cols
         )
-    .withColumn('Revenue', F.col('Revenue')/F.col('SessionsRebaseFactor'))
-    .withColumn('C_Revenue', F.col('C_Revenue')/F.col('SessionsRebaseFactor'))
-)
-
-df_summary_ad_targeting_rb = (
-    append_sessions_rebase_factor(
-        df_summary_device_os_wide,
-        df_summary_ad_targeting,
-        session_level_cols
-        )
-    .withColumn('Revenue', F.col('Revenue')/F.col('SessionsRebaseFactor'))
-)
-
-df_summary_page_targeting_rb = (
-    append_sessions_rebase_factor(
-        df_summary_device_os_wide,
-        df_summary_page_targeting,
-        session_level_cols
-        )
-    .withColumn('Revenue', F.col('Revenue')/F.col('SessionsRebaseFactor'))
 )
 
 
@@ -1372,7 +1362,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_AGGREGATED_TABLE}')
         delete_from_and_load(
             (
-                df_summary_agg_wide_rb
+                df_summary_agg_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
@@ -1384,11 +1374,14 @@ if job_env == 'prod':
                         'Conversions',
                         'SoftImpressions',
                         'SoftClicks',
+                        'ApportionedRevenue',
                         'C_Sessions',
                         'C_Revenue',
                         'C_Conversions',
                         'C_SoftImpressions',
-                        'C_SoftClicks')
+                        'C_SoftClicks',
+                        'C_ApportionedRevenue',
+                        'SessionOverlapRatio')
             ),
             RESULTS_AGGREGATED_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
@@ -1421,7 +1414,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_ADS_TABLE}')
         delete_from_and_load(
             (
-                df_summary_ad_wide_rb
+                df_summary_ad_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
@@ -1432,11 +1425,14 @@ if job_env == 'prod':
                         'Conversions',
                         'SoftImpressions',
                         'SoftClicks',
+                        'ApportionedRevenue',
                         'C_Sessions',
                         'C_Revenue',
                         'C_Conversions',
                         'C_SoftImpressions',
-                        'C_SoftClicks')
+                        'C_SoftClicks',
+                        'C_ApportionedRevenue',
+                        'SessionOverlapRatio')
             ),
             RESULTS_ADS_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS', 'UniqueAdID'],
@@ -1447,7 +1443,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_ADS_LOCATION_TABLE}')
         delete_from_and_load(
             (
-                df_summary_ad_locset_wide_rb
+                df_summary_ad_locset_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
@@ -1459,11 +1455,14 @@ if job_env == 'prod':
                         'Conversions',
                         'SoftImpressions',
                         'SoftClicks',
+                        'ApportionedRevenue',
                         'C_Sessions',
                         'C_Revenue',
                         'C_Conversions',
                         'C_SoftImpressions',
-                        'C_SoftClicks')
+                        'C_SoftClicks',
+                        'C_ApportionedRevenue',
+                        'SessionOverlapRatio')
             ),
             RESULTS_ADS_LOCATION_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
@@ -1475,7 +1474,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_ADS_PAGE_TABLE}')
         delete_from_and_load(
             (
-                df_summary_ad_pagegroupset_wide_rb
+                df_summary_ad_pagegroupset_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
@@ -1487,11 +1486,14 @@ if job_env == 'prod':
                         'Conversions',
                         'SoftImpressions',
                         'SoftClicks',
+                        'ApportionedRevenue',
                         'C_Sessions',
                         'C_Revenue',
                         'C_Conversions',
                         'C_SoftImpressions',
-                        'C_SoftClicks')
+                        'C_SoftClicks',
+                        'C_ApportionedRevenue',
+                        'SessionOverlapRatio')
             ),
             RESULTS_ADS_PAGE_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
@@ -1503,7 +1505,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_DIV_PAGE_TABLE}')
         delete_from_and_load(
             (
-                df_summary_div_pagegroupset_wide_rb
+                df_summary_div_pagegroupset_wide
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
@@ -1515,11 +1517,14 @@ if job_env == 'prod':
                         'Conversions',
                         'SoftImpressions',
                         'SoftClicks',
+                        'ApportionedRevenue',
                         'C_Sessions',
                         'C_Revenue',
                         'C_Conversions',
                         'C_SoftImpressions',
-                        'C_SoftClicks')
+                        'C_SoftClicks',
+                        'C_ApportionedRevenue',
+                        'SessionOverlapRatio')
             ),
             RESULTS_DIV_PAGE_TABLE,
             pk_cols=['SessionDate', 'Device', 'OS',
@@ -1531,7 +1536,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_ADS_TARGETING_TABLE}')
         delete_from_and_load(
             (
-                df_summary_ad_targeting_rb
+                df_summary_ad_targeting
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
@@ -1555,7 +1560,7 @@ if job_env == 'prod':
                  f'to table: {RESULTS_PAGE_TARGETING_TABLE}')
         delete_from_and_load(
             (
-                df_summary_page_targeting_rb
+                df_summary_page_targeting
                 .where(F.col('SessionDate') == d)
                 .select('SessionDate',
                         'Device',
