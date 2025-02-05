@@ -252,9 +252,11 @@ def marginal_contributions(
 def append_session_overlap_ratio(
         df_total: DataFrame,
         df_subtotal: DataFrame,
-        session_level_cols: list[str]) -> DataFrame:
+        session_level_cols: list[str],
+        subtotal_window_cols: list[str] = []) -> DataFrame:
 
-    w_sl = Window.partitionBy(session_level_cols)
+    window_cols = session_level_cols + subtotal_window_cols
+    w_sl = Window.partitionBy(window_cols)
 
     df_ratio = (
         df_subtotal

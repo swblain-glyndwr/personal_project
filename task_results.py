@@ -732,55 +732,56 @@ df_sessions_master_meta = (
     )
 )
 
-# # Remove Seasons Ads from App sessions
-# excl_seasons_ads_app = [
-#     'P128_C1676_Seasons_Category_Womens_Footwear_Womens',
-#     'P128_C1625_Seasons_Category_Womens_Bags_Womens',
-#     'P128_C1626_Seasons_Solus_Womens_Womens',
-#     'P128_C1627_Seasons_Solus_Mens_Mens',
-#     'P128_C1662_Seasons_SolusBrand_Veja_Mens',
-#     'P128_C1662_Seasons_SolusBrand_Veja_Womens',
-#     'P131_C1626_Seasons_Womens_Womens_Womens'
-# ]
-# df_sessions_master_meta = (
-#     df_sessions_master_meta
-#     .where(
-#         ~(
-#             (F.col('Device') == 'App')
-#             & (F.col('UniqueAdIDMeasurement').isin(excl_seasons_ads_app))
-#         )
-#     )
-# )
+# Remove Seasons Ads from App sessions
+excl_seasons_ads_app = [
+    'P128_C1676_Seasons_Category_Womens_Footwear_Womens',
+    'P128_C1625_Seasons_Category_Womens_Bags_Womens',
+    'P128_C1626_Seasons_Solus_Womens_Womens',
+    'P128_C1627_Seasons_Solus_Mens_Mens',
+    'P128_C1662_Seasons_SolusBrand_Veja_Mens',
+    'P128_C1662_Seasons_SolusBrand_Veja_Womens',
+    'P131_C1626_Seasons_Womens_Womens_Womens',
+    'P131_C1625_Seasons_Womens_Bags'
+]
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('Device') == 'App')
+            & (F.col('UniqueAdIDMeasurement').isin(excl_seasons_ads_app))
+        )
+    )
+)
 
-# # Remove Homepage 'switched off' dates
-# list_hp_remove_dates = [
-#     '2024-12-12',
-#     '2024-12-13',
-#     '2024-12-14',
-#     '2024-12-15',
-#     '2024-12-16',
-#     '2024-12-17',
-#     '2024-12-18',
-#     '2024-12-29',
-#     '2024-12-30',
-#     '2024-12-31',
-#     '2025-01-01',
-#     '2025-01-02',
-#     '2025-01-30',
-#     '2025-01-31',
-#     '2025-02-01',
-#     '2025-02-02',
-#     '2025-02-03'
-# ]
-# df_sessions_master_meta = (
-#     df_sessions_master_meta
-#     .where(
-#         ~(
-#             (F.col('PageGroup') == 'HomePage')
-#             & (F.col('SessionDate').isin(list_hp_remove_dates))
-#         )
-#     )
-# )
+# Remove Homepage 'switched off' dates
+list_hp_remove_dates = [
+    '2024-12-12',
+    '2024-12-13',
+    '2024-12-14',
+    '2024-12-15',
+    '2024-12-16',
+    '2024-12-17',
+    '2024-12-18',
+    '2024-12-29',
+    '2024-12-30',
+    '2024-12-31',
+    '2025-01-01',
+    '2025-01-02',
+    '2025-01-30',
+    '2025-01-31',
+    '2025-02-01',
+    '2025-02-02',
+    '2025-02-03'
+]
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'HomePage')
+            & (F.col('SessionDate').isin(list_hp_remove_dates))
+        )
+    )
+)
 
 
 session_level_cols = ['SessionDate', 'Device', 'OS']
@@ -934,6 +935,15 @@ for c in df_summary_agg_wide.columns:
             c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
     )
 
+df_summary_agg_wide = (
+    append_session_overlap_ratio(
+        df_summary_device_os_wide,
+        df_summary_agg_wide,
+        session_level_cols,
+        subtotal_window_cols=['AggColumn']
+        )
+)
+
 df_summary_agg_wide.cache()
 
 # AB test aggregates
@@ -1003,6 +1013,14 @@ for c in df_summary_ad_wide.columns:
             c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
     )
 
+df_summary_ad_wide = (
+    append_session_overlap_ratio(
+        df_summary_device_os_wide,
+        df_summary_ad_wide,
+        session_level_cols
+        )
+)
+
 df_summary_ad_wide.cache()
 
 total_apr_ad = (
@@ -1056,6 +1074,14 @@ for c in df_summary_ad_locset_wide.columns:
             c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
     )
 
+df_summary_ad_locset_wide = (
+    append_session_overlap_ratio(
+        df_summary_device_os_wide,
+        df_summary_ad_locset_wide,
+        session_level_cols
+        )
+)
+
 df_summary_ad_locset_wide.cache()
 
 
@@ -1105,6 +1131,14 @@ for c in df_summary_ad_pagegroupset_wide.columns:
             c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
     )
 
+df_summary_ad_pagegroupset_wide = (
+    append_session_overlap_ratio(
+        df_summary_device_os_wide,
+        df_summary_ad_pagegroupset_wide,
+        session_level_cols
+        )
+)
+
 df_summary_ad_pagegroupset_wide.cache()
 
 
@@ -1152,6 +1186,14 @@ for c in df_summary_div_pagegroupset_wide.columns:
             c,
             c.replace(f'{FALLOW_TRUE}_', 'C_').replace(f'{FALLOW_FALSE}_', ''))
     )
+
+df_summary_div_pagegroupset_wide = (
+    append_session_overlap_ratio(
+        df_summary_device_os_wide,
+        df_summary_div_pagegroupset_wide,
+        session_level_cols
+        )
+)
 
 df_summary_div_pagegroupset_wide.cache()
 
@@ -1248,49 +1290,6 @@ df_ad_metadata_full = (
 )
 assert_pk(df_ad_metadata_full, pk_cols=['SessionDate', 'UniqueAdID'])
 df_ad_metadata_full.cache()
-
-
-# Rebase revenue proportionally to the degree of session overlap
-# within a given aggregation
-df_summary_ad_wide = (
-    append_session_overlap_ratio(
-        df_summary_device_os_wide,
-        df_summary_ad_wide,
-        session_level_cols
-        )
-)
-
-df_summary_agg_wide = (
-    append_session_overlap_ratio(
-        df_summary_device_os_wide,
-        df_summary_agg_wide,
-        session_level_cols + ['AggColumn']
-        )
-)
-
-df_summary_ad_locset_wide = (
-    append_session_overlap_ratio(
-        df_summary_device_os_wide,
-        df_summary_ad_locset_wide,
-        session_level_cols
-        )
-)
-
-df_summary_ad_pagegroupset_wide = (
-    append_session_overlap_ratio(
-        df_summary_device_os_wide,
-        df_summary_ad_pagegroupset_wide,
-        session_level_cols
-        )
-)
-
-df_summary_div_pagegroupset_wide = (
-    append_session_overlap_ratio(
-        df_summary_device_os_wide,
-        df_summary_div_pagegroupset_wide,
-        session_level_cols
-        )
-)
 
 
 # Not running this check when dates are provided means check is bypassed when
