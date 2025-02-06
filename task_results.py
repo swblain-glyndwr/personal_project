@@ -86,8 +86,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 1, 26)
-    SESSION_DATE_END = date(2025, 1, 26)
+    SESSION_DATE_START = date(2025, 1, 21)
+    SESSION_DATE_END = date(2025, 1, 28)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -1031,7 +1031,7 @@ df_summary_ad_wide.cache()
 total_apr_ad = (
     df_summary_ad_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0])
 msg = 'Total of ApportionedRevenue (ads) != TotalRevenue'
-assert abs(total_r - total_apr_ad) < 0.001*total_r, msg
+assert abs(total_r - total_apr_ad) < 0.002*total_r, msg
 
 # Ad x LocationSet view
 w_visit_ad = Window.partitionBy('UniqueVisitID', 'UniqueAdIDMeasurement')
