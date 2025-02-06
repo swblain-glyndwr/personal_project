@@ -148,6 +148,7 @@ def summarise_sessions(
     )
 
     if apportioned_revenue_col:
+        count_pre = df_summary.count()
         df_summary_apportioned = (
             df
             .groupBy(*group_cols)
@@ -158,6 +159,7 @@ def summarise_sessions(
             .join(df_summary_apportioned,
                   on=group_cols, how='left')
         )
+        assert df_summary.count() == count_pre, 'Pre-count != post-count'
 
     return df_summary
 
@@ -272,7 +274,7 @@ def append_session_overlap_ratio(
             F.col('SessionsSummed')/F.col('SessionsTotal')
             )
     )
-
+    assert df_subtotal.count() == df_ratio.count(), 'Input rows != output rows'
     return df_ratio.select(*df_subtotal.columns, 'SessionOverlapRatio')
 
 
