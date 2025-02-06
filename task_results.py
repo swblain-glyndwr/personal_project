@@ -730,6 +730,10 @@ df_sessions_master_meta = (
         on=['SessionDate', 'UniqueAdIDMeasurement'],
         how='left'
     )
+    .withColumn(
+        'AlgoDivision_Brand',
+        F.concat(F.col('AlgoDivision'), F.lit('_'), F.col('Brand'))
+    )
 )
 
 # Remove Seasons Ads from App sessions
@@ -856,7 +860,8 @@ agg_cols = [
     'CampaignNumber',
     'PotNumber',
     'TemplateName',
-    'Treatment'
+    'Treatment',
+    'AlgoDivision_Brand'
 ]
 
 agg_summaries = []
