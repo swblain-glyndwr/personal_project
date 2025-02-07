@@ -86,8 +86,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 1, 21)
-    SESSION_DATE_END = date(2025, 1, 28)
+    SESSION_DATE_START = date(2025, 1, 13)
+    SESSION_DATE_END = date(2025, 1, 20)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -848,7 +848,8 @@ total_r = df_summary_device_os_wide.agg(F.sum('Revenue')).collect()[0][0]
 total_apr = (
     df_summary_device_os_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0]
     )
-msg = 'Total of ApportionedRevenue != TotalRevenue'
+msg = 'Total of ApportionedRevenue != Total Revenue'
+# 1p threshold allows for aggregation of floating point errors
 assert abs(total_r - total_apr) < 0.01, msg
 
 # Aggregate views
@@ -889,28 +890,29 @@ all_tags = (
 
 agg_tags = list(set([x for y in all_tags for x in y[0]]))
 
-for agg_tag in agg_tags:
-    df_summary_agg_tag = summarise_sessions(
-        (
-            df_sessions_master_meta
-            .withColumn('TagArr', F.split('Tags', ', '))
-            .withColumn(
-                'Tagged',
-                F.when(
-                    F.array_contains(F.col('TagArr'), agg_tag),
-                    1).otherwise(0))
-            .where(F.col('Tagged') == 1)
-            .drop('TagArr', 'Tagged')
-        ),
-        **col_args_dict,
-        group_cols=session_level_cols + ['FallowControl']
-    )
-    df_summary_agg_tag_renamed = (
-        df_summary_agg_tag
-        .withColumn('AggValue', F.lit(agg_tag))
-        .withColumn('AggColumn', F.lit('Tagged'))
-    )
-    agg_summaries.append(df_summary_agg_tag_renamed)
+if agg_tags:
+    for agg_tag in agg_tags:
+        df_summary_agg_tag = summarise_sessions(
+            (
+                df_sessions_master_meta
+                .withColumn('TagArr', F.split('Tags', ', '))
+                .withColumn(
+                    'Tagged',
+                    F.when(
+                        F.array_contains(F.col('TagArr'), agg_tag),
+                        1).otherwise(0))
+                .where(F.col('Tagged') == 1)
+                .drop('TagArr', 'Tagged')
+            ),
+            **col_args_dict,
+            group_cols=session_level_cols + ['FallowControl']
+        )
+        df_summary_agg_tag_renamed = (
+            df_summary_agg_tag
+            .withColumn('AggValue', F.lit(agg_tag))
+            .withColumn('AggColumn', F.lit('Tagged'))
+        )
+        agg_summaries.append(df_summary_agg_tag_renamed)
 
 if agg_summaries:
     df_summary_agg = agg_summaries.pop()
@@ -951,6 +953,36 @@ df_summary_agg_wide = (
 
 df_summary_agg_wide.cache()
 
+for agg_col in agg_cols:
+    total_apr_agg = (
+        df_summary_agg_wide
+        .where(F.col('AggColumn') == agg_col)
+        .agg(F.sum('ApportionedRevenue')).collect()[0][0])
+    msg = f'Total of ApportionedRevenue (agg: {agg_col}) > Total Revenue'
+    assert total_r*1.001 >= total_apr_agg, msg
+    if total_apr_agg - total_r < -0.01*total_r:
+        msg_warn = (f'Total of ApportionedRevenue (agg: {agg_col}) more than' +
+                    '1% below Total Revenue')
+        log.warning(msg_warn)
+        if job_env == 'prod':
+            post_to_webhook(WEBHOOK_URL, msg_warn)
+
+if agg_tags:
+    for agg_tag in agg_tags:
+        total_apr_agg_tag = (
+            df_summary_agg_wide
+            .where(F.col('AggColumn') == 'Tagged')
+            .where(F.col('AggValue') == agg_tag)
+            .agg(F.sum('ApportionedRevenue')).collect()[0][0])
+        msg = f'Total of ApportionedRevenue (tag: {agg_tag}) > Total Revenue'
+        assert total_r*1.001 >= total_apr_agg_tag, msg
+        if total_apr_agg_tag - total_r < -0.01*total_r:
+            msg_warn = (f'Total of ApportionedRevenue (tag: {agg_tag})' +
+                        'more than 1% below Total Revenue')
+            log.warning(msg_warn)
+            if job_env == 'prod':
+                post_to_webhook(WEBHOOK_URL, msg_warn)
+
 # AB test aggregates
 ab_cols = [
     'HomePageTest1',
@@ -979,6 +1011,12 @@ df_summary_ab = summarise_sessions(
         group_cols=session_level_cols + ab_cols
     )
 df_summary_ab.cache()
+
+total_apr_ab = (
+    df_summary_ab.agg(F.sum('ApportionedRevenue')).collect()[0][0]
+    )
+msg = 'Total of ApportionedRevenue (A/B) != Total Revenue'
+assert abs(total_r - total_apr_ab) < 0.001*total_r, msg
 
 
 # Ad-level view
@@ -1030,8 +1068,16 @@ df_summary_ad_wide.cache()
 
 total_apr_ad = (
     df_summary_ad_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0])
-msg = 'Total of ApportionedRevenue (ads) != TotalRevenue'
-assert abs(total_r - total_apr_ad) < 0.002*total_r, msg
+msg = 'Total of ApportionedRevenue (ads) > Total Revenue'
+assert total_apr_ad - total_r < 0.001*total_r, msg
+
+if total_apr_ad - total_r < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ads) more than 1% ' +
+                'below Total Revenue')
+    log.warning(msg_warn)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_warn)
+
 
 # Ad x LocationSet view
 w_visit_ad = Window.partitionBy('UniqueVisitID', 'UniqueAdIDMeasurement')
@@ -1088,6 +1134,18 @@ df_summary_ad_locset_wide = (
 )
 
 df_summary_ad_locset_wide.cache()
+
+total_apr_ad_locset = (
+    df_summary_ad_locset_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0])
+msg = 'Total of ApportionedRevenue (ad locset) > Total Revenue'
+assert total_apr_ad_locset - total_r < 0.001*total_r, msg
+
+if total_apr_ad_locset - total_r < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ad locset) more than 1% ' +
+                'below Total Revenue')
+    log.warning(msg_warn)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_warn)
 
 
 # Ad x PageGroupSet view
@@ -1147,6 +1205,19 @@ df_summary_ad_pagegroupset_wide = (
 df_summary_ad_pagegroupset_wide.cache()
 
 
+total_apr_ad_pagegroupset = (
+    df_summary_ad_pagegroupset_wide
+    .agg(F.sum('ApportionedRevenue')).collect()[0][0])
+msg = 'Total of ApportionedRevenue (ad page) > Total Revenue'
+assert total_apr_ad_pagegroupset - total_r < 0.001*total_r, msg
+
+if total_apr_ad_pagegroupset - total_r < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ad page) more than 1% ' +
+                'below Total Revenue')
+    log.warning(msg_warn)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_warn)
+
 # Division X PageGroupSet view
 w_visit_div = Window.partitionBy('UniqueVisitID', 'AlgoDivision')
 df_summary_div_pagegroupset = (
@@ -1202,6 +1273,19 @@ df_summary_div_pagegroupset_wide = (
 
 df_summary_div_pagegroupset_wide.cache()
 
+total_apr_div_page = (
+    df_summary_div_pagegroupset_wide
+    .agg(F.sum('ApportionedRevenue')).collect()[0][0])
+msg = 'Total of ApportionedRevenue (div page) > Total Revenue'
+assert total_apr_div_page - total_r < 0.001*total_r, msg
+
+if total_apr_div_page - total_r < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (div page) more than 1% ' +
+                'below Total Revenue')
+    log.warning(msg_warn)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_warn)
+
 
 # Ad-Targeting view
 df_summary_ad_targeting = (
@@ -1229,8 +1313,23 @@ df_summary_ad_targeting = (
 
 df_summary_ad_targeting.cache()
 
+total_apr_adtgt = (
+    df_summary_ad_targeting
+    .where(F.col('Targeting') != 'Control')
+    .agg(F.sum('ApportionedRevenue')).collect()[0][0]
+    )
+msg = 'Total of ApportionedRevenue (ad tgt) > Total Revenue'
+assert total_apr_adtgt - total_r < 0.001*total_r, msg
 
-# Ad-Targeting view
+if total_apr_adtgt - total_r < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ad tgt) more than 1% ' +
+                'below Total Revenue')
+    log.warning(msg_warn)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_warn)
+
+
+# Page-Targeting view
 df_summary_page_targeting = (
     summarise_sessions(
         (
@@ -1253,6 +1352,21 @@ df_summary_page_targeting = (
 )
 
 df_summary_page_targeting.cache()
+
+total_apr_pagetgt = (
+    df_summary_page_targeting
+    .where(F.col('Targeting') != 'Control')
+    .agg(F.sum('ApportionedRevenue')).collect()[0][0]
+    )
+msg = 'Total of ApportionedRevenue (page tgt) > Total Revenue'
+assert total_apr_pagetgt - total_r < 0.001*total_r, msg
+
+if total_apr_pagetgt - total_r < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (page tgt) more than 1% ' +
+                'below Total Revenue')
+    log.warning(msg_warn)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_warn)
 
 
 # Create additional filters for ads table
