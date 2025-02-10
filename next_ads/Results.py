@@ -157,7 +157,7 @@ def summarise_sessions(
         df_summary = (
             df_summary
             .join(df_summary_apportioned,
-                  on=group_cols, how='inner')
+                  on=group_cols, how='left')
         )
         count_post = df_summary.count()
         if count_pre != count_post:
