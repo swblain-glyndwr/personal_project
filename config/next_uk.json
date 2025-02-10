@@ -229,6 +229,34 @@
             },
             "map": [
                 {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Eid"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
+                    ],
+                    "then": {"lit": "P132_C619_Campaign_Mixed_Eid_Womens"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Eid"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Mens"}
+                    ],
+                    "then": {"lit": "P132_C619_Campaign_Mixed_Eid_Mens"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Ramadan"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
+                    ],
+                    "then": {"lit": "P132_C1754_Campaigns_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Ramadan"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Mens"}
+                    ],
+                    "then": {"lit": "P132_C1754_Campaigns_Mixed_Ramadan_Mens"}
+                },
+                {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
@@ -247,6 +275,34 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Eid"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
+                    ],
+                    "then": {"lit": "P132_C619_Campaign_Mixed_Eid_Womens"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Eid"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Mens"}
+                    ],
+                    "then": {"lit": "P132_C619_Campaign_Mixed_Eid_Mens"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Ramadan"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
+                    ],
+                    "then": {"lit": "P132_C1754_Campaigns_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Ramadan"},
+                        {"col": "AlgoDivision", "op": "eq", "val": "Mens"}
+                    ],
+                    "then": {"lit": "P132_C1754_Campaigns_Mixed_Ramadan_Mens"}
+                },
                 {
                     "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
