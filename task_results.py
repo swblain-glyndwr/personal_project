@@ -862,7 +862,8 @@ agg_cols = [
     'PotNumber',
     'TemplateName',
     'Treatment',
-    'AlgoDivision_Brand'
+    'AlgoDivision_Brand',
+    'Segment'
 ]
 
 agg_summaries = []
