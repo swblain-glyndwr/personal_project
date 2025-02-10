@@ -86,8 +86,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 1, 13)
-    SESSION_DATE_END = date(2025, 1, 20)
+    SESSION_DATE_START = date(2025, 2, 7)
+    SESSION_DATE_END = date(2025, 2, 9)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1

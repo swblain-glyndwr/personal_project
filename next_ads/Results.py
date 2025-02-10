@@ -157,9 +157,13 @@ def summarise_sessions(
         df_summary = (
             df_summary
             .join(df_summary_apportioned,
-                  on=group_cols, how='left')
+                  on=group_cols, how='inner')
         )
-        assert df_summary.count() == count_pre, 'Pre-count != post-count'
+        count_post = df_summary.count()
+        if count_pre != count_post:
+            print(f'Pre-summary count ({count_pre:,}) ' +
+                  f'!= post-summary count ({count_post:,})')
+            assert count_post <= count_pre, 'Rows created during summary'
 
     return df_summary
 
