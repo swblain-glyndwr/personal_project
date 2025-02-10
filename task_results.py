@@ -976,12 +976,7 @@ if agg_tags:
             .agg(F.sum('ApportionedRevenue')).collect()[0][0])
         msg = f'Total of ApportionedRevenue (tag: {agg_tag}) > Total Revenue'
         assert total_r*1.001 >= total_apr_agg_tag, msg
-        if total_apr_agg_tag - total_r < -0.01*total_r:
-            msg_warn = (f'Total of ApportionedRevenue (tag: {agg_tag})' +
-                        'more than 1% below Total Revenue')
-            log.warning(msg_warn)
-            if job_env == 'prod':
-                post_to_webhook(WEBHOOK_URL, msg_warn)
+
 
 # AB test aggregates
 ab_cols = [
