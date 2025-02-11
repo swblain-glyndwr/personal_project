@@ -565,7 +565,8 @@ for d in sdates_valid:
     nsdiff = nspret - nspostt
     dfmt = d.strftime('%Y-%m-%d')
     log.info(f'{nsdiff:,} sessions dropped from ' +
-             f'{dfmt} due to OrderComplete trimming')
+             f'{dfmt} due to OrderComplete trimming ' +
+             '(i.e. sessions starting at OrderComplete page)')
 
 df_fixed_cells = get_spark().table(FIXED_CELLS_LATEST_TABLE)
 
@@ -737,6 +738,10 @@ df_sessions_master_meta = (
 )
 
 # Remove Seasons Ads from App sessions
+# This is a live exclusion
+# live_exclusions variable used to modify QA checks that these exclusions
+# would cause to fail
+live_exclusions = True
 excl_seasons_ads_app = [
     'P128_C1676_Seasons_Category_Womens_Footwear_Womens',
     'P128_C1625_Seasons_Category_Womens_Bags_Womens',
@@ -1412,7 +1417,8 @@ df_ad_metadata_full.cache()
 # from the dashboard retrospectively when known operational issues may
 # have biased the results (e.g. MASID or HomePage interruptions). These
 # adjustments would otherwise trigger the AsssertionError
-if not dates_provided:
+# Same is true if there are live exclusions (e.g. excluding Seasons from App)
+if not dates_provided and not live_exclusions:
     for d in sdates_valid:
         d_fmt = d.strftime('%Y-%m-%d')
         log.info('Checking consistency of pre- and post-processing ' +
@@ -1439,7 +1445,9 @@ if not dates_provided:
                     .select(c_piv)
                     ).collect()[0][0]
                 # Check match to < 0.01 to allow for floating point arithmetic
-                msg = f'Pre- and post- total for {c} does not match for {fc}'
+                msg = (f'Pre- and post- total for {c} does not match for {fc} '
+                       + f'(pre: {tpre:,}; post: {tpost:,}; '
+                       + f'change: {tpost-tpre:,})')
                 assert abs(tpost - tpre) < 0.01, msg
 
 
