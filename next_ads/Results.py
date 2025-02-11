@@ -129,6 +129,7 @@ def summarise_sessions(
             F.max('Converted').alias('Converted'),
             F.first(impressions_col).alias(impressions_col),
             F.sum(clicks_col).alias(clicks_col),
+            F.sum(apportioned_revenue_col).alias(apportioned_revenue_col)
             )
         .groupBy(*group_cols, session_id_col)
         .agg(
@@ -136,6 +137,7 @@ def summarise_sessions(
             F.max('Converted').alias('Converted'),
             F.sum(impressions_col).alias(impressions_col),
             F.sum(clicks_col).alias(clicks_col),
+            F.sum(apportioned_revenue_col).alias(apportioned_revenue_col)
             )
         .groupBy(*group_cols)
         .agg(
@@ -143,27 +145,10 @@ def summarise_sessions(
             F.sum(revenue_col).alias(revenue_col),
             F.sum('Converted').alias('Conversions'),
             F.sum(impressions_col).alias(impressions_col),
-            F.sum(clicks_col).alias(clicks_col)
+            F.sum(clicks_col).alias(clicks_col),
+            F.sum(apportioned_revenue_col).alias(apportioned_revenue_col)
             )
     )
-
-    if apportioned_revenue_col:
-        count_pre = df_summary.count()
-        df_summary_apportioned = (
-            df
-            .groupBy(*group_cols)
-            .agg(F.sum(apportioned_revenue_col).alias('ApportionedRevenue'))
-        )
-        df_summary = (
-            df_summary
-            .join(df_summary_apportioned,
-                  on=group_cols, how='left')
-        )
-        count_post = df_summary.count()
-        if count_pre != count_post:
-            print(f'Pre-summary count ({count_pre:,}) ' +
-                  f'!= post-summary count ({count_post:,})')
-            assert count_post <= count_pre, 'Rows created during summary'
 
     return df_summary
 
