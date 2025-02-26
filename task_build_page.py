@@ -252,6 +252,23 @@ else:
             .where(F.col("MASID").isNotNull())
         )
 
+    # Check and warn if UniqueAdIDMeasurement is null
+    n_null_measure = (
+        df_ad_assigned_masid
+        .where(F.col("UniqueAdIDMeasurement").isNull())
+        ).count()
+    if n_null_measure > 0:
+        null_measure_msg = (f"{n_null_measure:,} accounts removed during " +
+                            f"assignment of {LOCATION} due to null " +
+                            "UniqueAdIDMeasurement")
+        log.warning(null_measure_msg)
+        if job_env == "prod":
+            post_to_webhook(WEBHOOK_URL, null_measure_msg)
+        df_ad_assigned_masid = (
+            df_ad_assigned_masid
+            .where(F.col("UniqueAdIDMeasurement").isNotNull())
+        )
+
     df_ad_assigned_masid_output = (
         df_ad_assigned_masid
         .withColumn("Location", F.lit(LOCATION))
