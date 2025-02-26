@@ -22,7 +22,7 @@ log = logging.getLogger("mylog")
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-LOCATION = pargs["location"] if pargs["location"] else "SB1"
+LOCATION = pargs["location"] if pargs["location"] else "PH3"
 log.info(f"Running in job environment: {job_env}")
 
 DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
@@ -216,7 +216,8 @@ else:
         )
 
     ctrl_masid_cols = ["UniqueAdID", "MASID"]
-    ctrl_masid_vals = [("NoAd", f"{LOCATION}_Z")]
+    ctrl_masid_vals = [("NoAd", f"{LOCATION}_Z"),
+                       ('AdSuppressed', f'{LOCATION}_Z')]
 
     df_control_masid = (
         get_spark().createDataFrame(

@@ -86,8 +86,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 2, 7)
-    SESSION_DATE_END = date(2025, 2, 9)
+    SESSION_DATE_START = date(2025, 2, 24)
+    SESSION_DATE_END = date(2025, 2, 24)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -271,6 +271,20 @@ if df_asgn_pf_nulls.count() > 0:
         log.warning(missing_msg)
         if job_env == 'prod':
             post_to_webhook(WEBHOOK_URL, missing_msg)
+
+# Remove cases where ad has been deliberately suppressed
+n_pre_supp_removal = df_asgn_pf.count()
+df_asgn_pf = df_asgn_pf.where(F.col('Treatment') != 'AdSuppressed')
+n_post_supp_removal = df_asgn_pf.count()
+n_supp_removals = n_post_supp_removal - n_pre_supp_removal
+msg_ad_suppressions = (
+    f'{n_supp_removals:,} cases removed due to Ad Suppressions '
+    + '(this may be due to tests that are currently live)'
+)
+log.warning(msg_ad_suppressions)
+if job_env == 'prod':
+    post_to_webhook(WEBHOOK_URL, msg_ad_suppressions)
+
 
 df_valid_assignments = (
     df_asgn_pf
@@ -966,9 +980,10 @@ for agg_col in agg_cols:
         .agg(F.sum('ApportionedRevenue')).collect()[0][0])
     msg = f'Total of ApportionedRevenue (agg: {agg_col}) > Total Revenue'
     assert total_r*1.001 >= total_apr_agg, msg
-    if total_apr_agg - total_r < -0.01*total_r:
-        msg_warn = (f'Total of ApportionedRevenue (agg: {agg_col}) more than' +
-                    '1% below Total Revenue')
+    diff_agg = total_apr_agg - total_r
+    if diff_agg < -0.01*total_r:
+        msg_warn = (f'Total of ApportionedRevenue (agg: {agg_col}) more than '
+                    + f'1% below Total Revenue ({diff_agg/total_r:.2%})')
         log.warning(msg_warn)
         if job_env == 'prod':
             post_to_webhook(WEBHOOK_URL, msg_warn)
@@ -1070,11 +1085,11 @@ df_summary_ad_wide.cache()
 total_apr_ad = (
     df_summary_ad_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0])
 msg = 'Total of ApportionedRevenue (ads) > Total Revenue'
-assert total_apr_ad - total_r < 0.001*total_r, msg
-
-if total_apr_ad - total_r < -0.01*total_r:
-    msg_warn = ('Total of ApportionedRevenue (ads) more than 1% ' +
-                'below Total Revenue')
+diff_ad = total_apr_ad - total_r
+assert diff_ad < 0.001*total_r, msg
+if diff_ad < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ads) more than 1% '
+                + f'below Total Revenue ({diff_ad/total_r:.2%})')
     log.warning(msg_warn)
     if job_env == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
@@ -1139,11 +1154,11 @@ df_summary_ad_locset_wide.cache()
 total_apr_ad_locset = (
     df_summary_ad_locset_wide.agg(F.sum('ApportionedRevenue')).collect()[0][0])
 msg = 'Total of ApportionedRevenue (ad locset) > Total Revenue'
-assert total_apr_ad_locset - total_r < 0.001*total_r, msg
-
-if total_apr_ad_locset - total_r < -0.01*total_r:
-    msg_warn = ('Total of ApportionedRevenue (ad locset) more than 1% ' +
-                'below Total Revenue')
+diff_adlocset = total_apr_ad_locset - total_r
+assert diff_adlocset < 0.001*total_r, msg
+if diff_adlocset < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ad locset) more than 1% '
+                + f'below Total Revenue ({diff_adlocset/total_r:.2%})')
     log.warning(msg_warn)
     if job_env == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
@@ -1210,11 +1225,11 @@ total_apr_ad_pagegroupset = (
     df_summary_ad_pagegroupset_wide
     .agg(F.sum('ApportionedRevenue')).collect()[0][0])
 msg = 'Total of ApportionedRevenue (ad page) > Total Revenue'
-assert total_apr_ad_pagegroupset - total_r < 0.001*total_r, msg
-
-if total_apr_ad_pagegroupset - total_r < -0.01*total_r:
-    msg_warn = ('Total of ApportionedRevenue (ad page) more than 1% ' +
-                'below Total Revenue')
+diff_ad_pgset = total_apr_ad_pagegroupset - total_r
+assert diff_ad_pgset < 0.001*total_r, msg
+if diff_ad_pgset < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ad page) more than 1% '
+                + f'below Total Revenue ({diff_ad_pgset/total_r:.2%})')
     log.warning(msg_warn)
     if job_env == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
@@ -1278,11 +1293,11 @@ total_apr_div_page = (
     df_summary_div_pagegroupset_wide
     .agg(F.sum('ApportionedRevenue')).collect()[0][0])
 msg = 'Total of ApportionedRevenue (div page) > Total Revenue'
-assert total_apr_div_page - total_r < 0.001*total_r, msg
-
-if total_apr_div_page - total_r < -0.01*total_r:
-    msg_warn = ('Total of ApportionedRevenue (div page) more than 1% ' +
-                'below Total Revenue')
+diff_divp = total_apr_div_page - total_r
+assert diff_divp < 0.001*total_r, msg
+if diff_divp < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (div page) more than 1% '
+                + f'below Total Revenue ({diff_divp/total_r:.2%})')
     log.warning(msg_warn)
     if job_env == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
@@ -1320,11 +1335,11 @@ total_apr_adtgt = (
     .agg(F.sum('ApportionedRevenue')).collect()[0][0]
     )
 msg = 'Total of ApportionedRevenue (ad tgt) > Total Revenue'
-assert total_apr_adtgt - total_r < 0.001*total_r, msg
-
-if total_apr_adtgt - total_r < -0.01*total_r:
-    msg_warn = ('Total of ApportionedRevenue (ad tgt) more than 1% ' +
-                'below Total Revenue')
+diff_adtgt = total_apr_adtgt - total_r
+assert diff_adtgt < 0.001*total_r, msg
+if diff_adtgt < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (ad tgt) more than 1% '
+                + f'below Total Revenue ({diff_adtgt/total_r:.2%})')
     log.warning(msg_warn)
     if job_env == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
@@ -1360,11 +1375,11 @@ total_apr_pagetgt = (
     .agg(F.sum('ApportionedRevenue')).collect()[0][0]
     )
 msg = 'Total of ApportionedRevenue (page tgt) > Total Revenue'
-assert total_apr_pagetgt - total_r < 0.001*total_r, msg
-
-if total_apr_pagetgt - total_r < -0.01*total_r:
-    msg_warn = ('Total of ApportionedRevenue (page tgt) more than 1% ' +
-                'below Total Revenue')
+diff_pagetgt = total_apr_pagetgt - total_r
+assert diff_pagetgt < 0.001*total_r, msg
+if diff_pagetgt < -0.01*total_r:
+    msg_warn = ('Total of ApportionedRevenue (page tgt) more than 1% '
+                + f'below Total Revenue ({diff_pagetgt/total_r:.2%})')
     log.warning(msg_warn)
     if job_env == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
