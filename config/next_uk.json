@@ -195,7 +195,7 @@
     "transient_cells": {
         "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
         "Audiences": [
-            ["Eid", {"account_col": "AccountNumber", "label_col": "Label"}]
+            ["skinnybanner_credit", {"account_col": "AccountNumber", "label_col": "Label"}]
         ]
     },
 
@@ -230,31 +230,17 @@
             "map": [
                 {
                     "when": [
-                        {"col": "Audience", "op": "eq", "val": "Eid"},
+                        {"col": "Audience", "op": "eq", "val": "No Ads"},
                         {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
                     ],
-                    "then": {"lit": "P132_C619_Campaign_Mixed_Eid_Womens"}
+                    "then": {"col": "AdSuppressed"}
                 },
                 {
                     "when": [
-                        {"col": "Audience", "op": "eq", "val": "Eid"},
-                        {"col": "AlgoDivision", "op": "eq", "val": "Mens"}
-                    ],
-                    "then": {"lit": "P132_C619_Campaign_Mixed_Eid_Mens"}
-                },
-                {
-                    "when": [
-                        {"col": "Audience", "op": "eq", "val": "Ramadan"},
+                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
                         {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
                     ],
-                    "then": {"lit": "P132_C1754_Campaigns_Mixed_Ramadan_Womens"}
-                },
-                {
-                    "when": [
-                        {"col": "Audience", "op": "eq", "val": "Ramadan"},
-                        {"col": "AlgoDivision", "op": "eq", "val": "Mens"}
-                    ],
-                    "then": {"lit": "P132_C1754_Campaigns_Mixed_Ramadan_Mens"}
+                    "then": {"col": "AdSuppressed"}
                 },
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
@@ -262,6 +248,44 @@
                 },
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "SB2": {
+            "pf_col": "SB_slot_2",
+            "page": "/shoppingbag",
+            "screen": "Cart",
+            "page_group": "ShoppingBag",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "inherit_ads_from": "SB1",
+            "map": [
+                {
+                    "when": [{"col": "AlgoDivision", "op": "ne", "val": "Womens"}],
+                    "then": {"col": "AdSuppressed"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "No Ads"}],
+                    "then": {"col": "AdSuppressed"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "BAU Ads"}],
+                    "then": {"col": "AdSuppressed"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -610,7 +634,7 @@
             "bq_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-            "Eid": "marketingdata_prod.ds_sandbox.next_uk_nextads_eid_audience_20250205"
+            "skinnybanner_credit": "marketingdata_prod.ds_sandbox.next_uk_nextads_skinnybanner_credit_audience_view"
         },
         "write": {
             "control_sheet": "marketingdata_prod.{schema}.{domain}_nextads_control_sheet",
