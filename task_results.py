@@ -89,7 +89,7 @@ elif dates_provided:
 else:
     # For interactive debugging
     SESSION_DATE_START = date(2025, 2, 24)
-    SESSION_DATE_END = date(2025, 2, 24)
+    SESSION_DATE_END = date(2025, 2, 25)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -306,7 +306,7 @@ df_valid_assignments = (
 
 teaser_locs = ['PH3', 'PH4', 'PH5']
 teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
-w_acc = Window.partitionBy('AccountNumber')
+w_dt_acc = Window.partitionBy('SessionDate', 'AccountNumber')
 
 df_invalid_teasers_adid = (
     df_valid_assignments
@@ -317,10 +317,10 @@ df_invalid_teasers_adid = (
             F.col('UniqueAdIDMeasurement') == 'AdSuppressed', F.lit(0)
             ).otherwise(F.lit(1))
         )
-    .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_acc))
+    .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_dt_acc))
     .drop('TeaserAssigned')
     .withColumn('AdSet',
-                F.collect_set(F.col('UniqueAdIDMeasurement')).over(w_acc))
+                F.collect_set(F.col('UniqueAdIDMeasurement')).over(w_dt_acc))
     .withColumn('UniqueAds', F.array_size('AdSet'))
     .where(
         (F.col('TeasersAssigned') < len(teaser_locs))
@@ -331,17 +331,23 @@ df_invalid_teasers_adid = (
 
 df_invalid_teaser_accounts = (
     df_invalid_teasers_adid
-    .select('AccountNumber')
+    .select('SessionDate', 'AccountNumber')
     .distinct()
 )
 
 n_it = df_invalid_teaser_accounts.count()
 if n_it > 0:
-    msg_it = (f'{n_it:,} accounts found with invalid HomePage Teasers '
-              + '(results) - removing affected cases from valid assignments')
-    log.warning(msg_it)
-    if job_env == "prod":
-        post_to_webhook(WEBHOOK_URL, msg_it)
+    for sdate in sdates:
+        n_it_sdate = (
+            df_invalid_teaser_accounts
+            .where(F.col('SessionDate') == sdate)
+        ).count()
+        msg_it = (f'{n_it_sdate:,} accounts found with invalid HomePage '
+                  + f'Teasers while processing results for {sdate}; '
+                  + 'removing affected cases from valid assignments')
+        log.warning(msg_it)
+        if job_env == "prod":
+            post_to_webhook(WEBHOOK_URL, msg_it)
 
     df_teaser_locs = (
         get_spark()
@@ -362,7 +368,7 @@ if n_it > 0:
     df_valid_assignments = (
         df_valid_assignments
         .join(df_invalid_teasers_rm,
-              on=['AccountNumber', 'Location'],
+              on=['SessionDate', 'AccountNumber', 'Location'],
               how='left')
         .where(F.col('IT').isNull())
         .drop('IT')
