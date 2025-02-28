@@ -89,7 +89,7 @@ elif dates_provided:
 else:
     # For interactive debugging
     SESSION_DATE_START = date(2025, 2, 24)
-    SESSION_DATE_END = date(2025, 2, 25)
+    SESSION_DATE_END = date(2025, 2, 24)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -351,7 +351,7 @@ if n_it > 0:
 
     df_teaser_locs = (
         get_spark().createDataFrame(
-            data=teaser_locs,
+            data=[tuple([x]) for x in teaser_locs],
             schema=build_spark_schema(
                 [['Location', 'string', 'not null']]
             )
