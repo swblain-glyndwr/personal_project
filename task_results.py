@@ -276,14 +276,15 @@ if df_asgn_pf_nulls.count() > 0:
 n_pre_supp_removal = df_asgn_pf.count()
 df_asgn_pf = df_asgn_pf.where(F.col('Treatment') != 'AdSuppressed')
 n_post_supp_removal = df_asgn_pf.count()
-n_supp_removals = n_post_supp_removal - n_pre_supp_removal
-msg_ad_suppressions = (
-    f'{n_supp_removals:,} cases removed due to Ad Suppressions '
-    + '(this may be due to tests that are currently live)'
-)
-log.warning(msg_ad_suppressions)
-if job_env == 'prod':
-    post_to_webhook(WEBHOOK_URL, msg_ad_suppressions)
+n_supp_removals = n_pre_supp_removal - n_post_supp_removal
+if n_supp_removals > 0:
+    msg_ad_suppressions = (
+        f'{n_supp_removals:,} cases removed due to Ad Suppressions '
+        + '(this may be due to tests that are currently live)'
+    )
+    log.warning(msg_ad_suppressions)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_ad_suppressions)
 
 
 df_valid_assignments = (
