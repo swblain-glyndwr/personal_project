@@ -8,7 +8,9 @@ from next_ads.Results import (append_session_overlap_ratio,
                               validate_assignments_match_pf)
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
-                                assert_pk, delete_from_and_load,
+                                assert_pk,
+                                build_spark_schema,
+                                delete_from_and_load,
                                 map_tbl,
                                 post_to_webhook)
 from pyspark.sql import functions as F
@@ -292,6 +294,79 @@ df_valid_assignments = (
     .where(F.col('MASID') == F.col('MASIDPF'))
     .drop('MASIDPF')
 )
+
+# Invalid teasers stripped from the assignments as part of read into MASID
+# These cases are excluded from the results because:
+# MASID (assignments) != MASIDPF (pf)
+# This step does not exclude these cases in the control group however; if
+# someone only gets one teaser in the control group, their teasers are set to
+# three Zs anyway, which is a valid teaser assignment
+# This is why the invalid teaser removal is replicated here, but based on
+# UniqueAdIDMeasurement, so as to account for this removal in the control group
+
+teaser_locs = ['PH3', 'PH4', 'PH5']
+teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
+w_acc = Window.partitionBy('AccountNumber')
+
+df_invalid_teasers_adid = (
+    df_valid_assignments
+    .where(F.col('Location').isin(teaser_locs))
+    .withColumn(
+        'TeaserAssigned',
+        F.when(
+            F.col('UniqueAdIDMeasurement') == 'AdSuppressed', F.lit(0)
+            ).otherwise(F.lit(1))
+        )
+    .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_acc))
+    .drop('TeaserAssigned')
+    .withColumn('AdSet',
+                F.collect_set(F.col('UniqueAdIDMeasurement')).over(w_acc))
+    .withColumn('UniqueAds', F.array_size('AdSet'))
+    .where(
+        (F.col('TeasersAssigned') < len(teaser_locs))
+        | (F.col('UniqueAds') < len(teaser_locs))
+        )
+    .where(F.col('AdSet') != F.array(F.lit('AdSuppressed')))
+)
+
+df_invalid_teaser_accounts = (
+    df_invalid_teasers_adid
+    .select('AccountNumber')
+    .distinct()
+)
+
+n_it = df_invalid_teaser_accounts.count()
+if n_it > 0:
+    msg_it = (f'{n_it:,} accounts found with invalid HomePage Teasers '
+              + '(results) - removing affected cases from valid assignments')
+    log.warning(msg_it)
+    if job_env == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_it)
+
+    df_teaser_locs = (
+        get_spark()
+        .createDataFrame(
+            data=teaser_locs,
+            schema=build_spark_schema(
+                [['Location', 'string', 'notnull']]
+            )
+        )
+    )
+
+    df_invalid_teasers_rm = (
+        df_invalid_teaser_accounts
+        .crossJoin(df_teaser_locs)
+        .withColumn('IT', F.lit(1))
+    )
+
+    df_valid_assignments = (
+        df_valid_assignments
+        .join(df_invalid_teasers_rm,
+              on=['AccountNumber', 'Location'],
+              how='left')
+        .where(F.col('IT').isNull())
+        .drop('IT')
+    )
 
 df_valid_proportions = (
     (
