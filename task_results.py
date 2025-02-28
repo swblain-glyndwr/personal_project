@@ -350,11 +350,10 @@ if n_it > 0:
             post_to_webhook(WEBHOOK_URL, msg_it)
 
     df_teaser_locs = (
-        get_spark()
-        .createDataFrame(
+        get_spark().createDataFrame(
             data=teaser_locs,
             schema=build_spark_schema(
-                [['Location', 'string', 'notnull']]
+                [['Location', 'string', 'not null']]
             )
         )
     )
