@@ -88,8 +88,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 2, 24)
-    SESSION_DATE_END = date(2025, 2, 24)
+    SESSION_DATE_START = date(2025, 2, 26)
+    SESSION_DATE_END = date(2025, 2, 26)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -394,24 +394,28 @@ df_valid_proportions = (
 df_invalid_dates = (
     df_valid_proportions
     .where(F.col('ValidCasesPC') < VALID_ASSIGNMENT_THRESHOLD)
-    .select('SessionDate')
+    .select('SessionDate', 'ValidCasesPC')
 )
-invalid_dates = [x[0].strftime('%Y-%m-%d') for x in df_invalid_dates.collect()]
+invalid_dates = [
+    (x[0].strftime('%Y-%m-%d'), x[1]) for x in df_invalid_dates.collect()
+    ]
 
 if invalid_dates:
-    msg_invalid_dates = (
-        f'Removing date(s) {", " .join(invalid_dates)} ' +
-        'from results processing ' +
-        f'(valid case rate < {VALID_ASSIGNMENT_THRESHOLD:.1%})'
-    )
+    for invalid_date in invalid_dates:
+        msg_invalid_dates = (
+            f'Removing {invalid_date[0]} from results processing '
+            + f'as valid case rate ({invalid_date[1]:.1%}) '
+            + f'< threshold ({VALID_ASSIGNMENT_THRESHOLD:.1%})'
+        )
 
-    log.warning(msg_invalid_dates)
-    if job_env == 'prod':
-        post_to_webhook(WEBHOOK_URL, msg_invalid_dates)
+        log.warning(msg_invalid_dates)
+        if job_env == 'prod':
+            post_to_webhook(WEBHOOK_URL, msg_invalid_dates)
 
     df_valid_assignments = (
         df_valid_assignments
-        .join(df_invalid_dates, on='SessionDate', how='leftanti')
+        .join(df_invalid_dates.select('SessionDate'),
+              on='SessionDate', how='leftanti')
     )
 
 
