@@ -660,7 +660,7 @@
     },
 
     "results_prm": {
-        "valid_assignment_threshold": 0.980,
+        "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
         "min_c_sessions": 10000
     },
