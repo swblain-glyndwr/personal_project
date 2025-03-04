@@ -35,7 +35,7 @@ TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
     tbls["customer_cells_transient_latest"], **tbl_args)
 
 TABLES_READ = cfg["tables"]["read"]
-SVOC = TABLES_READ["svoc_pii"]
+SVOC = TABLES_READ["svoc_cust"]
 RPID_WITH_ACCOUNTS = TABLES_READ["rpid_with_accounts"]
 MODEL_SCORES_LATEST = TABLES_READ["model_scores_latest"]
 LEGACY_EXCL = cfg["legacy"]["account_exclusions"]

@@ -594,7 +594,7 @@
     
     "tables": {
         "read": {
-            "svoc_pii": "marketingdata_prod.pii.svoccust_pii",
+            "svoc_cust": "marketingdata_prod.warehouse.svoccust_hist",
             "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
             "bq_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
             "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
