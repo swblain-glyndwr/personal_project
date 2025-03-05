@@ -849,7 +849,16 @@ excl_seasons_ads_app = [
     'P128_C1662_Seasons_SolusBrand_Veja_Mens',
     'P128_C1662_Seasons_SolusBrand_Veja_Womens',
     'P131_C1626_Seasons_Womens_Womens_Womens',
-    'P131_C1625_Seasons_Womens_Bags'
+    'P131_C1625_Seasons_Womens_Bags',
+    'P132_C1735_Seasons_Womens_Athleisure_Womens',
+    'P132_C1737_Seasons_Womens_NewIn_Womens',
+    'P133_C1782_Seasons_Womens_Coach_Womens',
+    'P133_C1777_Seasons_Womens_Rixo_Womens',
+    'P133_C1781_Seasons_Womens_Ganni_Womens',
+    'P133_C1780_Seasons_Womens_MarcJacobs_Womens',
+    'P133_C1778_Seasons_Mixed_PoloRalphLauren_Womens',
+    'P133_C1779_Seasons_Womens_Missoma_Womens',
+    'P133_C1776_Seasons_Womens_Varley_Womens'
 ]
 df_sessions_master_meta = (
     df_sessions_master_meta
@@ -857,6 +866,7 @@ df_sessions_master_meta = (
         ~(
             (F.col('Device') == 'App')
             & (F.col('UniqueAdIDMeasurement').isin(excl_seasons_ads_app))
+            & (F.col('SessionDate') <= '2025-03-04')
         )
     )
 )
