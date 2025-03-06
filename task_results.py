@@ -88,8 +88,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 2, 26)
-    SESSION_DATE_END = date(2025, 2, 26)
+    SESSION_DATE_START = date(2025, 3, 4)
+    SESSION_DATE_END = date(2025, 3, 4)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -897,6 +897,18 @@ df_sessions_master_meta = (
         ~(
             (F.col('PageGroup') == 'HomePage')
             & (F.col('SessionDate').isin(list_hp_remove_dates))
+        )
+    )
+)
+
+# Remove SB2 assignments from results prior to 2025-03-06 as
+# content wasn't live in CMS
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('Location') == 'SB2')
+            & (F.col('SessionDate') <= '2025-03-05')
         )
     )
 )
