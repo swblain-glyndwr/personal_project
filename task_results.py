@@ -901,14 +901,14 @@ df_sessions_master_meta = (
     )
 )
 
-# Remove SB2 assignments from results prior to 2025-03-06 as
+# Remove SB2 assignments from results prior to 2025-03-07 as
 # content wasn't live in CMS
 df_sessions_master_meta = (
     df_sessions_master_meta
     .where(
         ~(
             (F.col('Location') == 'SB2')
-            & (F.col('SessionDate') <= '2025-03-05')
+            & (F.col('SessionDate') < '2025-03-07')
         )
     )
 )
