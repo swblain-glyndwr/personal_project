@@ -22,7 +22,8 @@ log.info(f"Configuring run for domain: {DOMAIN}")
 with open(f"config/{DOMAIN}.json") as f:
     cfg = json.load(f)
 
-CHECK_SESSIONS_FROM = date.today() - timedelta(days=8)
+LOOKBACK_DAYS = cfg['results_prm']['lookback_days']
+CHECK_SESSIONS_FROM = date.today() - timedelta(days=LOOKBACK_DAYS+1)
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][job_env]

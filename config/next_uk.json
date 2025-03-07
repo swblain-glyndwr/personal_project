@@ -662,7 +662,8 @@
     "results_prm": {
         "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
-        "min_c_sessions": 10000
+        "min_c_sessions": 30000,
+        "lookback_days": 14
     },
 
     "legacy": {
