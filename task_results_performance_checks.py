@@ -82,7 +82,9 @@ underperf_ads = [x[0] for x in underperf_ads_col]
 
 if len(underperf_ads) > 0:
     msg = (
-        'Underperforming ads:\n\n' +
+        'Underperforming Ads\n' +
+        f'(Since {CHECK_SESSIONS_FROM}, ' +
+        f'min {MIN_C_SESSIONS:,} control sessions)\n\n' +
         '\n'.join(underperf_ads) +
         '\n\nCheck full results in dashboard'
     )
