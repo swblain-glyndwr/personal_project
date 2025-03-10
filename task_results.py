@@ -901,6 +901,19 @@ df_sessions_master_meta = (
     )
 )
 
+# Remove Homepage (Desktop only) for affected dates
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'HomePage')
+            & (F.col('Device') == 'Desktop')
+            & (F.col('SessionDate') >= date(2025, 3, 11))
+        )
+    )
+)
+
+
 # Remove SB2 assignments from results prior to 2025-03-07 as
 # content wasn't live in CMS
 df_sessions_master_meta = (
