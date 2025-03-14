@@ -304,8 +304,18 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Best"}],
+                    "when": [
+                        {"col": "OrderCompleteTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "OrderCompleteTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -319,8 +329,18 @@
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
-                    "when": [{"col": "LandingPageTest1", "op": "eq", "val": "Best"}],
+                    "when": [
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -597,7 +617,8 @@
             "bq_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-            "skinnybanner_credit": "marketingdata_prod.ds_sandbox.next_uk_nextads_skinnybanner_credit_audience_view"
+            "skinnybanner_credit": "marketingdata_prod.ds_sandbox.next_uk_nextads_skinnybanner_credit_audience_view",
+            "recommender_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_recommender_scores_latest"
         },
         "write": {
             "control_sheet": "marketingdata_prod.{schema}.{domain}_nextads_control_sheet",
