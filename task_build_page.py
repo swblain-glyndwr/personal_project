@@ -4,7 +4,9 @@ import json
 from next_ads.Assignment import (
     assign_best_ads_with_constraints,
     assign_random_ads,
-    assign_best_ads
+    assign_best_ads,
+    assign_best_ads_rec,
+    assign_best_ads_with_constraints_rec
     )
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
@@ -22,7 +24,7 @@ log = logging.getLogger("mylog")
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-LOCATION = pargs["location"] if pargs["location"] else "PH3"
+LOCATION = pargs["location"] if pargs["location"] else "OC1"
 log.info(f"Running in job environment: {job_env}")
 
 DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
@@ -40,6 +42,8 @@ TARGETING_SCORES_TABLE = map_tbl(tbls["targeting_scores_latest"], **tbl_args)
 ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
+
+REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_latest"]
 
 FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 
@@ -134,8 +138,30 @@ else:
     df_assigned_best.cache()
 
     log.info("Assigning Best Ads (Challenger)")
-    # Assigning best to best_challenger effectively switches challenger off
-    df_assigned_best_challenger = df_assigned_best
+    best_kwargs |= {
+        'recommender_scores_table': REC_SCORES_TABLE
+        }
+
+    del best_kwargs['targeting_scores_table']
+
+    if "best_kwargs" in LOCATIONS[LOCATION]:
+        best_kwargs = best_kwargs | LOCATIONS[LOCATION]["best_kwargs"]
+
+    if "constraints" in LOCATIONS[LOCATION]:
+        df_assigned_best_challenger = assign_best_ads_with_constraints_rec(
+            df_ads=df_ads_tgt,
+            df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
+            constraints=LOCATIONS[LOCATION]["constraints"],
+            best_kwargs=best_kwargs
+        )
+    else:
+        df_assigned_best_challenger = assign_best_ads_rec(
+            df_ads=df_ads_tgt,
+            df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
+            **best_kwargs
+        )
+
+    df_assigned_best_challenger.cache()
 
     log.info("Determining Ad to be shown based on assignments and fixed cells")
     df_assignments = (

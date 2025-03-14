@@ -198,6 +198,140 @@ def assign_best_ads_with_constraints(
         raise Exception("Constraint not understood")
 
 
+def assign_best_ads_rec(
+        df_ads: DataFrame,
+        recommender_scores_table: str,
+        df_cust: DataFrame = None,
+        score_scale_fn: Callable = None,
+        score_scale_partition: list[str] = ["UniqueAdID"],
+        return_ranks: list = [1]
+        ) -> DataFrame:
+    """
+    Assigns "best" Ad to each customer based on RECOMMENDER scores provided.
+
+    Arguments:
+        df_ads - Dataframe with columns (UniqueAdID, TargetingCriteria)
+        recommender_scores_table - Name of table containing RecommenderScores
+        df_cust - Filter customers (Dataframe with col: AccountNumber)
+        score_scale_fn - Function for scaling the score
+        score_scale_partition - Partition for scaling
+        return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
+    """
+
+    df_adscores = (
+        df_ads
+        .select("UniqueAdID")
+        .join(get_spark().table(recommender_scores_table),
+              on="UniqueAdID",
+              how="inner")
+    )
+
+    if df_cust:
+        df_adscores = df_adscores.join(df_cust,
+                                       on="AccountNumber",
+                                       how="inner")
+
+    df_adscores = (
+        df_adscores
+        .withColumn("RecommenderScoreScaled",
+                    score_scale_fn(F.col("RecommenderScore"),
+                                   partition_by=score_scale_partition))
+        )
+
+    assert_pk(df_adscores,
+              ["AccountNumber", "UniqueAdID"])
+
+    w_ad = (
+        Window
+        .partitionBy([F.col("AccountNumber")])
+        .orderBy(F.col("RecommenderScoreScaled").desc())
+    )
+
+    w_ad_tb = (
+        Window
+        .partitionBy([F.col("AccountNumber"), F.col("AdRank")])
+        .orderBy(F.col("TieBreaker").desc())
+    )
+    # TieBreaker column creates a random split when multiple ads
+    # are targeted using the same TargetingCriteria
+    # Only one ad of those with matching TargetingCriteria will
+    # be returned
+    df_return = (
+        df_adscores
+        .withColumn('TieBreaker', F.rand(seed=99))
+        .withColumn("AdRank", F.dense_rank().over(w_ad))
+        .withColumn("AdRankTB", F.dense_rank().over(w_ad_tb))
+        .where(F.col("AdRankTB") == 1)
+        .where(F.col("AdRank").isin(return_ranks))
+        .select("AccountNumber",
+                "RecommenderScoreScaled",
+                "AdRank",
+                "UniqueAdID")
+    )
+
+    return df_return
+
+
+def assign_best_ads_with_constraints_rec(
+        df_ads: DataFrame,
+        df_cust: DataFrame = None,
+        constraints: dict = {},
+        best_kwargs: dict = {}) -> DataFrame:
+
+    if "targeting_within_division" in constraints:
+
+        div_type = constraints["targeting_within_division"]
+        divs = [row[0] for row in (df_cust
+                                   .select(div_type)
+                                   .distinct()).collect()]
+        df_ads_best_div_list = []
+
+        for div in divs:
+            df_ads_d = (
+                df_ads
+                .where(F.col(div_type) == div)
+                .select("UniqueAdID")
+            )
+            df_cust_d = (
+                df_cust
+                .where(F.col(div_type) == div)
+                .select("AccountNumber")
+            )
+            df_ads_best_d = (
+                assign_best_ads_rec(
+                    df_ads=df_ads_d,
+                    df_cust=df_cust_d,
+                    **best_kwargs
+                    )
+            )
+            df_ads_best_div_list.append(df_ads_best_d)
+
+        df_assigned_best = df_ads_best_div_list.pop()
+        for df_ads_best_div in df_ads_best_div_list:
+            df_assigned_best = df_assigned_best.unionByName(df_ads_best_div)
+
+        return df_assigned_best
+
+    elif "filter_ads" in constraints:
+
+        for k in constraints["filter_ads"].keys():
+            df_ads = (
+                df_ads
+                .where(F.col(k) == constraints["filter"][k])
+            )
+
+        df_assigned_best = assign_best_ads_rec(
+                    df_ads=df_ads,
+                    df_cust=df_cust,
+                    **best_kwargs
+                    )
+
+        return df_assigned_best
+
+    else:
+        raise Exception("Constraint not understood")
+
+
 def assign_predetermined_audience(
         audiences: list[list[dict]],
         tables: dict
