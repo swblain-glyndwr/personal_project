@@ -479,6 +479,9 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1]},
             "map": [
@@ -497,6 +500,9 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [2]},
             "map": [
@@ -515,6 +521,9 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3]},
             "map": [
