@@ -909,6 +909,7 @@ df_sessions_master_meta = (
             (F.col('PageGroup') == 'HomePage')
             & (F.col('Device') == 'Desktop')
             & (F.col('SessionDate') >= date(2025, 3, 11))
+            & (F.col('SessionDate') <= date(2025, 3, 19))
         )
     )
 )
