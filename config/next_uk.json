@@ -247,8 +247,18 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                    ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -284,9 +294,18 @@
                 {
                     "when": [
                         {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },

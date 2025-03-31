@@ -288,6 +288,20 @@ if n_supp_removals > 0:
     if job_env == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_ad_suppressions)
 
+# Remove cases where no ad was found for customer (both test and control)
+n_pre_naf_removal = df_asgn_pf.count()
+df_asgn_pf = df_asgn_pf.where(F.col('UniqueAdIDMeasurement') != 'NoAdFound')
+n_post_naf_removal = df_asgn_pf.count()
+n_naf_removals = n_pre_naf_removal - n_post_naf_removal
+if n_naf_removals > 0:
+    msg_noadfound = (
+        f'{n_naf_removals:,} cases removed due to "NoAdFound" '
+        + '(this may be due to tests that are currently live)'
+    )
+    log.warning(msg_noadfound)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg_noadfound)
+
 
 df_valid_assignments = (
     df_asgn_pf
@@ -314,7 +328,8 @@ df_invalid_teasers_adid = (
     .withColumn(
         'TeaserAssigned',
         F.when(
-            F.col('UniqueAdIDMeasurement') == 'AdSuppressed', F.lit(0)
+            F.col(~'UniqueAdIDMeasurement').isin('AdSuppressed', 'NoAdFound'),
+            F.lit(0)
             ).otherwise(F.lit(1))
         )
     .withColumn('TeasersAssigned', F.sum('TeaserAssigned').over(w_dt_acc))
@@ -327,6 +342,7 @@ df_invalid_teasers_adid = (
         | (F.col('UniqueAds') < len(teaser_locs))
         )
     .where(F.col('AdSet') != F.array(F.lit('AdSuppressed')))
+    .where(F.col('AdSet') != F.array(F.lit('NoAdFound')))
 )
 
 df_invalid_teaser_accounts = (

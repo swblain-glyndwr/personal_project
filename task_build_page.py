@@ -24,7 +24,7 @@ log = logging.getLogger("mylog")
 
 parser = JobParser()
 pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-LOCATION = pargs["location"] if pargs["location"] else "OC1"
+LOCATION = pargs["location"] if pargs["location"] else "SB2"
 log.info(f"Running in job environment: {job_env}")
 
 DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
@@ -137,7 +137,7 @@ else:
 
     df_assigned_best.cache()
 
-    log.info("Assigning Best Ads (Challenger)")
+    log.info("Assigning Ads with Best Targeting (Challenger)")
     best_kwargs |= {
         'recommender_scores_table': REC_SCORES_TABLE
         }
@@ -197,6 +197,7 @@ else:
                 "UniqueAdIDMeasurement",
                 chain_when_thens(CELL_MAP["map"])
                 )
+            .fillna('NoAdFound', subset=['UniqueAdIDMeasurement'])
             .withColumn(
                 "UniqueAdIDAssigned",
                 F.when(
@@ -243,7 +244,8 @@ else:
 
     ctrl_masid_cols = ["UniqueAdID", "MASID"]
     ctrl_masid_vals = [("NoAd", f"{LOCATION}_Z"),
-                       ('AdSuppressed', f'{LOCATION}_Z')]
+                       ('AdSuppressed', f'{LOCATION}_Z'),
+                       ('NoAdFound', f'{LOCATION}_Z')]
 
     df_control_masid = (
         get_spark().createDataFrame(
@@ -264,6 +266,22 @@ else:
         .drop("UniqueAdID")
     )
     df_ad_assigned_masid.cache()
+
+    # Check and warn if null Treatments exist
+    n_null_treatment = (
+        df_ad_assigned_masid.where(F.col("Treatment").isNull()).count()
+        )
+    if n_null_treatment > 0:
+        null_treatment_msg = (
+            f"{n_null_treatment:,} accounts removed during " +
+            f"assignment of {LOCATION} due to null Treatment")
+        log.warning(null_treatment_msg)
+        if job_env == "prod":
+            post_to_webhook(WEBHOOK_URL, null_treatment_msg)
+        df_ad_assigned_masid = (
+            df_ad_assigned_masid
+            .where(F.col("Treatment").isNotNull())
+        )
 
     # Check and warn if null MASID assignments exist
     n_null_masid = df_ad_assigned_masid.where(F.col("MASID").isNull()).count()
