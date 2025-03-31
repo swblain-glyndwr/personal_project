@@ -328,7 +328,7 @@ df_invalid_teasers_adid = (
     .withColumn(
         'TeaserAssigned',
         F.when(
-            F.col(~'UniqueAdIDMeasurement').isin('AdSuppressed', 'NoAdFound'),
+            F.col('UniqueAdIDMeasurement').isin('AdSuppressed', 'NoAdFound'),
             F.lit(0)
             ).otherwise(F.lit(1))
         )
