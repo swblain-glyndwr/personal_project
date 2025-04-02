@@ -1132,6 +1132,8 @@ if agg_tags:
             .where(F.col('AggColumn') == 'Tagged')
             .where(F.col('AggValue') == agg_tag)
             .agg(F.sum('ApportionedRevenue')).collect()[0][0])
+        if total_apr_agg_tag is None:
+            continue
         msg = f'Total of ApportionedRevenue (tag: {agg_tag}) > Total Revenue'
         assert total_r*1.001 >= total_apr_agg_tag, msg
 
