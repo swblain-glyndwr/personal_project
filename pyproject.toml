@@ -2,17 +2,19 @@
 name = "next_ads"
 version = "0.0.1"
 description = "Personalised allocation of Ads on the Next website and app."
-authors = ["Tom Corke <tom_corke@next.co.uk>"]
+authors = [
+    {name = "Tom Corke",email = "tom_corke@next.co.uk"}
+]
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-databricks-connect = "15.4.2"
-gspread = "6.1.2"
-ipykernel = "6.29.5"
-pytest = "^8.3.3"
+requires-python = ">=3.10"
+dependencies = [
+    "ipykernel (==6.29.5)",
+    "databricks-connect (==15.4.2)",
+    "gspread (==6.1.2)",
+    "pytest (>=8.3.3)",
+]
 
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

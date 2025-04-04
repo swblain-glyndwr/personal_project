@@ -1,58 +1,89 @@
-# Introduction 
-> *Correct as of v1.0.0*  
+# Introduction and Scope
+> *Up to date as of v1.5.1*  
 
-NEXT Ads is an initiative to serve personalised adverts to customers browsing the NEXT website.  The primary purpose of the **next-ads** algorithm is to assign each customer the 'best' ad for them, as well as building the control cells and results tables to measure performance of this ad assignment.  
+`next-ads` is a process that assigns relevant adverts to customers browsing the NEXT website. The code enclosed within this repo - sometimes referred to as the "Next Ads engine" - uses pre-calculated model scores to determine which ad is 'best' for each customer, as well as building the control cells and results tables to measure performance of these personalised ads.
 
-## Overview
+The model scores input into this 'engine' can take multiple forms (e.g. propensity scores, item recommendations), but the modelling itself falls outwith the scope of this repo.  
 
-### Pre-requisites
-- Next Ads Control Sheet [GSheet](https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=1718512789#gid=1718512789)
-- Latest model scores for all relevant customers and models. These are currently captured within the view: [marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199)
+# Overview
 
-### Process Overview
-**1. Load the control sheet**  
-Read the NEXT Ads control sheet, which contains all eligible ads (and ad metadata). This sheet is managed in collaboration with the OSA (On-Site Advertising) team.  
-**2. Assign each customer to cells**  
-Customers are assigned two types of cells:
-- *Fixed Cells*: Membership of these cells does not change (e.g. `FallowControl` group - once a customer has been assigned to this group, they will stay in this group until overall cells are refreshed)  
-- *Transient Cells*: These are cells that a customer can change membership of, without refreshing the cells overall (e.g. `AlgoDivision`), or cells that might be temporary (e.g. a bespoke, predetermined audience to be used for a short period).
-*N.B. Transient and Fixed Cells are subsequently combined into an overall Customer Cells table*
-**3. Assign each customer a Targeting Score for each live Ad**  
-Calculate a score for each customer for each live `TargetingCriteria` (based on the models assigned to each ad).  
-**4. Assign Ads to each customer for each Location in accordance with their model scores and cell membership**  
-Assign an ad to each customer for each `Location`. This may be an ad targeted by *Best* or *Basic* methodologies no Ad (if they are in a control cell). The `UniqueAdID` assigned to each customer for each `Location` is then mapped to the corresponding MASID entry for that ad (e.g. "HN1_AABB")  
-**5. Build results tables** - *REWRITE IN PROGRESS*  
-Generate tables contianing required metrics for the NEXT Ads dashboard.
+## Process Inputs
+- Next Ads Control Sheet (Google Sheet - specifically the _Control Sheet_ tab)
+    - [Google Sheet](https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=1718512789#gid=1718512789)
+    - This is managed by the On-Site Advertising (OSA) team within the business' Trade team. 
+- Latest model scores for all relevant customers and models.
+    - [marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199)
+- Latest recommender scores for all live ads.
+    -  [marketingdata_prod.warehouse.next_uk_nextads_recommender_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_recommender_scores_latest?o=6188831950334199)
 
-### Pseudo-DevOps
-**dev** - Running any `task_...` scripts interactively, or via a workflow starting with the substring "dev_" will run the task in "development". This means that any tables written to by the task will be in the dev schema, specified in `resources.json`.  
-**prod** - Running any `task_...` scripts using a workflow that does not begin with the substring "dev_" will run the task in "prod". This means that any tables written to by the task will be in the prod schema, specified in `resources.json`.
+## Process Stages
+### Engine
+1. Load and validate Ads from control sheet in Google Sheets
+2. Assign new customers to fixed cells, and update all customers' transient cells
+3. Utilise model scores to automatically assign one Ad per customer per Location, in accordance with the targeting specified in the configuration file
+4. Store the latest ad assignments
+### Results
+1. Combine ad assignments with browsing data to infer impressions and clicks
+2. Calculate KPIs
+3. Store the results and transmit to Big Query for ingestion by the Next Ads dashboard
 
-### Configuration
-There are two main config files:
-- `resources.json` - this stores references to and tables, files or other data assets that the process requires.
-- `parameters.json` - this stores constants used by the process (e.g. size of the Fallow Control group, or how each page is being targeted)
+## Process Outputs
+### Ad Assignments
+- The run of Ad assignmetns are appended to the "assignments" table and overwrite the "assignments_latest" table (see config for table paths).  
+- The run of Ad results are output to the "results_*" tables (overwriting dates that already exist), which are then passed to the corresponding "Big Query""tables" (see config for table paths).
+
+ </br>
+
+# Configuration
+Config files are stored as json with the following naming convention: `config/{domain}.json`, where domain is of the form `{client}_{country}` (e.g. `next_uk.json`). These files contain all parameters and references to resources that are required by the process for that domain.
+
+## DevOps
+This projects employs the `job_env:schema` convention for tables that the process can write to. As such 
+
+`job_env` is a result of parsing the name of the Databricks workflow from which the code is being run.
+- When the code is being run via a Databricks workflow that starts with "dev_*", or the code is being run interactively, the `job_env` is _dev_
+- When the code is being run via a Databricks workflow that does not start with "dev_*", the `job_env` is _prod_
+
+The config file contains the `job_env:schema` mapping. This maps the process' "write" tables - also specified in the config - to identical tables in different schemas depending on whether the process is running in the _dev_ or _prod_ `job_env`.
+
+The process' "read" tables are always "prod" data, regardless of `job_env`, which enables the process to be run interactively, or end-to-end via the _dev_ workflow in a way that is maximally identical to the _prod_ workflow, enabling more thorough development and testing before changes are "productionised".
+
 
 ### Workflows
-- **dev**: [dev_mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/395299271123005?o=6188831950334199)
-- **prod**: [mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/851069914792732?o=6188831950334199)
+- **dev**:
+    - [dev_mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/518755454712672?o=6188831950334199)
+- **prod**:
+    - [mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/851069914792732?o=6188831950334199)
+    - [mktg_next_uk_nextads_results](https://adb-6188831950334199.19.azuredatabricks.net/jobs/876285369413830?o=6188831950334199)*
 
-### Terms
-- `UniqueAdID` - This is unique for every Ad. A `UniqueAdID` should have one `MASIDToken`
-- `Location` - MASID slot prefix (e.g. "HN1")
-- `Models`: The models to use for targeting (convention, comma separated list: *"model_ref_1, model_ref_2,... model_ref_n"*)
-- `ModelCombination`: An operator that describes how the models should be combined (N.B. only *"and"* operator currently supported)
-- `TargetingCriteria` is the combination of `Models` and `ModelCombination` (convention: `ModelCombination`|`Models`, e.g. *"and|ww_dresses, ww_floral"*. This instructs the algorithm *how* to target a given Ad using the available propensity models. The example given above would result in the Ad being targeted at those with relatively high scores for women's dresses, *and* women's floral items.
-- `TargetingScore` score resulting from targeting criteria
-- `AlgoDivision` are high-level product categories (e.g. "Womens") and may be used by the algorithm to control ad assignment. (N.B. `AlgoDivision` is similar to, but not the same as `TradeDivision`, which is a greater number of high-level categories used by the trading teams).
+_*There is no dev results workflow as the results do not pose the same operational risks as the main 'engine'. Furthermore, results can be back-calculated for any date range, so unexpected issues can be repaired._ 
 
-## Testing
+### Key Process Entities
+- `UniqueAdID` - This is a unique idendifier for every Ad.
+- `MASIDToken` - This is the suffix which tells the site's Content Management System (CMS) which Ad to display; there should only be one `MASIDToken` per `UniqueAdID` per `Location`.
+- `Location` (alias: 'Placement') - Prefix representing each MASID "slot" (e.g. "SB1") - combined with the `MASIDToken` to form a MASID "segment" (e.g. SB1_AABB if AABB was the corresponding token).
+- `AlgoDivision` - High-level product categories (e.g. _Womens_, _Mens_, _Home_...) that may be used by the algorithm to control ad assignment. (N.B. `AlgoDivision` is similar to, but not the same as `TradeDivision`, which is a more grandular view of Divisions used by the trading teams; `TradeDivision` only serves to label ads within the results processing and has no bearing on Ad assignments).
+- `Audience` - A pre-determined group of customers with a specific label. This label can be used to override or influence the default targeting of the engine.
+- `Treatment` - This is a label determining which type of targeting should be applied to a given customer (e.g. _Best_ or _Basic_ targeting).
+- __Fixed Customer Cells__ - Customer labelling that does not change over time (e.g. which `Treatment` or `Control` group a customer is in).
+- __Transient Customer Cells__ - Customer labelling that may change over time. Labels that do not change but are ephemeral, e.g. to facilitate and ad hoc test are treated as Transient Customer Cells.
 
-### Unit Tests - *WIP*
-*Test modules for internally consistency*
+</br>  
 
-### Integration Tests - *WIP*
+# Testing
+
+## Unit Tests - *WIP*
 *Pipeline run on PR from dev to staging:*
-1. *Assert that all read-only tables exist in production*
-2. *Assert that all read-write tables exist in production*
-3. *Assert that the schema of all read-write tables in production match their equivalents in dev*
+1. *Test modules for internal consistency*
+
+## Integration Tests - *WIP*
+*Pipeline run on PR from dev to staging:*
+1. *Assert that all "read" tables exist in dev and prod schemas*
+2. *Assert that all "write" tables exist in dev and prod schemas*
+3. *Assert that the schema of all "read" tables is correct*
+4. *Assert that the schema of all "write" tables is correct*
+
+</br>  
+
+# Development
+Poetry has been used for environment and dependency management of this project. Guidance on how to install Poetry and install project dependencies into a local environment can be found on the [Poetry website](https://python-poetry.org/)
