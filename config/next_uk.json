@@ -229,20 +229,6 @@
             },
             "map": [
                 {
-                    "when": [
-                        {"col": "Audience", "op": "eq", "val": "No Ads"},
-                        {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
-                    ],
-                    "then": {"col": "AdSuppressed"}
-                },
-                {
-                    "when": [
-                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
-                        {"col": "AlgoDivision", "op": "eq", "val": "Womens"}
-                    ],
-                    "then": {"col": "AdSuppressed"}
-                },
-                {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
@@ -255,53 +241,6 @@
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                }
-            ]
-        },
-        "SB2": {
-            "pf_col": "SB_slot_2",
-            "page": "/shoppingbag",
-            "screen": "Cart",
-            "page_group": "ShoppingBag",
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            },
-            "inherit_ads_from": "SB1",
-            "map": [
-                {
-                    "when": [{"col": "AlgoDivision", "op": "ne", "val": "Womens"}],
-                    "then": {"col": "AdSuppressed"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "No Ads"}],
-                    "then": {"col": "AdSuppressed"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "BAU Ads"}],
-                    "then": {"col": "AdSuppressed"}
-                },
-                {
-                    "when": [
-                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
-                    "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [
-                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
-                    ],
-                    "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "Audience", "op": "eq", "val": "Skinny Ads"},
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
                         {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
                     ],
