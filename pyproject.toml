@@ -1,4 +1,4 @@
-[tool.poetry]
+[project]
 name = "next_ads"
 version = "0.0.1"
 description = "Personalised allocation of Ads on the Next website and app."

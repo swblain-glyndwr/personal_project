@@ -443,6 +443,32 @@ def copy_table_from_to(
     return None
 
 
+def insert_table_from_to(
+        table_from: str,
+        table_to: str,
+        history_days: int = 1,
+        truncate_table_to: bool = False) -> None:
+
+    if truncate_table_to:
+        get_spark().sql(f"""truncate table {table_to}""")
+    else:
+        get_spark().sql(f"""
+                        delete from {table_to}
+                        where rundate >= current_date() - {history_days}
+                        """)
+
+    get_spark().sql(f"""
+                    insert into {table_to}
+                    select *
+                    from {table_from}
+                    where rundate >= current_date() - {history_days}
+                    """)
+
+    table_housekeeping(table_to)
+
+    return None
+
+
 def count_null_by_column(df: DataFrame) -> DataFrame:
     """
     Counts nulls in Spark dataframe by column.

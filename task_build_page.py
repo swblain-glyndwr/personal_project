@@ -4,9 +4,7 @@ import json
 from next_ads.Assignment import (
     assign_best_ads_with_constraints,
     assign_random_ads,
-    assign_best_ads,
-    assign_best_ads_rec,
-    assign_best_ads_with_constraints_rec
+    assign_best_ads
     )
 from next_ads.utils.dbc import get_spark
 from next_ads.utils.etl import (JobParser,
@@ -43,7 +41,8 @@ ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
-REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_latest"]
+tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
+AD_RESULTS_TABLE = map_tbl(tbls['results_ads'], **tbl_args_results)
 
 FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 
@@ -139,23 +138,20 @@ else:
 
     log.info("Assigning Ads with Best Targeting (Challenger)")
     best_kwargs |= {
-        'recommender_scores_table': REC_SCORES_TABLE
+        'apply_ad_feedback': True,
+        'ad_results_table': AD_RESULTS_TABLE,
+        'control_sheet_latest_table': CONTROL_SHEET_LATEST
         }
 
-    del best_kwargs['targeting_scores_table']
-
-    if "best_kwargs" in LOCATIONS[LOCATION]:
-        best_kwargs = best_kwargs | LOCATIONS[LOCATION]["best_kwargs"]
-
     if "constraints" in LOCATIONS[LOCATION]:
-        df_assigned_best_challenger = assign_best_ads_with_constraints_rec(
+        df_assigned_best_challenger = assign_best_ads_with_constraints(
             df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             constraints=LOCATIONS[LOCATION]["constraints"],
             best_kwargs=best_kwargs
         )
     else:
-        df_assigned_best_challenger = assign_best_ads_rec(
+        df_assigned_best_challenger = assign_best_ads(
             df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             **best_kwargs

@@ -3,7 +3,7 @@ import logging.config
 import json
 from next_ads.utils.etl import (JobParser,
                                 map_tbl,
-                                copy_table_from_to)
+                                insert_table_from_to)
 
 
 logging.config.fileConfig("logging.conf")
@@ -32,13 +32,11 @@ for (k, v) in TABLE_DICT.items():
     log.info(f"From {tbl_prod}")
     log.info(f"To {tbl_dev}")
 
-    copy_table_from_to(
+    insert_table_from_to(
         table_from=tbl_prod,
         table_to=tbl_dev,
-        history_days=7,
-        copy_partitioning=True,
-        copy_primary_key=True,
-        overwrite_table_to=True
+        history_days=1,
+        truncate_table_to=True
     )
 
 log.info("Run Complete")

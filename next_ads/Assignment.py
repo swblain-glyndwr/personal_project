@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 from next_ads.utils.dbc import get_spark
@@ -67,7 +68,10 @@ def assign_best_ads(
         df_cust: DataFrame = None,
         score_scale_fn: Callable = None,
         score_scale_partition: list[str] = ["TargetingCriteria"],
-        return_ranks: list = [1]
+        return_ranks: list = [1],
+        apply_ad_feedback: bool = False,
+        ad_results_table: str = '',
+        control_sheet_latest_table: str = ''
         ) -> DataFrame:
     """
     Assigns "best" Ad to each customer based on scores provided.
@@ -100,6 +104,22 @@ def assign_best_ads(
         .withColumn("TargetingScoreScaled",
                     score_scale_fn(F.col("TargetingScore"),
                                    partition_by=score_scale_partition))
+        )
+
+    if apply_ad_feedback:
+        msg = ' not supplied for ad feedback loop'
+        assert ad_results_table, 'Ad Results table' + msg
+        assert control_sheet_latest_table, 'Control Sheet Latest table' + msg
+        df_ad_feedback = get_ad_feedback_scores(
+            ad_results_table=ad_results_table,
+            control_sheet_latest_table=control_sheet_latest_table
+        )
+        df_adscores = (
+            df_adscores
+            .join(df_ad_feedback, on='UniqueAdID', how='left')
+            .fillna(1, subset=['AdFeedbackScore'])
+            .withColumn('TargetingScoreScaled',
+                        F.col('TargetingScoreScaled')*F.col('AdFeedbackScore'))
         )
 
     assert_pk(df_adscores,
@@ -330,6 +350,90 @@ def assign_best_ads_with_constraints_rec(
 
     else:
         raise Exception("Constraint not understood")
+
+
+def get_ad_feedback_scores(
+        ad_results_table: str,
+        control_sheet_latest_table: str,
+        sessions_threshold: int = 10000,
+        ad_feedback_weight: float = 0.5,
+        lookback_period_days: int = 7,
+        lookback_offset_days: int = 2,
+        ad_id_col: str = 'UniqueAdID',
+        sessions_col: str = 'Sessions',
+        apportioned_revenue_col: str = 'ApportionedRevenue',
+        ctrl_sessions_col: str = 'C_Sessions',
+        ctrl_apportioned_revenue_col: str = 'C_ApportionedRevenue',
+        session_overlap_ratio_col: str = 'SessionOverlapRatio',
+        ) -> DataFrame:
+
+    start_delta_days = (lookback_period_days - 1) + lookback_offset_days
+    date_start = date.today() - timedelta(days=start_delta_days)
+    date_end = date.today() - timedelta(days=lookback_offset_days)
+
+    active_ads = (
+        get_spark()
+        .table(control_sheet_latest_table)
+        .select(ad_id_col)
+        .distinct()
+    )
+
+    df_ad_results_raw = (
+        get_spark()
+        .table(ad_results_table)
+        .join(active_ads, how='inner', on=ad_id_col)
+        .where(F.col('SessionDate') >= date_start)
+        .where(F.col('SessionDate') <= date_end)
+    )
+
+    df_ad_results = (
+        df_ad_results_raw
+        .groupBy(ad_id_col)
+        .agg(
+            F.sum(sessions_col).alias(sessions_col),
+            F.sum(apportioned_revenue_col).alias(apportioned_revenue_col),
+            F.sum(ctrl_sessions_col).alias(ctrl_sessions_col),
+            F.sum(ctrl_apportioned_revenue_col).alias(
+                ctrl_apportioned_revenue_col),
+            F.mean(session_overlap_ratio_col).alias(session_overlap_ratio_col)
+            )
+        .where(F.col(ctrl_sessions_col) >= sessions_threshold)
+        .withColumn('ARPS',
+                    (F.col(apportioned_revenue_col)
+                     / F.col(sessions_col)))
+        .withColumn('C_ARPS',
+                    (F.col(ctrl_apportioned_revenue_col)
+                     / F.col(ctrl_sessions_col)))
+        .withColumn('IncARPS', F.col('ARPS')-F.col('C_ARPS'))
+        .withColumn('IncARPSAdj',
+                    F.col('IncARPS')/F.col(session_overlap_ratio_col))
+        .withColumn('IncARPSAdjPct', F.col('IncARPSAdj')/F.col('C_ARPS'))
+    )
+
+    minIncPct = df_ad_results.agg(F.min('IncARPSAdjPct')).collect()[0][0]
+    maxIncPct = df_ad_results.agg(F.max('IncARPSAdjPct')).collect()[0][0]
+
+    if abs(minIncPct) > abs(maxIncPct):
+        scaleFactorIncPct = abs(minIncPct)
+    else:
+        scaleFactorIncPct = abs(maxIncPct)
+
+    df_ad_results_scaled = (
+        df_ad_results
+        .withColumn('IncARPSAdjPctScaled',
+                    F.col('IncARPSAdjPct')/F.lit(scaleFactorIncPct))
+    )
+
+    df_ad_results_scaled_stand = (
+        df_ad_results_scaled
+        .withColumn(
+            'AdFeedbackScore',
+            (F.col('IncARPSAdjPctScaled')*F.lit(ad_feedback_weight))+F.lit(1))
+    )
+
+    assert_pk(df_ad_results_scaled_stand, pk_cols=[ad_id_col])
+
+    return df_ad_results_scaled_stand.select(ad_id_col, 'AdFeedbackScore')
 
 
 def assign_predetermined_audience(
