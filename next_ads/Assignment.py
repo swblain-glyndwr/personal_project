@@ -114,13 +114,15 @@ def assign_best_ads(
             ad_results_table=ad_results_table,
             control_sheet_latest_table=control_sheet_latest_table
         )
-        df_adscores = (
-            df_adscores
-            .join(df_ad_feedback, on='UniqueAdID', how='left')
-            .fillna(1, subset=['AdFeedbackScore'])
-            .withColumn('TargetingScoreScaled',
-                        F.col('TargetingScoreScaled')*F.col('AdFeedbackScore'))
-        )
+        if df_ad_feedback:
+            df_adscores = (
+                df_adscores
+                .join(df_ad_feedback, on='UniqueAdID', how='left')
+                .fillna(1, subset=['AdFeedbackScore'])
+                .withColumn(
+                    'TargetingScoreScaled',
+                    F.col('TargetingScoreScaled')*F.col('AdFeedbackScore'))
+            )
 
     assert_pk(df_adscores,
               ["AccountNumber", "UniqueAdID", "TargetingCriteria"])
@@ -365,8 +367,12 @@ def get_ad_feedback_scores(
         ctrl_sessions_col: str = 'C_Sessions',
         ctrl_apportioned_revenue_col: str = 'C_ApportionedRevenue',
         session_overlap_ratio_col: str = 'SessionOverlapRatio',
-        ) -> DataFrame:
-
+        ) -> DataFrame | None:
+    """
+    Generates scaled ad performance scores designed for boosting/penalising
+    targeting score of ads during assignment. If no suitable ad scores can be
+    found, the function will return None.
+    """
     start_delta_days = (lookback_period_days - 1) + lookback_offset_days
     date_start = date.today() - timedelta(days=start_delta_days)
     date_end = date.today() - timedelta(days=lookback_offset_days)
@@ -409,6 +415,9 @@ def get_ad_feedback_scores(
                     F.col('IncARPS')/F.col(session_overlap_ratio_col))
         .withColumn('IncARPSAdjPct', F.col('IncARPSAdj')/F.col('C_ARPS'))
     )
+
+    if df_ad_results.count() == 0:
+        return None
 
     minIncPct = df_ad_results.agg(F.min('IncARPSAdjPct')).collect()[0][0]
     maxIncPct = df_ad_results.agg(F.max('IncARPSAdjPct')).collect()[0][0]
