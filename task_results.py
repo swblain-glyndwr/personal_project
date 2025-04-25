@@ -693,10 +693,18 @@ df_sessions_ads_valid = (
     .join(
         (
             df_valid_assignments
-            .select('AccountNumber', 'SessionDate')
+            .withColumn('PagePath', F.col('Location'))
+            .replace(loc2page, subset=['PagePath'])
+            .select('AccountNumber', 'SessionDate', 'PagePath')
+            .unionByName(
+                df_valid_assignments
+                .withColumn('PagePath', F.col('Location'))
+                .replace(loc2screen, subset=['PagePath'])
+                .select('AccountNumber', 'SessionDate', 'PagePath')
+                )
             .distinct()
         ),
-        on=['AccountNumber', 'SessionDate'], how='inner'
+        on=['AccountNumber', 'SessionDate', 'PagePath'], how='inner'
          )
 )
 df_sessions_ads_valid.cache()

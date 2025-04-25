@@ -248,6 +248,25 @@
                 }
             ]
         },
+        "SB2": {
+            "pf_col": "SB_slot_2",
+            "page": "/shoppingbag",
+            "screen": "Cart",
+            "page_group": "ShoppingBag",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
         "OC1": {
             "pf_col": "OC_slot_1",
             "page": "/secure/checkout/complete",

@@ -11,3 +11,4 @@ scratch/**
 *scratch.py
 scratch*
 .pytest_cache
+*.whl
