@@ -83,12 +83,22 @@ underperf_ads = [x[0] for x in underperf_ads_col]
 if len(underperf_ads) > 0:
     msg = (
         'Underperforming Ads\n' +
-        f'(Since {CHECK_SESSIONS_FROM}, ' +
+        f'(look-back to {CHECK_SESSIONS_FROM}; ' +
         f'min {MIN_C_SESSIONS:,} control sessions)\n\n' +
         '\n'.join(underperf_ads) +
         '\n\nCheck full results in dashboard'
     )
     log.warning(msg)
 
-if job_env == 'prod':
-    post_to_webhook(WEBHOOK_URL, msg)
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg)
+else:
+    msg = (
+            'No underperforming ads found\n' +
+            f'(look-back to {CHECK_SESSIONS_FROM}; ' +
+            f'min {MIN_C_SESSIONS:,} control sessions)'
+        )
+    log.warning(msg)
+
+    if job_env == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg)
