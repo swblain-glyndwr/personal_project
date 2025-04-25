@@ -88,8 +88,8 @@ elif dates_provided:
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 3, 4)
-    SESSION_DATE_END = date(2025, 3, 4)
+    SESSION_DATE_START = date(2025, 4, 3)
+    SESSION_DATE_END = date(2025, 4, 3)
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
@@ -930,6 +930,34 @@ df_sessions_master_meta = (
     )
 )
 
+# Remove Shopping bag (desktop/ mobile) for affected dates
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'ShoppingBag')
+            & (F.col('Device').isin(['Desktop', 'Mobile']) &
+               F.col("PageGroup").isNotNull())
+            & (F.col('SessionDate') >= date(2025, 4, 2))
+            & (F.col('SessionDate') <= date(2025, 4, 22))
+        )
+    )
+)
+
+
+# Remove Order Complete (desktop, mobile, app) for affected dates
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'OrderComplete')
+            & (F.col('Device').isin(['Desktop', 'Mobile', 'App']) &
+               F.col("PageGroup").isNotNull())
+            & (F.col('SessionDate') >= date(2025, 4, 2))
+            & (F.col('SessionDate') <= date(2025, 4, 22))
+        )
+    )
+)
 
 # Remove SB2 assignments from results prior to 2025-03-07 as
 # content wasn't live in CMS
