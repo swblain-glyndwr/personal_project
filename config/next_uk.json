@@ -195,7 +195,7 @@
     "transient_cells": {
         "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
         "Audiences": [
-            ["skinnybanner_credit", {"account_col": "AccountNumber", "label_col": "Label"}]
+            ["eidfathersday", {"account_col": "Account_Number", "label_col": "Selection_Group"}]
         ]
     },
 
@@ -228,6 +228,21 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Set 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C788_Next_Womens_Multipacks_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Set 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "AdSuppressed"}
+                },
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -276,6 +291,21 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Set 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C788_Next_Womens_Multipacks_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Set 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "AdSuppressed"}
+                },
                 {
                     "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -799,7 +829,7 @@
 
     "control_sheet": {
         "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
-        "sheet": "Control Sheet",
+        "sheet": "Control Sheet UK",
         "date_format": "dd/MM/yyyy",
         "date_regex": "([1-2][0-9]|[0][1-9]|[3][0-1])\/([0][1-9]|[1][0-2])\/([1-9][0-9][0-9]{2})",
         "read_schema": [
@@ -864,7 +894,7 @@
             "bq_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-            "skinnybanner_credit": "marketingdata_prod.ds_sandbox.next_uk_nextads_skinnybanner_credit_audience_view",
+            "eidfathersday": "marketingdata_prod.ds_sandbox.next_uk_nextads_eidfathersday_audience_20250430",
             "recommender_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_recommender_scores_latest"
         },
         "write": {
