@@ -239,6 +239,46 @@
                     "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
                 },
                 {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Boys"}
+                },
+                {
                     "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
                              {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
                     "then": {"lit": "AdSuppressed"}
@@ -300,6 +340,46 @@
                     "when": [{"col": "Audience", "op": "eq", "val": "Set 2"},
                              {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
                     "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
+                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Boys"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
