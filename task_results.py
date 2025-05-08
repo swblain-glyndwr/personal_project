@@ -938,6 +938,18 @@ df_sessions_master_meta = (
     )
 )
 
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'HomePage')
+            & (F.col('Device') == 'Desktop')
+            & (F.col('SessionDate') >= date(2025, 5, 1))
+            & (F.col('SessionDate') <= date(2025, 5, 5))
+        )
+    )
+)
+
 # Remove Shopping bag (desktop/ mobile) for affected dates
 df_sessions_master_meta = (
     df_sessions_master_meta
