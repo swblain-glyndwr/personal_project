@@ -1,9 +1,14 @@
 from datetime import date, timedelta
 from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import assert_pk
 from collections.abc import Callable
+from dsutils.dbc import get_spark
+from dsutils.logtools import get_logger
+from dsutils.etl import assert_pk
+from dsutils.columnscalers import subtract_mean
+
+
+logger = get_logger(__name__)
 
 
 def assign_random_ads(
@@ -20,6 +25,9 @@ def assign_random_ads(
         Dataframe - Ads assigned randomly (uniform) to customers within-group
     """
     # TODO: Generalise function to assign_random_entity?
+
+    # TODO: Make grp_col an optional argument
+    logger.debug(f'Assigning ads randomly within group: {grp_col}')
 
     w = Window.partitionBy(grp_col).orderBy("UniqueAdID")
     df_ads = df_ads.withColumn("RandomKey", F.row_number().over(w))
@@ -71,11 +79,11 @@ def assign_best_ads(
         return_ranks: list = [1],
         apply_ad_feedback: bool = False,
         ad_results_table: str = '',
-        control_sheet_latest_table: str = ''
+        control_sheet_latest_table: str = '',
+        ad_feedback_weight: float = 0.5
         ) -> DataFrame:
     """
     Assigns "best" Ad to each customer based on scores provided.
-    Dev - Tie Breaker needed for one-to-many TargetingCriteria:Ad
 
     Arguments:
         df_ads - Dataframe with columns (UniqueAdID, TargetingCriteria)
@@ -85,7 +93,8 @@ def assign_best_ads(
         score_scale_partition - Partition for scaling
         return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
     """
-
+    logger.debug(f'Assigning {return_ranks} ranked ad(s) ' +
+                 f'using scores from {targeting_scores_table}')
     df_adscores = (
         df_ads
         .select("UniqueAdID", "TargetingCriteria")
@@ -95,24 +104,61 @@ def assign_best_ads(
     )
 
     if df_cust:
+        logger.debug('Filtering customers for assignment')
         df_adscores = df_adscores.join(df_cust,
                                        on="AccountNumber",
                                        how="inner")
 
-    df_adscores = (
-        df_adscores
-        .withColumn("TargetingScoreScaled",
-                    score_scale_fn(F.col("TargetingScore"),
-                                   partition_by=score_scale_partition))
-        )
+    if score_scale_fn:
+        logger.debug(
+            f'Applying score scaling function {score_scale_fn.__name__}' +
+            f' over {score_scale_partition}')
+        df_adscores = (
+            df_adscores
+            .withColumn("TargetingScoreScaled",
+                        score_scale_fn(F.col("TargetingScore"),
+                                       partition_by=score_scale_partition))
+            )
+    else:
+        logger.debug(
+            'No scaling function provided, TargetingScoreScaled not scaled')
+        df_adscores = (
+            df_adscores
+            .withColumn("TargetingScoreScaled", F.col("TargetingScore"))
+            )
 
     if apply_ad_feedback:
+        logger.debug('Applying ad feedback loop ' +
+                     f'using results from {ad_results_table}')
         msg = ' not supplied for ad feedback loop'
         assert ad_results_table, 'Ad Results table' + msg
         assert control_sheet_latest_table, 'Control Sheet Latest table' + msg
+
+        # The following step ensures scores are postive before applying the ad
+        # feedback loop. This relies on the assumption that the minimum scaled
+        # targeting score is >= -1.
+        # An initial implementation of dynamically finding the minimum score
+        # and adjusting this to zero was found to be too computationally
+        # expensive (it resulted in lots of repetitive sorting of large
+        # dataframes).
+        # Not doing this dynamically creates an additional requirement that the
+        # targeting/recommender scores provided to the engine are in the range
+        # [0,1]. This allows for the established approach of rebasing the
+        # scores to the average score within-group.
+        # TODO: Find computationally efficient way to dynamically rebase
+        # minimum overall score in df_adscores to zero.
+
+        df_adscores = (
+            df_adscores
+            .withColumn(
+                'TargetingScoreScaled',
+                F.col('TargetingScoreScaled') + F.lit(1))
+        )
+
         df_ad_feedback = get_ad_feedback_scores(
             ad_results_table=ad_results_table,
-            control_sheet_latest_table=control_sheet_latest_table
+            control_sheet_latest_table=control_sheet_latest_table,
+            ad_feedback_weight=ad_feedback_weight
         )
         if df_ad_feedback:
             df_adscores = (
@@ -166,14 +212,16 @@ def assign_best_ads_with_constraints(
         best_kwargs: dict = {}) -> DataFrame:
 
     if "targeting_within_division" in constraints:
-
         div_type = constraints["targeting_within_division"]
+        logger.debug(
+            f'Applying targeting_within_division constraint by {div_type}')
         divs = [row[0] for row in (df_cust
                                    .select(div_type)
                                    .distinct()).collect()]
         df_ads_best_div_list = []
 
         for div in divs:
+            logger.debug(f'Assigning where {div_type}: {div}')
             df_ads_d = (
                 df_ads
                 .where(F.col(div_type) == div)
@@ -201,11 +249,13 @@ def assign_best_ads_with_constraints(
         return df_assigned_best
 
     elif "filter_ads" in constraints:
-
+        logger.debug('Applying filter_ads constraint')
         for k in constraints["filter_ads"].keys():
+            logger.debug(
+                f'Filtering where {k} == {constraints["filter_ads"][k]}')
             df_ads = (
                 df_ads
-                .where(F.col(k) == constraints["filter"][k])
+                .where(F.col(k) == constraints["filter_ads"][k])
             )
 
         df_assigned_best = assign_best_ads(
@@ -226,7 +276,11 @@ def assign_best_ads_rec(
         df_cust: DataFrame = None,
         score_scale_fn: Callable = None,
         score_scale_partition: list[str] = ["UniqueAdID"],
-        return_ranks: list = [1]
+        return_ranks: list = [1],
+        apply_ad_feedback: bool = False,
+        ad_results_table: str = '',
+        control_sheet_latest_table: str = '',
+        ad_feedback_weight: float = 0.5
         ) -> DataFrame:
     """
     Assigns "best" Ad to each customer based on RECOMMENDER scores provided.
@@ -239,6 +293,8 @@ def assign_best_ads_rec(
         score_scale_partition - Partition for scaling
         return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
     """
+    logger.debug(f'Assigning {return_ranks} ranked ad(s) ' +
+                 f'using scores from {recommender_scores_table}')
 
     df_adscores = (
         df_ads
@@ -249,16 +305,71 @@ def assign_best_ads_rec(
     )
 
     if df_cust:
+        logger.debug('Filtering customers for assignment')
         df_adscores = df_adscores.join(df_cust,
                                        on="AccountNumber",
                                        how="inner")
 
-    df_adscores = (
-        df_adscores
-        .withColumn("RecommenderScoreScaled",
-                    score_scale_fn(F.col("RecommenderScore"),
-                                   partition_by=score_scale_partition))
+    if score_scale_fn:
+        logger.debug(
+            f'Applying score scaling function {score_scale_fn.__name__}' +
+            f'over {score_scale_partition}')
+        df_adscores = (
+            df_adscores
+            .withColumn("RecommenderScoreScaled",
+                        score_scale_fn(F.col("RecommenderScore"),
+                                       partition_by=score_scale_partition))
+            )
+    else:
+        logger.debug(
+            'No scaling function provided, RecommenderScoreScaled not scaled')
+        df_adscores = (
+            df_adscores
+            .withColumn("RecommenderScoreScaled", F.col("RecommenderScore"))
+            )
+
+    if apply_ad_feedback:
+        logger.debug('Applying ad feedback loop ' +
+                     f'using results from {ad_results_table}')
+        msg = ' not supplied for ad feedback loop'
+        assert ad_results_table, 'Ad Results table' + msg
+        assert control_sheet_latest_table, 'Control Sheet Latest table' + msg
+
+        # The following step ensures scores are postive before applying the ad
+        # feedback loop. This relies on the assumption that the minimum scaled
+        # targeting score is >= -1.
+        # An initial implementation of dynamically finding the minimum score
+        # and adjusting this to zero was found to be too computationally
+        # expensive (it resulted in lots of repetitive sorting of large
+        # dataframes).
+        # Not doing this dynamically creates an additional requirement that the
+        # targeting/recommender scores provided to the engine are in the range
+        # [0,1]. This allows for the established approach of rebasing the
+        # scores to the average score within-group.
+        # TODO: Find computationally efficient way to dynamically rebase
+        # minimum overall score in df_adscores to zero.
+
+        df_adscores = (
+            df_adscores
+            .withColumn(
+                'RecommenderScoreScaled',
+                F.col('RecommenderScoreScaled') + F.lit(1))
         )
+
+        df_ad_feedback = get_ad_feedback_scores(
+            ad_results_table=ad_results_table,
+            control_sheet_latest_table=control_sheet_latest_table,
+            ad_feedback_weight=ad_feedback_weight
+        )
+        if df_ad_feedback:
+            df_adscores = (
+                df_adscores
+                .join(df_ad_feedback, on='UniqueAdID', how='left')
+                .fillna(1, subset=['AdFeedbackScore'])
+                .withColumn(
+                    'RecommenderScoreScaled',
+                    F.col('RecommenderScoreScaled')*F.col('AdFeedbackScore'))
+            )
 
     assert_pk(df_adscores,
               ["AccountNumber", "UniqueAdID"])
@@ -275,9 +386,8 @@ def assign_best_ads_rec(
         .orderBy(F.col("TieBreaker").desc())
     )
     # TieBreaker column creates a random split when multiple ads
-    # are targeted using the same TargetingCriteria
-    # Only one ad of those with matching TargetingCriteria will
-    # be returned
+    # are have the same RecommenderScoreScaled
+    # Random ad from each tie will be returned
     df_return = (
         df_adscores
         .withColumn('TieBreaker', F.rand(seed=99))
@@ -301,14 +411,16 @@ def assign_best_ads_with_constraints_rec(
         best_kwargs: dict = {}) -> DataFrame:
 
     if "targeting_within_division" in constraints:
-
         div_type = constraints["targeting_within_division"]
+        logger.debug(
+            f'Applying targeting_within_division constraint by {div_type}')
         divs = [row[0] for row in (df_cust
                                    .select(div_type)
                                    .distinct()).collect()]
         df_ads_best_div_list = []
 
         for div in divs:
+            logger.debug(f'Assigning where {div_type}: {div}')
             df_ads_d = (
                 df_ads
                 .where(F.col(div_type) == div)
@@ -335,11 +447,13 @@ def assign_best_ads_with_constraints_rec(
         return df_assigned_best
 
     elif "filter_ads" in constraints:
-
+        logger.debug('Applying filter_ads constraint')
         for k in constraints["filter_ads"].keys():
+            logger.debug(
+                f'Filtering where {k} == {constraints["filter_ads"][k]}')
             df_ads = (
                 df_ads
-                .where(F.col(k) == constraints["filter"][k])
+                .where(F.col(k) == constraints["filter_ads"][k])
             )
 
         df_assigned_best = assign_best_ads_rec(
@@ -376,6 +490,9 @@ def get_ad_feedback_scores(
     start_delta_days = (lookback_period_days - 1) + lookback_offset_days
     date_start = date.today() - timedelta(days=start_delta_days)
     date_end = date.today() - timedelta(days=lookback_offset_days)
+    logger.debug(
+        f'Retrieving results from {date_start} to {date_end}' +
+        f' for ads that are currently in {control_sheet_latest_table}')
 
     active_ads = (
         get_spark()
@@ -419,6 +536,7 @@ def get_ad_feedback_scores(
     if df_ad_results.count() == 0:
         return None
 
+    logger.debug('Scaling ad incremental performance')
     minIncPct = df_ad_results.agg(F.min('IncARPSAdjPct')).collect()[0][0]
     maxIncPct = df_ad_results.agg(F.max('IncARPSAdjPct')).collect()[0][0]
 
@@ -433,6 +551,7 @@ def get_ad_feedback_scores(
                     F.col('IncARPSAdjPct')/F.lit(scaleFactorIncPct))
     )
 
+    logger.debug(f'Applying ad_feedback_weight of {ad_feedback_weight}')
     df_ad_results_scaled_stand = (
         df_ad_results_scaled
         .withColumn(
@@ -469,12 +588,13 @@ def assign_predetermined_audience(
         DataFrame with columns `AccountNumber`, `Audience`.
         No `AccountNumber` will have multiple `Audiences`.
     """
-
+    logger.debug('Assigning predetermined audiences')
     df_audience_list = []
 
     for (i, a) in enumerate(audiences):
         a_name = audiences[i][0]
         a_cols = audiences[i][1]
+        logger.debug(f'Assigning audience: {a_name} ({a_cols}) - priority {i}')
         df_a = (
             get_spark()
             .table(tables[a_name])
@@ -521,199 +641,59 @@ def melt_transient_cells(df: DataFrame) -> DataFrame:
     return df_melted
 
 
-def get_algo_divisions_legacy(model_scores_latest_table: str) -> DataFrame:
+def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
     """
-    Approach of assigning each customer their 'best' Division.
-    Code ported across from legacy code due to time constraints.
-    Small syntax changes made to bypass need for Spark SQL and
-    to_pandas_on_spark().\n
-    **WARNING: Table references and variables are hard-coded.**
+    Returns AlgoDivison for all customers from the provided model scores table.
+    The AlgoDivision returned is the Division for which the account has the
+    highest propensity, once propensity scores have been expressed relative to
+    the division's mean score. This yields a division per customer that is the
+    division that they have the highest propensity to shop, relative to the
+    average propensity to shop that division.
 
     Returns:
-        DataFrame with columns `UniqueAdID`, `AlgoDivision`
+        DataFrame with columns `AccountNumber`, `AlgoDivision`
     """
-    schema = 'marketingdata_prod.warehouse'
-    df_base = (
-        get_spark()
-        .table(schema + '.adm_v2_customers_base')
-        .where((F.col('country') == 'GB') & (F.col('shopped_104w') == 'Y'))
-    )
-    df_brands = get_spark().table(schema + '.adm_v2_transaction_brands')
-    df_divisions = get_spark().table(schema + '.adm_v2_transaction_divisions')
-    df_beauty = get_spark().table(schema + '.adm_v2_transaction_beauty')
-
-    cats = [
-        'beauty',
-        'mens',
-        'womens',
-        'boys',
-        'girls',
-        'home',
-        'newbornboys',
-        'newborngirls'
-    ]
-
-    total = df_base.agg(F.countDistinct('account_number')).collect()[0][0]
-
-    exprs = [(F.countDistinct(F.when(
-        (F.col(i+'_spend_1w') > 0) |
-        (F.col(i+'_spend_1_4w') > 0) |
-        (F.col(i+'_spend_4_13w') > 0) |
-        (F.col(i+'_spend_13_26w') > 0) |
-        (F.col(i+'_spend_26_52w') > 0),
-        F.col('account_number')))/total).alias(i) for i in cats]
-
-    (
-        df_base
-        .join(df_beauty, 'account_number', 'inner')
-        .join(df_brands, 'account_number', 'inner')
-        .join(df_divisions, 'account_number', 'inner')
-    ).agg(F.count('account_number'), F.countDistinct('account_number'))
-
-    target_proportions = (
-        df_base
-        .join(df_beauty, 'account_number', 'inner')
-        .join(df_brands, 'account_number', 'inner')
-        .join(df_divisions, 'account_number', 'inner')
-        .agg(*exprs)
-        .toDF(
-            'beauty',
-            'mens',
-            'womens',
-            'boys',
-            'girls',
-            'home',
-            'newbornboys',
-            'newborngirs')
-    )
-
-    target_proportions = (
-        target_proportions
-        .withColumn('newborn', F.col('newbornboys') + F.col('newborngirs'))
-    )
-
-    target_proportions = target_proportions.drop('newbornboys', 'newborngirs')
-
-    target_proportions.withColumn('row_sum',
-                                  sum([F.col(c)
-                                       for c in target_proportions.columns]))
-    # Proportions add up to more than 1? (1.535707 on 21.11.2024)
-    # Cats aren't mutually exclusive, so maybe this is right?
-
-    # TODO: Change to collective model view
-    all_scores = (
+    logger.debug(
+        'Assigning customers to their preferred division (AlgoDivision)')
+    division_scores = (
         get_spark()
         .table(model_scores_latest_table)
         .drop('rundate')
-        .select(
-            'account_number',
-            F.col('div_womens').alias('womens'),
-            F.col('div_mens').alias('mens'),
-            F.col('div_boys').alias('boys'),
-            F.col('div_girls').alias('girls'),
-            F.col('div_beauty').alias('beauty'),
-            F.col('div_home').alias('home'),
-            F.col('div_baby').alias('newborn')
-            )
-        )
-
-    standard_individual = all_scores
-    cols = standard_individual.drop('account_number').columns
-    w = Window.partitionBy(F.lit(1))
-
-    for i in cols:
-        standard_individual = (
-            standard_individual
-            .withColumn(
-                i,
-                (((((F.col(i))-F.mean(i).over(w)))*0.25)/(F.stddev(i).over(w))
-                 ) + (target_proportions.select(i).collect()[0][0])
-            )
-        )
-
-    # This DF is written out as delta lake file in legacy code
-    # Needed for LP apparently
-
-    # Rewrote the below legacy code in pyspark
-    # DivModels = (
-    #     get_spark()
-    #     .sql("""
-    # select distinct account_number,
-    # womens as WW,
-    # mens as MW,
-    # girls as GW,
-    # boys as BW,
-    # newborn as NB,
-    # beauty as BL,
-    # home as HW
-    # from standard_individual
-    #             """)
-    # )
-
-    DivModels = (
-        standard_individual
-        .withColumnsRenamed(
-            {
-                "womens": "WW",
-                "mens": "MW",
-                "girls": "GW",
-                "boys": "BW",
-                "newborn": "NB",
-                "beauty": "BL",
-                "home": "HW"
-            }
-        )
-        .select("account_number",
-                "WW",
-                "MW",
-                "GW",
-                "BW",
-                "NB",
-                "BL",
-                "HW")
-        .drop_duplicates()
-    )
-    # Rewrote the initial unpivot melt to avoid using to_pandas_on_spark()
-    # DivModels
-    # .to_pandas_on_spark()
-    # .melt(id_vars='account_number')
-    # .to_spark()
-
-    DivModels = (
-        DivModels
-        .unpivot(ids="account_number",
-                 values=None,
-                 variableColumnName="variable",
-                 valueColumnName="propensity")
-        .withColumn('rank',
-                    F.rank().over(
-                        Window.partitionBy(
-                            "account_number").orderBy(
-                                F.col("propensity").desc())))
-        .filter(F.col('rank') <= 1)
-        .groupby('account_number')
-        .pivot('rank')
-        .agg(F.first('variable'))
-        .withColumnRenamed('1', 'Best_Orig')
-        )
-
-    df_return = (
-        DivModels
         .withColumnRenamed('account_number', 'AccountNumber')
-        .withColumn(
-            'AlgoDivision',
-            F.when(F.col('Best_Orig') == 'WW', F.lit('Womens'))
-            .when(F.col('Best_Orig') == 'MW', F.lit('Mens'))
-            .when(F.col('Best_Orig') == 'GW', F.lit('Girls'))
-            .when(F.col('Best_Orig') == 'BW', F.lit('Boys'))
-            .when(F.col('Best_Orig') == 'NB', F.lit('Baby'))
-            .when(F.col('Best_Orig') == 'BL', F.lit('Beauty'))
-            .when(F.col('Best_Orig') == 'HW', F.lit('Home'))
-            .otherwise(F.lit(None))
+        .select(
+            'AccountNumber',
+            F.col('div_womens').alias('Womens'),
+            F.col('div_mens').alias('Mens'),
+            F.col('div_boys').alias('Boys'),
+            F.col('div_girls').alias('Girls'),
+            F.col('div_beauty').alias('Beauty'),
+            F.col('div_home').alias('Home'),
+            F.col('div_baby').alias('Baby')
             )
+    )
+
+    w_acc_scaled_score_desc = (
+        Window
+        .partitionBy("AccountNumber")
+        .orderBy(F.desc(F.col("ScoreScaled")))
+        )
+
+    division_assignments = (
+        division_scores
+        .unpivot(
+            ids='AccountNumber',
+            values=None,
+            variableColumnName='AlgoDivision',
+            valueColumnName='Score'
+            )
+        .withColumn('ScoreScaled',
+                    subtract_mean(F.col('score'),
+                                  partition_by=['AlgoDivision']))
+        .withColumn('Rank', F.rank().over(w_acc_scaled_score_desc))
+        .where(F.col('Rank') == 1)
         .select('AccountNumber', 'AlgoDivision')
     )
 
-    assert_pk(df_return, ['AccountNumber', 'AlgoDivision'])
+    assert_pk(division_assignments, ['AccountNumber', 'AlgoDivision'])
 
-    return df_return
+    return division_assignments

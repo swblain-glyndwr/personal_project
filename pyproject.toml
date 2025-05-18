@@ -1,9 +1,10 @@
 [project]
 name = "next_ads"
-version = "0.0.1"
+version = "2.0.0"
 description = "Personalised allocation of Ads on the Next website and app."
 authors = [
-    {name = "Tom Corke",email = "tom_corke@next.co.uk"}
+    {name = "Tom Corke",email = "tom_corke@next.co.uk"},
+    {name = "Ted Taylor",email = "edward_taylor@next.co.uk"}
 ]
 readme = "README.md"
 requires-python = ">=3.10"

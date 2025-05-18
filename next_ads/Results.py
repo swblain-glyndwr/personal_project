@@ -4,13 +4,18 @@ from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 from itertools import chain, combinations, permutations
 from collections.abc import Callable
+from dsutils.logtools import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def check_for_missing_dates(
         date_start: datetime.date,
         date_end: datetime.date,
         data_dates: list[datetime.date]) -> list:
-
+    logger.debug('Checking provided date list for missing dates between' +
+                 f'{date_start} and {date_end}')
     if not data_dates:
         raise Exception('No dates found during period')
 
@@ -50,7 +55,7 @@ def patch_missing_dates(
         date_patch: list[tuple],
         df: DataFrame,
         date_col: str) -> DataFrame:
-
+    logger.debug(f'Patching date pairs: {date_patch}')
     df_patched = []
     for date_p in date_patch:
         date_missing = date_p[0]
@@ -69,19 +74,21 @@ def patch_missing_dates(
 
 def validate_assignments_match_pf(
         df_assignments_pf: DataFrame) -> dict:
-
+    logger.debug('Checking for mismatches between MASID and MASIDPF')
     mismatch_msgs = dict()
     df_mismatch = df_assignments_pf.where(F.col('MASID') != F.col('MASIDPF'))
 
-    if df_mismatch.count() > 0:
+    n_mismatches = df_mismatch.count()
 
+    if n_mismatches > 0:
+        logger.debug(f'Total {n_mismatches} found')
         session_dates = [
             s[0] for s in
             df_mismatch.select('SessionDate').distinct().collect()
         ]
 
         for s in session_dates:
-
+            logger.debug(f'Summarising details of mismatches found on {s}')
             df_mismatch_s = df_mismatch.where(F.col('SessionDate') == s)
 
             mismatch_n = df_mismatch_s.count()
@@ -106,6 +113,7 @@ def validate_assignments_match_pf(
 
         return mismatch_msgs
     else:
+        logger.debug('No mismatches found')
         return dict()
 
 
@@ -118,6 +126,9 @@ def summarise_sessions(
         impressions_col: str = 'Impressions',
         clicks_col: str = 'Clicks',
         group_cols: list[str] = []) -> DataFrame:
+
+    group_cols_msg = f' with group cols: {group_cols}' if group_cols else ''
+    logger.debug(f'Summarising sessions{group_cols_msg}')
 
     df_summary = (
         df
@@ -162,6 +173,9 @@ def estimate_incremental_value(
         control_label: str,
         group_cols: list[str] = []) -> DataFrame:
 
+    group_cols_msg = f' with group cols: {group_cols}' if group_cols else ''
+    logger.debug(f'Estimating incremental value{group_cols_msg}')
+
     df_inc = (
         df
         .groupBy(*group_cols, control_col, session_col)
@@ -199,7 +213,7 @@ def marginal_contributions(
         value_function_kwargs: dict = {},
         value_function_return_col: str = "",
         ) -> dict:
-
+    logger.debug('Estimating marginal contributions')
     grand_coalition = set(
         [x[0] for x in df.select(contributions_col).distinct().collect()]
         )
@@ -246,6 +260,15 @@ def append_session_overlap_ratio(
         session_level_cols: list[str],
         subtotal_window_cols: list[str] = []) -> DataFrame:
 
+    if subtotal_window_cols:
+        sub_win_msg = f' and subtotal window cols: {subtotal_window_cols}'
+    else:
+        sub_win_msg = ''
+    logger.debug(
+        'Appending session overlap ratio' +
+        f' with session level cols: {session_level_cols}' +
+        sub_win_msg)
+
     window_cols = session_level_cols + subtotal_window_cols
     w_sl = Window.partitionBy(window_cols)
 
@@ -269,6 +292,7 @@ def append_session_overlap_ratio(
 
 def append_inc_cols(df: DataFrame) -> DataFrame:
     inc_cols = ['RPS', 'C_RPS', 'IncRPS', 'IncRPSPct', 'EstIncRev']
+    logger.debug(f'Appending incremental results columns: {inc_cols}')
     df_return = (
         df
         .drop(*inc_cols)

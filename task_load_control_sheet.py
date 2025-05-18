@@ -1,30 +1,36 @@
-import logging
-import logging.config
+import json
 import pyspark.sql.functions as F
 from datetime import date, timedelta
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import (assert_pk,
+                         truncate_and_load,
+                         delete_from_and_load,
+                         map_tbl,
+                         post_to_webhook)
+from dsutils.argparser import get_job_parser
+import dsutils.gcp as gcp
 from next_ads.Scoring import append_targeting_criteria
-import next_ads.utils.gcp as gcp
-import json
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import (assert_pk,
-                                truncate_and_load,
-                                delete_from_and_load,
-                                JobParser,
-                                map_tbl,
-                                post_to_webhook)
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname"])
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 LOCATIONS = cfg["locations"]
@@ -40,33 +46,38 @@ for k in VALID_LOCATIONS:
 CONTROL_SHEET = cfg["control_sheet"]
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][job_env]
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+SCHEMA = cfg["schema"][JOB_ENV]
+logger.info(f'Write schema set to {SCHEMA}')
+
+# Map write schema to parameterised write table names
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 TARGET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
 TARGET_TABLE_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
 
 WEBHOOK_URL = cfg["webhooks"]["Input Warnings"]
 
-log.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
-log.info(f"Locations to read: {' '.join(READ_LOCATIONS)}")
-log.info(f"Locations with inherited ads: {INHERITED_LOCATIONS}")
+logger.info(f"Valid locations: {' '.join(VALID_LOCATIONS)}")
+logger.info(f"Locations to read: {' '.join(READ_LOCATIONS)}")
+logger.info(f"Locations with inherited ads: {INHERITED_LOCATIONS}")
 
 for v in READ_LOCATIONS:
     CONTROL_SHEET["read_schema"].append([v, "string", "null"])
 
 
-log.info("Reading Control Sheet from Google Sheets")
+logger.info("Reading Control Sheet from Google Sheets")
 
 df_ctrl_raw = gcp.spark_df_from_sheets(
     url=CONTROL_SHEET["url"],
     worksheet_name=CONTROL_SHEET["sheet"],
+    gcp_scope=cfg["gcp"]["scope"],
+    gcp_key=cfg["gcp"]["key"],
     schema=CONTROL_SHEET["read_schema"]
     )
 
 date_fmt = CONTROL_SHEET["date_format"]
 date_regex = CONTROL_SHEET["date_regex"]
 
-log.info("Stripping empty UniqueAdID entries")
+logger.info("Stripping empty UniqueAdID entries")
 df_ctrl_not_empty = df_ctrl_raw.where(F.col("UniqueAdID") != "")
 df_ctrl_valid_date_fmt = (
     df_ctrl_not_empty
@@ -92,11 +103,11 @@ if len(invalid_date_ads) > 0:
         "\n".join(invalid_date_ads) +
         f"\nDate must be entered in the format: {date_fmt}"
     )
-    log.warning(date_fmt_msg)
-    if job_env == "prod":
+    logger.warning(date_fmt_msg)
+    if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, date_fmt_msg)
 
-log.info("Getting active status of ads based on StartDate and EndDate")
+logger.info("Getting active status of ads based on StartDate and EndDate")
 date_tomorrow = date.today() + timedelta(days=1)
 df_ctrl_active = (
     df_ctrl_valid_date_fmt
@@ -106,7 +117,7 @@ df_ctrl_active = (
     .where(F.col("StartDate") <= date_tomorrow)
     .where(F.col("EndDate") >= date_tomorrow)
 )
-log.info(f"Active Ads: {df_ctrl_active.count():,}")
+logger.info(f"Active Ads: {df_ctrl_active.count():,}")
 
 # Legacy coercion of item codes to upper case and replace("-","")
 df_ctrl_active = df_ctrl_active.withColumn(
@@ -141,8 +152,8 @@ df_id_loc = (
 )
 
 active_locs = set([row[0] for row in df_id_loc.select('Location').collect()])
-log.info(f"Active Locations: {len(active_locs):,} {sorted(active_locs)}")
-log.info(f"Active Ad-Locations: {df_id_loc.count():,}")
+logger.info(f"Active Locations: {len(active_locs):,} {sorted(active_locs)}")
+logger.info(f"Active Ad-Locations: {df_id_loc.count():,}")
 
 
 df_ad_attributes = (
@@ -165,7 +176,7 @@ df_processed = (
 )
 df_processed = append_targeting_criteria(df_processed)
 
-log.info("Checking input Primary Key")
+logger.info("Checking input Primary Key")
 assert_pk(df_processed, ["UniqueAdID", "Location"])
 
 
@@ -183,12 +194,12 @@ if df_dup_masids.count() > 1:
 
     warn_dup_masid = ("Duplicate MASID suffixes assigned to Ads" +
                       f" in same AlgoDivision: {dup_masid_list}")
-    log.warning(warn_dup_masid)
+    logger.warning(warn_dup_masid)
 
     for m in dup_masid_list:
 
         res_conflict = f"Resolving conflict for MASID suffix: {m}"
-        log.info(res_conflict)
+        logger.info(res_conflict)
         warn_dup_masid += "\n\n" + res_conflict
 
         df_dups_m = (
@@ -200,7 +211,7 @@ if df_dup_masids.count() > 1:
         clashing_ids = list(set([row[0] for row in df_dups_m]))
         clashing_ids.sort()  # Sort alphabetically as proxy for latest
         keep_ad = f"Keeping ad: {clashing_ids[-1]}"
-        log.info(keep_ad)
+        logger.info(keep_ad)
         warn_dup_masid += "\n" + keep_ad
 
         ids_to_del = clashing_ids[:-1]
@@ -208,42 +219,42 @@ if df_dup_masids.count() > 1:
         for id_del in ids_to_del:
 
             drop_ad = f"Dropping conflicting ad: {id_del}"
-            log.warning(drop_ad)
+            logger.warning(drop_ad)
             warn_dup_masid += "\n" + drop_ad
 
             df_processed = df_processed.where(F.col("UniqueAdID") != id_del)
 
-    if job_env == "prod":
+    if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, warn_dup_masid)
 
 
 target_cols = (
-    get_spark()
+    spark
     .table(TARGET_TABLE)
     .drop("rundate")
     ).columns
 
 
 if set(target_cols) == set(df_processed.columns):
-    log.info("Control Sheet columns match Target table columns")
+    logger.info("Control Sheet columns match Target table columns")
 elif set(target_cols).issubset(set(df_processed.columns)):
-    log.warning("Target table cols are subset of Control Sheet cols")
+    logger.warning("Target table cols are subset of Control Sheet cols")
     extra_cols = set(df_processed.columns).difference(set(target_cols))
-    log.warning("Dropping superfluous columns: %s", ", ".join(extra_cols))
+    logger.warning("Dropping superfluous columns: %s", ", ".join(extra_cols))
     df_processed = df_processed.drop(*list(extra_cols))
 else:
     raise Exception("Target table cols not a subset of Control Sheet cols")
 
 
-log.info("Loading output to table")
+logger.info("Loading output to table")
 delete_from_and_load(df_processed.select(*target_cols),
                      TARGET_TABLE,
                      pk_cols=["UniqueAdID", "Location"],
                      del_where={"rundate": "current_date()"})
 
-log.info("Loading output to table (latest)")
+logger.info("Loading output to table (latest)")
 truncate_and_load(df_processed.select(*target_cols),
                   TARGET_TABLE_LATEST,
                   pk_cols=["UniqueAdID", "Location"])
 
-log.info("Run complete")
+logger.info("Run complete")

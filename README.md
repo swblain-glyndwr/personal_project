@@ -34,6 +34,24 @@ The model scores input into this 'engine' can take multiple forms (e.g. propensi
 
  </br>
 
+### Algorithmic Components
+#### Relevance Scoring
+Relevance scoring can be supplied via `TargetingScore` (e.g. Propensity) input or `RecommenderScore` (e.g. ALS, GRU) input.
+
+`TargetingScore` is the score associated with model (or model combination) that has been assigned to an ad for targeting (e.g. ww_dresses and ww_floral will use a combination of the women's dresses propensity model score and the women's floral propensity model score as a measure of relevance of that ad to the customer). To supply these scores to the algorithm for relevance, the `TARGETING_SCORES_TABLE` needs to be specified in the `task_build_page.py` script, and the `assign_best_ads` function should be utilised.
+
+`RecommenderScore` is a relevance score associated with an ad (commonly an aggregation of customer-item relevance scores of the items 'behind' an ad). To supply these scores to the algorithm for relevance, the `RECOMMENDER_SCORES_TABLE` needs to be specified in the `task_build_page.py` script, and the `assign_best_ads_rec` function should be utilised.
+
+#### Ad Feedback Loop
+If the Ad Feedback Loop is a mechanism for boosting/penalising ads that are showing better/worse commercial performance. This can be layered on top of any type of relevance scoring. The magnitude of this boosting/penalising can be adjusting using the `ad_feedback_weight` parameter in the `task_build_page.py` script. Extracting this constant to the config or setting of this weight algorithmically would be beneficial, however until this can be implemented, values that provide a subjectively assessed 'balanced' influence of the Ad Feedback Loop on tested input model types are as follows.
+
+| Relevance Score Type | Model Type | Recommended `ad_feedback_weight` |
+|----|----|----|
+|`TargetingScore`| Propensity | 0.5-0.6 |
+|`RecommenderScore`| ALS | 0.01-0.02 |
+|`RecommenderScore`| GRU | TBC |
+
+
 # Configuration
 Config files are stored as json with the following naming convention: `config/{domain}.json`, where domain is of the form `{client}_{country}` (e.g. `next_uk.json`). These files contain all parameters and references to resources that are required by the process for that domain.
 
@@ -72,18 +90,13 @@ _*There is no dev results workflow as the results do not pose the same operation
 
 # Testing
 
-## Unit Tests - *WIP*
-*Pipeline run on PR from dev to staging:*
-1. *Test modules for internal consistency*
+## Unit and Integration Tests
+Existing tests can be contained in `tests/`. These are largely designed to test the validity of the supplied config file(s), such that any implicit requirements of the config structure can be checked before running end-to-end tests. These tests can be run using `pytest` directly or via the testing integration in VS Code.
 
-## Integration Tests - *WIP*
-*Pipeline run on PR from dev to staging:*
-1. *Assert that all "read" tables exist in dev and prod schemas*
-2. *Assert that all "write" tables exist in dev and prod schemas*
-3. *Assert that the schema of all "read" tables is correct*
-4. *Assert that the schema of all "write" tables is correct*
+## End-to-End Tests
+End-to-end testing can be conducted via the dev workflow (see [Workflows](#workflows) section above).
 
 </br>  
 
-# Development
+# Environment and Dependency Management
 Poetry has been used for environment and dependency management of this project. Guidance on how to install Poetry and install project dependencies into a local environment can be found on the [Poetry website](https://python-poetry.org/)

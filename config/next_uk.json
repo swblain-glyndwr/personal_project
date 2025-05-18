@@ -1,4 +1,7 @@
 {
+    "domain": "next.co.uk",
+    "osa_url_substring": "0-osalink",
+
     "fallow_control": {
         "proportion": 0.1,
         "seed": 111,
@@ -907,6 +910,11 @@
         }
     },
 
+    "gcp": {
+        "scope": "mktg_gcp",
+        "key": "mktg-gcp-service-account-b64-encoded"
+    },
+
     "control_sheet": {
         "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
         "sheet": "Control Sheet UK",
@@ -966,78 +974,71 @@
             "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
             "bq_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
             "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
-            "bq_add_to_basket": "marketingdata_prod.warehouse.bq_atbs_next_uk",
-            "bq_transactions": "marketingdata_prod.warehouse.bq_transactions_next_uk",
             "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
-            "bq_add_to_basket_app": "marketingdata_prod.warehouse.bq_atbs_next_uk_app",
-            "bq_transactions_app": "marketingdata_prod.warehouse.bq_transactions_next_uk_app",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "eidfathersday": "marketingdata_prod.ds_sandbox.next_uk_nextads_eidfathersday_audience_20250430",
             "recommender_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_recommender_scores_latest"
         },
         "write": {
-            "control_sheet": "marketingdata_prod.{schema}.{domain}_nextads_control_sheet",
-            "control_sheet_latest": "marketingdata_prod.{schema}.{domain}_nextads_control_sheet_latest",
-            "customer_cells_fixed_latest": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_fixed_latest",
-            "customer_cells_transient": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_transient",
-            "customer_cells_transient_latest": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_transient_latest",
-            "customer_cells_latest": "marketingdata_prod.{schema}.{domain}_nextads_customer_cells_latest",
-            "targeting_scores_latest": "marketingdata_prod.{schema}.{domain}_nextads_targeting_scores_latest",
-            "assignments": "marketingdata_prod.{schema}.{domain}_nextads_assignments",
-            "assignments_latest": "marketingdata_prod.{schema}.{domain}_nextads_assignments_latest",
-            "results_topline": "marketingdata_prod.{schema}.{domain}_nextads_results_topline",
-            "results_aggregated": "marketingdata_prod.{schema}.{domain}_nextads_results_aggregated",
-            "results_ab": "marketingdata_prod.{schema}.{domain}_nextads_results_ab",
-            "results_ads": "marketingdata_prod.{schema}.{domain}_nextads_results_ads",
-            "results_ads_location": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_location",
-            "results_ads_page": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_page",
-            "results_div_page": "marketingdata_prod.{schema}.{domain}_nextads_results_div_page",
-            "results_ads_targeting": "marketingdata_prod.{schema}.{domain}_nextads_results_ads_targeting",
-            "results_page_targeting": "marketingdata_prod.{schema}.{domain}_nextads_results_page_targeting",
-            "results_ad_metadata": "marketingdata_prod.{schema}.{domain}_nextads_results_ad_metadata"
+            "ad_items": "marketingdata_prod.{schema}.{client}_nextads_ad_items",
+            "control_sheet": "marketingdata_prod.{schema}.{client}_nextads_control_sheet",
+            "control_sheet_latest": "marketingdata_prod.{schema}.{client}_nextads_control_sheet_latest",
+            "customer_cells_fixed_latest": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_fixed_latest",
+            "customer_cells_transient": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_transient",
+            "customer_cells_transient_latest": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_transient_latest",
+            "customer_cells_latest": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_latest",
+            "targeting_scores_latest": "marketingdata_prod.{schema}.{client}_nextads_targeting_scores_latest",
+            "assignments": "marketingdata_prod.{schema}.{client}_nextads_assignments",
+            "assignments_latest": "marketingdata_prod.{schema}.{client}_nextads_assignments_latest",
+            "results_topline": "marketingdata_prod.{schema}.{client}_nextads_results_topline",
+            "results_aggregated": "marketingdata_prod.{schema}.{client}_nextads_results_aggregated",
+            "results_ab": "marketingdata_prod.{schema}.{client}_nextads_results_ab",
+            "results_ads": "marketingdata_prod.{schema}.{client}_nextads_results_ads",
+            "results_ads_location": "marketingdata_prod.{schema}.{client}_nextads_results_ads_location",
+            "results_ads_page": "marketingdata_prod.{schema}.{client}_nextads_results_ads_page",
+            "results_div_page": "marketingdata_prod.{schema}.{client}_nextads_results_div_page",
+            "results_ads_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_ads_targeting",
+            "results_page_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_page_targeting",
+            "results_ad_metadata": "marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata"
         }
     },
-    
-    "files": {
-        "results": {
-            "HN": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/HomepageResults/TargettedDivRandAdSumary",
-            "SB": "abfss://sandbox@datastmktprodeuw.dfs.core.windows.net/MASID/UK/NextAds/SB_Random_Remove"
-        }
-    },
-    
+
     "webhooks": {
         "Input Warnings": "https://chat.googleapis.com/v1/spaces/AAAA_rFP3_s/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MhMWyk0iva0jwnyeH5pfkVd5m4SVy306sqj4hDqLAhU",
         "DS Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw",
         "Results Warnings": "https://chat.googleapis.com/v1/spaces/AAAARUglEZU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=4SCef6fR-CuhJntPgdGS_lslDsACOjDsrMVTrYxLfnc"
     },
-    
+ 
+    "apis": {
+        "search_endpoint": "https://ci-test.next.co.uk/api/search/next/gb/en/v1/item-numbers",
+        "search_type": "category"
+    },
+
+    "top_n_lister_items": 12,
+
     "big_query": {
         "temporaryGcsBucket": "to_discovery/tableau",
         "parentProject": "big-query-156009",
         "tables": {
-            "results_topline": "big-query-156009.Misc_eu.{domain}_nextads_results_topline",
-            "results_aggregated": "big-query-156009.Misc_eu.{domain}_nextads_results_aggregated",
-            "results_div_page": "big-query-156009.Misc_eu.{domain}_nextads_results_div_page",            
-            "results_ads": "big-query-156009.Misc_eu.{domain}_nextads_results_ads",
-            "results_ads_location": "big-query-156009.Misc_eu.{domain}_nextads_results_ads_location",
-            "results_ads_page": "big-query-156009.Misc_eu.{domain}_nextads_results_ads_page",
-            "results_ads_targeting": "big-query-156009.Misc_eu.{domain}_nextads_results_ads_targeting",
-            "results_ad_metadata": "big-query-156009.Misc_eu.{domain}_nextads_results_ad_metadata"
+            "results_topline": "big-query-156009.Misc_eu.{client}_nextads_results_topline",
+            "results_aggregated": "big-query-156009.Misc_eu.{client}_nextads_results_aggregated",
+            "results_div_page": "big-query-156009.Misc_eu.{client}_nextads_results_div_page",            
+            "results_ads": "big-query-156009.Misc_eu.{client}_nextads_results_ads",
+            "results_ads_location": "big-query-156009.Misc_eu.{client}_nextads_results_ads_location",
+            "results_ads_page": "big-query-156009.Misc_eu.{client}_nextads_results_ads_page",
+            "results_ads_targeting": "big-query-156009.Misc_eu.{client}_nextads_results_ads_targeting",
+            "results_ad_metadata": "big-query-156009.Misc_eu.{client}_nextads_results_ad_metadata"
         }
     },
 
     "results_prm": {
+        "default_offset_start": 4, 
+        "default_offset_end": 2, 
         "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
         "min_c_sessions": 30000,
         "lookback_days": 14
-    },
-
-    "legacy": {
-        "account_exclusions": [
-            "420356A449144ED854830CF2ABB970629FB0D3620798632BA5F1F0A659DC9070"
-        ]
     }
 }

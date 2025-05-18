@@ -1,42 +1,53 @@
-import logging
-import logging.config
 import json
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import JobParser, map_tbl
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import map_tbl
+from dsutils.argparser import get_job_parser
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname", "--droptables"])
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
-TABLES = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][job_env]
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+DROP_TABLES = jobparser.get_typed_arg('--droptables', bool)
 
-for table_ref in TABLES:
-    table = map_tbl(TABLES[table_ref], **tbl_args)
+tbls = cfg["tables"]["write"]
+SCHEMA = cfg["schema"][JOB_ENV]
+logger.info(f'Write schema set to {SCHEMA}')
 
-    if pargs["droptables"] == "True" and job_env == "dev":
-        log.info(f"Dropping table {table} as --droptables set to 'True'")
-        get_spark().sql(f"drop table if exists {table}")
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 
-    if get_spark().catalog.tableExists(table):
-        log.warning(f"Table {table} already exists - skipping")
+for table_ref in tbls:
+    table = map_tbl(tbls[table_ref], **tbl_args)
+
+    if DROP_TABLES and JOB_ENV == "dev":
+        logger.info(f"Dropping table {table} as --droptables is 'True'")
+        spark.sql(f"drop table if exists {table}")
+
+    if spark.catalog.tableExists(table):
+        logger.warning(f"Table {table} already exists - skipping")
         continue
 
     with open(f"sql/create_table_{table_ref}.sql") as f:
         query = map_tbl("".join(f.readlines()), **tbl_args)
 
-    log.info(f"Creating {table_ref} table as: {table}")
-    get_spark().sql(query)
+    logger.info(f"Creating {table_ref} table as: {table}")
+    spark.sql(query)
 
-log.info("Run complete")
+logger.info("Run complete")

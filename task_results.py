@@ -1,56 +1,58 @@
-import logging
-import logging.config
 import json
+from datetime import date, timedelta
+from pyspark.sql import functions as F
+from pyspark.sql import Window
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import (assert_pk,
+                         build_spark_schema,
+                         delete_from_and_load,
+                         map_tbl,
+                         post_to_webhook)
+from dsutils.argparser import get_job_parser
 from next_ads.Results import (append_session_overlap_ratio,
                               check_for_missing_dates,
                               patch_missing_dates,
                               summarise_sessions,
                               validate_assignments_match_pf)
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import (JobParser,
-                                assert_pk,
-                                build_spark_schema,
-                                delete_from_and_load,
-                                map_tbl,
-                                post_to_webhook)
-from pyspark.sql import functions as F
-from pyspark.sql import Window
-from datetime import date, timedelta
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname",
-                                        "--datestart",
-                                        "--dateend"])
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
-RPID_WITH_ACCOUNTS = cfg["tables"]["read"]["rpid_with_accounts"]
-PREFERENCE_FRAMEWORK = cfg["tables"]["read"]["preference_framework"]
-BQ_SESSIONS = cfg["tables"]["read"]['bq_sessions']
-BQ_SESSIONS_APP = cfg["tables"]["read"]['bq_sessions_app']
-BQ_PAGES = cfg["tables"]["read"]['bq_pages']
-BQ_SCREENS = cfg["tables"]["read"]['bq_screens']
+DATESTART = jobparser.get_typed_arg('--datestart', str)
+DATEEND = jobparser.get_typed_arg('--dateend', str)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = 'warehouse'
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+SCHEMA = cfg["schema"]["prod"]
+logger.info(f'Write schema set to {SCHEMA}')
+logger.info('Write schema always set to prod option for results script')
 
+# Map write schema to parameterised write table names
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 FIXED_CELLS_LATEST_TABLE = map_tbl(tbls["customer_cells_fixed_latest"],
                                    **tbl_args)
 ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"],
                                 **tbl_args)
 CONTROL_SHEET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
-
 RESULTS_TOPLINE_TABLE = map_tbl(tbls["results_topline"], **tbl_args)
 RESULTS_AGGREGATED_TABLE = map_tbl(tbls["results_aggregated"], **tbl_args)
 RESULTS_AB_TABLE = map_tbl(tbls["results_ab"], **tbl_args)
@@ -64,6 +66,14 @@ RESULTS_PAGE_TARGETING_TABLE = map_tbl(tbls["results_page_targeting"],
                                        **tbl_args)
 RESULTS_AD_METADATA_TABLE = map_tbl(tbls["results_ad_metadata"], **tbl_args)
 
+# Get read tables
+RPID_WITH_ACCOUNTS = cfg["tables"]["read"]["rpid_with_accounts"]
+PREFERENCE_FRAMEWORK = cfg["tables"]["read"]["preference_framework"]
+BQ_SESSIONS = cfg["tables"]["read"]['bq_sessions']
+BQ_SESSIONS_APP = cfg["tables"]["read"]['bq_sessions_app']
+BQ_PAGES = cfg["tables"]["read"]['bq_pages']
+BQ_SCREENS = cfg["tables"]["read"]['bq_screens']
+
 LOCATIONS = cfg['locations']
 FIXED_CELLS = cfg['fixed_cells']
 FALLOW_TRUE = cfg["fallow_control"]["true_label"]
@@ -74,29 +84,41 @@ MASID_REFRESH_HOUR = cfg['results_prm']['masid_refresh_hour']
 
 WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
-dates_provided = True if (pargs['datestart'] and pargs['dateend']) else False
+dates_provided = True if (DATESTART and DATEEND) else False
 
-if job_env == 'prod' and not dates_provided:
+if JOBNAME and not dates_provided:
     # If no date args provided, use default set of recent days
-    SESSION_DATE_START = date.today() - timedelta(days=4)
-    SESSION_DATE_END = date.today() - timedelta(days=2)
+    OFFSET_START_DAYS = cfg['results_prm']['default_offset_start']
+    OFFSET_END_DAYS = cfg['results_prm']['default_offset_end']
+    SESSION_DATE_START = date.today() - timedelta(days=OFFSET_START_DAYS)
+    SESSION_DATE_END = date.today() - timedelta(days=OFFSET_END_DAYS)
+    logger.info(f'No dates provided to job: {JOBNAME}')
+    logger.info('Default date offsets assumed')
+    logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 elif dates_provided:
     # If date args are provided (e.g. for backdating)
-    ds_num = [int(x) for x in pargs['datestart'].split('-')]
-    de_num = [int(x) for x in pargs['dateend'].split('-')]
+    ds_num = [int(x) for x in DATESTART.split('-')]
+    de_num = [int(x) for x in DATEEND.split('-')]
     SESSION_DATE_START = date(ds_num[0], ds_num[1], ds_num[2])
     SESSION_DATE_END = date(de_num[0], de_num[1], de_num[2])
+    logger.info('Start Date and End Date provided')
+    logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
     SESSION_DATE_START = date(2025, 4, 3)
     SESSION_DATE_END = date(2025, 4, 3)
+    logger.warning(
+        f'Start Date not specified (defaulting to {SESSION_DATE_START})')
+    logger.warning(
+        f'End Date not specified (defaulting to {SESSION_DATE_END})')
 
 assert SESSION_DATE_START <= SESSION_DATE_END, 'Start date after end date'
 ndays = (SESSION_DATE_END - SESSION_DATE_START).days + 1
 sdates = [SESSION_DATE_END - timedelta(days=x) for x in range(ndays)]
 sdates.sort()
 
-log.info(f'Processing results from {SESSION_DATE_START} to {SESSION_DATE_END}')
+logger.info(
+    f'Processing results from {SESSION_DATE_START} to {SESSION_DATE_END}')
 
 loc2page = dict()
 loc2screen = dict()
@@ -120,7 +142,7 @@ oc_pagepaths = [loc2page['OC1'], loc2screen['OC1']]
 
 # Assignments run the evening before, therefore SessionDate is rundate + 1 day
 df_assignments = (
-    get_spark()
+    spark
     .table(ASSIGNMENTS_TABLE)
     .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
     .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
@@ -138,7 +160,7 @@ df_assignments = (
 )
 
 df_ad_metadata = (
-    get_spark()
+    spark
     .table(CONTROL_SHEET_TABLE)
     .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
     .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
@@ -153,17 +175,17 @@ dates_asgn.sort()
 date_patch_asgn = check_for_missing_dates(
     SESSION_DATE_START, SESSION_DATE_END, dates_asgn)
 if date_patch_asgn:
-    log.warning('Missing dates found in Assignments during results period')
+    logger.warning('Missing dates found in Assignments during results period')
     missing_asgn_dates = [x[0] for x in date_patch_asgn]
-    log.warning('Removing affected Assignment dates from Metadata')
+    logger.warning('Removing affected Assignment dates from Metadata')
     df_ad_metadata = (
         df_ad_metadata
         .where(~F.col('SessionDate').isin(missing_asgn_dates))
     )
     for date_p in date_patch_asgn:
-        log.warning(f'Patching missing Assignments date {date_p[0]} ' +
-                    f'in Assignments and Metadata '
-                    f'with last non-missing date: {date_p[1]}')
+        logger.warning(f'Patching missing Assignments date {date_p[0]} ' +
+                       f'in Assignments and Metadata '
+                       f'with last non-missing date: {date_p[1]}')
     df_asgn_patches = patch_missing_dates(
         date_patch_asgn, df_assignments, date_col='SessionDate')
     df_meta_patches = patch_missing_dates(
@@ -173,7 +195,7 @@ if date_patch_asgn:
 
 # MASID runs after midnight, therefore SessionDate is rundate
 df_pf = (
-    get_spark()
+    spark
     .table(PREFERENCE_FRAMEWORK)
     .where(F.col('rundate') >= SESSION_DATE_START)
     .where(F.col('rundate') <= SESSION_DATE_END)
@@ -192,12 +214,12 @@ dates_pf.sort()
 date_patch_pf = check_for_missing_dates(
     SESSION_DATE_START, SESSION_DATE_END, dates_pf)
 if date_patch_pf:
-    log.warning('Missing dates found in PF during results period')
+    logger.warning('Missing dates found in PF during results period')
 
     # If PF failed, but Assignments didn't Assignments will need to
     # reflect the last date that PF ran in order to match
     missing_pf_dates = [x[0] for x in date_patch_pf]
-    log.warning('Removing affected PF dates from Assignments and Metadata')
+    logger.warning('Removing affected PF dates from Assignments and Metadata')
     df_assignments = (
         df_assignments
         .where(~F.col('SessionDate').isin(missing_pf_dates))
@@ -208,9 +230,9 @@ if date_patch_pf:
     )
 
     for date_p in date_patch_pf:
-        log.warning(f'Patching missing PF date {date_p[0]} ' +
-                    'in PF, Assignments and Metadata '
-                    f'with last non-missing PF date: {date_p[1]}')
+        logger.warning(f'Patching missing PF date {date_p[0]} ' +
+                       'in PF, Assignments and Metadata '
+                       f'with last non-missing PF date: {date_p[1]}')
 
     df_pf_patches = patch_missing_dates(
         date_patch_pf, df_pf, date_col='SessionDate')
@@ -249,10 +271,10 @@ mismatch_msg_days = validate_assignments_match_pf(df_asgn_pf)
 if mismatch_msg_days:
     for d in mismatch_msg_days:
         mismatch_msgs = mismatch_msg_days[d]
-        log.warning(f'Mismatches in MASID found for SessionDate: {d}')
+        logger.warning(f'Mismatches in MASID found for SessionDate: {d}')
         for msg in mismatch_msgs:
-            log.warning(msg)
-        if job_env == 'prod':
+            logger.warning(msg)
+        if JOB_ENV == 'prod':
             post_to_webhook(WEBHOOK_URL, '\n'.join([f'{d}'] + mismatch_msgs))
 
 df_asgn_pf_nulls = (
@@ -270,8 +292,8 @@ if df_asgn_pf_nulls.count() > 0:
             f'{v:,} customers assigned at least one Ad for {k} ' +
             f'but not found in PF on {k}'
         )
-        log.warning(missing_msg)
-        if job_env == 'prod':
+        logger.warning(missing_msg)
+        if JOB_ENV == 'prod':
             post_to_webhook(WEBHOOK_URL, missing_msg)
 
 # Remove cases where ad has been deliberately suppressed
@@ -284,8 +306,8 @@ if n_supp_removals > 0:
         f'{n_supp_removals:,} cases removed due to Ad Suppressions '
         + '(this may be due to tests that are currently live)'
     )
-    log.warning(msg_ad_suppressions)
-    if job_env == 'prod':
+    logger.warning(msg_ad_suppressions)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_ad_suppressions)
 
 # Remove cases where no ad was found for customer (both test and control)
@@ -298,8 +320,8 @@ if n_naf_removals > 0:
         f'{n_naf_removals:,} cases removed due to "NoAdFound" '
         + '(this may be due to tests that are currently live)'
     )
-    log.warning(msg_noadfound)
-    if job_env == 'prod':
+    logger.warning(msg_noadfound)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_noadfound)
 
 
@@ -361,12 +383,12 @@ if n_it > 0:
         msg_it = (f'{n_it_sdate:,} accounts found with invalid HomePage '
                   + f'Teasers while processing results for {sdate}; '
                   + 'removing affected cases from valid assignments')
-        log.warning(msg_it)
-        if job_env == "prod":
+        logger.warning(msg_it)
+        if JOB_ENV == "prod":
             post_to_webhook(WEBHOOK_URL, msg_it)
 
     df_teaser_locs = (
-        get_spark().createDataFrame(
+        spark.createDataFrame(
             data=[tuple([x]) for x in teaser_locs],
             schema=build_spark_schema(
                 [['Location', 'string', 'not null']]
@@ -424,8 +446,8 @@ if invalid_dates:
             + f'< threshold ({VALID_ASSIGNMENT_THRESHOLD:.1%})'
         )
 
-        log.warning(msg_invalid_dates)
-        if job_env == 'prod':
+        logger.warning(msg_invalid_dates)
+        if JOB_ENV == 'prod':
             post_to_webhook(WEBHOOK_URL, msg_invalid_dates)
 
     df_valid_assignments = (
@@ -443,8 +465,8 @@ sdates_valid.sort()
 
 sdates_missing = list(set(sdates).difference(set(sdates_valid)))
 if sdates_missing:
-    log.warning('No valid assignments found for dates: ' +
-                f'{[x.strftime("%Y-%m-%d") for x in sdates_missing]}')
+    logger.warning('No valid assignments found for dates: ' +
+                   f'{[x.strftime("%Y-%m-%d") for x in sdates_missing]}')
 
 # Get pages visited, limiting to pages showing Ads on given SessionDate
 df_days_locations = (
@@ -470,7 +492,7 @@ df_days_screens = (
 )
 
 df_pages = (
-    get_spark()
+    spark
     .table(BQ_PAGES)
     .where(F.col('date') >= SESSION_DATE_START)
     .where(F.col('date') <= SESSION_DATE_END)
@@ -483,7 +505,7 @@ df_pages = (
     .join(df_days_pages, on=['SessionDate', 'PagePath'], how='inner')
     .unionByName(
         (
-            get_spark()
+            spark
             .table(BQ_SCREENS)
             .where(F.col('date') >= SESSION_DATE_START)
             .where(F.col('date') <= SESSION_DATE_END)
@@ -503,7 +525,7 @@ df_pages = (
 
 # Get session revenue
 df_sessions = (
-    get_spark()
+    spark
     .table(BQ_SESSIONS)
     .where(F.col('date') >= SESSION_DATE_START)
     .where(F.col('date') <= SESSION_DATE_END)
@@ -515,7 +537,7 @@ df_sessions = (
             'operating_system',
             'date')
     .unionByName(
-        get_spark()
+        spark
         .table(BQ_SESSIONS_APP)
         .where(F.col('date') >= SESSION_DATE_START)
         .where(F.col('date') <= SESSION_DATE_END)
@@ -529,7 +551,7 @@ df_sessions = (
     .withColumnRenamed('date', 'SessionDate')
     .withColumnRenamed('operating_system', 'OS')
     .join(
-        get_spark()
+        spark
         .table(RPID_WITH_ACCOUNTS)
         .withColumnsRenamed({
             'roamingprofileid': 'RPID',
@@ -580,7 +602,8 @@ if n_multi_account_sessions > 0:
             on=['SessionDate', 'UniqueVisitID'], how='leftanti'
         )
     )
-    log.warning(f'{n_multi_account_sessions:,} multi-account sessions removed')
+    logger.warning(
+        f'{n_multi_account_sessions:,} multi-account sessions removed')
 
 # Next Ads measurement cannot currently accomodate sessions that span
 # midnight - check for and remove any cases of this
@@ -604,7 +627,8 @@ if n_sessions_spanning > 0:
             on=['UniqueVisitID'], how='leftanti'
         )
     )
-    log.warning(f'{n_sessions_spanning:,} sessions spanning midnight removed')
+    logger.warning(
+        f'{n_sessions_spanning:,} sessions spanning midnight removed')
 
 # Next Ads rely on the MASID to be served on site, which is refreshed
 # after midnight
@@ -629,7 +653,8 @@ if n_sessions_pre_masid > 0:
             on=['UniqueVisitID'], how='leftanti'
         )
     )
-    log.warning(f'{n_sessions_pre_masid:,} sessions pre-MASID refresh removed')
+    logger.warning(
+        f'{n_sessions_pre_masid:,} sessions pre-MASID refresh removed')
 
 
 # Remove the last Order Complete page, and any hits after it from each session
@@ -679,11 +704,11 @@ for d in sdates_valid:
     )
     nsdiff = nspret - nspostt
     dfmt = d.strftime('%Y-%m-%d')
-    log.info(f'{nsdiff:,} sessions dropped from ' +
-             f'{dfmt} due to OrderComplete trimming ' +
-             '(i.e. sessions starting at OrderComplete page)')
+    logger.info(f'{nsdiff:,} sessions dropped from ' +
+                f'{dfmt} due to OrderComplete trimming ' +
+                '(i.e. sessions starting at OrderComplete page)')
 
-df_fixed_cells = get_spark().table(FIXED_CELLS_LATEST_TABLE)
+df_fixed_cells = spark.table(FIXED_CELLS_LATEST_TABLE)
 
 df_sessions_ads_valid = (
     df_sessions_pages_trimmed
@@ -1169,8 +1194,8 @@ for agg_col in agg_cols:
     if diff_agg < -0.01*total_r:
         msg_warn = (f'Total of ApportionedRevenue (agg: {agg_col}) more than '
                     + f'1% below Total Revenue ({diff_agg/total_r:.2%})')
-        log.warning(msg_warn)
-        if job_env == 'prod':
+        logger.warning(msg_warn)
+        if JOB_ENV == 'prod':
             post_to_webhook(WEBHOOK_URL, msg_warn)
 
 if agg_tags:
@@ -1277,8 +1302,8 @@ assert diff_ad < 0.001*total_r, msg
 if diff_ad < -0.01*total_r:
     msg_warn = ('Total of ApportionedRevenue (ads) more than 1% '
                 + f'below Total Revenue ({diff_ad/total_r:.2%})')
-    log.warning(msg_warn)
-    if job_env == 'prod':
+    logger.warning(msg_warn)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
 
 
@@ -1346,8 +1371,8 @@ assert diff_adlocset < 0.001*total_r, msg
 if diff_adlocset < -0.01*total_r:
     msg_warn = ('Total of ApportionedRevenue (ad locset) more than 1% '
                 + f'below Total Revenue ({diff_adlocset/total_r:.2%})')
-    log.warning(msg_warn)
-    if job_env == 'prod':
+    logger.warning(msg_warn)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
 
 
@@ -1417,8 +1442,8 @@ assert diff_ad_pgset < 0.001*total_r, msg
 if diff_ad_pgset < -0.01*total_r:
     msg_warn = ('Total of ApportionedRevenue (ad page) more than 1% '
                 + f'below Total Revenue ({diff_ad_pgset/total_r:.2%})')
-    log.warning(msg_warn)
-    if job_env == 'prod':
+    logger.warning(msg_warn)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
 
 # Division X PageGroupSet view
@@ -1485,8 +1510,8 @@ assert diff_divp < 0.001*total_r, msg
 if diff_divp < -0.01*total_r:
     msg_warn = ('Total of ApportionedRevenue (div page) more than 1% '
                 + f'below Total Revenue ({diff_divp/total_r:.2%})')
-    log.warning(msg_warn)
-    if job_env == 'prod':
+    logger.warning(msg_warn)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
 
 
@@ -1527,8 +1552,8 @@ assert diff_adtgt < 0.001*total_r, msg
 if diff_adtgt < -0.01*total_r:
     msg_warn = ('Total of ApportionedRevenue (ad tgt) more than 1% '
                 + f'below Total Revenue ({diff_adtgt/total_r:.2%})')
-    log.warning(msg_warn)
-    if job_env == 'prod':
+    logger.warning(msg_warn)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
 
 
@@ -1567,8 +1592,8 @@ assert diff_pagetgt < 0.001*total_r, msg
 if diff_pagetgt < -0.01*total_r:
     msg_warn = ('Total of ApportionedRevenue (page tgt) more than 1% '
                 + f'below Total Revenue ({diff_pagetgt/total_r:.2%})')
-    log.warning(msg_warn)
-    if job_env == 'prod':
+    logger.warning(msg_warn)
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg_warn)
 
 
@@ -1623,8 +1648,8 @@ df_ad_metadata_full.cache()
 if not dates_provided and not live_exclusions:
     for d in sdates_valid:
         d_fmt = d.strftime('%Y-%m-%d')
-        log.info('Checking consistency of pre- and post-processing ' +
-                 f'totals for SessionDate: {d_fmt}')
+        logger.info('Checking consistency of pre- and post-processing ' +
+                    f'totals for SessionDate: {d_fmt}')
         for fc in [FALLOW_FALSE, FALLOW_TRUE]:
             for c in ['Sessions', 'Revenue']:
                 tpre = (
@@ -1653,12 +1678,12 @@ if not dates_provided and not live_exclusions:
                 assert abs(tpost - tpre) < 0.01, msg
 
 
-if job_env == 'prod':
+if JOB_ENV == 'prod':
     for d in sdates_valid:
         d_fmt = "\'" + d.strftime('%Y-%m-%d') + "\'"
 
-        log.info(f'Loading results_topline for {d_fmt} ' +
-                 f'to table: {RESULTS_TOPLINE_TABLE}')
+        logger.info(f'Loading results_topline for {d_fmt} ' +
+                    f'to table: {RESULTS_TOPLINE_TABLE}')
         delete_from_and_load(
             (
                 df_summary_device_os_wide
@@ -1682,8 +1707,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_aggregated for {d_fmt} ' +
-                 f'to table: {RESULTS_AGGREGATED_TABLE}')
+        logger.info(f'Loading results_aggregated for {d_fmt} ' +
+                    f'to table: {RESULTS_AGGREGATED_TABLE}')
         delete_from_and_load(
             (
                 df_summary_agg_wide
@@ -1713,8 +1738,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ab for {d_fmt} ' +
-                 f'to table: {RESULTS_AB_TABLE}')
+        logger.info(f'Loading results_ab for {d_fmt} ' +
+                    f'to table: {RESULTS_AB_TABLE}')
         delete_from_and_load(
             (
                 df_summary_ab
@@ -1734,8 +1759,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ads for {d_fmt} ' +
-                 f'to table: {RESULTS_ADS_TABLE}')
+        logger.info(f'Loading results_ads for {d_fmt} ' +
+                    f'to table: {RESULTS_ADS_TABLE}')
         delete_from_and_load(
             (
                 df_summary_ad_wide
@@ -1763,8 +1788,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ads_location for {d_fmt} ' +
-                 f'to table: {RESULTS_ADS_LOCATION_TABLE}')
+        logger.info(f'Loading results_ads_location for {d_fmt} ' +
+                    f'to table: {RESULTS_ADS_LOCATION_TABLE}')
         delete_from_and_load(
             (
                 df_summary_ad_locset_wide
@@ -1794,8 +1819,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ads_page for {d_fmt} ' +
-                 f'to table: {RESULTS_ADS_PAGE_TABLE}')
+        logger.info(f'Loading results_ads_page for {d_fmt} ' +
+                    f'to table: {RESULTS_ADS_PAGE_TABLE}')
         delete_from_and_load(
             (
                 df_summary_ad_pagegroupset_wide
@@ -1825,8 +1850,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_div_page for {d_fmt} ' +
-                 f'to table: {RESULTS_DIV_PAGE_TABLE}')
+        logger.info(f'Loading results_div_page for {d_fmt} ' +
+                    f'to table: {RESULTS_DIV_PAGE_TABLE}')
         delete_from_and_load(
             (
                 df_summary_div_pagegroupset_wide
@@ -1856,8 +1881,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ads_targeting for {d_fmt} ' +
-                 f'to table: {RESULTS_ADS_TARGETING_TABLE}')
+        logger.info(f'Loading results_ads_targeting for {d_fmt} ' +
+                    f'to table: {RESULTS_ADS_TARGETING_TABLE}')
         delete_from_and_load(
             (
                 df_summary_ad_targeting
@@ -1880,8 +1905,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_page_targeting for {d_fmt} ' +
-                 f'to table: {RESULTS_PAGE_TARGETING_TABLE}')
+        logger.info(f'Loading results_page_targeting for {d_fmt} ' +
+                    f'to table: {RESULTS_PAGE_TARGETING_TABLE}')
         delete_from_and_load(
             (
                 df_summary_page_targeting
@@ -1903,8 +1928,8 @@ if job_env == 'prod':
             del_where={'SessionDate': d_fmt}
         )
 
-        log.info(f'Loading results_ad_metadata for {d_fmt} ' +
-                 f'to table: {RESULTS_AD_METADATA_TABLE}')
+        logger.info(f'Loading results_ad_metadata for {d_fmt} ' +
+                    f'to table: {RESULTS_AD_METADATA_TABLE}')
         delete_from_and_load(
             (
                 df_ad_metadata_full
@@ -1936,3 +1961,5 @@ if job_env == 'prod':
             pk_cols=['SessionDate', 'UniqueAdID'],
             del_where={'SessionDate': d_fmt}
         )
+
+logger.info("Run Complete")

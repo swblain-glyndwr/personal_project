@@ -1,46 +1,64 @@
-import logging
-import logging.config
 import json
-from next_ads.Assignment import (
-    assign_best_ads_with_constraints,
-    assign_random_ads,
-    assign_best_ads
-    )
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import (JobParser,
-                                build_spark_schema,
-                                chain_when_thens,
-                                map_tbl,
-                                delete_from_and_load,
-                                post_to_webhook)
 from pyspark.sql import functions as F
-from next_ads.utils.columnscalers import subtract_mean
+from next_ads.Assignment import (
+    assign_random_ads,
+    assign_best_ads,
+    assign_best_ads_with_constraints
+    )
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import (build_spark_schema,
+                         chain_when_thens,
+                         map_tbl,
+                         delete_from_and_load,
+                         post_to_webhook)
+from dsutils.argparser import get_job_parser
+from dsutils.columnscalers import subtract_mean
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname", "--location"])
-LOCATION = pargs["location"] if pargs["location"] else "SB2"
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
+LOCATION = jobparser.get_arg('--location')
+if not LOCATION:
+    assert not JOBNAME, 'Location must be specified when running as a job'
+    LOCATION = 'LP1'  # Location can be specified for interactive debugging
+    logger.warning(f'Location not specified (defaulting to {LOCATION})')
+
 LOCATIONS = cfg["locations"]
+
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][job_env]
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+SCHEMA = cfg["schema"][JOB_ENV]
+logger.info(f'Write schema set to {SCHEMA}')
+
+# Map write schema to parameterised write table names
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
 TARGETING_SCORES_TABLE = map_tbl(tbls["targeting_scores_latest"], **tbl_args)
 ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
+REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_latest"]
+
+# Read results data from prod schema dataset
 tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
 AD_RESULTS_TABLE = map_tbl(tbls['results_ads'], **tbl_args_results)
 
@@ -52,16 +70,16 @@ try:
     CELL_MAP = LOCATIONS[LOCATION]
 except KeyError as ke:
     loc_key_msg = f"{LOCATION} build requested but not in config"
-    log.warning(loc_key_msg)
-    if job_env == "prod":
+    logger.warning(loc_key_msg)
+    if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, loc_key_msg)
     raise ke
 
-log.info(f"Assigning Ads for Location: {LOCATION}")
+logger.info(f"Assigning Ads for Location: {LOCATION}")
 
-log.info("Getting Ads")
+logger.info("Getting Ads")
 df_ads = (
-    get_spark()
+    spark
     .table(CONTROL_SHEET_LATEST)
     .where(F.col("Location") == LOCATION)
     .select(
@@ -86,23 +104,23 @@ df_ads = df_ads.drop('AudienceOnly')
 if df_ads_tgt.count() == 0:
 
     no_ads_msg = f"No ads found for Location: {LOCATION}"
-    log.warning(no_ads_msg)
+    logger.warning(no_ads_msg)
 
-    if job_env == "prod":
+    if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, no_ads_msg)
-    log.info("Skipping assignment")
+    logger.info("Skipping assignment")
 
 else:
 
-    log.info("Getting customer cell assignments")
+    logger.info("Getting customer cell assignments")
     df_cells = (
-        get_spark()
+        spark
         .table(CELLS_TABLE_LATEST)
         .drop("rundate")
     )
     df_cells.cache()
 
-    log.info("Assigning Ads with Basic Targeting")
+    logger.info("Assigning Ads with Basic Targeting")
     df_assigned_basic = assign_random_ads(
         df_ads_tgt.select("UniqueAdID", "AlgoDivision"),
         df_cells.select("AccountNumber", "AlgoDivision"),
@@ -110,7 +128,7 @@ else:
         )
     df_assigned_basic.cache()
 
-    log.info("Assigning Ads with Best Targeting")
+    logger.info("Assigning Ads with Best Targeting")
 
     best_kwargs = {
         "targeting_scores_table": TARGETING_SCORES_TABLE,
@@ -136,12 +154,13 @@ else:
 
     df_assigned_best.cache()
 
-    log.info("Assigning Ads with Best Targeting (Challenger)")
+    logger.info("Assigning Ads with Best Targeting (Challenger)")
     best_kwargs |= {
-        'apply_ad_feedback': True,
-        'ad_results_table': AD_RESULTS_TABLE,
-        'control_sheet_latest_table': CONTROL_SHEET_LATEST
-        }
+        "apply_ad_feedback": True,
+        "ad_results_table": AD_RESULTS_TABLE,
+        "control_sheet_latest_table": CONTROL_SHEET_LATEST,
+        "ad_feedback_weight": 0.5
+    }
 
     if "constraints" in LOCATIONS[LOCATION]:
         df_assigned_best_challenger = assign_best_ads_with_constraints(
@@ -159,7 +178,7 @@ else:
 
     df_assigned_best_challenger.cache()
 
-    log.info("Determining Ad to be shown based on assignments and fixed cells")
+    logger.info("Determining Ad to show based on assignments and fixed cells")
     df_assignments = (
         df_cells
         .withColumn("AdSuppressed", F.lit("AdSuppressed"))
@@ -244,7 +263,7 @@ else:
                        ('NoAdFound', f'{LOCATION}_Z')]
 
     df_control_masid = (
-        get_spark().createDataFrame(
+        spark.createDataFrame(
             data=ctrl_masid_vals,
             schema=build_spark_schema(
                 [["UniqueAdID", "string", "not null"],
@@ -271,8 +290,8 @@ else:
         null_treatment_msg = (
             f"{n_null_treatment:,} accounts removed during " +
             f"assignment of {LOCATION} due to null Treatment")
-        log.warning(null_treatment_msg)
-        if job_env == "prod":
+        logger.warning(null_treatment_msg)
+        if JOB_ENV == "prod":
             post_to_webhook(WEBHOOK_URL, null_treatment_msg)
         df_ad_assigned_masid = (
             df_ad_assigned_masid
@@ -284,8 +303,8 @@ else:
     if n_null_masid > 0:
         null_masid_msg = (f"{n_null_masid:,} accounts removed during " +
                           f"assignment of {LOCATION} due to null MASID")
-        log.warning(null_masid_msg)
-        if job_env == "prod":
+        logger.warning(null_masid_msg)
+        if JOB_ENV == "prod":
             post_to_webhook(WEBHOOK_URL, null_masid_msg)
         df_ad_assigned_masid = (
             df_ad_assigned_masid
@@ -301,8 +320,8 @@ else:
         null_measure_msg = (f"{n_null_measure:,} accounts removed during " +
                             f"assignment of {LOCATION} due to null " +
                             "UniqueAdIDMeasurement")
-        log.warning(null_measure_msg)
-        if job_env == "prod":
+        logger.warning(null_measure_msg)
+        if JOB_ENV == "prod":
             post_to_webhook(WEBHOOK_URL, null_measure_msg)
         df_ad_assigned_masid = (
             df_ad_assigned_masid
@@ -324,22 +343,24 @@ else:
             "MASID")
     )
 
-    log.info(f"Loading assignments to {ASSIGNMENTS_TABLE}")
+    logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE}")
     delete_from_and_load(df_ad_assigned_masid_output,
                          ASSIGNMENTS_TABLE,
                          pk_cols=["AccountNumber", "Location"],
                          del_where={"rundate": "current_date()",
                                     "Location": f"'{LOCATION}'"})
 
-    log.info(f"Loading assignments to {ASSIGNMENTS_TABLE_LATEST}")
+    logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE_LATEST}")
     delete_from_and_load(df_ad_assigned_masid_output,
                          ASSIGNMENTS_TABLE_LATEST,
                          pk_cols=["AccountNumber", "Location"],
                          del_where={"Location": f"'{LOCATION}'"})
 
     df_cells.unpersist()
+    df_assigned_basic.unpersist()
     df_assigned_best.unpersist()
+    df_assigned_best_challenger.unpersist()
     df_assignments.unpersist()
     df_ad_assigned_masid.unpersist()
 
-log.info("Run complete")
+logger.info("Run complete")

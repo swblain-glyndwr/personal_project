@@ -1,34 +1,41 @@
-from datetime import date, timedelta
-import logging
-import logging.config
 import json
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import (JobParser,
-                                map_tbl,
-                                post_to_webhook)
+from datetime import date, timedelta
 from pyspark.sql import functions as F
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import map_tbl, post_to_webhook
+from dsutils.argparser import get_job_parser
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname"])
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 LOOKBACK_DAYS = cfg['results_prm']['lookback_days']
 CHECK_SESSIONS_FROM = date.today() - timedelta(days=LOOKBACK_DAYS+1)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][job_env]
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+SCHEMA = cfg["schema"][JOB_ENV]
+logger.info(f'Write schema set to {SCHEMA}')
 
+# Map write schema to parameterised write table names
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 CONTROL_SHEET_LATEST = map_tbl(tbls['control_sheet_latest'], **tbl_args)
 AD_RESULTS = map_tbl(tbls['results_ads'], **tbl_args)
 
@@ -37,14 +44,14 @@ MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
 WEBHOOK_URL = cfg['webhooks']['Results Warnings']
 
 df_ads_active = (
-    get_spark()
+    spark
     .table(CONTROL_SHEET_LATEST)
     .select('UniqueAdID')
     .distinct()
 )
 
 df_ad_results = (
-    get_spark()
+    spark
     .table(AD_RESULTS)
     .where(F.col('SessionDate') >= CHECK_SESSIONS_FROM)
     .groupBy('UniqueAdID')
@@ -88,9 +95,9 @@ if len(underperf_ads) > 0:
         '\n'.join(underperf_ads) +
         '\n\nCheck full results in dashboard'
     )
-    log.warning(msg)
+    logger.warning(msg)
 
-    if job_env == 'prod':
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg)
 else:
     msg = (
@@ -98,7 +105,9 @@ else:
             f'(look-back to {CHECK_SESSIONS_FROM}; ' +
             f'min {MIN_C_SESSIONS:,} control sessions)'
         )
-    log.warning(msg)
+    logger.warning(msg)
 
-    if job_env == 'prod':
+    if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg)
+
+logger.info("Run Complete")

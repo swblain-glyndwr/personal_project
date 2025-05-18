@@ -1,27 +1,37 @@
-import logging
-import logging.config
 import json
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import JobParser, create_table_from_df, map_tbl
 import pyspark.sql.functions as F
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import create_table_from_df, map_tbl
+from dsutils.argparser import get_job_parser
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname"])
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][job_env]
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+SCHEMA = cfg["schema"][JOB_ENV]
+logger.info(f'Write schema set to {SCHEMA}')
+
+# Map write schema to parameterised write table names
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 FIXED_CELLS_TABLE_LATEST = map_tbl(
     tbls["customer_cells_fixed_latest"], **tbl_args)
 TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
@@ -29,16 +39,16 @@ TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
 
-log.info("Combining latest fixed and transient cell assignments")
+logger.info("Combining latest fixed and transient cell assignments")
 
 df_cells_fixed = (
-    get_spark()
+    spark
     .table(FIXED_CELLS_TABLE_LATEST)
     .drop("rundate")
 )
 
 df_cells_transient = (
-    get_spark()
+    spark
     .table(TRANSIENT_CELLS_TABLE_LATEST)
     .drop("rundate")
     .groupBy("AccountNumber")
@@ -64,18 +74,19 @@ if df_cells_transient.count() > 0:
               how="leftanti")
     )
     n_dropped = df_dropped.count()
-    log.warning(f"{n_dropped:,} customers dropped " +
-                "when joining transient cells")
+    logger.warning(f"{n_dropped:,} customers dropped " +
+                   "when joining transient cells")
 else:
     df_cells = df_cells_fixed
 
-log.info(f"Writing combined cells to {CELLS_TABLE_LATEST}")
+logger.info(f"Writing combined cells to {CELLS_TABLE_LATEST}")
 create_table_from_df(
     df=df_cells,
     table=CELLS_TABLE_LATEST,
     partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"],
-    drop_if_exists=True
+    drop_if_exists=True,
+    append_rundate=True
     )
 
-log.info("Run complete")
+logger.info("Run complete")

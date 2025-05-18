@@ -1,8 +1,10 @@
-import json
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
-from next_ads.utils.dbc import get_spark
-from next_ads.utils.etl import build_spark_schema, assert_pk
+from dsutils.dbc import get_spark
+from dsutils.logtools import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def append_targeting_criteria(
@@ -16,6 +18,7 @@ def append_targeting_criteria(
     Returns:
         Dataframe with addidional TargetingCriteria column
     """
+    logger.debug('Appending standardised concatenation TargetingCriteria')
     df = (
         df
         .withColumn(
@@ -39,7 +42,7 @@ def get_model_scores(
         models - subset of model refs to retrieve
         melt_scores - If `True` returns scores in long format
     """
-
+    logger.debug(f'Getting model scores from table: {model_score_table}')
     df = (
         get_spark()
         .table(model_score_table)
@@ -48,15 +51,18 @@ def get_model_scores(
 
     # Remove rundate if present
     if "rundate" in df.columns:
+        logger.debug('Removing rundate column for processing')
         df = df.drop("rundate")
 
     if models:
+        logger.debug(f'Filtering to model subset: {models}')
         df = (
             df
             .select("AccountNumber", *models)
         )
 
     if melt_scores:
+        logger.debug('Melting model scores')
         df = (
             df
             .melt(
@@ -74,8 +80,7 @@ def get_model_scores(
 
 def aggregate_model_scores(
         df: DataFrame,
-        model_score_table: str,
-        patch_model_refs: bool = False) -> DataFrame:
+        model_score_table: str) -> DataFrame:
     """
     Assigns each customer in `model_score_table` an aggregated score.
     Aggregated score is defined by combining Models and ModelCombination
@@ -92,12 +97,10 @@ def aggregate_model_scores(
             wide format (cols: `account_number`, `model_ref_1`,
             `model_ref_2`...)
 
-        patch_model_refs - Patch verbose model refs in control sheet with
-            new shorter refs
-
     Returns:
         Dataframe with cols: AccountNumber, TargetingCriteria, TargetingScore
     """
+    logger.debug('Aggregating model scores')
 
     # TODO: ModelCombination forced to "and" until "or" functionality is built
     df = df.withColumn("ModelCombination", F.lit("and"))
@@ -109,6 +112,7 @@ def aggregate_model_scores(
         .agg(F.max(F.col("ModelsAssigned")).alias("nModelsMax"))
         .collect()[0]["nModelsMax"]
     )
+    logger.debug(f'Max models assigned: {max_models_assigned}')
 
     for n in range(1, max_models_assigned+1):
         df = (
@@ -133,42 +137,8 @@ def aggregate_model_scores(
         .where(F.col("Model").isNotNull())
     )
 
-    # TODO: vvv Patch start - Patch model references between old and new
-    # Refactor model refs in the new control sheet and remove this patch
-    if patch_model_refs:
-        with open("config/patch_model_ref.json") as f:
-            patch_model_ref = json.load(f)
-
-        df_model_patch = (
-            get_spark()
-            .createDataFrame(
-                list(patch_model_ref.items()),
-                schema=build_spark_schema([
-                    ["Model", "string", "not null"],
-                    ["ModelRef", "string", "not null"]
-                    ])
-                )
-        )
-        assert_pk(df_model_patch, ["Model", "ModelRef"])
-
-        df_score_lookup = (
-            df
-            .join(df_model_patch, on="Model", how="left")
-            .drop("Model")
-            .withColumnRenamed("ModelRef", "Model")
-        )
-    else:
-        df_score_lookup = df
-
-    assert_pk(df_score_lookup, ["TargetingCriteria", "Model"])
-    # TODO: ^^^ Patch end
-
     # Find only specified models, to avoid pulling back all unnecessarily
-    model_subset = [
-        x[0] for x in (
-            df_score_lookup.select("Model").distinct().collect()
-            )
-        ]
+    model_subset = [x[0] for x in df.select("Model").distinct().collect()]
 
     # Get scores for relevant models
     df_scores = get_model_scores(
@@ -178,10 +148,10 @@ def aggregate_model_scores(
         )
 
     # Join scores to entity using model as a key
-    df_scores_pre_agg = df_scores.join(df_score_lookup, on="Model")
+    df_scores_pre_agg = df_scores.join(df, on="Model")
 
-    # Combine scores
     # TODO: Other cases than "and"/F.product ("or", "max" etc.)
+    logger.debug('Combining model scores')
     df_agg_scores = (
         df_scores_pre_agg
         .groupBy(["AccountNumber", "TargetingCriteria"])

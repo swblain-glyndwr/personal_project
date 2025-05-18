@@ -1,44 +1,53 @@
-import logging
-import logging.config
 import json
-from next_ads.Assignment import (assign_predetermined_audience,
-                                 get_algo_divisions_legacy,
-                                 melt_transient_cells)
-from next_ads.utils.dbc import get_spark
 from pyspark.sql import functions as F
-from next_ads.utils.etl import (assert_pk,
-                                JobParser,
-                                create_table_from_df, delete_from_and_load,
-                                map_tbl,
-                                chain_when_thens, truncate_and_load)
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import (assert_pk,
+                         create_table_from_df, delete_from_and_load,
+                         map_tbl,
+                         chain_when_thens, truncate_and_load)
+from dsutils.argparser import get_job_parser
+from next_ads.Assignment import (assign_predetermined_audience,
+                                 get_algo_divisions,
+                                 melt_transient_cells)
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname"])
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][job_env]
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+SCHEMA = cfg["schema"][JOB_ENV]
+logger.info(f'Write schema set to {SCHEMA}')
+
+# Map write schema to parameterised write table names
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 FIXED_CELLS_TABLE = map_tbl(tbls["customer_cells_fixed_latest"], **tbl_args)
 TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"], **tbl_args)
 TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
     tbls["customer_cells_transient_latest"], **tbl_args)
 
+# Get read tables
 TABLES_READ = cfg["tables"]["read"]
 SVOC = TABLES_READ["svoc_cust"]
 RPID_WITH_ACCOUNTS = TABLES_READ["rpid_with_accounts"]
 MODEL_SCORES_LATEST = TABLES_READ["model_scores_latest"]
-LEGACY_EXCL = cfg["legacy"]["account_exclusions"]
 
 FALLOW_PC = cfg["fallow_control"]["proportion"]
 FALLOW_SEED = cfg["fallow_control"]["seed"]
@@ -54,17 +63,16 @@ if "transient_cells" in cfg:
 # Query inherited from legacy script
 # TODO: Should we take lastest updated record to de-dup instead?
 df_rpid_w_acc = (
-        get_spark()
+        spark
         .table(RPID_WITH_ACCOUNTS)
         .select("account_number", "roamingprofileid")
-        .where(~F.col("account_number").isin(LEGACY_EXCL))
         .distinct()
 )
 
 # SVOC table used because it contains older accounts too, apparently
 # Where clause inherited from legacy script
 df_cust = (
-    get_spark()
+    spark
     .table(SVOC)
     .where(
         (F.col("countrycode").isin("GB"))
@@ -79,7 +87,7 @@ df_cust = (
 
 assert_pk(df_cust, ["AccountNumber"])
 df_cust.cache()
-log.info(f"Customer base: {df_cust.count():,}")
+logger.info(f"Customer base: {df_cust.count():,}")
 
 df_fallow = (
     df_cust
@@ -119,14 +127,14 @@ df_cells = (
 )
 
 df_cells_existing = (
-    get_spark()
+    spark
     .table(FIXED_CELLS_TABLE)
     .drop("rundate")
 )
 df_cells_existing.cache()
 
 n_cust_existing = df_cells_existing.count()
-log.info(f"Existing customers: {n_cust_existing:,}")
+logger.info(f"Existing customers: {n_cust_existing:,}")
 
 df_cust_new = (
     df_cells
@@ -136,7 +144,7 @@ df_cust_new = (
     )
 
 n_cust_new = df_cust_new.count()
-log.info(f"New customers: {n_cust_new:,}")
+logger.info(f"New customers: {n_cust_new:,}")
 
 pk_columns = ["AccountNumber", "rundate"]
 existing_cols = [c for c in df_cells_existing.columns if c not in pk_columns]
@@ -145,11 +153,11 @@ overlapping_cols = [c for c in proposed_cols if c in existing_cols]
 new_cols = [c for c in proposed_cols if c not in existing_cols]
 deprecated_cols = [c for c in existing_cols if c not in proposed_cols]
 
-log.info(f"Existing columns:    {existing_cols}")
-log.info(f"Proposed columns:    {proposed_cols}")
-log.info(f"Overlapping columns: {overlapping_cols}")
-log.info(f"New columns:         {new_cols}")
-log.info(f"Deprecated columns:  {deprecated_cols}")
+logger.info(f"Existing columns:    {existing_cols}")
+logger.info(f"Proposed columns:    {proposed_cols}")
+logger.info(f"Overlapping columns: {overlapping_cols}")
+logger.info(f"New columns:         {new_cols}")
+logger.info(f"Deprecated columns:  {deprecated_cols}")
 
 df_cells_new = (
     df_cust_new
@@ -162,7 +170,7 @@ for dcol in deprecated_cols:
     df_cells_new = df_cells_new.withColumn(dcol, F.lit(None))
 
 if n_cust_new > 0:
-    log.info("Unioning new customers for existing columns")
+    logger.info("Unioning new customers for existing columns")
     cols_for_union = ["AccountNumber", *existing_cols]
     schema_mismatch_msg = "New cell schema mismatch with existing"
     assert cols_for_union == df_cells_existing.columns, schema_mismatch_msg
@@ -175,7 +183,7 @@ else:
 
 if len(new_cols) > 0:
     df_cells_new_cols = df_cells.select("AccountNumber", *new_cols)
-    log.info("Joining new columns for all customers")
+    logger.info("Joining new columns for all customers")
     df_cells_full = (
         df_cells_existing_updated
         .join(df_cells_new_cols, on="AccountNumber", how="left")
@@ -187,41 +195,38 @@ df_cells_full.cache()
 
 for ncol in new_cols:
     n_null = df_cells_full.where(F.col(ncol).isNull()).count()
-    log.warning(f"{n_null:,} existing customers not assigned {ncol}")
+    logger.warning(f"{n_null:,} existing customers not assigned {ncol}")
 
-log.info("Backing up fixed cells table")
+logger.info("Backing up fixed cells table")
 create_table_from_df(
     df=df_cells_existing,
     table=FIXED_CELLS_TABLE + "_backup",
     partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"],
-    drop_if_exists=True
+    drop_if_exists=True,
+    append_rundate=True
     )
 
-log.info("Dropping and recreating fixed cells table")
+logger.info("Dropping and recreating fixed cells table")
 create_table_from_df(
     df=df_cells_full,
     table=FIXED_CELLS_TABLE,
     partitioned_by=["FallowControl"],
     pk_cols=["AccountNumber"],
-    drop_if_exists=True
+    drop_if_exists=True,
+    append_rundate=True
     )
 
-# TODO: Figure out what's going on with the Exponea load
-
 if transient_cells:
-    log.info("Transient Cells requested")
+    logger.info("Transient Cells requested")
     transient_cell_dfs = []
     if "AlgoDivision" in TRANSIENT_CELLS:
-        # TODO: Review methodology of AlgoDivision assignment
-        # Due to time constraints, old methodology was ported across without
-        # full review
-        log.info("[Legacy] Assigning AlgoDivision via legacy method")
-        df_divs = get_algo_divisions_legacy(MODEL_SCORES_LATEST)
+        logger.info("Assigning AlgoDivision")
+        df_divs = get_algo_divisions(MODEL_SCORES_LATEST)
         transient_cell_dfs.append(df_divs)
 
     if "Audiences" in TRANSIENT_CELLS:
-        log.info("Assigning Audiences")
+        logger.info("Assigning Audiences")
         df_audiences = assign_predetermined_audience(
             audiences=TRANSIENT_CELLS["Audiences"],
             tables=TABLES_READ
@@ -247,8 +252,8 @@ if transient_cells:
                       TRANSIENT_CELLS_TABLE_LATEST,
                       pk_cols=["AccountNumber", "Cell"])
 else:
-    log.info("No Transient Cells requested - truncating latest table")
-    get_spark().sql(f"truncate table {TRANSIENT_CELLS_TABLE_LATEST}")
+    logger.info("No Transient Cells requested - truncating latest table")
+    spark.sql(f"truncate table {TRANSIENT_CELLS_TABLE_LATEST}")
 
 df_cust.unpersist()
 df_fallow.unpersist()
@@ -258,4 +263,4 @@ df_cells_existing.unpersist()
 df_cells_full.unpersist()
 df_cells_transient.unpersist()
 
-log.info("Run complete")
+logger.info("Run complete")

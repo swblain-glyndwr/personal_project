@@ -1,34 +1,46 @@
-import logging
-import logging.config
 import json
 from pyspark.sql import functions as F
+from dsutils.dbc import configure_spark
+from dsutils.logtools import configure_logging, get_logger
+from dsutils.etl import truncate_and_load, map_tbl
+from dsutils.argparser import get_job_parser
 from next_ads.Scoring import aggregate_model_scores
-from next_ads.utils.etl import truncate_and_load, JobParser, map_tbl
-from next_ads.utils.dbc import get_spark
 
 
-logging.config.fileConfig("logging.conf")
-log = logging.getLogger("mylog")
+jobparser = get_job_parser()
+jobparser._parse_args()
+JOBNAME = jobparser.get_arg('--jobname')
+JOB_ENV = jobparser.get_arg('--job_env')
+CLIENT = jobparser.get_arg('--client')
+LOG_LEVEL = jobparser.get_arg('--log_level')
+configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+logger = get_logger(__name__)
+spark = configure_spark()
+logger.info(f"Running in job environment: {JOB_ENV}")
 
-parser = JobParser()
-pargs, job_env = parser.parse_job_args(["--jobname"])
-log.info(f"Running in job environment: {job_env}")
+if not CLIENT:
+    assert not JOBNAME, 'Client must be specified when running as a job'
+    CLIENT = 'next_uk'  # Client can be specified for interactive debugging
+    logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-DOMAIN = pargs["domain"] if pargs["domain"] else "next_uk"
-
-log.info(f"Configuring run for domain: {DOMAIN}")
-with open(f"config/{DOMAIN}.json") as f:
+logger.info(f"Configuring run for client: {CLIENT}")
+with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
-MODEL_SCORE_TABLE = cfg["tables"]["read"]["model_scores_latest"]
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][job_env]
-tbl_args = {'schema': SCHEMA, 'domain': DOMAIN}
+SCHEMA = cfg["schema"][JOB_ENV]
+logger.info(f'Write schema set to {SCHEMA}')
+
+# Map write schema to parameterised write table names
+tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 TARGETING_SCORES_TABLE = map_tbl(tbls["targeting_scores_latest"], **tbl_args)
 CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
 
+# Get read tables
+MODEL_SCORE_TABLE = cfg["tables"]["read"]["model_scores_latest"]
+
 df_scores_required = (
-    get_spark()
+    spark
     .table(CONTROL_SHEET_LATEST)
     .select("Models",
             "ModelCombination")
@@ -51,4 +63,4 @@ truncate_and_load(df_ms_agg,
 
 df_ms_agg.unpersist()
 
-log.info("Run complete")
+logger.info("Run complete")
