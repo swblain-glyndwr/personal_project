@@ -3,7 +3,9 @@ from pyspark.sql import functions as F
 from next_ads.Assignment import (
     assign_random_ads,
     assign_best_ads,
-    assign_best_ads_with_constraints
+    assign_best_ads_with_constraints,
+    assign_best_ads_rec,
+    assign_best_ads_with_constraints_rec
     )
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
@@ -39,7 +41,7 @@ with open(f"config/{CLIENT}.json") as f:
 LOCATION = jobparser.get_arg('--location')
 if not LOCATION:
     assert not JOBNAME, 'Location must be specified when running as a job'
-    LOCATION = 'LP1'  # Location can be specified for interactive debugging
+    LOCATION = 'PH3'  # Location can be specified for interactive debugging
     logger.warning(f'Location not specified (defaulting to {LOCATION})')
 
 LOCATIONS = cfg["locations"]
@@ -56,7 +58,7 @@ ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
-REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_latest"]
+REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_gru_latest"]
 
 # Read results data from prod schema dataset
 tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
@@ -156,21 +158,19 @@ else:
 
     logger.info("Assigning Ads with Best Targeting (Challenger)")
     best_kwargs |= {
-        "apply_ad_feedback": True,
-        "ad_results_table": AD_RESULTS_TABLE,
-        "control_sheet_latest_table": CONTROL_SHEET_LATEST,
-        "ad_feedback_weight": 0.5
+        "recommender_scores_table": REC_SCORES_TABLE
     }
+    del best_kwargs['targeting_scores_table']
 
     if "constraints" in LOCATIONS[LOCATION]:
-        df_assigned_best_challenger = assign_best_ads_with_constraints(
+        df_assigned_best_challenger = assign_best_ads_with_constraints_rec(
             df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             constraints=LOCATIONS[LOCATION]["constraints"],
             best_kwargs=best_kwargs
         )
     else:
-        df_assigned_best_challenger = assign_best_ads(
+        df_assigned_best_challenger = assign_best_ads_rec(
             df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             **best_kwargs

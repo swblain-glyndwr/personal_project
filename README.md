@@ -11,10 +11,12 @@ The model scores input into this 'engine' can take multiple forms (e.g. propensi
 - Next Ads Control Sheet (Google Sheet - specifically the _Control Sheet_ tab)
     - [Google Sheet](https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=1718512789#gid=1718512789)
     - This is managed by the On-Site Advertising (OSA) team within the business' Trade team. 
-- Latest model scores for all relevant customers and models.
+- Latest model scores for all relevant customers and models
     - [marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199)
-- Latest recommender scores for all live ads.
-    -  [marketingdata_prod.warehouse.next_uk_nextads_recommender_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_recommender_scores_latest?o=6188831950334199)
+- Latest recommender scores (ALS model) for live ads
+    -  [marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_als_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/ds_sandbox/next_uk_nextads_recommender_scores_als_latest?o=6188831950334199)
+- Latest recommender scores (GRU model) for live ads
+    -  [marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_gru_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/ds_sandbox/next_uk_nextads_recommender_scores_gru_latest?o=6188831950334199)
 
 ## Process Stages
 ### Engine
