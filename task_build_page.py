@@ -58,7 +58,7 @@ ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
-REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_gru_latest"]
+REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_als_latest"]
 
 # Read results data from prod schema dataset
 tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
