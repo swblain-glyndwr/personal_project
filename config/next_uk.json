@@ -293,14 +293,14 @@
                 {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "AdHocABTest2", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
+                        {"col": "AdHocABTest2", "op": "eq", "val": "B"}
                     ],
                     "then": {"col": "UniqueAdIDBestChallenger"}
                 }
@@ -395,17 +395,9 @@
                 },
                 {
                     "when": [
-                        {"col": "OrderCompleteTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "OrderCompleteTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "OrderCompleteTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -416,31 +408,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -451,31 +427,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -486,31 +446,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -521,31 +465,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -556,31 +484,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -591,31 +503,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -626,31 +522,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -661,31 +541,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -696,31 +560,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -731,31 +579,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -766,31 +598,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -804,31 +620,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "HomePageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -842,31 +642,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "HomePageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -880,31 +664,15 @@
             "map": [
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
-                },
-                {
-                    "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Champion"}
+                        {"col": "HomePageTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"},
-                        {"col": "ChampionChallenger", "op": "eq", "val": "Challenger"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         }
