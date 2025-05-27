@@ -232,6 +232,86 @@
             },
             "map": [
                 {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Boys"}
+                },
+                {
                     "when": [{"col": "Audience", "op": "eq", "val": "Set 1"},
                              {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
                     "then": {"lit": "P136_C788_Next_Womens_Multipacks_Womens"}
@@ -240,46 +320,6 @@
                     "when": [{"col": "Audience", "op": "eq", "val": "Set 2"},
                              {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
                     "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Boys"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
@@ -335,6 +375,86 @@
             },
             "map": [
                 {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Boys"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Mens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Girls"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
+                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
+                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Boys"}
+                },
+                {
                     "when": [{"col": "Audience", "op": "eq", "val": "Set 1"},
                              {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
                     "then": {"lit": "P136_C788_Next_Womens_Multipacks_Womens"}
@@ -343,46 +463,6 @@
                     "when": [{"col": "Audience", "op": "eq", "val": "Set 2"},
                              {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
                     "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P136_C619_Campaign_Mixed_Eid_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Eid 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P136_C1730_Campaign_Mixed_Kurtas_Boys"}
                 },
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
