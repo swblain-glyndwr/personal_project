@@ -166,6 +166,16 @@ df_ad_metadata = (
     .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
     .withColumn('SessionDate', F.to_date(F.col('rundate') + timedelta(days=1)))
 )
+
+# Force deletion of SessionDate 29th May from ads tables
+# MASID failed on 29th, but was not re-run, so need to force copying forward
+# of ads tables from previous rundate (these will have inhereted from the
+# previous day under the new MASID process)
+# Note: This will cause the run to fail if 29th May is re-run in isolation
+# i.e. without 28th May also being included in the date range
+df_assignments = df_assignments.where(F.col('SessionDate') != '2025-05-29')
+df_ad_metadata = df_ad_metadata.where(F.col('SessionDate') != '2025-05-29')
+
 df_ad_metadata.cache()
 
 # Check for missing dates (e.g. failure in scheduled run) and patch

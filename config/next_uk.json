@@ -883,7 +883,7 @@
     },
 
     "results_prm": {
-        "default_offset_start": 4, 
+        "default_offset_start": 3,
         "default_offset_end": 2, 
         "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
