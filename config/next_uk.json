@@ -312,21 +312,6 @@
                     "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Boys"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Set 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C788_Next_Womens_Multipacks_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Set 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "AdSuppressed"}
-                },
-                {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
@@ -453,21 +438,6 @@
                     "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
                                 {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
                     "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Set 1"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C788_Next_Womens_Multipacks_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Set 2"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P136_C873_Next_Womens_TheSet_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Set Control"},
-                             {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "AdSuppressed"}
                 },
                 {
                     "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Basic"}],
