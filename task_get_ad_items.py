@@ -84,7 +84,7 @@ for ad_i in list(ads.keys()):
         ad["Warning"] = msg
         logger.warning(f'{msg} for {ad_i}')
 
-    url_path = ad['URL'].split(DOMAIN)[-1]
+    url_path = ad['URL'].replace(" ", "").split(DOMAIN)[-1]
     full_url = DOMAIN + url_path
 
     query_params = {"criteria": full_url, "type": SEARCH_TYPE}

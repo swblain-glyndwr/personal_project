@@ -1026,6 +1026,20 @@ df_sessions_master_meta = (
     )
 )
 
+# Remove TheSet ads from results as audiance overrides
+# over-ran the lifecycle of these ads in the control sheet.
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('SessionDate').isin(
+                ['P136_C788_Next_Womens_Multipacks_Womens',
+                 'P136_C873_Next_Womens_TheSet_Womens']))
+            & (F.col('SessionDate') >= '2025-05-30')
+        )
+    )
+)
+
 
 session_level_cols = ['SessionDate', 'Device', 'OS']
 w_apportion = Window.partitionBy(*session_level_cols, 'UniqueVisitID')
