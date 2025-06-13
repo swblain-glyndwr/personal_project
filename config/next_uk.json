@@ -198,8 +198,7 @@
     "transient_cells": {
         "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
         "Audiences": [
-            ["womens_premium_seasons", {"account_col": "Account_Number", "label_col": "Selection_Group"}],
-            ["eid_fathersday", {"account_col": "Account_Number", "label_col": "Selection_Group"}]
+            ["womens_premium_seasons", {"account_col": "Account_Number", "label_col": "Selection_Group"}]
         ]
     },
 
@@ -281,86 +280,6 @@
                     "when": [{"col": "Audience", "op": "eq", "val": "Premium Mens"},
                                 {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
                     "then": {"lit": "P138_C9_Brands_Mens_PremiumNewIn_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Boys"}
                 },
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
@@ -459,86 +378,6 @@
                     "when": [{"col": "Audience", "op": "eq", "val": "Premium Mens"},
                                 {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
                     "then": {"lit": "P138_C9_Brands_Mens_PremiumNewIn_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 1"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C404_Campaign_FathersDay_Generic_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 2"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C224_Campaign_FathersDay_FragranceForHim_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 3"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C404f_Campaign_FathersDay_FoodandDrink_Boys"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Girls"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Girls"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Fathers Day 4"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Boys"}],
-                    "then": {"lit": "P137_C214_Campaign_Home_PersonalisedGifts_Boys"}
                 },
                 {
                     "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Basic"}],
@@ -897,7 +736,6 @@
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-            "eid_fathersday": "marketingdata_prod.ds_sandbox.next_uk_nextads_eidfathersday_audience_20250430",
             "womens_premium_seasons" : "marketingdata_prod.ds_sandbox.next_uk_nextads_womens_premium_seasons_audience_20250605",
             "recommender_scores_als_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_als_latest",
             "recommender_scores_gru_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_gru_latest"
