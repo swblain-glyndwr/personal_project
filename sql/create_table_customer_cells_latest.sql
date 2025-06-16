@@ -15,6 +15,9 @@ create table marketingdata_prod.{schema}.{domain}_nextads_customer_cells_latest 
     AdHocABTest8 string not null,
     AdHocABTest9 string not null,
     ChampionChallenger string not null,
+    AlgoDivision string not null,
+    Audience string not null,
+    IsPremium int not null,
     rundate date not null,
   constraint pk_{domain}_nextads_customer_cells_latest primary key (
     AccountNumber

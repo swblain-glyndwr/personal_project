@@ -86,6 +86,7 @@ df_ads = (
     .where(F.col("Location") == LOCATION)
     .select(
         "UniqueAdID",
+        "UniqueAdIDPremium",
         "AlgoDivision",
         "MASIDToken",
         "TargetingCriteria",
@@ -212,6 +213,21 @@ else:
                 "UniqueAdIDMeasurement",
                 chain_when_thens(CELL_MAP["map"])
                 )
+            .join(
+                (
+                    df_ads
+                    .select('UniqueAdID', 'UniqueAdIDPremium')
+                    .withColumnRenamed('UniqueAdID', 'UniqueAdIDMeasurement')
+                ), on='UniqueAdIDMeasurement', how='left'
+                )
+            .withColumn(
+                'UniqueAdIDMeasurement',
+                F.when(
+                    ((F.col('IsPremium') == 1)
+                     & (F.col('UniqueAdIDPremium').isNotNull())),
+                    F.col('UniqueAdIDPremium')
+                    ).otherwise(F.col('UniqueAdIDMeasurement'))
+                )
             .fillna('NoAdFound', subset=['UniqueAdIDMeasurement'])
             .withColumn(
                 "UniqueAdIDAssigned",
@@ -241,8 +257,16 @@ else:
     )
 
     df_ad_assigned = (
-        df_ad_assigned.join(df_ad_treatments,
-                            on='AccountNumber', how='left')
+        df_ad_assigned
+        .join(df_ad_treatments, on='AccountNumber', how='left')
+        .withColumn(
+            'Treatment',
+            F.when(
+                ((F.col('IsPremium') == 1)
+                 & (F.col('UniqueAdIDPremium').isNotNull())),
+                F.concat(F.col('Treatment'), F.lit('Prem'))
+                ).otherwise(F.col('Treatment'))
+            )
     )
 
     df_ad_masid = (

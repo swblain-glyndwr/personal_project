@@ -37,6 +37,7 @@ FIXED_CELLS_TABLE_LATEST = map_tbl(
 TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
     tbls["customer_cells_transient_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
+PREMIUM_CUST_TABLE = cfg["tables"]["read"]["premium_customers"]
 
 
 logger.info("Combining latest fixed and transient cell assignments")
@@ -76,6 +77,24 @@ if df_cells_transient.count() > 0:
     n_dropped = df_dropped.count()
     logger.warning(f"{n_dropped:,} customers dropped " +
                    "when joining transient cells")
+
+    # Collect premium flag values for customers
+    df_premium_cust = (
+        spark
+        .table(PREMIUM_CUST_TABLE)
+        .withColumn(
+            "is_premium_flag",
+            F.when(F.col("PS1") == "premium", 1).otherwise(0))
+        .withColumnRenamed('account_number', 'AccountNumber')
+        .withColumnRenamed('is_premium_flag', 'IsPremium')
+        .select('AccountNumber', 'IsPremium')
+    )
+    # Left join and fill any blanks with 0 (not premium)
+    df_cells = df_cells.join(
+                            df_premium_cust, on="AccountNumber",
+                            how="left_outer")
+    df_cells = df_cells.fillna(
+                            0, subset=["IsPremium"])
 else:
     df_cells = df_cells_fixed
 

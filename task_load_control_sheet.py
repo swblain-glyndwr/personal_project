@@ -228,6 +228,23 @@ if df_dup_masids.count() > 1:
         post_to_webhook(WEBHOOK_URL, warn_dup_masid)
 
 
+df_valid_ad_ids = df_processed.select(
+    F.col('UniqueAdID').alias('valid_id')
+).distinct()
+
+df_processed = df_processed.join(
+    df_valid_ad_ids,
+    F.col("UniqueAdIDPremium") == F.col("valid_id"),
+    "left_outer"
+)
+
+df_processed = df_processed.withColumn(
+    "UniqueAdIDPremium",
+    F.when(F.col("valid_id").isNull(), F.lit(None))
+    .otherwise(F.col("UniqueAdIDPremium"))
+)
+
+
 target_cols = (
     spark
     .table(TARGET_TABLE)

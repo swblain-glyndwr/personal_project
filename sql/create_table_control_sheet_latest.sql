@@ -1,5 +1,6 @@
 create table marketingdata_prod.{schema}.{domain}_nextads_control_sheet_latest (
   UniqueAdID string not null,
+  UniqueAdIDPremium string,
   PotNumber string not null,
   CampaignNumber string,
   Title string,
