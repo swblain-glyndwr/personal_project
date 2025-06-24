@@ -14,6 +14,7 @@ create table marketingdata_prod.{schema}.{domain}_nextads_control_sheet_latest (
   TemplateName string,
   StartDate date,
   EndDate date,
+  AudienceOnly int,
   Models string,
   ModelCombination string,
   TargetingCriteria string,

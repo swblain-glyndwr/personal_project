@@ -973,6 +973,19 @@ df_sessions_master_meta = (
     )
 )
 
+# Remove Homepage (App only) for affected dates
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'HomePage')
+            & (F.col('Device') == 'App')
+            & (F.col('SessionDate') >= date(2025, 6, 21))
+            & (F.col('SessionDate') <= date(2025, 6, 22))
+        )
+    )
+)
+
 df_sessions_master_meta = (
     df_sessions_master_meta
     .where(
