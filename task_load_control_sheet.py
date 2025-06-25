@@ -176,6 +176,30 @@ df_processed = (
 )
 df_processed = append_targeting_criteria(df_processed)
 
+
+# Ensure UniqueAdIDPremium is only present on locations in sibling ad
+logger.info("Constraining Premium Ads to Only Show on Sibling Locations")
+location_lookup_df = df_processed.groupBy("UniqueAdID") \
+                    .agg(F.collect_set("Location").alias("ValidLocations")) \
+                    .withColumnRenamed("UniqueAdID", "LookupAdID")
+df_processed = df_processed.join(
+    location_lookup_df,
+    df_processed["UniqueAdIDPremium"] == location_lookup_df["LookupAdID"],
+    "left"
+)
+
+df_processed = df_processed.withColumn(
+    "UniqueAdIDPremium",
+    F.when(
+        (F.col("UniqueAdIDPremium").isNotNull()) &
+        (
+            F.col("ValidLocations").isNull() |
+            ~F.array_contains(F.col("ValidLocations"), F.col("Location"))
+        ),
+        F.lit(None)
+    ).otherwise(F.col("UniqueAdIDPremium"))
+).drop("LookupAdID", "ValidLocations")
+
 logger.info("Checking input Primary Key")
 assert_pk(df_processed, ["UniqueAdID", "Location"])
 
