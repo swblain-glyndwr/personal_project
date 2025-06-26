@@ -208,6 +208,7 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -227,6 +228,7 @@
             "page": "/shoppingbag",
             "screen": "Cart",
             "page_group": "ShoppingBag",
+            "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -286,18 +288,8 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "AdHocABTest2", "op": "eq", "val": "A"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
                     "then": {"col": "UniqueAdIDBest"}
-                },
-                {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "AdHocABTest2", "op": "eq", "val": "B"}
-                    ],
-                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -306,6 +298,7 @@
             "page": "/shoppingbag",
             "screen": "Cart",
             "page_group": "ShoppingBag",
+            "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -325,6 +318,7 @@
             "page": "/secure/checkout/complete",
             "screen": "Checkout Completed",
             "page_group": "OrderComplete",
+            "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -395,12 +389,13 @@
             "pf_col": "LP_slot_1",
             "page": "/women",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -414,12 +409,13 @@
             "pf_col": "LP_slot_2",
             "page": "/men",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -433,12 +429,13 @@
             "pf_col": "LP_slot_3",
             "page": "/boys",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -452,12 +449,13 @@
             "pf_col": "LP_slot_4",
             "page": "/girls",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -471,12 +469,13 @@
             "pf_col": "LP_slot_5",
             "page": "/homeware",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -490,12 +489,13 @@
             "pf_col": "LP_slot_6",
             "page": "/beauty",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -509,12 +509,13 @@
             "pf_col": "LP_slot_7",
             "page": "/branded",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -528,12 +529,13 @@
             "pf_col": "LP_slot_8",
             "page": "/sports",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -547,12 +549,13 @@
             "pf_col": "LP_slot_9",
             "page": "/newborn",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -566,12 +569,13 @@
             "pf_col": "LP_slot_10",
             "page": "/gift-ideas",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -585,12 +589,13 @@
             "pf_col": "LP_slot_11",
             "page": "/outdoor",
             "page_group": "LandingPage",
+            "basic_within": "global",
             "map": [
                 {
                     "when": [
                         {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -605,6 +610,7 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1]},
             "map": [
@@ -627,6 +633,7 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [2]},
             "map": [
@@ -649,6 +656,7 @@
             "page": "/",
             "screen": "Home",
             "page_group": "HomePage",
+            "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3]},
             "map": [
@@ -738,8 +746,7 @@
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "womens_premium_seasons" : "marketingdata_prod.ds_sandbox.next_uk_nextads_womens_premium_seasons_audience_20250605",
-            "recommender_scores_als_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_als_latest",
-            "recommender_scores_gru_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_gru_latest",
+            "rec_scores_gru_with_als_latest": "marketingdata_prod.search.next_ads_als_deployment_normalized_all",
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest"
         },
         "write": {
@@ -800,6 +807,6 @@
         "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
         "min_c_sessions": 30000,
-        "lookback_days": 14
+        "lookback_days": 28
     }
 }

@@ -2,8 +2,6 @@ import json
 from pyspark.sql import functions as F
 from next_ads.Assignment import (
     assign_random_ads,
-    assign_best_ads,
-    assign_best_ads_with_constraints,
     assign_best_ads_rec,
     assign_best_ads_with_constraints_rec
     )
@@ -58,7 +56,7 @@ ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
-REC_SCORES_TABLE = cfg["tables"]["read"]["recommender_scores_gru_latest"]
+REC_SCORES_TABLE = cfg["tables"]["read"]["rec_scores_gru_with_als_latest"]
 
 # Read results data from prod schema dataset
 tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
@@ -124,17 +122,50 @@ else:
     df_cells.cache()
 
     logger.info("Assigning Ads with Basic Targeting")
-    df_assigned_basic = assign_random_ads(
-        df_ads_tgt.select("UniqueAdID", "AlgoDivision"),
-        df_cells.select("AccountNumber", "AlgoDivision"),
-        grp_col="AlgoDivision"
+
+    if "basic_within" in LOCATIONS[LOCATION]:
+        basic_within = LOCATIONS[LOCATION]["basic_within"]
+    else:
+        basic_default_warn_msg = (
+            f'`basic_within` not specified in config for {LOCATION}' +
+            ' - defaulting to "global"'
+            )
+        logger.warning(basic_default_warn_msg)
+        basic_within = "global"
+
+    # 'global' is a dummy column name used within the assign_random_ads
+    # function when there are no grouping columns. This was done to minimise
+    # refactoring the required, but a more generalisable assign_random_ads
+    # function would be beneficial to remove this restriction
+    if 'global' in df_ads_tgt.columns:
+        protected_colname_msg = (
+            'Protected column name "global" was found in df_ads_tgt'
         )
+        raise Exception(protected_colname_msg)
+    if 'global' in df_cells.columns:
+        protected_colname_msg = (
+            'Protected column name "global" was found in df_cells'
+        )
+        raise Exception(protected_colname_msg)
+
+    if basic_within == 'global':
+        df_assigned_basic = assign_random_ads(
+            df_ads_tgt.select("UniqueAdID"),
+            df_cells.select("AccountNumber"),
+            )
+    else:
+        df_assigned_basic = assign_random_ads(
+            df_ads_tgt.select("UniqueAdID", basic_within),
+            df_cells.select("AccountNumber", basic_within),
+            grp_col=basic_within
+            )
+
     df_assigned_basic.cache()
 
     logger.info("Assigning Ads with Best Targeting")
 
     best_kwargs = {
-        "targeting_scores_table": TARGETING_SCORES_TABLE,
+        "recommender_scores_table": REC_SCORES_TABLE,
         "score_scale_fn": subtract_mean
     }
 
@@ -142,14 +173,14 @@ else:
         best_kwargs = best_kwargs | LOCATIONS[LOCATION]["best_kwargs"]
 
     if "constraints" in LOCATIONS[LOCATION]:
-        df_assigned_best = assign_best_ads_with_constraints(
+        df_assigned_best = assign_best_ads_with_constraints_rec(
             df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             constraints=LOCATIONS[LOCATION]["constraints"],
             best_kwargs=best_kwargs
         )
     else:
-        df_assigned_best = assign_best_ads(
+        df_assigned_best = assign_best_ads_rec(
             df_ads=df_ads_tgt,
             df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
             **best_kwargs
@@ -158,25 +189,8 @@ else:
     df_assigned_best.cache()
 
     logger.info("Assigning Ads with Best Targeting (Challenger)")
-    best_kwargs |= {
-        "recommender_scores_table": REC_SCORES_TABLE
-    }
-    del best_kwargs['targeting_scores_table']
 
-    if "constraints" in LOCATIONS[LOCATION]:
-        df_assigned_best_challenger = assign_best_ads_with_constraints_rec(
-            df_ads=df_ads_tgt,
-            df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
-            constraints=LOCATIONS[LOCATION]["constraints"],
-            best_kwargs=best_kwargs
-        )
-    else:
-        df_assigned_best_challenger = assign_best_ads_rec(
-            df_ads=df_ads_tgt,
-            df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
-            **best_kwargs
-        )
-
+    df_assigned_best_challenger = df_assigned_best
     df_assigned_best_challenger.cache()
 
     logger.info("Determining Ad to show based on assignments and fixed cells")

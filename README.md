@@ -13,10 +13,10 @@ The model scores input into this 'engine' can take multiple forms (e.g. propensi
     - This is managed by the On-Site Advertising (OSA) team within the business' Trade team. 
 - Latest model scores for all relevant customers and models
     - [marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199)
-- Latest recommender scores (ALS model) for live ads
-    -  [marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_als_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/ds_sandbox/next_uk_nextads_recommender_scores_als_latest?o=6188831950334199)
 - Latest recommender scores (GRU model) for live ads
     -  [marketingdata_prod.ds_sandbox.next_uk_nextads_recommender_scores_gru_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/ds_sandbox/next_uk_nextads_recommender_scores_gru_latest?o=6188831950334199)
+- Latest recommender scores (GRU with ALS ) for live ads
+    -  [marketingdata_prod.search.next_ads_als_deployment_normalized_all](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/search/next_ads_als_deployment_normalized_all?o=6188831950334199)
 
 ## Process Stages
 ### Engine

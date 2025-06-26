@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 def assign_random_ads(
         df_ads: DataFrame,
         df_cust_grp: DataFrame,
-        grp_col: str) -> DataFrame:
+        grp_col: str = None) -> DataFrame:
     """
     Function assigns Ads randomly (and uniformly) within group.
     Arguments:
@@ -26,8 +26,14 @@ def assign_random_ads(
     """
     # TODO: Generalise function to assign_random_entity?
 
-    # TODO: Make grp_col an optional argument
-    logger.debug(f'Assigning ads randomly within group: {grp_col}')
+    # TODO: Remove the need for dummy column when assigning without grp_col
+    if grp_col is None:
+        df_ads = df_ads.withColumn('global', F.lit(1))
+        df_cust_grp = df_cust_grp.withColumn('global', F.lit(1))
+        grp_col = 'global'
+        logger.info('Assigning ads randomly')
+    else:
+        logger.info(f'Assigning ads randomly within group: {grp_col}')
 
     w = Window.partitionBy(grp_col).orderBy("UniqueAdID")
     df_ads = df_ads.withColumn("RandomKey", F.row_number().over(w))
@@ -67,7 +73,7 @@ def assign_random_ads(
         .drop("RandomKey")
     )
 
-    return df_cust_rdm_ads
+    return df_cust_rdm_ads.select('AccountNumber', 'UniqueAdID')
 
 
 def assign_best_ads(
@@ -86,7 +92,8 @@ def assign_best_ads(
     Assigns "best" Ad to each customer based on scores provided.
 
     Arguments:
-        df_ads - Dataframe with columns (UniqueAdID, TargetingCriteria)
+        df_ads - Dataframe with columns: UniqueAdID, TargetingCriteria (unique
+        in combination)
         targeting_scores_table - Name of table containing TargetingScores
         df_cust - Filter customers (Dataframe with col: AccountNumber)
         score_scale_fn - Function for scaling the score
@@ -95,10 +102,14 @@ def assign_best_ads(
     """
     logger.debug(f'Assigning {return_ranks} ranked ad(s) ' +
                  f'using scores from {targeting_scores_table}')
+
+    ts_tbl_cols = [
+        'AccountNumber', 'TargetingCriteria', 'TargetingScores'
+        ]
     df_adscores = (
         df_ads
         .select("UniqueAdID", "TargetingCriteria")
-        .join(get_spark().table(targeting_scores_table),
+        .join(get_spark().table(targeting_scores_table).select(ts_tbl_cols),
               on="TargetingCriteria",
               how="inner")
     )
@@ -286,7 +297,7 @@ def assign_best_ads_rec(
     Assigns "best" Ad to each customer based on RECOMMENDER scores provided.
 
     Arguments:
-        df_ads - Dataframe with columns (UniqueAdID, TargetingCriteria)
+        df_ads - Dataframe with column: UniqueAdID (unique values)
         recommender_scores_table - Name of table containing RecommenderScores
         df_cust - Filter customers (Dataframe with col: AccountNumber)
         score_scale_fn - Function for scaling the score
@@ -296,10 +307,11 @@ def assign_best_ads_rec(
     logger.debug(f'Assigning {return_ranks} ranked ad(s) ' +
                  f'using scores from {recommender_scores_table}')
 
+    rec_tbl_cols = ['AccountNumber', 'UniqueAdID', 'RecommenderScore']
     df_adscores = (
         df_ads
         .select("UniqueAdID")
-        .join(get_spark().table(recommender_scores_table),
+        .join(get_spark().table(recommender_scores_table).select(rec_tbl_cols),
               on="UniqueAdID",
               how="inner")
     )
