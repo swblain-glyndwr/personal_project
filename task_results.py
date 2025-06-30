@@ -531,7 +531,10 @@ df_pages = (
         )
     )
 )
-
+assert df_pages.count() > 0, (
+    'No broswing data (pages) found between' +
+    f' {SESSION_DATE_START} and {SESSION_DATE_END}'
+    f' in table {BQ_PAGES}')
 
 # Get session revenue
 df_sessions = (
@@ -576,7 +579,10 @@ df_sessions = (
     .where(F.col('Device').isNotNull())
     .fillna({'Revenue': 0})
 )
-
+assert df_sessions.count() > 0, (
+    'No broswing data (sessions) found between' +
+    f' {SESSION_DATE_START} and {SESSION_DATE_END}'
+    f' in table {BQ_SESSIONS}')
 
 df_sessions_pages = (
     df_sessions
