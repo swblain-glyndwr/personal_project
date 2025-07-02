@@ -196,10 +196,7 @@
     },
     
     "transient_cells": {
-        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
-        "Audiences": [
-            ["womens_premium_seasons", {"account_col": "Account_Number", "label_col": "Selection_Group"}]
-        ]
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
     },
 
     "locations": {
@@ -233,56 +230,6 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Womens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C1626_Seasons_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Bags"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C1625_Seasons_Womens_Bags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Footwear"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C1676_Seasons_Womens_Footwear_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons New In"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C1737_Seasons_Womens_NewIn_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Mens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C1738_Seasons_Mens_NewIn_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Womens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C19_Brands_Womens_TopLevelPremium_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Bags"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C1139_Brands_Womens_PremiumHandbags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Footwear"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C41_Brands_Womens_PremiumFootwear_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium New In"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C1159_Brands_Womens_PremiumNewIn_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Mens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P138_C9_Brands_Mens_PremiumNewIn_Mens"}
-                },
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -323,56 +270,6 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Womens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C1626_Seasons_Womens_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Bags"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C1625_Seasons_Womens_Bags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Footwear"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P137_C1676_Seasons_Womens_Footwear_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons New In"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C1737_Seasons_Womens_NewIn_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Seasons Mens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P137_C1738_Seasons_Mens_NewIn_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Womens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C19_Brands_Womens_TopLevelPremium_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Bags"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C1139_Brands_Womens_PremiumHandbags_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Footwear"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C41_Brands_Womens_PremiumFootwear_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium New In"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Womens"}],
-                    "then": {"lit": "P138_C1159_Brands_Womens_PremiumNewIn_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Premium Mens"},
-                                {"col": "AlgoDivision", "op": "eq", "val": "Mens"}],
-                    "then": {"lit": "P138_C9_Brands_Mens_PremiumNewIn_Mens"}
-                },
                 {
                     "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -745,7 +642,6 @@
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
-            "womens_premium_seasons" : "marketingdata_prod.ds_sandbox.next_uk_nextads_womens_premium_seasons_audience_20250605",
             "rec_scores_gru_with_als_latest": "marketingdata_prod.search.next_ads_als_deployment_normalized_all",
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest"
         },
