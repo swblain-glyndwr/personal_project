@@ -211,11 +211,11 @@
             },
             "map": [
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "Basic"}],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "HomePageTest1", "op": "eq", "val": "Best"}],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
@@ -271,12 +271,12 @@
             },
             "map": [
                 {
-                    "when": [{"col": "OrderCompleteTest1", "op": "eq", "val": "Basic"}],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "OrderCompleteTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -290,13 +290,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -310,13 +310,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -330,13 +330,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -350,13 +350,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -370,13 +370,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -390,13 +390,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -410,13 +410,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -430,13 +430,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -450,13 +450,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -470,13 +470,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -490,13 +490,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "LandingPageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -513,13 +513,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -536,13 +536,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -559,13 +559,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 },
                 {
                     "when": [
-                        {"col": "HomePageTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
