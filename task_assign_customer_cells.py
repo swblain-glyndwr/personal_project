@@ -1,5 +1,6 @@
 import json
 from pyspark.sql import functions as F
+from datetime import date
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (assert_pk,
@@ -18,6 +19,7 @@ JOBNAME = jobparser.get_arg('--jobname')
 JOB_ENV = jobparser.get_arg('--job_env')
 CLIENT = jobparser.get_arg('--client')
 LOG_LEVEL = jobparser.get_arg('--log_level')
+REFRESH_CONTROL_DATE = jobparser.get_arg('--refresh_control_date')
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
@@ -39,6 +41,8 @@ logger.info(f'Write schema set to {SCHEMA}')
 # Map write schema to parameterised write table names
 tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 FIXED_CELLS_TABLE = map_tbl(tbls["customer_cells_fixed_latest"], **tbl_args)
+FIXED_CELLS_HISTORY_TABLE = map_tbl(tbls["customer_cells_fixed_history"],
+                                    **tbl_args)
 TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"], **tbl_args)
 TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
     tbls["customer_cells_transient_latest"], **tbl_args)
@@ -54,6 +58,56 @@ FALLOW_SEED = cfg["fallow_control"]["seed"]
 FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 FALLOW_FALSE_LABEL = cfg["fallow_control"]["false_label"]
 FIXED_CELLS = cfg["fixed_cells"]
+
+TODAY = date.today().strftime(format='%Y-%m-%d')
+if REFRESH_CONTROL_DATE == TODAY:
+    logger.info(f'Control refresh requested on todays date: {TODAY}')
+    logger.info('Archiving existing fixed cells table from: ' +
+                f'{FIXED_CELLS_TABLE} to {FIXED_CELLS_HISTORY_TABLE}')
+    df_to_archive = (
+        spark
+        .table(FIXED_CELLS_TABLE)
+        .withColumnRenamed('rundate', 'RunDateEnd')
+    )
+    df_to_archive.createOrReplaceTempView('tbl_to_archive')
+    spark.sql(f'''
+              insert into {FIXED_CELLS_HISTORY_TABLE}
+              select * from tbl_to_archive
+              ''')
+    logger.info('Checking that fixed cells have been archived')
+    df_date_check_from = (
+        spark
+        .table(FIXED_CELLS_TABLE)
+        .select('rundate')
+        .distinct()
+    )
+    assert df_date_check_from.count() == 1
+    date_check_from = df_date_check_from.collect()[0][0]
+    df_archived = (
+        spark
+        .table(FIXED_CELLS_HISTORY_TABLE)
+        .where(F.col('RunDateEnd') == date_check_from)
+        .drop('RunDateEnd')
+    )
+    archive_count_error = ('Dataframe to archive and dataframe archived' +
+                           ' have different row counts')
+    assert df_to_archive.count() == df_archived.count(), archive_count_error
+    logger.info('Fixed cells table archived successfully')
+    logger.info('Truncating fixed cells table for full refresh')
+    spark.sql(f'truncate table {FIXED_CELLS_TABLE}')
+    logger.info('Archiving of fixed cells complete')
+
+# Checking how many times the control group has been refreshed to increment
+# the fallow seed for different deterministic random assignments
+refresh_count = (
+    spark
+    .table(FIXED_CELLS_HISTORY_TABLE)
+    .select('RunDateEnd')
+    .distinct()
+).count()
+logger.info(f'Times control has been refreshed: {refresh_count}')
+FALLOW_SEED += refresh_count
+logger.info(f'Fallow seed set to: {FALLOW_SEED}')
 
 transient_cells = False
 if "transient_cells" in cfg:

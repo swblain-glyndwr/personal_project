@@ -650,6 +650,7 @@
             "control_sheet": "marketingdata_prod.{schema}.{client}_nextads_control_sheet",
             "control_sheet_latest": "marketingdata_prod.{schema}.{client}_nextads_control_sheet_latest",
             "customer_cells_fixed_latest": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_fixed_latest",
+            "customer_cells_fixed_history": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_fixed_history",
             "customer_cells_transient": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_transient",
             "customer_cells_transient_latest": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_transient_latest",
             "customer_cells_latest": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_latest",
