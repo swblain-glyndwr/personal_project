@@ -749,9 +749,34 @@ if history_dates and not HISTORY_CELLS_DATE:
     raise Exception(
         'One or more requested dates pre-date last control refresh')
 
-# TODO: Add steps for when HISTORY_CELLS_DATE is specified
-
-df_fixed_cells = spark.table(FIXED_CELLS_LATEST_TABLE)
+all_dates_from_history = len(history_dates) == len(sdates_valid)
+if not all_dates_from_history:
+    msg_span_refresh = (
+        'Requested dates span control refresh - please re-run dates' +
+        ' before and after control refresh separately (for pre-refresh' +
+        ' dates ensure that --history_cells_from_date is provided)'
+    )
+    raise Exception(msg_span_refresh)
+elif history_dates and all_dates_from_history and HISTORY_CELLS_DATE:
+    logger.info('Getting fixed customer cells from history')
+    df_fixed_cells = (
+        spark
+        .table(FIXED_CELLS_HISTORY_TABLE)
+        .where(F.col('RunDateEnd') == HISTORY_CELLS_DATE)
+        .withColumnRenamed('RunDateEnd', 'rundate')
+    )
+    msg_no_history_found = (
+        f'No records found in {FIXED_CELLS_HISTORY_TABLE}' +
+        f' where RunDateEnd matches {HISTORY_CELLS_DATE}')
+    history_rows = df_fixed_cells.count()
+    assert history_rows > 0, msg_no_history_found
+    logger.info(
+        f'{history_rows} records found in {FIXED_CELLS_HISTORY_TABLE}' +
+        f' where RunDateEnd matches {HISTORY_CELLS_DATE}')
+    assert_pk(df_fixed_cells, pk_cols=['AccountNumber'])
+else:
+    logger.info('Getting fixed customer cells from latest table')
+    df_fixed_cells = spark.table(FIXED_CELLS_LATEST_TABLE)
 
 df_sessions_ads_valid = (
     df_sessions_pages_trimmed
