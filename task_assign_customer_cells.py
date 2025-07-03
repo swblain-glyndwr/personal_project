@@ -61,7 +61,7 @@ FIXED_CELLS = cfg["fixed_cells"]
 
 TODAY = date.today().strftime(format='%Y-%m-%d')
 if REFRESH_CONTROL_DATE == TODAY:
-    logger.info(f'Control refresh requested on todays date: {TODAY}')
+    logger.info(f"Control refresh requested on today's date: {TODAY}")
     logger.info('Archiving existing fixed cells table from: ' +
                 f'{FIXED_CELLS_TABLE} to {FIXED_CELLS_HISTORY_TABLE}')
     df_to_archive = (
