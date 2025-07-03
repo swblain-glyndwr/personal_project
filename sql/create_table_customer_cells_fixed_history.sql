@@ -15,12 +15,10 @@ create table marketingdata_prod.{schema}.{domain}_nextads_customer_cells_fixed_h
     AdHocABTest8 string not null,
     AdHocABTest9 string not null,
     ChampionChallenger string not null,
-    RunDateFrom date not null,
-    RunDateTo date not null,
-    ControlCycle int not null,
+    RunDateEnd date not null
   constraint pk_{domain}_nextads_customer_cells_fixed_history primary key (
     AccountNumber,
-    ControlCycle
+    RunDateEnd
     )
 )
-partitioned by (ControlCycle)
+partitioned by (RunDateEnd)
