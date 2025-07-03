@@ -39,6 +39,7 @@ with open(f"config/{CLIENT}.json") as f:
 
 DATESTART = jobparser.get_typed_arg('--datestart', str)
 DATEEND = jobparser.get_typed_arg('--dateend', str)
+HISTORY_CELLS_DATE = jobparser.get_arg('--history_cells_from_date')
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"]["prod"]
@@ -49,6 +50,8 @@ logger.info('Write schema always set to prod option for results script')
 tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 FIXED_CELLS_LATEST_TABLE = map_tbl(tbls["customer_cells_fixed_latest"],
                                    **tbl_args)
+FIXED_CELLS_HISTORY_TABLE = map_tbl(tbls["customer_cells_fixed_history"],
+                                    **tbl_args)
 ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"],
                                 **tbl_args)
@@ -723,6 +726,30 @@ for d in sdates_valid:
     logger.info(f'{nsdiff:,} sessions dropped from ' +
                 f'{dfmt} due to OrderComplete trimming ' +
                 '(i.e. sessions starting at OrderComplete page)')
+
+last_control_refresh = (
+    spark
+    .table(FIXED_CELLS_HISTORY_TABLE)
+    .select('RunDateEnd')
+    .distinct()
+    .agg(F.max('RunDateEnd').alias('last_refresh_date'))
+).collect()[0][0]
+
+# Add one day to the last refresh date to account for rundate being
+# one day before the corresponding session date
+last_control_refresh += timedelta(days=1)
+
+history_dates = [x for x in sdates_valid if x <= last_control_refresh]
+
+if history_dates and not HISTORY_CELLS_DATE:
+    logger.error(
+        'At least one requested date pre-dates the last control refresh' +
+        ' - Please specify required RunEndDate from fixed_cells_history' +
+        ' table as --history_cells_from_date arg and re-run script')
+    raise Exception(
+        'One or more requested dates pre-date last control refresh')
+
+# TODO: Add steps for when HISTORY_CELLS_DATE is specified
 
 df_fixed_cells = spark.table(FIXED_CELLS_LATEST_TABLE)
 
