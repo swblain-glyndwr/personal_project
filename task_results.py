@@ -40,6 +40,9 @@ with open(f"config/{CLIENT}.json") as f:
 DATESTART = jobparser.get_typed_arg('--datestart', str)
 DATEEND = jobparser.get_typed_arg('--dateend', str)
 HISTORY_CELLS_DATE = jobparser.get_arg('--history_cells_from_date')
+if HISTORY_CELLS_DATE:
+    logger.info(
+        f'Use of fixed customer cells from {HISTORY_CELLS_DATE} requested')
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"]["prod"]
