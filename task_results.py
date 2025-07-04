@@ -100,7 +100,7 @@ if JOBNAME and not dates_provided:
     SESSION_DATE_END = date.today() - timedelta(days=OFFSET_END_DAYS)
     logger.info(f'No dates provided to job: {JOBNAME}')
     logger.info('Default date offsets assumed')
-    logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
+    logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END}')
 elif dates_provided:
     # If date args are provided (e.g. for backdating)
     ds_num = [int(x) for x in DATESTART.split('-')]
