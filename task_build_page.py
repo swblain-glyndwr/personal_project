@@ -1,6 +1,7 @@
 import json
 from pyspark.sql import functions as F
 from next_ads.Assignment import (
+    assign_preranked_ads,
     assign_random_ads,
     assign_best_ads_rec,
     assign_best_ads_with_constraints_rec
@@ -57,6 +58,7 @@ ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
 REC_SCORES_TABLE = cfg["tables"]["read"]["rec_scores_gru_with_als_latest"]
+PRERANKED_TABLE = cfg["tables"]["read"]["preranked_ads_latest"]
 
 # Read results data from prod schema dataset
 tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
@@ -190,7 +192,19 @@ else:
 
     logger.info("Assigning Ads with Best Targeting (Challenger)")
 
-    df_assigned_best_challenger = df_assigned_best
+    # Reset best_kwargs, if provided in config
+    if "best_kwargs" in LOCATIONS[LOCATION]:
+        best_kwargs = LOCATIONS[LOCATION]["best_kwargs"]
+    else:
+        best_kwargs = dict()
+
+    df_assigned_best_challenger = assign_preranked_ads(
+        df_ads=df_ads_tgt,
+        preranked_ads_table=PRERANKED_TABLE,
+        location=LOCATION,
+        df_cust=df_cells.select("AccountNumber"),
+        **best_kwargs
+    )
     df_assigned_best_challenger.cache()
 
     logger.info("Determining Ad to show based on assignments and fixed cells")

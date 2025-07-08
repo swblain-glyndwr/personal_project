@@ -576,6 +576,67 @@ def get_ad_feedback_scores(
     return df_ad_results_scaled_stand.select(ad_id_col, 'AdFeedbackScore')
 
 
+def assign_preranked_ads(
+        df_ads: DataFrame,
+        preranked_ads_table: str,
+        location: str,
+        df_cust: DataFrame = None,
+        return_ranks: list = [1]
+        ) -> DataFrame:
+    """
+    Assigns "best" Ad to each customer based on pre-ranked ads provided.
+
+    Arguments:
+        df_ads - Dataframe with column: UniqueAdID (unique values)
+        preranked_ads_table - Name of table containing AccountNumber,
+        UniqueAdID, Rank
+        df_cust - Filter customers (Dataframe with col: AccountNumber)
+        return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
+    """
+    logger.debug(f'Assigning {return_ranks} ranked ad(s) ' +
+                 f'using scores from {preranked_ads_table}')
+
+    rank_tbl_cols = ['AccountNumber', 'UniqueAdID', 'Score', 'Rank']
+    df_adscores = (
+        get_spark()
+        .table(preranked_ads_table)
+        .where(F.col('Location') == location)
+        .select(rank_tbl_cols)
+        .join(df_ads, on='UniqueAdID', how='inner')
+    )
+
+    if df_cust:
+        logger.debug('Filtering customers for assignment')
+        df_adscores = df_adscores.join(df_cust,
+                                       on="AccountNumber",
+                                       how="inner")
+
+    assert_pk(df_adscores,
+              ["AccountNumber", "UniqueAdID"])
+
+    w_ad_tb = (
+        Window
+        .partitionBy([F.col("AccountNumber"), F.col("Rank")])
+        .orderBy(F.col("TieBreaker").desc())
+    )
+    # TieBreaker column creates a random split when multiple ads
+    # are have the same RecommenderScoreScaled
+    # Random ad from each tie will be returned
+    df_return = (
+        df_adscores
+        .withColumn('TieBreaker', F.rand(seed=99))
+        .withColumn("RankTB", F.dense_rank().over(w_ad_tb))
+        .where(F.col("RankTB") == 1)
+        .where(F.col("Rank").isin(return_ranks))
+        .select("AccountNumber",
+                "Score",
+                "Rank",
+                "UniqueAdID")
+    )
+
+    return df_return
+
+
 def assign_predetermined_audience(
         audiences: list[list[dict]],
         tables: dict
