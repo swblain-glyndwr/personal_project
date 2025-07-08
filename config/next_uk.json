@@ -570,6 +570,646 @@
                     "then": {"col": "UniqueAdIDBest"}
                 }
             ]
+        },
+        "PL1": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL2": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL3": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL4": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL5": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL6": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL7": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL8": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL9": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL10": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL11": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL12": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL13": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL14": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL15": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL16": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL17": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL18": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL19": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL20": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL21": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL22": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL23": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL24": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL25": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL26": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL27": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL28": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL29": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL30": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL31": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL32": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL33": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL34": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL35": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL36": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL37": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL38": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL39": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL40": {
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
         }
     },
 
@@ -586,6 +1226,9 @@
         "read_schema": [
             ["UniqueAdID", "string", "null"],
             ["UniqueAdIDPremium", "string", "null"],
+            ["CMSPageID", "string", "null"],
+            ["Realm", "string", "null"],
+            ["Territory", "string", "null"],
             ["PotNumber", "string", "null"],
             ["CampaignNumber", "string", "null"],
             ["Title", "string", "null"],
