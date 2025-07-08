@@ -111,8 +111,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 4, 3)
-    SESSION_DATE_END = date(2025, 4, 3)
+    SESSION_DATE_START = date(2025, 7, 5)
+    SESSION_DATE_END = date(2025, 7, 6)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -742,8 +742,11 @@ last_control_refresh = (
 # one day before the corresponding session date
 last_control_refresh += timedelta(days=1)
 
+# Which of the valid session dates pre-date the last control refresh
 history_dates = [x for x in sdates_valid if x <= last_control_refresh]
 
+# If there are any history date and no history cells date has been provided
+# stop execution as a failsafe
 if history_dates and not HISTORY_CELLS_DATE:
     logger.error(
         'At least one requested date pre-dates the last control refresh' +
@@ -753,7 +756,7 @@ if history_dates and not HISTORY_CELLS_DATE:
         'One or more requested dates pre-date last control refresh')
 
 all_dates_from_history = len(history_dates) == len(sdates_valid)
-if not all_dates_from_history:
+if history_dates and not all_dates_from_history:
     msg_span_refresh = (
         'Requested dates span control refresh - please re-run dates' +
         ' before and after control refresh separately (for pre-refresh' +
