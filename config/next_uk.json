@@ -2,6 +2,8 @@
     "domain": "next.co.uk",
     "osa_url_substring": "0-osalink",
 
+    "dbfs_base_path": "dbfs:/datascience/next-ads",
+
     "fallow_control": {
         "proportion": 0.1,
         "seed": 111,
@@ -1438,6 +1440,7 @@
             "results_ads_location": "marketingdata_prod.{schema}.{client}_nextads_results_ads_location",
             "results_ads_page": "marketingdata_prod.{schema}.{client}_nextads_results_ads_page",
             "results_div_page": "marketingdata_prod.{schema}.{client}_nextads_results_div_page",
+            "results_tdiv_page": "marketingdata_prod.{schema}.{client}_nextads_results_tdiv_page",
             "results_ads_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_ads_targeting",
             "results_page_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_page_targeting",
             "results_ad_metadata": "marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata"
@@ -1463,13 +1466,18 @@
         "tables": {
             "results_topline": "big-query-156009.Misc_eu.{client}_nextads_results_topline",
             "results_aggregated": "big-query-156009.Misc_eu.{client}_nextads_results_aggregated",
-            "results_div_page": "big-query-156009.Misc_eu.{client}_nextads_results_div_page",            
+            "results_div_page": "big-query-156009.Misc_eu.{client}_nextads_results_div_page",
+            "results_tdiv_page": "big-query-156009.Misc_eu.{client}_nextads_results_tdiv_page",
             "results_ads": "big-query-156009.Misc_eu.{client}_nextads_results_ads",
             "results_ads_location": "big-query-156009.Misc_eu.{client}_nextads_results_ads_location",
             "results_ads_page": "big-query-156009.Misc_eu.{client}_nextads_results_ads_page",
             "results_ads_targeting": "big-query-156009.Misc_eu.{client}_nextads_results_ads_targeting",
             "results_ad_metadata": "big-query-156009.Misc_eu.{client}_nextads_results_ad_metadata"
         }
+    },
+
+    "results_processing": {
+        "session_level_cols": ["SessionDate", "Device", "OS"]
     },
 
     "results_prm": {
