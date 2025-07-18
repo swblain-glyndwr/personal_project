@@ -704,9 +704,6 @@
             ]
         },
         "PL1": {
-            "pf_col": "PL_slot_1",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -723,9 +720,6 @@
             ]
         },
         "PL2": {
-            "pf_col": "PL_slot_2",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -742,9 +736,6 @@
             ]
         },
         "PL3": {
-            "pf_col": "PL_slot_3",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -761,9 +752,6 @@
             ]
         },
         "PL4": {
-            "pf_col": "PL_slot_4",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -780,9 +768,6 @@
             ]
         },
         "PL5": {
-            "pf_col": "PL_slot_5",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -799,9 +784,6 @@
             ]
         },
         "PL6": {
-            "pf_col": "PL_slot_6",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -818,9 +800,6 @@
             ]
         },
         "PL7": {
-            "pf_col": "PL_slot_7",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -837,9 +816,6 @@
             ]
         },
         "PL8": {
-            "pf_col": "PL_slot_8",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -856,9 +832,6 @@
             ]
         },
         "PL9": {
-            "pf_col": "PL_slot_9",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -875,9 +848,6 @@
             ]
         },
         "PL10": {
-            "pf_col": "PL_slot_10",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -894,9 +864,6 @@
             ]
         },
         "PL11": {
-            "pf_col": "PL_slot_11",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -913,9 +880,6 @@
             ]
         },
         "PL12": {
-            "pf_col": "PL_slot_12",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -932,9 +896,6 @@
             ]
         },
         "PL13": {
-            "pf_col": "PL_slot_13",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -951,9 +912,6 @@
             ]
         },
         "PL14": {
-            "pf_col": "PL_slot_14",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -970,9 +928,6 @@
             ]
         },
         "PL15": {
-            "pf_col": "PL_slot_15",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -989,9 +944,6 @@
             ]
         },
         "PL16": {
-            "pf_col": "PL_slot_16",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1008,9 +960,6 @@
             ]
         },
         "PL17": {
-            "pf_col": "PL_slot_17",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1027,9 +976,6 @@
             ]
         },
         "PL18": {
-            "pf_col": "PL_slot_18",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1046,9 +992,6 @@
             ]
         },
         "PL19": {
-            "pf_col": "PL_slot_19",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1065,9 +1008,6 @@
             ]
         },
         "PL20": {
-            "pf_col": "PL_slot_20",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1084,9 +1024,6 @@
             ]
         },
         "PL21": {
-            "pf_col": "PL_slot_21",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1103,9 +1040,6 @@
             ]
         },
         "PL22": {
-            "pf_col": "PL_slot_22",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1122,9 +1056,6 @@
             ]
         },
         "PL23": {
-            "pf_col": "PL_slot_23",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1141,9 +1072,6 @@
             ]
         },
         "PL24": {
-            "pf_col": "PL_slot_24",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1160,9 +1088,6 @@
             ]
         },
         "PL25": {
-            "pf_col": "PL_slot_25",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1179,9 +1104,6 @@
             ]
         },
         "PL26": {
-            "pf_col": "PL_slot_26",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1198,9 +1120,6 @@
             ]
         },
         "PL27": {
-            "pf_col": "PL_slot_27",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1217,9 +1136,6 @@
             ]
         },
         "PL28": {
-            "pf_col": "PL_slot_28",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1236,9 +1152,6 @@
             ]
         },
         "PL29": {
-            "pf_col": "PL_slot_29",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1255,9 +1168,6 @@
             ]
         },
         "PL30": {
-            "pf_col": "PL_slot_30",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1274,9 +1184,6 @@
             ]
         },
         "PL31": {
-            "pf_col": "PL_slot_31",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1293,9 +1200,6 @@
             ]
         },
         "PL32": {
-            "pf_col": "PL_slot_32",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1312,9 +1216,6 @@
             ]
         },
         "PL33": {
-            "pf_col": "PL_slot_33",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1331,9 +1232,6 @@
             ]
         },
         "PL34": {
-            "pf_col": "PL_slot_34",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1350,9 +1248,6 @@
             ]
         },
         "PL35": {
-            "pf_col": "PL_slot_35",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1369,9 +1264,6 @@
             ]
         },
         "PL36": {
-            "pf_col": "PL_slot_36",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1388,9 +1280,6 @@
             ]
         },
         "PL37": {
-            "pf_col": "PL_slot_37",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1407,9 +1296,6 @@
             ]
         },
         "PL38": {
-            "pf_col": "PL_slot_38",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1426,9 +1312,6 @@
             ]
         },
         "PL39": {
-            "pf_col": "PL_slot_39",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
@@ -1445,9 +1328,6 @@
             ]
         },
         "PL40": {
-            "pf_col": "PL_slot_40",
-            "page_group": "PLP",
-            "basic_within": "global",
             "map": [
                 {
                     "when": [
