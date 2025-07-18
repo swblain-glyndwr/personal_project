@@ -1036,6 +1036,20 @@ df_sessions_master_meta = (
     )
 )
 
+# Remove Shopping Bag (App only) for affected dates
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'ShoppingBag')
+            & (F.col('Device') == 'App')
+            & (F.col('SessionDate') >= date(2025, 7, 8))
+            & (F.col('SessionDate') <= date(2025, 7, 17))
+        )
+    )
+)
+
+# Remove Homepage (Desktop only) for affected dates
 df_sessions_master_meta = (
     df_sessions_master_meta
     .where(
