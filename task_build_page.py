@@ -1,11 +1,6 @@
 import json
 from pyspark.sql import functions as F
-from next_ads.Assignment import (
-    assign_preranked_ads,
-    assign_random_ads,
-    assign_best_ads_rec,
-    assign_best_ads_with_constraints_rec
-    )
+from next_ads.Assignment import assign_preranked_ads, assign_random_ads
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (build_spark_schema,
@@ -14,7 +9,6 @@ from dsutils.etl import (build_spark_schema,
                          delete_from_and_load,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
-from dsutils.columnscalers import subtract_mean
 
 
 jobparser = get_job_parser()
@@ -57,7 +51,6 @@ ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 
-REC_SCORES_TABLE = cfg["tables"]["read"]["rec_scores_gru_with_als_latest"]
 PRERANKED_TABLE = cfg["tables"]["read"]["preranked_ads_latest"]
 
 # Read results data from prod schema dataset
@@ -166,45 +159,22 @@ else:
 
     logger.info("Assigning Ads with Best Targeting")
 
-    best_kwargs = {
-        "recommender_scores_table": REC_SCORES_TABLE,
-        "score_scale_fn": subtract_mean
-    }
-
-    if "best_kwargs" in LOCATIONS[LOCATION]:
-        best_kwargs = best_kwargs | LOCATIONS[LOCATION]["best_kwargs"]
-
-    if "constraints" in LOCATIONS[LOCATION]:
-        df_assigned_best = assign_best_ads_with_constraints_rec(
-            df_ads=df_ads_tgt,
-            df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
-            constraints=LOCATIONS[LOCATION]["constraints"],
-            best_kwargs=best_kwargs
-        )
-    else:
-        df_assigned_best = assign_best_ads_rec(
-            df_ads=df_ads_tgt,
-            df_cust=df_cells.select("AccountNumber", "AlgoDivision"),
-            **best_kwargs
-        )
-
-    df_assigned_best.cache()
-
-    logger.info("Assigning Ads with Best Targeting (Challenger)")
-
-    # Reset best_kwargs, if provided in config
     if "best_kwargs" in LOCATIONS[LOCATION]:
         best_kwargs = LOCATIONS[LOCATION]["best_kwargs"]
     else:
         best_kwargs = dict()
 
-    df_assigned_best_challenger = assign_preranked_ads(
+    df_assigned_best = assign_preranked_ads(
         df_ads=df_ads_tgt,
         preranked_ads_table=PRERANKED_TABLE,
         location=LOCATION,
         df_cust=df_cells.select("AccountNumber"),
         **best_kwargs
     )
+    df_assigned_best.cache()
+
+    logger.info("Assigning Ads with Best Targeting (Challenger)")
+    df_assigned_best_challenger = df_assigned_best
     df_assigned_best_challenger.cache()
 
     logger.info("Determining Ad to show based on assignments and fixed cells")
