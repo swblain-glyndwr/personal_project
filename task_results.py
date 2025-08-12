@@ -97,8 +97,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 7, 7)
-    SESSION_DATE_END = date(2025, 7, 8)
+    SESSION_DATE_START = date(2025, 8, 1)
+    SESSION_DATE_END = date(2025, 8, 2)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -1117,6 +1117,30 @@ df_sessions_master_meta = (
     )
 )
 
+# Shopping Bag switch off (App only) - Aug 2025
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'ShoppingBag')
+            & (F.col('Device') == 'App')
+            & (F.col('FirstTimestamp') > '2025-08-01 16:00:00')
+            & (F.col('FirstTimestamp') < '2025-08-06 10:00:00')
+        )
+    )
+)
+
+# Homepage switch off across all devices - Aug 2025
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'HomePage')
+            & (F.col('FirstTimestamp') > '2025-08-07 15:00:00')
+            & (F.col('FirstTimestamp') < '2025-08-08 14:00:00')
+        )
+    )
+)
 
 session_level_cols = ['SessionDate', 'Device', 'OS']  # Move to config?
 w_apportion = Window.partitionBy(*session_level_cols, 'UniqueVisitID')
