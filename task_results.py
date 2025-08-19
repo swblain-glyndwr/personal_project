@@ -97,8 +97,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 8, 1)
-    SESSION_DATE_END = date(2025, 8, 2)
+    SESSION_DATE_START = date(2025, 8, 16)
+    SESSION_DATE_END = date(2025, 8, 17)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -282,21 +282,21 @@ if mismatch_msg_days:
 df_asgn_pf_nulls = (
     df_asgn_pf
     .where(F.col('MASIDPF').isNull())
-    .groupBy('SessionDate')
+    .groupBy('SessionDate', 'Location')
     .agg(F.countDistinct('AccountNumber').alias('Accounts'))
 )
 
 if df_asgn_pf_nulls.count() > 0:
-    df_nulls_dict = {x[0].strftime('%Y-%m-%d'): x[1]
+    df_nulls_dict = {f'{x[0].strftime("%Y-%m-%d")} ({x[1]})': x[2]
                      for x in df_asgn_pf_nulls.collect()}
     for k, v in df_nulls_dict.items():
         missing_msg = (
-            f'{v:,} customers assigned at least one Ad for {k} ' +
-            f'but not found in PF on {k}'
+            f'{k}: {v:,} customers assigned an Ad but not found in PF'
         )
-        logger.warning(missing_msg)
-        if JOB_ENV == 'prod':
-            post_to_webhook(WEBHOOK_URL, missing_msg)
+        if missing_msg:
+            logger.warning(missing_msg)
+            if JOB_ENV == 'prod':
+                post_to_webhook(WEBHOOK_URL, missing_msg)
 
 # Remove cases where ad has been deliberately suppressed
 n_pre_supp_removal = df_asgn_pf.count()
@@ -1138,6 +1138,16 @@ df_sessions_master_meta = (
             (F.col('PageGroup') == 'HomePage')
             & (F.col('FirstTimestamp') > '2025-08-07 15:00:00')
             & (F.col('FirstTimestamp') < '2025-08-08 14:00:00')
+        )
+    )
+)
+
+# MASID switch off - Aug 2025
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('SessionDate') >= '2025-08-18')
         )
     )
 )
