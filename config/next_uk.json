@@ -1314,7 +1314,8 @@
             "results_tdiv_page": "marketingdata_prod.{schema}.{client}_nextads_results_tdiv_page",
             "results_ads_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_ads_targeting",
             "results_page_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_page_targeting",
-            "results_ad_metadata": "marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata"
+            "results_ad_metadata": "marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata",
+            "results_top_ads_by_loc": "marketingdata_prod.{schema}.{client}_nextads_results_ads_top_by_location"
         }
     },
 
@@ -1358,5 +1359,9 @@
         "masid_refresh_hour": 4,
         "min_c_sessions": 30000,
         "lookback_days": 28
+    },
+
+    "results_realtime_ads": {
+        "lookback_days": 14
     }
 }
