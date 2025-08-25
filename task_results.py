@@ -1148,6 +1148,7 @@ df_sessions_master_meta = (
     .where(
         ~(
             (F.col('SessionDate') >= '2025-08-18')
+            & (F.col('SessionDate') <= '2025-08-22')
         )
     )
 )
