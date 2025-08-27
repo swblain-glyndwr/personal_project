@@ -581,7 +581,8 @@ def assign_preranked_ads(
         preranked_ads_table: str,
         location: str,
         df_cust: DataFrame = None,
-        return_ranks: list = [1]
+        return_ranks: list = [1],
+        inherit_rank_from_location: str = ''
         ) -> DataFrame:
     """
     Assigns "best" Ad to each customer based on pre-ranked ads provided.
@@ -593,8 +594,14 @@ def assign_preranked_ads(
         df_cust - Filter customers (Dataframe with col: AccountNumber)
         return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
     """
-    logger.debug(f'Assigning {return_ranks} ranked ad(s) ' +
-                 f'using scores from {preranked_ads_table}')
+
+    if inherit_rank_from_location:
+        logger.info(f'Inheriting rank for {location} from location: '
+                    + f'{inherit_rank_from_location}')
+        location = inherit_rank_from_location
+
+    logger.info(f'Assigning {return_ranks} ranked ad(s) ' +
+                f'using scores from {preranked_ads_table}')
 
     rank_tbl_cols = ['AccountNumber', 'UniqueAdID', 'Score', 'Rank']
     df_adscores = (

@@ -198,7 +198,10 @@
     },
     
     "transient_cells": {
-        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
+        "Audiences": [
+            ["video_audiences", {"account_col": "account_number", "label_col": "Video_test_group"}]
+        ]
     },
 
     "locations": {
@@ -232,6 +235,30 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Top View PDP"}],
+                    "then": {"lit": "P141_C401_Next_Womens_Outerwear_PDPs_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Video"}],
+                    "then": {"lit": "P141_C401v_Next_Womens_Outerwear_SocialVideo_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Trade Static"}],
+                    "then": {"lit": "P141_C401_Next_Womens_Outerwear_Trade_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Top View PDP"}],
+                    "then": {"lit": "P141_C376_Next_Womens_Knitwear_PDPs_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Video"}],
+                    "then": {"lit": "P141_C376v_Next_Womens_Knitwear_SocialVideo_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Trade Static"}],
+                    "then": {"lit": "P141_C376_Next_Womens_Knitwear_Trade_Womens"}
+                },
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -274,6 +301,30 @@
                 "targeting_within_division": "AlgoDivision"
             },
             "map": [
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Top View PDP"}],
+                    "then": {"lit": "P141_C401_Next_Womens_Outerwear_PDPs"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Video"}],
+                    "then": {"lit": "P141_C401v_Next_Womens_Outerwear_SocialVideo"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Trade Static"}],
+                    "then": {"lit": "P141_C401_Next_Womens_Outerwear_Trade"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Top View PDP"}],
+                    "then": {"lit": "P141_C376_Next_Womens_Knitwear_PDPs"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Video"}],
+                    "then": {"lit": "P141_C376v_Next_Womens_Knitwear_SocialVideo"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Trade Static"}],
+                    "then": {"lit": "P141_C376_Next_Womens_Knitwear_Trade"}
+                },
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -513,7 +564,7 @@
             "page_group": "HomePage",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
-            "best_kwargs": {"return_ranks": [1]},
+            "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "HN1"},
             "map": [
                 {
                     "when": [
@@ -536,7 +587,7 @@
             "page_group": "HomePage",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
-            "best_kwargs": {"return_ranks": [2]},
+            "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "HN1"},
             "map": [
                 {
                     "when": [
@@ -559,7 +610,7 @@
             "page_group": "HomePage",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
-            "best_kwargs": {"return_ranks": [3]},
+            "best_kwargs": {"return_ranks": [3], "inherit_rank_from_location": "HN1"},
             "map": [
                 {
                     "when": [
@@ -1290,7 +1341,8 @@
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest",
-            "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest"
+            "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
+            "video_audiences": "marketingdata_prod.ds_sandbox.next_uk_nextads_video_test_selection_20250822"
         },
         "write": {
             "ad_items": "marketingdata_prod.{schema}.{client}_nextads_ad_items",

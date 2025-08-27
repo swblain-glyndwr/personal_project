@@ -162,7 +162,7 @@ else:
     if "best_kwargs" in LOCATIONS[LOCATION]:
         best_kwargs = LOCATIONS[LOCATION]["best_kwargs"]
     else:
-        best_kwargs = dict()
+        best_kwargs = {'return_ranks': [1]}
 
     df_assigned_best = assign_preranked_ads(
         df_ads=df_ads_tgt,

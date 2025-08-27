@@ -97,8 +97,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 8, 16)
-    SESSION_DATE_END = date(2025, 8, 17)
+    SESSION_DATE_START = date(2025, 8, 24)
+    SESSION_DATE_END = date(2025, 8, 25)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -167,6 +167,33 @@ df_ad_metadata = (
 # i.e. without 28th May also being included in the date range
 df_assignments = df_assignments.where(F.col('SessionDate') != '2025-05-29')
 df_ad_metadata = df_ad_metadata.where(F.col('SessionDate') != '2025-05-29')
+
+# Suppress PLP locations from assignments data (results not yet required)
+df_assignments = df_assignments.where(~F.col('Location').startswith('PL'))
+df_ad_metadata = df_ad_metadata.where(~F.col('Location').startswith('PL'))
+
+# Remove Homepage assignments for SessionDate 22nd-27th Aug
+# (inadvertently left switched off)
+df_assignments = (
+    df_assignments
+    .where(
+        ~(
+            (F.col('SessionDate') >= '2025-08-22')
+            & (F.col('SessionDate') <= '2025-08-27')
+            & (F.col('Location').startswith('PH'))
+        )
+    )
+)
+df_ad_metadata = (
+    df_ad_metadata
+    .where(
+        ~(
+            (F.col('SessionDate') >= '2025-08-22')
+            & (F.col('SessionDate') <= '2025-08-27')
+            & (F.col('Location').startswith('PH'))
+        )
+    )
+)
 
 df_ad_metadata.cache()
 
