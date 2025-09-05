@@ -302,30 +302,6 @@
             },
             "map": [
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Top View PDP"}],
-                    "then": {"lit": "P141_C401_Next_Womens_Outerwear_PDPs"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Video"}],
-                    "then": {"lit": "P141_C401v_Next_Womens_Outerwear_SocialVideo"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Coats Trade Static"}],
-                    "then": {"lit": "P141_C401_Next_Womens_Outerwear_Trade"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Top View PDP"}],
-                    "then": {"lit": "P141_C376_Next_Womens_Knitwear_PDPs"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Video"}],
-                    "then": {"lit": "P141_C376v_Next_Womens_Knitwear_SocialVideo"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "Jumpers Trade Static"}],
-                    "then": {"lit": "P141_C376_Next_Womens_Knitwear_Trade"}
-                },
-                {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
