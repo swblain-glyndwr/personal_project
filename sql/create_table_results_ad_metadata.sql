@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{domain}_nextads_results_ad_metadata (
+create table marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata (
     SessionDate date not null,
     UniqueAdID string not null,
     PotNumber string,
@@ -18,10 +18,11 @@ create table marketingdata_prod.{schema}.{domain}_nextads_results_ad_metadata (
     AdSubcategory string,
     AdBrandName string,
     AdCampaign string,
+    Tags string,
     EligibleLocations string,
     ServedLocations string,
     rundate date not null,
-  constraint pk_{domain}_nextads_results_ad_metadata primary key (
+  constraint pk_{client}_nextads_results_ad_metadata primary key (
     SessionDate,
     UniqueAdID,
     rundate)

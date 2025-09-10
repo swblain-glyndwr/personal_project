@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{domain}_nextads_customer_cells_latest (
+create table marketingdata_prod.{schema}.{client}_nextads_customer_cells_latest (
     AccountNumber string not null,
     FallowControl string not null,
     HomePageTest1 string not null,
@@ -19,7 +19,7 @@ create table marketingdata_prod.{schema}.{domain}_nextads_customer_cells_latest 
     Audience string not null,
     IsPremium int not null,
     rundate date not null,
-  constraint pk_{domain}_nextads_customer_cells_latest primary key (
+  constraint pk_{client}_nextads_customer_cells_latest primary key (
     AccountNumber
     )
 )

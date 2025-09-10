@@ -97,8 +97,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 8, 24)
-    SESSION_DATE_END = date(2025, 8, 25)
+    SESSION_DATE_START = date(2025, 9, 2)
+    SESSION_DATE_END = date(2025, 9, 3)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -112,25 +112,13 @@ sdates.sort()
 logger.info(
     f'Processing results from {SESSION_DATE_START} to {SESSION_DATE_END}')
 
-loc2page = dict()
-loc2screen = dict()
 loc2pf = dict()
-loc2pagegroup = dict()
 for k in LOCATIONS:
-    if 'page' in LOCATIONS[k]:
-        loc2page[k] = LOCATIONS[k]['page']
-    if 'screen' in LOCATIONS[k]:
-        loc2screen[k] = LOCATIONS[k]['screen']
     if 'pf_col' in LOCATIONS[k]:
         loc2pf[k] = LOCATIONS[k]['pf_col']
-    if 'page_group' in LOCATIONS[k]:
-        loc2pagegroup[k] = LOCATIONS[k]['page_group']
 
 pf2loc = {v: k for k, v in loc2pf.items()}
 pf_cols = list(pf2loc.keys())
-
-# TODO: Generalise
-oc_pagepaths = [loc2page['OC1'], loc2screen['OC1']]
 
 # Assignments run the evening before, therefore SessionDate is rundate + 1 day
 df_assignments = (
@@ -168,9 +156,47 @@ df_ad_metadata = (
 df_assignments = df_assignments.where(F.col('SessionDate') != '2025-05-29')
 df_ad_metadata = df_ad_metadata.where(F.col('SessionDate') != '2025-05-29')
 
-# Suppress PLP locations from assignments data (results not yet required)
-df_assignments = df_assignments.where(~F.col('Location').startswith('PL'))
-df_ad_metadata = df_ad_metadata.where(~F.col('Location').startswith('PL'))
+# suppress PLP locations from assignments data (results not yet required)
+invalid_pl_locs = ['PL' + str(num) for num in range(6, 41, 1)]
+df_assignments = df_assignments.where(~F.col('Location').isin(invalid_pl_locs))
+df_ad_metadata = df_ad_metadata.where(~F.col('Location').isin(invalid_pl_locs))
+
+
+loc2page = {}
+loc2screen = {}
+
+# get temporal page mappings and screen mappings from ad metadata
+page_mappings = (
+    df_ad_metadata
+    .select('SessionDate', 'Location', 'Page')
+    .filter(F.col('Page').isNotNull())
+    .distinct()
+    .collect()
+)
+for row in page_mappings:
+    key = (row['SessionDate'], row['Location'])
+    loc2page[key] = row['Page']
+
+screen_mappings = (
+    df_ad_metadata
+    .select('SessionDate', 'Location', 'Screen')
+    .filter(F.col('Screen').isNotNull())
+    .distinct()
+    .collect()
+)
+for row in screen_mappings:
+    key = (row['SessionDate'], row['Location'])
+    loc2screen[key] = row['Screen']
+
+# Create OC pagepaths dynamically from available mappings
+oc_pagepaths = []
+for (session_date, location), page in loc2page.items():
+    if location == 'OC1':
+        oc_pagepaths.append(page)
+for (session_date, location), screen in loc2screen.items():
+    if location == 'OC1':
+        oc_pagepaths.append(screen)
+oc_pagepaths = list(set(oc_pagepaths))  # Remove duplicates
 
 # Remove Homepage assignments for SessionDate 22nd-27th Aug
 # (inadvertently left switched off)
@@ -285,7 +311,6 @@ df_pf_long = (
 )
 
 assert_pk(df_pf_long, pk_cols=['AccountNumber', 'SessionDate', 'Location'])
-
 
 # Validating assignments vs PF addresses any discrepancies or overrides
 # that might have occurred during MASID creation
@@ -502,20 +527,34 @@ df_days_locations = (
     df_valid_assignments
     .select('SessionDate', 'Location')
     .distinct()
-    .withColumn('PagePath', F.col('Location'))
+)
+
+# Create date-aware page mappings for filtering
+df_page_mapping = (
+    df_ad_metadata
+    .select('SessionDate', 'Location', F.col('Page').alias('PagePath'))
+    .filter(F.col('PagePath').isNotNull())
+    .distinct()
 )
 
 df_days_pages = (
     df_days_locations
-    .replace(loc2page, subset=['PagePath'])
-    .where(F.col('PagePath').isin(list(loc2page.values())))
+    .join(df_page_mapping, on=['SessionDate', 'Location'], how='inner')
     .select('SessionDate', 'PagePath')
     .distinct()
 )
+
+# Create date-aware screen mappings for filtering
+df_screen_mapping = (
+    df_ad_metadata
+    .select('SessionDate', 'Location', F.col('Screen').alias('PagePath'))
+    .filter(F.col('PagePath').isNotNull())
+    .distinct()
+)
+
 df_days_screens = (
     df_days_locations
-    .replace(loc2screen, subset=['PagePath'])
-    .where(F.col('PagePath').isin(list(loc2screen.values())))
+    .join(df_screen_mapping, on=['SessionDate', 'Location'], how='inner')
     .select('SessionDate', 'PagePath')
     .distinct()
 )
@@ -805,15 +844,14 @@ df_sessions_ads_valid = (
     .join(
         (
             df_valid_assignments
-            .withColumn('PagePath', F.col('Location'))
-            .replace(loc2page, subset=['PagePath'])
+            .join(df_page_mapping, on=['SessionDate', 'Location'], how='inner')
             .select('AccountNumber', 'SessionDate', 'PagePath')
             .unionByName(
                 df_valid_assignments
-                .withColumn('PagePath', F.col('Location'))
-                .replace(loc2screen, subset=['PagePath'])
+                .join(df_screen_mapping,
+                      on=['SessionDate', 'Location'], how='inner')
                 .select('AccountNumber', 'SessionDate', 'PagePath')
-                )
+            )
             .distinct()
         ),
         on=['AccountNumber', 'SessionDate', 'PagePath'], how='inner'
@@ -832,22 +870,16 @@ df_results_topline = (
 
 df_valid_assignments_mapped = (
     df_valid_assignments
-    .withColumn('PagePath', F.col('Location'))
-    .replace(loc2page, subset=['PagePath'])
-    .where(F.col('PagePath').isin(list(loc2page.values())))
+    .join(df_page_mapping, on=['SessionDate', 'Location'], how='inner')
     .withColumn('Device', F.lit('Desktop'))
     .unionByName(
         df_valid_assignments
-        .withColumn('PagePath', F.col('Location'))
-        .replace(loc2page, subset=['PagePath'])
-        .where(F.col('PagePath').isin(list(loc2page.values())))
+        .join(df_page_mapping, on=['SessionDate', 'Location'], how='inner')
         .withColumn('Device', F.lit('Mobile'))
     )
     .unionByName(
         df_valid_assignments
-        .withColumn('PagePath', F.col('Location'))
-        .replace(loc2screen, subset=['PagePath'])
-        .where(F.col('PagePath').isin(list(loc2screen.values())))
+        .join(df_screen_mapping, on=['SessionDate', 'Location'], how='inner')
         .withColumn('Device', F.lit('App'))
     )
 )
@@ -876,10 +908,17 @@ df_sessions_ads_valid_clicks = (
         )
 )
 
+# Collect page group mappins from df_ad_metadata
+df_pagegroup_mapping = (
+    df_ad_metadata
+    .select('SessionDate', 'Location', 'PageGroup')
+    .filter(F.col('PageGroup').isNotNull())
+    .distinct()
+)
+
 df_sessions_master = (
     df_sessions_ads_valid_clicks
-    .withColumn('PageGroup', F.col('Location'))
-    .replace(loc2pagegroup, subset=['PageGroup'])
+    .join(df_pagegroup_mapping, on=['SessionDate', 'Location'], how='left')
     .groupBy('AccountNumber',
              'FallowControl',
              'SessionDate',
@@ -1192,13 +1231,24 @@ df_sessions_master_meta = (
     .drop('SessionPortions')
 )
 
+# Drop Page and Screen columns as only needed for temporal join
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .drop('Page', 'Screen')
+)
+df_ad_metadata = (
+    df_ad_metadata
+    .drop('Page', 'Screen', 'PageGroup')
+)
+
 # df_sessions_master_meta.cache()
 
 # Writing out key dataframes to modularise results scripting into:
 # - results
 # - results_agg
 
-logger.info('Writing: df_sessions_master_meta')
+logger.info(f'Writing: df_sessions_master_meta to -> '
+            f'{TMP_RESULTS_LOCATION}/df_sessions_master_meta')
 (
     df_sessions_master_meta
     .write
@@ -1207,7 +1257,8 @@ logger.info('Writing: df_sessions_master_meta')
     .parquet(f'{TMP_RESULTS_LOCATION}/df_sessions_master_meta')
 )
 
-logger.info('Writing: df_ad_metadata_non_loc')
+logger.info(f'Writing: df_ad_metadata_non_loc to -> '
+            f'{TMP_RESULTS_LOCATION}/df_ad_metadata_non_loc')
 (
     df_ad_metadata_non_loc
     .write
@@ -1216,7 +1267,8 @@ logger.info('Writing: df_ad_metadata_non_loc')
     .parquet(f'{TMP_RESULTS_LOCATION}/df_ad_metadata_non_loc')
 )
 
-logger.info('Writing: df_ad_metadata')
+logger.info('Writing: df_ad_metadata to -> '
+            f'{TMP_RESULTS_LOCATION}/df_ad_metadata')
 (
     df_ad_metadata
     .write
@@ -1225,7 +1277,8 @@ logger.info('Writing: df_ad_metadata')
     .parquet(f'{TMP_RESULTS_LOCATION}/df_ad_metadata')
 )
 
-logger.info('Writing: df_fixed_cells')
+logger.info(f'Writing: df_fixed_cells to -> '
+            f'{TMP_RESULTS_LOCATION}/df_fixed_cells')
 (
     df_fixed_cells
     .write

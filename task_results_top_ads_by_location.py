@@ -36,7 +36,7 @@ tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 LOOKBACK_DAYS = cfg['results_realtime_ads']['lookback_days']
 CONTROL_SHEET_LATEST = map_tbl(tbls['control_sheet_latest'], **tbl_args)
 AD_RESULTS = map_tbl(tbls['results_ads'], **tbl_args)
-TOP_ADS_BY_LOC = map_tbl(tbls['results_top_ads_by_loc'], **tbl_args)
+TOP_ADS_BY_LOC = map_tbl(tbls['results_ads_top_by_location'], **tbl_args)
 
 WEBHOOK_URL = cfg['webhooks']['Results Warnings']
 

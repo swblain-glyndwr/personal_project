@@ -29,7 +29,7 @@
         "ShoppingBagTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.5}],
+                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.1}],
                     "then": {"lit": "Basic"}
                 },
                 {
@@ -207,9 +207,6 @@
     "locations": {
         "HN1": {
             "pf_col": "HN_slot_1",
-            "page": "/",
-            "screen": "Home",
-            "page_group": "HomePage",
             "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
@@ -227,9 +224,6 @@
         },
         "SB1": {
             "pf_col": "SB_slot_1",
-            "page": "/shoppingbag",
-            "screen": "Cart",
-            "page_group": "ShoppingBag",
             "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
@@ -273,9 +267,6 @@
         },
         "SB2": {
             "pf_col": "SB_slot_2",
-            "page": "/shoppingbag",
-            "screen": "Cart",
-            "page_group": "ShoppingBag",
             "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
@@ -293,9 +284,6 @@
         },
         "OC1": {
             "pf_col": "OC_slot_1",
-            "page": "/secure/checkout/complete",
-            "screen": "Checkout Completed",
-            "page_group": "OrderComplete",
             "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
@@ -315,8 +303,6 @@
         },
         "LP1": {
             "pf_col": "LP_slot_1",
-            "page": "/women",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -335,8 +321,6 @@
         },
         "LP2": {
             "pf_col": "LP_slot_2",
-            "page": "/men",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -355,8 +339,6 @@
         },
         "LP3": {
             "pf_col": "LP_slot_3",
-            "page": "/boys",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -375,8 +357,6 @@
         },
         "LP4": {
             "pf_col": "LP_slot_4",
-            "page": "/girls",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -395,8 +375,6 @@
         },
         "LP5": {
             "pf_col": "LP_slot_5",
-            "page": "/homeware",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -415,8 +393,6 @@
         },
         "LP6": {
             "pf_col": "LP_slot_6",
-            "page": "/beauty",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -435,8 +411,6 @@
         },
         "LP7": {
             "pf_col": "LP_slot_7",
-            "page": "/branded",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -455,8 +429,6 @@
         },
         "LP8": {
             "pf_col": "LP_slot_8",
-            "page": "/sports",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -475,8 +447,6 @@
         },
         "LP9": {
             "pf_col": "LP_slot_9",
-            "page": "/newborn",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -495,8 +465,6 @@
         },
         "LP10": {
             "pf_col": "LP_slot_10",
-            "page": "/gift-ideas",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -515,8 +483,6 @@
         },
         "LP11": {
             "pf_col": "LP_slot_11",
-            "page": "/outdoor",
-            "page_group": "LandingPage",
             "basic_within": "global",
             "map": [
                 {
@@ -535,9 +501,6 @@
         },
         "PH3": {
             "pf_col": "hp_slot_3",
-            "page": "/",
-            "screen": "Home",
-            "page_group": "HomePage",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "HN1"},
@@ -558,9 +521,6 @@
         },
         "PH4": {
             "pf_col": "hp_slot_4",
-            "page": "/",
-            "screen": "Home",
-            "page_group": "HomePage",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "HN1"},
@@ -581,9 +541,6 @@
         },
         "PH5": {
             "pf_col": "hp_slot_5",
-            "page": "/",
-            "screen": "Home",
-            "page_group": "HomePage",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "HN1",
             "best_kwargs": {"return_ranks": [3], "inherit_rank_from_location": "HN1"},
@@ -603,6 +560,8 @@
             ]
         },
         "PL1": {
+            "pf_col": "PL_slot_1",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -619,6 +578,8 @@
             ]
         },
         "PL2": {
+            "pf_col": "PL_slot_2",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -635,6 +596,8 @@
             ]
         },
         "PL3": {
+            "pf_col": "PL_slot_3",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -651,6 +614,8 @@
             ]
         },
         "PL4": {
+            "pf_col": "PL_slot_4",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -667,6 +632,8 @@
             ]
         },
         "PL5": {
+            "pf_col": "PL_slot_5",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1301,6 +1268,17 @@
         ]
     },
 
+    "placements_sheet": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
+        "sheet": "Placements",
+        "read_schema": [
+            ["Location", "string", "null"],
+            ["Page", "string", "null"],
+            ["Screen", "string", "null"],
+            ["PageGroup", "string", "null"]
+        ]
+    },
+
     "schema": {
         "dev": "ds_sandbox",
         "prod": "warehouse"
@@ -1343,7 +1321,7 @@
             "results_ads_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_ads_targeting",
             "results_page_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_page_targeting",
             "results_ad_metadata": "marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata",
-            "results_top_ads_by_loc": "marketingdata_prod.{schema}.{client}_nextads_results_ads_top_by_location"
+            "results_ads_top_by_location": "marketingdata_prod.{schema}.{client}_nextads_results_ads_top_by_location"
         }
     },
 

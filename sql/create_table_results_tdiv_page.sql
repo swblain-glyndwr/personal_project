@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{domain}_nextads_results_tdiv_page (
+create table marketingdata_prod.{schema}.{client}_nextads_results_tdiv_page (
     SessionDate date not null,
     Device string not null,
     OS string not null,
@@ -18,7 +18,7 @@ create table marketingdata_prod.{schema}.{domain}_nextads_results_tdiv_page (
     C_ApportionedRevenue double,
     SessionOverlapRatio double,
     rundate date not null,
-  constraint pk_{domain}_nextads_results_tdiv_page primary key (
+  constraint pk_{client}_nextads_results_tdiv_page primary key (
     SessionDate,
     Device,
     OS,

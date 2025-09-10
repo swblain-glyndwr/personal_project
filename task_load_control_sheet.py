@@ -44,6 +44,7 @@ for k in VALID_LOCATIONS:
         READ_LOCATIONS.append(k)
 
 CONTROL_SHEET = cfg["control_sheet"]
+PLACEMENTS_SHEET = cfg["placements_sheet"]
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
@@ -72,6 +73,16 @@ df_ctrl_raw = gcp.spark_df_from_sheets(
     gcp_scope=cfg["gcp"]["scope"],
     gcp_key=cfg["gcp"]["key"],
     schema=CONTROL_SHEET["read_schema"]
+    )
+
+logger.info("Reading Placements Sheet from Google Sheets")
+
+df_placements = gcp.spark_df_from_sheets(
+    url=PLACEMENTS_SHEET["url"],
+    worksheet_name=PLACEMENTS_SHEET["sheet"],
+    gcp_scope=cfg["gcp"]["scope"],
+    gcp_key=cfg["gcp"]["key"],
+    schema=PLACEMENTS_SHEET["read_schema"]
     )
 
 date_fmt = CONTROL_SHEET["date_format"]
@@ -166,6 +177,13 @@ df_ad_attributes = (
 df_processed = (
     df_id_loc
     .join(df_ad_attributes, on="UniqueAdID", how="left")
+)
+
+
+# join on placements sheet to collect Page and Screen
+df_processed = (
+    df_processed
+    .join(df_placements, on="Location", how="left")
 )
 df_processed = (
     df_processed
@@ -267,7 +285,6 @@ df_processed = df_processed.withColumn(
     F.when(F.col("valid_id").isNull(), F.lit(None))
     .otherwise(F.col("UniqueAdIDPremium"))
 )
-
 
 target_cols = (
     spark

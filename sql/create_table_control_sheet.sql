@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{domain}_nextads_control_sheet (
+create table marketingdata_prod.{schema}.{client}_nextads_control_sheet (
   UniqueAdID string not null,
   UniqueAdIDPremium string,
   PotNumber string not null,
@@ -40,8 +40,11 @@ create table marketingdata_prod.{schema}.{domain}_nextads_control_sheet (
   MobileImage string,
   FlatJPG string,
   Tags string,
+  Page string,
+  Screen string,
+  PageGroup string,
   rundate date not null,
-  constraint pk_{domain}_nextads_control_sheet primary key (
+  constraint pk_{client}_nextads_control_sheet primary key (
     UniqueAdID,
     Location,
     rundate)
