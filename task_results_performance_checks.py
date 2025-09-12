@@ -46,7 +46,7 @@ WEBHOOK_URL = cfg['webhooks']['Results Warnings']
 df_ads_active = (
     spark
     .table(CONTROL_SHEET_LATEST)
-    .select('UniqueAdID')
+    .select('UniqueAdID', 'Location')
     .distinct()
 )
 
@@ -78,7 +78,8 @@ df_ad_results_underperf = (
 
 underperf_ads_col = (
     df_ad_results_underperf
-    .join(df_ads_active, on='UniqueAdID', how='inner')
+    .join(df_ads_active.select('UniqueAdID'),
+          on='UniqueAdID', how='inner')
     .orderBy('IncARPSAdj')
     .select('UniqueAdID')
     .distinct()
@@ -87,13 +88,44 @@ underperf_ads_col = (
 
 underperf_ads = [x[0] for x in underperf_ads_col]
 
+df_underperf_ads_loc = (
+    df_ads_active.orderBy('UniqueAdID', 'Location')
+    .filter(F.col('UniqueAdID')
+            .isin(underperf_ads))
+    .groupBy("UniqueAdID")
+    .agg(F.collect_list("Location").alias("Location_List"))
+)
+
+df_underperf_ads_loc_metric = (
+    df_ad_results_underperf
+    .select("UniqueAdID", "IncARPSAdj", "Sessions", "ARPS", "EstContribution")
+    .filter(F.col('UniqueAdID').isin(underperf_ads))
+    .join(
+        df_underperf_ads_loc, on='UniqueAdID', how='inner'
+    )
+    .withColumn("IncARPSAdj", F.round(F.col("IncARPSAdj"), 2))
+    .withColumn("ARPS", F.round(F.col("ARPS"), 2))
+    .withColumn("EstContribution", F.round(F.col("EstContribution"), 2))
+)
+
+output = [row.asDict() for row in df_underperf_ads_loc_metric.collect()]
+
+output_str = '\n'.join(
+    f"Ad: {row['UniqueAdID']}\n  Locations: {row['Location_List']}\n"
+    f"  IncARPSAdj: {row['IncARPSAdj']}\n  Sessions: {row['Sessions']}\n"
+    f"  ARPS: {row['ARPS']}\n"
+    f"  EstContribution: {row['EstContribution']}\n"
+    for row in output
+)
+
 if len(underperf_ads) > 0:
     msg = (
-        'Underperforming Ads\n' +
-        f'(look-back to {CHECK_SESSIONS_FROM}; ' +
-        f'min {MIN_C_SESSIONS:,} control sessions)\n\n' +
-        '\n'.join(underperf_ads) +
-        '\n\nCheck full results in dashboard'
+        'Underperforming Ads\n'
+        f'(look-back to {CHECK_SESSIONS_FROM}; '
+        f'min {MIN_C_SESSIONS:,} control sessions)\n\n'
+        f'Ads with Active Location & Metrics:\n\n'
+        f'{output_str}\n\n'
+        'Check full results in dashboard'
     )
     logger.warning(msg)
 

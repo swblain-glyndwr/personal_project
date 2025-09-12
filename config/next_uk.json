@@ -1364,7 +1364,7 @@
         "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
         "min_c_sessions": 30000,
-        "lookback_days": 28
+        "lookback_days": 14
     },
 
     "results_realtime_ads": {
