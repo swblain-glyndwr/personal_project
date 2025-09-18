@@ -394,7 +394,7 @@ df_valid_assignments = (
 # This is why the invalid teaser removal is replicated here, but based on
 # UniqueAdIDMeasurement, so as to account for this removal in the control group
 
-teaser_locs = ['PH3', 'PH4', 'PH5']
+teaser_locs = ['PH3', 'PH4']
 teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
 w_dt_acc = Window.partitionBy('SessionDate', 'AccountNumber')
 

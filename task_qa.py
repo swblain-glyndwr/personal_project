@@ -52,7 +52,7 @@ df_cells = spark.table(CELLS_TABLE_LATEST)
 
 logger.info('Checking for invalid Homepage Teaser assignments')
 
-teaser_locs = ['PH3', 'PH4', 'PH5']
+teaser_locs = ['PH3', 'PH4']
 teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
 w_acc = Window.partitionBy('AccountNumber')
 
