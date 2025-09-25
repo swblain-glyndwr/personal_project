@@ -1264,7 +1264,8 @@
             ["BackgroundImage", "string", "null"],
             ["MobileImage", "string", "null"],
             ["FlatJPG", "string", "null"],
-            ["Tags", "string", "null"]
+            ["Tags", "string", "null"],
+            ["TargetingAttributes", "string", "null"]
         ]
     },
 
@@ -1292,7 +1293,9 @@
             "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
             "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
+            "baskets": "marketingdata_prod.warehouse.baskets_uk_3y",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
+            "product_catalog": "marketingdata_prod.warehouse.product_catalog_history",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest",
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
@@ -1310,6 +1313,9 @@
             "targeting_scores_latest": "marketingdata_prod.{schema}.{client}_nextads_targeting_scores_latest",
             "assignments": "marketingdata_prod.{schema}.{client}_nextads_assignments",
             "assignments_latest": "marketingdata_prod.{schema}.{client}_nextads_assignments_latest",
+            "attribute_set": "marketingdata_prod.{schema}.{client}_nextads_attribute_set",
+            "attribute_set_latest": "marketingdata_prod.{schema}.{client}_nextads_attribute_set_latest",
+            "item_attributes_latest": "marketingdata_prod.{schema}.{client}_nextads_item_attributes_latest",
             "results_topline": "marketingdata_prod.{schema}.{client}_nextads_results_topline",
             "results_aggregated": "marketingdata_prod.{schema}.{client}_nextads_results_aggregated",
             "results_ab": "marketingdata_prod.{schema}.{client}_nextads_results_ab",
@@ -1369,5 +1375,12 @@
 
     "results_realtime_ads": {
         "lookback_days": 14
+    },
+
+    "attributes": {
+        "active": ["gender", "department", "category", "brand"],
+        "lookback_days": 365,
+        "frequency_cutoff_pc": 0.01,
+        "pc_cutoff_col": "pc_orders_total"
     }
 }
