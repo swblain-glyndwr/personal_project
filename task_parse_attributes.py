@@ -35,7 +35,12 @@ logger.info(f'Write schema set to {SCHEMA}')
 
 # Get read only table name
 PRODUCT_CATALOG = cfg["tables"]["read"]["product_catalog"]
+PRODUCT_CATALOG_LATEST = cfg["tables"]["read"]["product_catalog_latest"]
 BASKETS = cfg["tables"]["read"]["baskets"]
+NOV_SCORES_CSV = cfg["attributes"]["nov_scores_csv"]
+
+# BQ export parameters
+BQ_OPTIONS = cfg['big_query']
 
 # Map write schema to parameterised write table names
 tbl_args = {'schema': SCHEMA, 'client': CLIENT}
@@ -141,9 +146,9 @@ for attribute in ATTRIBUTES:
         .groupBy('value')
         .agg(F.countDistinct('pid').alias('n_products'))
         .withColumn('pc_products',
-                    F.round((F.col('n_products') / n_items) * 100, 1))
+                    (F.col('n_products') / n_items) * 100)
         .withColumn('pc_products_total',
-                    F.round((F.col('n_products') / n_items_total) * 100, 1))
+                    (F.col('n_products') / n_items_total) * 100)
     )
 
     df_count_baskets = (
@@ -152,16 +157,16 @@ for attribute in ATTRIBUTES:
         .groupBy('value')
         .agg(F.countDistinct('orderid').alias('n_orders'))
         .withColumn('pc_orders_total',
-                    F.round((F.col('n_orders') / n_baskets_total) * 100, 1))
+                    (F.col('n_orders') / n_baskets_total) * 100)
     )
 
     if jobparser.has_arg('--set'):
         logger.info(f'Creating new attribute set for {attribute}')
-        logger.info(f'Filtering where {PC_CUTOFF_COL} > {FREQ_CUTOFF_PC}%')
+        logger.info(f'Filtering where {PC_CUTOFF_COL} >= {FREQ_CUTOFF_PC}%')
         df_count = (
             df_count_items
             .join(df_count_baskets, on='value', how='inner')
-            .filter(F.col(PC_CUTOFF_COL) > FREQ_CUTOFF_PC)
+            .filter(F.col(PC_CUTOFF_COL) >= FREQ_CUTOFF_PC)
         )
     else:
         logger.info(f'Mapping items to latest set values for: {attribute}')
@@ -239,5 +244,76 @@ else:
         ITEM_ATTRIBUTES_LATEST,
         pk_cols=['pid', 'attribute', 'value']
     )
+
+    logger.info('Combining item attributes and NOV score for Big Query export')
+    nov_scores = (
+        spark
+        .read
+        .csv(NOV_SCORES_CSV, header=True)
+        .select('item_number', 'next_order_value')
+        .withColumnRenamed('item_number', 'pid')
+    )
+
+    product_catalog_latest = (
+        spark
+        .table(PRODUCT_CATALOG_LATEST)
+        .select('pid', 'title', 'URL', 'large_image')
+        .withColumn("URL", F.regexp_replace("URL", "#", "/"))
+    )
+
+    product_catalog_with_nov = (
+        product_catalog_latest
+        .join(nov_scores, on='pid', how='left')
+        .distinct()
+    )
+
+    attributes_pivot = (
+        df_attributes_master
+        .groupBy("pid")
+        .pivot("attribute")
+        .agg(F.collect_list("value"))
+    )
+
+    for attribute in ATTRIBUTES:
+        attributes_pivot = (
+            attributes_pivot
+            .withColumn(attribute, F.explode_outer(attribute))
+        )
+
+    attributes_pivot = (
+        attributes_pivot
+        .select('pid', *ATTRIBUTES)
+        .distinct()
+    )
+
+    bq_item_attributes = (
+        product_catalog_with_nov
+        .join(
+            attributes_pivot,
+            on="pid",
+            how="inner"
+        )
+        .distinct()
+        .fillna("Unknown")
+    )
+
+    if jobparser.has_arg('--bq') and not jobparser.has_arg('--set'):
+
+        logger.info('Exporting item attributes to Big Query')
+        logger.info(
+            'Target BQ table:'
+            + f'{map_tbl(BQ_OPTIONS["item_attributes_dashboard"], **tbl_args)}'
+            )
+        (
+            bq_item_attributes
+            .write.format('bigquery')
+            .mode('overwrite')
+            .option('temporaryGcsBucket', BQ_OPTIONS['temporaryGcsBucket'])
+            .option('parentProject', BQ_OPTIONS['parentProject'])
+            .option('table',
+                    map_tbl(BQ_OPTIONS['item_attributes_dashboard'],
+                            **tbl_args))
+            .save()
+        )
 
 logger.info('Run complete')

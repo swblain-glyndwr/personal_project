@@ -34,13 +34,13 @@ def parse_ad_attributes(
         'attribute_pair_split',
         F.split(F.col('attribute_pair'), key_value_delimiter)
     )
-    df_exploded.show()
+
     df_parsed = df_exploded.withColumn(
         'attribute', F.trim(F.col('attribute_pair_split').getItem(0))
     ).withColumn(
         'value', F.trim(F.col('attribute_pair_split').getItem(1))
     )
-    df_parsed.show()
+
     df_result = (
         df_parsed
         .select(ad_id_col, 'attribute', 'value')

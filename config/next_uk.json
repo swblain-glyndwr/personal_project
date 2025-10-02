@@ -1269,6 +1269,7 @@
             "baskets": "marketingdata_prod.warehouse.baskets_uk_3y",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "product_catalog": "marketingdata_prod.warehouse.product_catalog_history",
+            "product_catalog_latest": "marketingdata_prod.warehouse.product_catalog",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest",
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest"
@@ -1288,6 +1289,8 @@
             "attribute_set": "marketingdata_prod.{schema}.{client}_nextads_attribute_set",
             "attribute_set_latest": "marketingdata_prod.{schema}.{client}_nextads_attribute_set_latest",
             "item_attributes_latest": "marketingdata_prod.{schema}.{client}_nextads_item_attributes_latest",
+            "theme_mapping": "marketingdata_prod.{schema}.{client}_nextads_theme_mapping",
+            "theme_mapping_latest": "marketingdata_prod.{schema}.{client}_nextads_theme_mapping_latest",
             "results_topline": "marketingdata_prod.{schema}.{client}_nextads_results_topline",
             "results_aggregated": "marketingdata_prod.{schema}.{client}_nextads_results_aggregated",
             "results_ab": "marketingdata_prod.{schema}.{client}_nextads_results_ab",
@@ -1329,7 +1332,8 @@
             "results_ads_page": "big-query-156009.Misc_eu.{client}_nextads_results_ads_page",
             "results_ads_targeting": "big-query-156009.Misc_eu.{client}_nextads_results_ads_targeting",
             "results_ad_metadata": "big-query-156009.Misc_eu.{client}_nextads_results_ad_metadata"
-        }
+        },
+        "item_attributes_dashboard": "Misc_eu.{client}_nextads_item_popularity_by_nov"
     },
 
     "results_processing": {
@@ -1350,9 +1354,19 @@
     },
 
     "attributes": {
-        "active": ["gender", "department", "category", "brand", "use", "style", "pattern", "fit", "colour"],
+        "active": ["gender", "department", "category", "brand", "use", "style", "pattern", "fit", "room"],
         "lookback_days": 365,
-        "frequency_cutoff_pc": 0.01,
-        "pc_cutoff_col": "pc_orders_total"
+        "frequency_cutoff_pc": 0.0,
+        "pc_cutoff_col": "pc_orders_total",
+        "nov_scores_csv": "/Volumes/marketingdata_prod/search_sandbox/search_volume/ml_nov/UK_NOV_OUTPUT/next_order_extract.csv"
+    },
+
+    "theme_mapping": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
+        "sheet": "Theme Mapping",
+        "read_schema": [
+            ["Theme", "string", "null"],
+            ["TargetingAttributes", "string", "null"]
+        ]
     }
 }
