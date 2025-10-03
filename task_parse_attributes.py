@@ -69,26 +69,34 @@ df_catalog = (
     .withColumnRenamed('department', 'next_department')
     .withColumn(
         'gender',
-        F.when(F.col('next_gender').contains('women'), 'women')
-        .when(F.col('next_gender').contains('men'), 'men')
-        .when(F.col('next_gender').contains('girls'), 'girls')
-        .when(F.col('next_gender').contains('boys'), 'boys')
+        F.when(F.lower(F.col('next_gender')).contains('women'), 'women')
+        .when(F.lower(F.col('next_gender')).contains('men'), 'men')
+        .when(F.lower(F.col('next_gender')).contains('girls'), 'girls')
+        .when(F.lower(F.col('next_gender')).contains('boys'), 'boys')
         .otherwise(F.lit(None))
     )
     .withColumn(
         'lifestage',
-        F.when(F.col('next_gender').contains('newborn'), 'newborn')
-        .when(F.col('gender').isin('women', 'men', 'unisex'), 'adult')
-        .when(F.col('next_gender').contains('older'), 'kids_older')
-        .when(F.col('next_gender').contains('younger'), 'kids_younger')
+        F.when(F.lower(F.col('next_gender')).contains('newborn'), 'newborn')
+        .when(F.lower(F.col('gender')).isin('women', 'men', 'unisex'), 'adult')
+        .when(F.lower(F.col('next_gender')).contains('older'), 'kids_older')
+        .when(
+            F.lower(F.col('next_gender')).contains('younger'), 'kids_younger')
         .otherwise(F.lit(None))
     )
     .withColumn(
         'department',
-        F.when(F.col('next_department').contains('wear'), 'fashion')
-        .when(F.col('next_department').contains('home'), 'home')
-        .when(F.col('next_department').contains('beauty'), 'beauty')
+        F.when(F.lower(F.col('next_department')).contains('wear'), 'fashion')
+        .when(F.lower(F.col('next_department')).contains('home'), 'home')
+        .when(F.lower(F.col('next_department')).contains('beauty'), 'beauty')
         .otherwise(F.lit(None))
+    )
+    .withColumn(
+        'brand',
+        F.when(
+            F.array_contains(F.split(F.lower(F.col('range')), '\\|'),
+                             'npremium'),
+            'npremium').otherwise(F.col('brand'))
     )
     .withColumnsRenamed(
         {
