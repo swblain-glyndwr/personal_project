@@ -157,9 +157,17 @@ df_assignments = df_assignments.where(F.col('SessionDate') != '2025-05-29')
 df_ad_metadata = df_ad_metadata.where(F.col('SessionDate') != '2025-05-29')
 
 # suppress PLP locations from assignments data (results not yet required)
-invalid_pl_locs = ['PL' + str(num) for num in range(6, 41, 1)]
-df_assignments = df_assignments.where(~F.col('Location').isin(invalid_pl_locs))
-df_ad_metadata = df_ad_metadata.where(~F.col('Location').isin(invalid_pl_locs))
+plp_locs = ['PL' + str(num) for num in range(1, 62, 1)]
+df_assignments = (
+    df_assignments
+    .where(~(F.col('Location').isin(plp_locs)
+             & (F.col('SessionDate') < '2025-09-20')))
+)
+df_ad_metadata = (
+    df_ad_metadata
+    .where(~(F.col('Location').isin(plp_locs)
+             & (F.col('rundate') < '2025-09-19')))
+)
 
 
 loc2page = {}

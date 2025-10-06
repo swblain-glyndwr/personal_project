@@ -623,6 +623,8 @@
             ]
         },
         "PL6": {
+            "pf_col": "PL_slot_6",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -639,6 +641,8 @@
             ]
         },
         "PL7": {
+            "pf_col": "PL_slot_7",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -655,6 +659,8 @@
             ]
         },
         "PL8": {
+            "pf_col": "PL_slot_8",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -671,6 +677,8 @@
             ]
         },
         "PL9": {
+            "pf_col": "PL_slot_9",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -687,6 +695,8 @@
             ]
         },
         "PL10": {
+            "pf_col": "PL_slot_10",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -703,6 +713,8 @@
             ]
         },
         "PL11": {
+            "pf_col": "PL_slot_11",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -719,6 +731,8 @@
             ]
         },
         "PL12": {
+            "pf_col": "PL_slot_12",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -735,6 +749,8 @@
             ]
         },
         "PL13": {
+            "pf_col": "PL_slot_13",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -751,6 +767,8 @@
             ]
         },
         "PL14": {
+            "pf_col": "PL_slot_14",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -767,6 +785,8 @@
             ]
         },
         "PL15": {
+            "pf_col": "PL_slot_15",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -783,6 +803,8 @@
             ]
         },
         "PL16": {
+            "pf_col": "PL_slot_16",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -799,6 +821,8 @@
             ]
         },
         "PL17": {
+            "pf_col": "PL_slot_17",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -815,6 +839,8 @@
             ]
         },
         "PL18": {
+            "pf_col": "PL_slot_18",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -831,6 +857,8 @@
             ]
         },
         "PL19": {
+            "pf_col": "PL_slot_19",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -847,6 +875,8 @@
             ]
         },
         "PL20": {
+            "pf_col": "PL_slot_20",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -863,6 +893,8 @@
             ]
         },
         "PL21": {
+            "pf_col": "PL_slot_21",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -879,6 +911,8 @@
             ]
         },
         "PL22": {
+            "pf_col": "PL_slot_22",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -895,6 +929,8 @@
             ]
         },
         "PL23": {
+            "pf_col": "PL_slot_23",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -911,6 +947,8 @@
             ]
         },
         "PL24": {
+            "pf_col": "PL_slot_24",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -927,6 +965,8 @@
             ]
         },
         "PL25": {
+            "pf_col": "PL_slot_25",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -943,6 +983,8 @@
             ]
         },
         "PL26": {
+            "pf_col": "PL_slot_26",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -959,6 +1001,8 @@
             ]
         },
         "PL27": {
+            "pf_col": "PL_slot_27",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -975,6 +1019,8 @@
             ]
         },
         "PL28": {
+            "pf_col": "PL_slot_28",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -991,6 +1037,8 @@
             ]
         },
         "PL29": {
+            "pf_col": "PL_slot_29",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1007,6 +1055,8 @@
             ]
         },
         "PL30": {
+            "pf_col": "PL_slot_30",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1023,6 +1073,8 @@
             ]
         },
         "PL31": {
+            "pf_col": "PL_slot_31",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1039,6 +1091,8 @@
             ]
         },
         "PL32": {
+            "pf_col": "PL_slot_32",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1055,6 +1109,8 @@
             ]
         },
         "PL33": {
+            "pf_col": "PL_slot_33",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1071,6 +1127,8 @@
             ]
         },
         "PL34": {
+            "pf_col": "PL_slot_34",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1087,6 +1145,8 @@
             ]
         },
         "PL35": {
+            "pf_col": "PL_slot_35",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1103,6 +1163,8 @@
             ]
         },
         "PL36": {
+            "pf_col": "PL_slot_36",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1119,6 +1181,8 @@
             ]
         },
         "PL37": {
+            "pf_col": "PL_slot_37",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1135,6 +1199,8 @@
             ]
         },
         "PL38": {
+            "pf_col": "PL_slot_38",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1151,6 +1217,8 @@
             ]
         },
         "PL39": {
+            "pf_col": "PL_slot_39",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1167,6 +1235,386 @@
             ]
         },
         "PL40": {
+            "pf_col": "PL_slot_40",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL41": {
+            "pf_col": "PL_slot_41",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL42": {
+            "pf_col": "PL_slot_42",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL43": {
+            "pf_col": "PL_slot_43",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL44": {
+            "pf_col": "PL_slot_44",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL45": {
+            "pf_col": "PL_slot_45",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL46": {
+            "pf_col": "PL_slot_46",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL47": {
+            "pf_col": "PL_slot_47",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL48": {
+            "pf_col": "PL_slot_48",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL49": {
+            "pf_col": "PL_slot_49",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL50": {
+            "pf_col": "PL_slot_50",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL51": {
+            "pf_col": "PL_slot_51",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL52": {
+            "pf_col": "PL_slot_52",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL53": {
+            "pf_col": "PL_slot_53",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL54": {
+            "pf_col": "PL_slot_54",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL55": {
+            "pf_col": "PL_slot_55",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL56": {
+            "pf_col": "PL_slot_56",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL57": {
+            "pf_col": "PL_slot_57",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL58": {
+            "pf_col": "PL_slot_58",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL59": {
+            "pf_col": "PL_slot_59",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL60": {
+            "pf_col": "PL_slot_60",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL61": {
+            "pf_col": "PL_slot_61",
+            "basic_within": "AlgoDivision",
             "map": [
                 {
                     "when": [
@@ -1182,6 +1630,7 @@
                 }
             ]
         }
+    
     },
 
     "gcp": {
