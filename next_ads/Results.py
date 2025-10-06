@@ -303,3 +303,62 @@ def append_inc_cols(df: DataFrame) -> DataFrame:
         .withColumn('EstIncRev', F.col('IncRPS')*F.col('Sessions'))
     )
     return df_return
+
+
+def check_control_ratio(
+        df,
+        control_ratio: float,
+        tolerance: float = None,
+        min_c_sessions: int = None,
+        non_group_cols: list[str] = [
+            'Device',
+            'OS',
+            'Sessions',
+            'Revenue',
+            'Conversions',
+            'SoftImpressions',
+            'SoftClicks',
+            'ApportionedRevenue',
+            'C_Sessions',
+            'C_Revenue',
+            'C_Conversions',
+            'C_SoftImpressions',
+            'C_SoftClicks',
+            'C_ApportionedRevenue',
+            'SessionOverlapRatio',
+            'rundate'
+            ]
+        ) -> DataFrame:
+
+    group_cols = [x for x in list(df.columns) if x not in non_group_cols]
+    logger.debug('Grouping by: ' + ', '.join(group_cols))
+    df_agg = (
+        df
+        .groupBy(*group_cols)
+        .agg(
+            F.sum('Sessions').alias('Sessions'),
+            F.sum('C_Sessions').alias('C_Sessions')
+        )
+        .withColumn(
+            'ControlPercent',
+            F.round(F.col('C_Sessions') / F.col('Sessions') * 100, 2)
+        )
+    )
+
+    if tolerance is not None:
+        control_ratio = control_ratio
+        TOL = control_ratio * tolerance
+        logger.debug(
+            'Filtering for ControlPercent outside'
+            + f' {control_ratio:.2f}% +/- {TOL:.2f}%')
+        df_agg = df_agg.filter(
+            (F.col('ControlPercent') < (control_ratio - TOL)) |
+            (F.col('ControlPercent') > (control_ratio + TOL))
+        )
+
+    if min_c_sessions is not None:
+        logger.debug('Filtering tolerance check for min `C_Sessions` >'
+                     + f' {min_c_sessions:,}')
+        df_agg = df_agg.where(F.col('C_Sessions') > min_c_sessions)
+
+    return df_agg

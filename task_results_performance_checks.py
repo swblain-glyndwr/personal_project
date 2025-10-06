@@ -5,6 +5,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import map_tbl, post_to_webhook
 from dsutils.argparser import get_job_parser
+from next_ads.Results import check_control_ratio
 
 
 jobparser = get_job_parser()
@@ -30,6 +31,14 @@ with open(f"config/{CLIENT}.json") as f:
 LOOKBACK_DAYS = cfg['results_prm']['lookback_days']
 CHECK_SESSIONS_FROM = date.today() - timedelta(days=LOOKBACK_DAYS+1)
 
+TOLERANCE_CTRL = cfg['ctrl_ratio_checks']['tolerance']
+MIN_CSESSIONS_CTRL = cfg['ctrl_ratio_checks']['min_c_sessions']
+CONTROL_CHECK_TABLES = cfg['ctrl_ratio_checks']['table_refs']
+CONTROL_CHECK_START = (
+    date.today() - timedelta(days=cfg["results_prm"]["lookback_days"]))
+ctrl_pc = cfg['fallow_control']['proportion']
+CONTROL_RATIO = (ctrl_pc/(1-ctrl_pc))*100
+
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
 logger.info(f'Write schema set to {SCHEMA}')
@@ -42,6 +51,7 @@ AD_RESULTS = map_tbl(tbls['results_ads'], **tbl_args)
 MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
 
 WEBHOOK_URL = cfg['webhooks']['Results Warnings']
+WEBHOOK_URL_DS = cfg['webhooks']['DS Warnings']
 
 df_ads_active = (
     spark
@@ -141,5 +151,37 @@ else:
 
     if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg)
+
+
+# Check that control ratio is within tolerance for various splits
+for ref in CONTROL_CHECK_TABLES:
+    tbl = map_tbl(cfg["tables"]["write"][ref], **tbl_args)
+    df_ctrl_check = (
+        spark
+        .table(tbl)
+        .where(F.col('SessionDate') >= CONTROL_CHECK_START)
+    )
+
+    df_ctrl_out_of_tolerance = (
+        check_control_ratio(
+            df_ctrl_check,
+            control_ratio=CONTROL_RATIO,
+            tolerance=TOLERANCE_CTRL,
+            min_c_sessions=MIN_CSESSIONS_CTRL
+            )
+    )
+
+    if not df_ctrl_out_of_tolerance.isEmpty():
+        ctrl_warnings = [
+            f'Control ratio out of tolerance for {tbl}'
+            + f' since {CONTROL_CHECK_START} (target: {CONTROL_RATIO:.2f}%)']
+        df_ctrl_out_of_tolerance = (
+            df_ctrl_out_of_tolerance.drop('Sessions', 'C_Sessions'))
+        for row in df_ctrl_out_of_tolerance.collect():
+            ctrl_warnings += [' | '.join([str(c) for c in row])]
+        for ctrl_warning in ctrl_warnings:
+            logger.warning(ctrl_warning)
+        if JOB_ENV == 'prod':
+            post_to_webhook(WEBHOOK_URL_DS, '\n'.join(ctrl_warnings))
 
 logger.info("Run Complete")

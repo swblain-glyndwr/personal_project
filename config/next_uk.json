@@ -1721,7 +1721,8 @@
             "product_catalog_latest": "marketingdata_prod.warehouse.product_catalog",
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest",
-            "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest"
+            "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
+            "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915"
         },
         "write": {
             "ad_items": "marketingdata_prod.{schema}.{client}_nextads_ad_items",
@@ -1796,6 +1797,13 @@
         "masid_refresh_hour": 4,
         "min_c_sessions": 30000,
         "lookback_days": 14
+    },
+
+    "ctrl_ratio_checks": {
+        "table_refs" : ["results_topline", "results_aggregated", "results_ads"],
+        "lookback_days": 3,
+        "tolerance": 0.1,
+        "min_c_sessions": 1000
     },
 
     "results_realtime_ads": {

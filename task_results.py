@@ -64,6 +64,8 @@ BQ_SESSIONS_APP = cfg["tables"]["read"]['bq_sessions_app']
 BQ_PAGES = cfg["tables"]["read"]['bq_pages']
 BQ_SCREENS = cfg["tables"]["read"]['bq_screens']
 
+CREDIT_AD_ACCOUNTS_TABLE = cfg["tables"]["read"]['credit_ad_accounts']
+
 LOCATIONS = cfg['locations']
 FIXED_CELLS = cfg['fixed_cells']
 FALLOW_TRUE = cfg["fallow_control"]["true_label"]
@@ -991,7 +993,8 @@ reporting_metadata_cols = [
 
 df_ad_metadata_non_loc = (
     df_ad_metadata
-    .select('SessionDate', 'UniqueAdID', *reporting_metadata_cols)
+    .select('SessionDate', 'UniqueAdID', 'AudienceOnly',
+            *reporting_metadata_cols)
     .distinct()
 )
 
@@ -1006,18 +1009,30 @@ df_sessions_master_meta = (
     .join(
         (
             df_ad_metadata_non_loc
-            .select('SessionDate', 'UniqueAdID', *reporting_metadata_cols)
+            .select('SessionDate', 'UniqueAdID', 'AudienceOnly',
+                    *reporting_metadata_cols)
             .distinct()
             .withColumnRenamed('UniqueAdID', 'UniqueAdIDMeasurement')
         ),
         on=['SessionDate', 'UniqueAdIDMeasurement'],
         how='left'
     )
+    .fillna({'AudienceOnly': 0})
+    .where(
+        ~(
+            (F.col('UniqueAdIDMeasurement') == F.col('Treatment'))
+            & (F.col('AudienceOnly') != 1)
+        )
+    )
     .withColumn(
         'AlgoDivision_Brand',
         F.concat(F.col('AlgoDivision'), F.lit('_'), F.col('Brand'))
     )
 )
+
+# Dropping AudienceOnly column after use avoids downstream schema changes
+df_ad_metadata_non_loc = df_ad_metadata_non_loc.drop('AudienceOnly')
+df_sessions_master_meta = df_sessions_master_meta.drop('AudienceOnly')
 
 # Remove Seasons Ads from App sessions
 # This is a live exclusion
@@ -1136,6 +1151,19 @@ df_sessions_master_meta = (
     )
 )
 
+# Remove OrderComplete (Desktop only) for affected dates
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'OrderComplete')
+            & (F.col('Device') == 'Desktop')
+            & (F.col('SessionDate') >= date(2025, 8, 29))
+            & (F.col('SessionDate') <= date(2025, 9, 25))
+        )
+    )
+)
+
 # Remove Shopping bag (desktop/ mobile) for affected dates
 df_sessions_master_meta = (
     df_sessions_master_meta
@@ -1183,7 +1211,7 @@ df_sessions_master_meta = (
     df_sessions_master_meta
     .where(
         ~(
-            (F.col('SessionDate').isin(
+            (F.col('UniqueAdIDMeasurement').isin(
                 ['P136_C788_Next_Womens_Multipacks_Womens',
                  'P136_C873_Next_Womens_TheSet_Womens']))
             & (F.col('SessionDate') >= '2025-05-30')
@@ -1224,6 +1252,36 @@ df_sessions_master_meta = (
             (F.col('SessionDate') >= '2025-08-18')
             & (F.col('SessionDate') <= '2025-08-22')
         )
+    )
+)
+
+
+# Credit Ad test - account exclusions
+df_exclude_credit_accounts = (
+    spark
+    .table(CREDIT_AD_ACCOUNTS_TABLE)
+    .select('account_number')
+    .withColumnRenamed('account_number', 'AccountNumber')
+)
+
+df_exclude_credit_dates = (
+    df_sessions_master_meta
+    .select('SessionDate')
+    .distinct()
+    .where((F.col('SessionDate') >= '2025-09-16'))
+)
+
+df_credit_account_date_combinations = (
+    df_exclude_credit_accounts
+    .join(df_exclude_credit_dates, how='cross')
+)
+
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .join(
+        df_credit_account_date_combinations,
+        on=['AccountNumber', 'SessionDate'],
+        how='leftanti'
     )
 )
 

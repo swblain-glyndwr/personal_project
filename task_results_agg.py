@@ -35,7 +35,6 @@ with open(f"config/{CLIENT}.json") as f:
 tbls = cfg["tables"]["write"]
 
 tbl_args_op = {'schema': cfg["schema"][JOB_ENV], 'client': CLIENT}
-print(tbl_args_op)
 RESULTS_TOPLINE_TABLE = map_tbl(tbls["results_topline"], **tbl_args_op)
 RESULTS_AGGREGATED_TABLE = map_tbl(tbls["results_aggregated"], **tbl_args_op)
 RESULTS_AB_TABLE = map_tbl(tbls["results_ab"], **tbl_args_op)
