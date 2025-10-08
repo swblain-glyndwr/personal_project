@@ -12,3 +12,4 @@ scratch/**
 scratch*
 .pytest_cache
 *.whl
+*data_catalogue.yml

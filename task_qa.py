@@ -170,6 +170,32 @@ df_noad_nonz = (
 df_noad_nonz_n = df_noad_nonz.count()
 assert df_noad_nonz_n == 0, "Non _Z-ending MASIDs found for NoAd assignments"
 
+logger.info("Checking for excessive NoAdFound assignments")
+df_avg_no_ad_found = (
+    df_assigned
+    .withColumn(
+        "is_no_ad_found",
+        F.when(F.col("UniqueAdIDAssigned") == "NoAdFound", 1).otherwise(0)
+    )
+    .groupBy("AccountNumber")
+    .agg(F.sum("is_no_ad_found").alias("no_ad_count_per_account"))
+    .agg(
+        F.round(F.avg("no_ad_count_per_account"), 2).alias(
+            "avg_no_ad_found_per_account")
+    )
+)
+
+avg_no_ad_found = df_avg_no_ad_found.first()["avg_no_ad_found_per_account"]
+
+if avg_no_ad_found > 5.0:
+    warning_msg = (
+        f"Warning: Average count of 'NoAdFound' in UniqueAdIDAssigned "
+        f"per account is {avg_no_ad_found} (threshold: 5.0)"
+    )
+    logger.warning(warning_msg)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, warning_msg)
+
 
 logger.info('Checking Primary Key validity of latest process tables')
 # Checking history tables too would progressively increase process runtime
