@@ -1739,8 +1739,14 @@
             "attribute_set": "marketingdata_prod.{schema}.{client}_nextads_attribute_set",
             "attribute_set_latest": "marketingdata_prod.{schema}.{client}_nextads_attribute_set_latest",
             "item_attributes_latest": "marketingdata_prod.{schema}.{client}_nextads_item_attributes_latest",
+            "item_themes_latest": "marketingdata_prod.{schema}.{client}_nextads_item_themes_latest",
+            "item_themes": "marketingdata_prod.{schema}.{client}_nextads_item_themes",
             "theme_mapping": "marketingdata_prod.{schema}.{client}_nextads_theme_mapping",
             "theme_mapping_latest": "marketingdata_prod.{schema}.{client}_nextads_theme_mapping_latest",
+            "theme_transitions": "marketingdata_prod.{schema}.{client}_nextads_theme_transitions",
+            "theme_transitions_latest": "marketingdata_prod.{schema}.{client}_nextads_theme_transitions_latest",
+            "next_theme_scores": "marketingdata_prod.{schema}.{client}_nextads_next_theme_scores",
+            "next_theme_scores_latest": "marketingdata_prod.{schema}.{client}_nextads_next_theme_scores_latest",
             "results_topline": "marketingdata_prod.{schema}.{client}_nextads_results_topline",
             "results_aggregated": "marketingdata_prod.{schema}.{client}_nextads_results_aggregated",
             "results_ab": "marketingdata_prod.{schema}.{client}_nextads_results_ab",
@@ -1823,7 +1829,11 @@
         "sheet": "Theme Mapping",
         "read_schema": [
             ["Theme", "string", "null"],
-            ["TargetingAttributes", "string", "null"]
+            ["TargetingAttributes", "string", "null"],
+            ["ThemeType", "string", "null"],
+            ["ThemeTypeRank", "string", "null"],
+            ["AdType", "string", "null"],
+            ["AdTypeRank", "string", "null"]
         ]
     }
 }

@@ -1,4 +1,5 @@
 from pyspark.sql import functions as F
+from pyspark.sql import DataFrame
 from dsutils.logtools import get_logger
 
 
@@ -49,3 +50,23 @@ def parse_ad_attributes(
     )
 
     return df_result
+
+
+def collect_attribute_set(
+        df: DataFrame,
+        group_by_col: str) -> DataFrame:
+    '''
+    Collects "long" set of attribute strings for `group_by_col` column.
+    Example format: `{department:fashion, use:occasionwear, use:formalwear...}`
+    returns `df` with Column `{group_by_col}_attribute_set` added/overwritten.
+    '''
+    return (
+        df
+        .withColumn(
+            'attribute_value',
+            F.concat(F.col('attribute'), F.lit(':'), F.col('value'))
+            )
+        .groupBy(group_by_col)
+        .agg(F.collect_set('attribute_value')
+             .alias(f'{group_by_col}_attribute_set'))
+    )

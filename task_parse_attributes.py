@@ -29,6 +29,9 @@ logger.info(f"Configuring run for client: {CLIENT}")
 with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
+SET_ATTRIBUTES = jobparser.has_arg('--set') or False
+BQ_EXPORT = jobparser.has_arg('--bq') or False
+
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
 logger.info(f'Write schema set to {SCHEMA}')
@@ -168,7 +171,7 @@ for attribute in ATTRIBUTES:
                     (F.col('n_orders') / n_baskets_total) * 100)
     )
 
-    if jobparser.has_arg('--set'):
+    if SET_ATTRIBUTES:
         logger.info(f'Creating new attribute set for {attribute}')
         logger.info(f'Filtering where {PC_CUTOFF_COL} >= {FREQ_CUTOFF_PC}%')
         df_count = (
@@ -221,7 +224,7 @@ for attribute, df in attribute_dfs.items():
     )
     df_attributes_master = df_attributes_master.unionByName(df_attr)
 
-if jobparser.has_arg('--set'):
+if SET_ATTRIBUTES:
 
     df_attribute_set = (
         df_attributes_master
@@ -253,59 +256,58 @@ else:
         pk_cols=['pid', 'attribute', 'value']
     )
 
-    logger.info('Combining item attributes and NOV score for Big Query export')
-    nov_scores = (
-        spark
-        .read
-        .csv(NOV_SCORES_CSV, header=True)
-        .select('item_number', 'next_order_value')
-        .withColumnRenamed('item_number', 'pid')
-    )
+    if BQ_EXPORT and not SET_ATTRIBUTES:
+        logger.info('Combining item attributes & NOV score for BQ export')
+        nov_scores = (
+            spark
+            .read
+            .csv(NOV_SCORES_CSV, header=True)
+            .select('item_number', 'next_order_value')
+            .withColumnRenamed('item_number', 'pid')
+        )
 
-    product_catalog_latest = (
-        spark
-        .table(PRODUCT_CATALOG_LATEST)
-        .select('pid', 'title', 'URL', 'large_image')
-        .withColumn("URL", F.regexp_replace("URL", "#", "/"))
-    )
+        product_catalog_latest = (
+            spark
+            .table(PRODUCT_CATALOG_LATEST)
+            .select('pid', 'title', 'URL', 'large_image')
+            .withColumn("URL", F.regexp_replace("URL", "#", "/"))
+        )
 
-    product_catalog_with_nov = (
-        product_catalog_latest
-        .join(nov_scores, on='pid', how='left')
-        .distinct()
-    )
+        product_catalog_with_nov = (
+            product_catalog_latest
+            .join(nov_scores, on='pid', how='left')
+            .distinct()
+        )
 
-    attributes_pivot = (
-        df_attributes_master
-        .groupBy("pid")
-        .pivot("attribute")
-        .agg(F.collect_list("value"))
-    )
+        attributes_pivot = (
+            df_attributes_master
+            .groupBy("pid")
+            .pivot("attribute")
+            .agg(F.collect_list("value"))
+        )
 
-    for attribute in ATTRIBUTES:
+        for attribute in ATTRIBUTES:
+            attributes_pivot = (
+                attributes_pivot
+                .withColumn(attribute, F.explode_outer(attribute))
+            )
+
         attributes_pivot = (
             attributes_pivot
-            .withColumn(attribute, F.explode_outer(attribute))
+            .select('pid', *ATTRIBUTES)
+            .distinct()
         )
 
-    attributes_pivot = (
-        attributes_pivot
-        .select('pid', *ATTRIBUTES)
-        .distinct()
-    )
-
-    bq_item_attributes = (
-        product_catalog_with_nov
-        .join(
-            attributes_pivot,
-            on="pid",
-            how="inner"
+        bq_item_attributes = (
+            product_catalog_with_nov
+            .join(
+                attributes_pivot,
+                on="pid",
+                how="inner"
+            )
+            .distinct()
+            .fillna("Unknown")
         )
-        .distinct()
-        .fillna("Unknown")
-    )
-
-    if jobparser.has_arg('--bq') and not jobparser.has_arg('--set'):
 
         logger.info('Exporting item attributes to Big Query')
         logger.info(
