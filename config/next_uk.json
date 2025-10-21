@@ -1687,7 +1687,8 @@
             ["MobileImage", "string", "null"],
             ["FlatJPG", "string", "null"],
             ["Tags", "string", "null"],
-            ["TargetingAttributes", "string", "null"]
+            ["TargetingAttributes", "string", "null"],
+            ["Themes", "string", "null"]
         ]
     },
 

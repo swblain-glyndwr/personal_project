@@ -41,6 +41,7 @@ create table marketingdata_prod.{schema}.{client}_nextads_control_sheet_latest (
   FlatJPG string,
   Tags string,
   TargetingAttributes string,
+  Themes string,
   Page string,
   Screen string,
   PageGroup string,
