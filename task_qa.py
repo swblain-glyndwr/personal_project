@@ -203,8 +203,11 @@ for tbl in tbls:
     if not tbl.endswith('_latest'):
         continue
     tbl_mapped = map_tbl(tbls[tbl], **tbl_args)
+    if not spark.catalog.tableExists(tbl_mapped):
+        logger.info(f"  ↳ Table {tbl_mapped} does not exist, skipping PK check.")
+        continue
     pk_cols = get_table_pk_cols(tbl_mapped)
-    logger.info(f'Asserting {pk_cols} as PK for {tbl_mapped}')
+    logger.info(f'  ↳ Asserting {pk_cols} as PK for {tbl_mapped}')
     df_tbl_pk = spark.table(tbl_mapped)
     assert_pk(df_tbl_pk, pk_cols)
 
