@@ -1713,6 +1713,7 @@
             "svoc_cust": "marketingdata_prod.warehouse.svoccust_hist",
             "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
             "bq_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
+            "bq_sessions_with_accounts": "marketingdata_prod.warehouse.bq_views_sessions_next_uk_with_accounts",
             "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
             "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
@@ -1759,7 +1760,9 @@
             "results_ads_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_ads_targeting",
             "results_page_targeting": "marketingdata_prod.{schema}.{client}_nextads_results_page_targeting",
             "results_ad_metadata": "marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata",
-            "results_ads_top_by_location": "marketingdata_prod.{schema}.{client}_nextads_results_ads_top_by_location"
+            "results_ads_top_by_location": "marketingdata_prod.{schema}.{client}_nextads_results_ads_top_by_location",
+            "conditional_probability_scores": "marketingdata_prod.{schema}.{client}_nextads_conditional_probability_scores",
+            "conditional_probability_scores_latest": "marketingdata_prod.{schema}.{client}_nextads_conditional_probability_scores_latest"
         }
     },
 
