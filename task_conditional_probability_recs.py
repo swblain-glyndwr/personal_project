@@ -64,11 +64,14 @@ logger.info(f"--affinity_threshold: {THEME_AFFINITY_THRESHOLD}\n")
 
 # TABLE 1 (Item-Themes mapping with weights)
 logger.info("Building TABLE 1: Item-Themes mapping with weights")
+window_theme_count = Window.partitionBy('pid')
 df_item_themes = (
     spark.table(ITEM_THEME_MAPPING)
     .filter(F.col('theme_rank') == 1)
-    .select('pid', 'theme')
-    .withColumn('item_theme_weight', F.lit(1.0))
+    .withColumn('num_rank1_themes', F.count('theme').over(window_theme_count))
+    .select('pid', 'theme', 'num_rank1_themes')
+    .withColumn('item_theme_weight', F.lit(1.0) / F.col('num_rank1_themes'))
+    .drop('num_rank1_themes')
 )
 distinct_items_with_themes = df_item_themes.select('pid').distinct().count()
 logger.info(f"  ↳ TABLE 1: {distinct_items_with_themes:,} distinct items "

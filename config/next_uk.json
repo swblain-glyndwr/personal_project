@@ -1839,5 +1839,12 @@
             ["AdType", "string", "null"],
             ["AdTypeRank", "string", "null"]
         ]
+    },
+
+    "themes_qa": {
+        "max_themes_per_pid": 5,
+        "min_theme_pids": 500000,
+        "max_zero_themes_pc": 0.20,
+        "max_multi_themes_pc": 0.02
     }
 }

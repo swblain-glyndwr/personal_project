@@ -97,8 +97,13 @@ df_catalog = (
     .withColumn(
         'brand',
         F.when(
-            F.array_contains(F.split(F.lower(F.col('range')), '\\|'),
-                             'npremium'),
+            (
+                F.array_contains(F.split(F.lower(F.col('range')), '\\|'),
+                                 'npremium')
+            ) | (
+                F.array_contains(F.split(F.lower(F.col('range')), '\\|'),
+                                 'n premium the snuggle grand')
+            ),
             'npremium').otherwise(F.col('brand'))
     )
     .withColumnsRenamed(

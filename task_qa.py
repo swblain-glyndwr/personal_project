@@ -32,17 +32,26 @@ with open(f"config/{CLIENT}.json") as f:
 
 LOCATIONS = cfg["locations"]
 
+PRODUCT_CATALOG_TABLE = cfg["tables"]["read"]["product_catalog"]
+
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
-logger.info(f'Write schema set to {SCHEMA}')
+logger.info(f'Table schema for QA set to: {SCHEMA}')
 
 # Map write schema to parameterised write table names
 tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
+ITEM_THEMES_TABLE_LATEST = map_tbl(tbls["item_themes_latest"], **tbl_args)
 
 FALLOW_TRUE = cfg["fallow_control"]["true_label"]
 FIXED_CELLS = cfg["fixed_cells"]
+
+MAX_THEMES_PER_PID = cfg["themes_qa"]["max_themes_per_pid"]
+MIN_THEME_PIDS = cfg["themes_qa"]["min_theme_pids"]
+MAX_ZERO_THEMES_PC = cfg["themes_qa"]["max_zero_themes_pc"]
+MAX_MULTI_THEMES_PC = cfg["themes_qa"]["max_multi_themes_pc"]
+PID_LOOKBACK_DAYS = cfg["attributes"]["lookback_days"]
 
 WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
@@ -204,7 +213,8 @@ for tbl in tbls:
         continue
     tbl_mapped = map_tbl(tbls[tbl], **tbl_args)
     if not spark.catalog.tableExists(tbl_mapped):
-        logger.info(f"  ↳ Table {tbl_mapped} does not exist, skipping PK check.")
+        logger.info(
+            f"  ↳ Table {tbl_mapped} does not exist, skipping PK check.")
         continue
     pk_cols = get_table_pk_cols(tbl_mapped)
     logger.info(f'  ↳ Asserting {pk_cols} as PK for {tbl_mapped}')
@@ -212,3 +222,81 @@ for tbl in tbls:
     assert_pk(df_tbl_pk, pk_cols)
 
 logger.info("Run Complete")
+
+
+# Themes checks
+themes = spark.table(ITEM_THEMES_TABLE_LATEST).where(F.col('theme_rank') == 1)
+
+logger.info('Checking maximum themes per PID')
+themes_per_pid = (
+    themes
+    .groupBy('pid')
+    .agg(F.countDistinct('theme').alias('n_themes'))
+    .where(F.col('n_themes') > MAX_THEMES_PER_PID)
+)
+n_err_themes_per_pid = themes_per_pid.count()
+msg_themes_per_pid = (f'{n_err_themes_per_pid:,} PIDs have'
+                      + f' > {MAX_THEMES_PER_PID} themes assigned')
+if n_err_themes_per_pid > 0:
+    logger.warning(msg_themes_per_pid)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_themes_per_pid)
+
+
+logger.info('Checking theme coverage of all PIDs')
+all_pids = (
+    spark
+    .table(PRODUCT_CATALOG_TABLE)
+    .where(F.col('end_date') > F.date_sub(F.current_date(), PID_LOOKBACK_DAYS))
+    .select('pid')
+    .distinct()
+    )
+
+n_all_pids = all_pids.count()
+n_theme_pids = themes.select('pid').distinct().count()
+logger.info('Checking count of distinct PIDs with themes assigned')
+if n_theme_pids < MIN_THEME_PIDS:
+    msg_min_pids = (f'Only {n_all_pids:,} distinct PIDs found in '
+                    + f'product catalog (expected >= {MIN_THEME_PIDS:,})')
+    logger.warning(msg_min_pids)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_min_pids)
+
+all_pids_themes = (
+    all_pids
+    .join(themes.select('pid', 'theme'), on='pid', how='left')
+    .groupBy('pid')
+    .agg(F.countDistinct('theme').alias('n_themes'))
+    .groupBy('n_themes')
+    .agg(F.countDistinct('pid').alias('n_pids'))
+    .withColumn('pc_pids', F.col('n_pids') / F.lit(n_all_pids))
+)
+
+pc_zero_themes = (
+    all_pids_themes
+    .where(F.col('n_themes') == 0)
+    .select('pc_pids').collect()[0][0]
+) or 0
+
+pc_multi_themes = (
+    all_pids_themes
+    .where(F.col('n_themes') > 1)
+    .agg(F.sum('pc_pids').alias('pc_pids'))
+    .select('pc_pids').collect()[0][0]
+) or 0
+
+logger.info('Checking proportion of PIDs without a theme')
+if pc_zero_themes > MAX_ZERO_THEMES_PC:
+    msg_zero_themes = (f'{pc_zero_themes:.1%} PIDs found with zero themes'
+                       + f' (expected <= {MAX_ZERO_THEMES_PC:.1%})')
+    logger.warning(msg_zero_themes)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_zero_themes)
+
+logger.info('Checking proportion of PIDs with multiple themes')
+if pc_multi_themes > MAX_MULTI_THEMES_PC:
+    msg_multi_themes = (f'{pc_multi_themes:.1%} PIDs found with multiple'
+                        + f' themes (expected <= {MAX_MULTI_THEMES_PC:.1%})')
+    logger.warning(msg_multi_themes)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_multi_themes)

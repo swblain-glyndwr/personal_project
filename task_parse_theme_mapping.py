@@ -162,8 +162,7 @@ if THEME_RANKING_MODE == 'adtype-themefreq':
                 Window
                 .partitionBy('pid').orderBy(
                     F.desc(F.col('AdTypeScore')),
-                    F.desc(F.col('FreqScore')),
-                    'theme'
+                    F.desc(F.col('FreqScore'))
                 )
             )
         )
@@ -189,8 +188,7 @@ elif THEME_RANKING_MODE == 'adtype-themetype':
                 Window
                 .partitionBy('pid').orderBy(
                     F.desc(F.col('AdTypeScore')),
-                    F.desc(F.col('ThemeTypeScore')),
-                    'theme'
+                    F.desc(F.col('ThemeTypeScore'))
                 )
             )
         )
