@@ -532,6 +532,24 @@
                 }
             ]
         },
+        "PLX": {
+            "pf_col": "PL_slot_X",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
         "PL1": {
             "pf_col": "PL_slot_1",
             "basic_within": "AlgoDivision",

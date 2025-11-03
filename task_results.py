@@ -158,7 +158,7 @@ df_ad_metadata = (
 df_assignments = df_assignments.where(F.col('SessionDate') != '2025-05-29')
 df_ad_metadata = df_ad_metadata.where(F.col('SessionDate') != '2025-05-29')
 
-# suppress PLP locations from assignments data (results not yet required)
+# remove PLP locations prior to 20th Sept (pre-launch period)
 plp_locs = ['PL' + str(num) for num in range(1, 62, 1)]
 df_assignments = (
     df_assignments
@@ -169,6 +169,16 @@ df_ad_metadata = (
     df_ad_metadata
     .where(~(F.col('Location').isin(plp_locs)
              & (F.col('rundate') < '2025-09-19')))
+)
+
+# suppress PLX location from results
+df_assignments = (
+    df_assignments
+    .where(F.col('Location') != 'PLX')
+)
+df_ad_metadata = (
+    df_ad_metadata
+    .where(F.col('Location') != 'PLX')
 )
 
 
