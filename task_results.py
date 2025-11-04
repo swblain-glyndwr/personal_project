@@ -114,6 +114,10 @@ sdates.sort()
 logger.info(
     f'Processing results from {SESSION_DATE_START} to {SESSION_DATE_END}')
 
+# Suppress PLX location until the corresponding column is live in the PF table
+if 'PLX' in LOCATIONS:
+    del LOCATIONS['PLX']
+
 loc2pf = dict()
 for k in LOCATIONS:
     if 'pf_col' in LOCATIONS[k]:
