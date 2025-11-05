@@ -1101,7 +1101,8 @@ list_hp_remove_dates = [
     '2025-01-31',
     '2025-02-01',
     '2025-02-02',
-    '2025-02-03'
+    '2025-02-03',
+    '2025-11-05'
 ]
 df_sessions_master_meta = (
     df_sessions_master_meta
