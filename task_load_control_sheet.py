@@ -252,19 +252,31 @@ if df_dup_masids.count() > 1:
 
         clashing_ids = list(set([row[0] for row in df_dups_m]))
         clashing_ids.sort()  # Sort alphabetically as proxy for latest
-        keep_ad = f"Keeping ad: {clashing_ids[-1]}"
-        logger.info(keep_ad)
-        warn_dup_masid += "\n" + keep_ad
+        try:
+            keep_ad = f"Keeping ad: {clashing_ids[-1]}"
+            logger.info(keep_ad)
+            warn_dup_masid += "\n" + keep_ad
 
-        ids_to_del = clashing_ids[:-1]
+            ids_to_del = clashing_ids[:-1]
 
-        for id_del in ids_to_del:
+            for id_del in ids_to_del:
 
-            drop_ad = f"Dropping conflicting ad: {id_del}"
-            logger.warning(drop_ad)
-            warn_dup_masid += "\n" + drop_ad
+                drop_ad = f"Dropping conflicting ad: {id_del}"
+                logger.warning(drop_ad)
+                warn_dup_masid += "\n" + drop_ad
 
-            df_processed = df_processed.where(F.col("UniqueAdID") != id_del)
+                df_processed = (
+                    df_processed
+                    .where(F.col("UniqueAdID") != id_del)
+                )
+        except IndexError as e:
+            logger.error(f"Error resolving MASID conflict: {e}")
+            logger.warning(f"Unable to resolve conflict for suffix: {m}")
+            logger.warning(f"Removing all ads associated with suffix: {m}")
+            issue_ad = ("Issue resolving conflict for ads with MASID suffix:"
+                        + f" {m} - all {m} ads removed")
+            warn_dup_masid += "\n" + issue_ad
+            df_processed = df_processed.where(F.col("MASIDToken") != m)
 
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, warn_dup_masid)
