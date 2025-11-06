@@ -35,10 +35,23 @@ SCHEMA = cfg["schema"][JOB_ENV]
 logger.info(f'Write schema set to {SCHEMA}\n')
 
 tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-TARGET_TABLE = map_tbl(tbls["conditional_probability_scores"], **tbl_args)
-TARGET_TABLE_LATEST = map_tbl(tbls["conditional_probability_scores_latest"],
-                              **tbl_args)
+CONDITIONAL_PROBABILITY_SCORES = map_tbl(
+    tbls["conditional_probability_scores"],
+    **tbl_args)
+CONDITIONAL_PROBABILITY_SCORES_LATEST = map_tbl(
+    tbls["conditional_probability_scores_latest"],
+    **tbl_args)
 ITEM_THEME_MAPPING = map_tbl(tbls["item_themes_latest"], **tbl_args)
+CONDITIONAL_PROBABILITY_ITEM_THEMES_LATEST = map_tbl(
+    tbls["conditional_probability_item_themes_latest"], **tbl_args)
+CONDITIONAL_PROBABILITY_CUSTOMER_ITEM_INTERACTIONS_LATEST = map_tbl(
+    tbls["conditional_probability_customer_item_interactions_latest"],
+    **tbl_args)
+CONDITIONAL_PROBABILITY_CUSTOMER_THEME_INTERACTIONS_LATEST = map_tbl(
+    tbls["conditional_probability_customer_theme_interactions_latest"],
+    **tbl_args)
+CONDITIONAL_PROBABILITY_THEME_ASSOCIATIONS_LATEST = map_tbl(
+    tbls["conditional_probability_theme_associations_latest"], **tbl_args)
 BASKETS = cfg["tables"]["read"]["baskets"]
 BQ_SESSIONS = cfg["tables"]["read"]["bq_sessions_with_accounts"]
 
@@ -59,11 +72,10 @@ logger.info(f"--views_lookback_days: {VIEWS_LOOKBACK_DAYS}")
 logger.info(f"--purchase_weight: {PURCHASE_WEIGHT}")
 logger.info(f"--view_weight: {VIEW_WEIGHT}")
 logger.info(f"--time_decay_factor: {TIME_DECAY_FACTOR}")
-
 logger.info(f"--affinity_threshold: {THEME_AFFINITY_THRESHOLD}\n")
 
-# TABLE 1 (Item-Themes mapping with weights)
 logger.info("Building TABLE 1: Item-Themes mapping with weights")
+window_theme_count = Window.partitionBy('pid')
 window_theme_count = Window.partitionBy('pid')
 df_item_themes = (
     spark.table(ITEM_THEME_MAPPING)
@@ -73,11 +85,14 @@ df_item_themes = (
     .withColumn('item_theme_weight', F.lit(1.0) / F.col('num_rank1_themes'))
     .drop('num_rank1_themes')
 )
+truncate_and_load(
+    df_item_themes,
+    CONDITIONAL_PROBABILITY_ITEM_THEMES_LATEST
+)
 distinct_items_with_themes = df_item_themes.select('pid').distinct().count()
 logger.info(f"  ↳ TABLE 1: {distinct_items_with_themes:,} distinct items "
             f"with theme_rank=1")
 
-# TABLE 2 (Interactions)
 logger.info("Building TABLE 2: Customer interactions from source data")
 
 # get purchase interactions from baskets
@@ -168,14 +183,13 @@ df_interactions = (
     )
 )
 
-total_interactions = df_interactions.count()
-distinct_interaction_accounts = (
-    df_interactions.select('account_number').distinct().count()
+truncate_and_load(
+    df_interactions,
+    CONDITIONAL_PROBABILITY_CUSTOMER_ITEM_INTERACTIONS_LATEST
 )
-logger.info(f"  ↳ TABLE 2 created: {total_interactions:,} interactions "
+logger.info(f"  ↳ TABLE 2 created: {df_interactions.count():,} interactions "
             f"({purchase_count:,} purchases + filtered views)")
 
-# TABLE 3 (Customer-Theme Interactions)
 logger.info("Building TABLE 3: Customer-Theme interactions")
 df_customer_theme_interactions = (
     df_interactions
@@ -198,13 +212,15 @@ df_customer_theme_interactions = (
     )
     .withColumn('item_count', F.size('array_agg_itemnumber'))
 )
+
+truncate_and_load(
+    df_customer_theme_interactions,
+    CONDITIONAL_PROBABILITY_CUSTOMER_THEME_INTERACTIONS_LATEST
+)
 logger.info(f"  ↳ TABLE 3 created: {df_customer_theme_interactions.count():,}"
             f" interactions")
-distinct_theme_accounts = (
-    df_customer_theme_interactions.select('account_number').distinct().count()
-)
 
-# TABLE 4 (Theme Associations)
+
 logger.info("Building TABLE 4: Theme associations")
 
 # get baskets from last year
@@ -370,11 +386,13 @@ df_theme_associations = (
     )
 )
 
+truncate_and_load(
+    df_theme_associations,
+    CONDITIONAL_PROBABILITY_THEME_ASSOCIATIONS_LATEST
+)
 logger.info(f"  ↳ TABLE 4 created: {df_theme_associations.count()}"
             f" theme associations")
 
-
-# TABLE 5 (Customer Theme Recommendations)
 logger.info("Building TABLE 5: Customer recommendations")
 
 # aggregate customer theme affinities from TABLE 3
@@ -611,16 +629,63 @@ df_customer_recommendations = (
     )
 )
 
-logger.info(f"  ↳ TABLE 5 created: {df_customer_recommendations.count()}"
-            f" final recommendations")
+
+df_all_themes = (
+    df_item_themes
+    .select(F.col('theme').alias('recommended_theme'))
+    .distinct()
+)
+
+df_all_customers = (
+    df_customer_recommendations
+    .select('account_number')
+    .distinct()
+)
+
+df_full_matrix = (
+    df_all_customers
+    .crossJoin(df_all_themes)
+)
+
+# Left join to backfill missing combinations with 0 scores
+df_customer_recommendations_backfilled = (
+    df_full_matrix
+    .join(
+        df_customer_recommendations,
+        ['account_number', 'recommended_theme'],
+        'left'
+    )
+    .fillna(
+        {
+            'score_freq': 0.0,
+            'score_lift': 0.0,
+            'score_confidence': 0.0,
+            'score_hybrid': 0.0,
+            'total_seed_affinity': 0.0,
+            'avg_freq12': 0.0,
+            'max_cosine_similarity': 0.0,
+            'max_lift_adjusted': 0.0,
+            'num_seed_themes': 0,
+            'num_contributing_items': 0
+        }
+    )
+    .withColumn('contributing_seed_themes',
+                F.coalesce(F.col('contributing_seed_themes'), F.array()))
+    .withColumn('contributing_seed_items',
+                F.coalesce(F.col('contributing_seed_items'), F.array()))
+    .dropDuplicates(['account_number', 'recommended_theme'])
+)
+
+backfill_count = df_customer_recommendations_backfilled.count()
+logger.info(f"  ↳ Backfilled: {backfill_count} customer-theme combinations")
 
 logger.info("Loading output to table")
-delete_from_and_load(df_customer_recommendations,
-                     TARGET_TABLE,
+delete_from_and_load(df_customer_recommendations_backfilled,
+                     CONDITIONAL_PROBABILITY_SCORES,
                      del_where={"rundate": "current_date()"})
 
 logger.info("Loading output to table (latest)")
-truncate_and_load(df_customer_recommendations,
-                  TARGET_TABLE_LATEST)
+truncate_and_load(df_customer_recommendations_backfilled,
+                  CONDITIONAL_PROBABILITY_SCORES_LATEST)
 
 logger.info("Run complete")
