@@ -312,7 +312,7 @@ if len(multi_ad_themes) > 0:
         mat_remove_msg = f'Removing theme "{mat}" and associated ads'
         logger.warning(mat_remove_msg)
         if JOB_ENV == "prod":
-            post_to_webhook(WEBHOOK_URL, mat_found_msg)
+            post_to_webhook(WEBHOOK_URL, mat_remove_msg)
         df_processed = df_processed.where(F.col('Themes') != mat)
 
 
