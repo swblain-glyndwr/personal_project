@@ -580,7 +580,7 @@ def get_ad_feedback_scores(
 def assign_preranked_ads(
         df_ads: DataFrame,
         preranked_ads_table: str,
-        location: str,
+        location: str = '',
         df_cust: DataFrame = None,
         return_ranks: list = [1],
         inherit_rank_from_location: str = ''
@@ -605,13 +605,24 @@ def assign_preranked_ads(
                 f'using scores from {preranked_ads_table}')
 
     rank_tbl_cols = ['AccountNumber', 'UniqueAdID', 'Score', 'Rank']
-    df_adscores = (
-        get_spark()
-        .table(preranked_ads_table)
-        .where(F.col('Location') == location)
-        .select(rank_tbl_cols)
-        .join(df_ads, on='UniqueAdID', how='inner')
-    )
+
+    if location:
+        logger.debug(f'Filtering preranked ads for location: {location}')
+        df_adscores = (
+            get_spark()
+            .table(preranked_ads_table)
+            .where(F.col('Location') == location)
+            .select(rank_tbl_cols)
+            .join(df_ads, on='UniqueAdID', how='inner')
+        )
+    else:
+        logger.debug('No location provided, using global preranked ads')
+        df_adscores = (
+            get_spark()
+            .table(preranked_ads_table)
+            .select(rank_tbl_cols)
+            .join(df_ads, on='UniqueAdID', how='inner')
+        )
 
     if df_cust:
         logger.debug('Filtering customers for assignment')

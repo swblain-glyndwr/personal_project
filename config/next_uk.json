@@ -222,9 +222,6 @@
         "SB1": {
             "pf_col": "SB_slot_1",
             "basic_within": "AlgoDivision",
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            },
             "map": [
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
@@ -232,9 +229,17 @@
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -258,9 +263,6 @@
         "OC1": {
             "pf_col": "OC_slot_1",
             "basic_within": "AlgoDivision",
-            "constraints": {
-                "targeting_within_division": "AlgoDivision"
-            },
             "map": [
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
@@ -268,9 +270,17 @@
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1767,6 +1777,7 @@
             "theme_transitions_latest": "marketingdata_prod.{schema}.{client}_nextads_theme_transitions_latest",
             "next_theme_scores": "marketingdata_prod.{schema}.{client}_nextads_next_theme_scores",
             "next_theme_scores_latest": "marketingdata_prod.{schema}.{client}_nextads_next_theme_scores_latest",
+            "preranked_ads_from_themes_latest": "marketingdata_prod.{schema}.{client}_nextads_preranked_ads_from_themes_latest",
             "results_topline": "marketingdata_prod.{schema}.{client}_nextads_results_topline",
             "results_aggregated": "marketingdata_prod.{schema}.{client}_nextads_results_aggregated",
             "results_ab": "marketingdata_prod.{schema}.{client}_nextads_results_ab",

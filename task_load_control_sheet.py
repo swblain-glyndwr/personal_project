@@ -281,6 +281,40 @@ if df_dup_masids.count() > 1:
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, warn_dup_masid)
 
+logger.info('Cleaning theme strings (lowercase, strip whitespace)')
+df_processed = (
+    df_processed
+    .withColumn(
+        'Themes',
+        F.when(
+            F.col('Themes').isNotNull(),
+            F.trim(F.lower(F.col('Themes')))
+        ).otherwise(F.col('Themes'))
+    )
+)
+
+logger.info('Theme:Ad mapping should be one-to-one - checking for violations')
+multi_ad_themes = (
+    df_processed
+    .where(F.col('Themes').isNotNull())
+    .groupBy('Themes')
+    .agg(F.countDistinct('UniqueAdID').alias('nAds'))
+    .where(F.col('nAds') > 1)
+    .select('Themes')
+).collect()
+
+if len(multi_ad_themes) > 0:
+    mat_found_msg = 'Themes mappped to multiple ads found'
+    logger.warning(mat_found_msg)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, mat_found_msg)
+    for mat in [x[0] for x in multi_ad_themes]:
+        mat_remove_msg = f'Removing theme "{mat}" and associated ads'
+        logger.warning(mat_remove_msg)
+        if JOB_ENV == "prod":
+            post_to_webhook(WEBHOOK_URL, mat_found_msg)
+        df_processed = df_processed.where(F.col('Themes') != mat)
+
 
 df_valid_ad_ids = df_processed.select(
     F.col('UniqueAdID').alias('valid_id')

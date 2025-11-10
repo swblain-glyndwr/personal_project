@@ -189,6 +189,11 @@ all_tags = (
 
 agg_tags = list(set([x for y in all_tags for x in y[0]]))
 
+# Filter out 'special' tags from reporting
+# e.g. those used for filtering subsets of ads during assignment
+# such as "[Test Group] Variant A"
+agg_tags = [x for x in agg_tags if not x.startswith('[')]
+
 if agg_tags:
     for agg_tag in agg_tags:
         df_summary_agg_tag = summarise_sessions(

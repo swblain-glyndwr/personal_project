@@ -34,7 +34,7 @@ with open(f"config/{CLIENT}.json") as f:
 LOCATION = jobparser.get_arg('--location')
 if not LOCATION:
     assert not JOBNAME, 'Location must be specified when running as a job'
-    LOCATION = 'PH3'  # Location can be specified for interactive debugging
+    LOCATION = 'SB1'  # Location can be specified for interactive debugging
     logger.warning(f'Location not specified (defaulting to {LOCATION})')
 
 LOCATIONS = cfg["locations"]
@@ -50,6 +50,8 @@ TARGETING_SCORES_TABLE = map_tbl(tbls["targeting_scores_latest"], **tbl_args)
 ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
+PRERANKED_THEMES_TABLE = map_tbl(tbls["preranked_ads_from_themes_latest"],
+                                 **tbl_args)
 
 PRERANKED_TABLE = cfg["tables"]["read"]["preranked_ads_latest"]
 
@@ -83,7 +85,9 @@ df_ads = (
         "AlgoDivision",
         "MASIDToken",
         "TargetingCriteria",
-        "AudienceOnly")
+        "AudienceOnly",
+        "Tags",
+        "Themes")
 )
 # TODO: Remove underperforming Ads
 
@@ -91,10 +95,32 @@ df_ads_tgt = (
     df_ads
     .fillna(0, subset=['AudienceOnly'])
     .where((F.col("AudienceOnly") != 1))
-    .drop('AudienceOnly')
 )
 
-df_ads = df_ads.drop('AudienceOnly')
+# Create subset of ads for Best
+df_ads_tgt_best = (
+    df_ads
+    .where(~F.col('Tags').contains('[Test Group] Variant Only'))
+)
+
+# Create subset of ads for BestChallenger
+df_ads_tgt_best_challenger = (
+    df_ads
+    .where(F.col('Themes').isNotNull())
+    .where(F.col('Themes') != '')
+)
+
+# Drop unneeded columns following processing dataframe
+ads_required_cols = ['UniqueAdID',
+                     'UniqueAdIDPremium',
+                     'AlgoDivision',
+                     'MASIDToken',
+                     'TargetingCriteria']
+df_ads = df_ads.select(ads_required_cols)
+df_ads_tgt = df_ads_tgt.select(ads_required_cols)
+df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
+df_ads_tgt_best_challenger = (
+    df_ads_tgt_best_challenger.select(ads_required_cols))
 
 
 if df_ads_tgt.count() == 0:
@@ -165,7 +191,7 @@ else:
         best_kwargs = {'return_ranks': [1]}
 
     df_assigned_best = assign_preranked_ads(
-        df_ads=df_ads_tgt,
+        df_ads=df_ads_tgt_best,
         preranked_ads_table=PRERANKED_TABLE,
         location=LOCATION,
         df_cust=df_cells.select("AccountNumber"),
@@ -174,7 +200,12 @@ else:
     df_assigned_best.cache()
 
     logger.info("Assigning Ads with Best Targeting (Challenger)")
-    df_assigned_best_challenger = df_assigned_best
+    df_assigned_best_challenger = assign_preranked_ads(
+        df_ads=df_ads_tgt_best_challenger,
+        preranked_ads_table=PRERANKED_THEMES_TABLE,
+        df_cust=df_cells.select("AccountNumber"),
+        **best_kwargs
+    )
     df_assigned_best_challenger.cache()
 
     logger.info("Determining Ad to show based on assignments and fixed cells")
