@@ -297,6 +297,7 @@ logger.info('Theme:Ad mapping should be one-to-one - checking for violations')
 multi_ad_themes = (
     df_processed
     .where(F.col('Themes').isNotNull())
+    .where(F.col('Themes') != '')
     .groupBy('Themes')
     .agg(F.countDistinct('UniqueAdID').alias('nAds'))
     .where(F.col('nAds') > 1)
@@ -313,7 +314,10 @@ if len(multi_ad_themes) > 0:
         logger.warning(mat_remove_msg)
         if JOB_ENV == "prod":
             post_to_webhook(WEBHOOK_URL, mat_remove_msg)
-        df_processed = df_processed.where(F.col('Themes') != mat)
+        df_processed = (
+            df_processed
+            .where((F.col('Themes').isNull()) | (F.col('Themes') != mat))
+        )
 
 
 df_valid_ad_ids = df_processed.select(
