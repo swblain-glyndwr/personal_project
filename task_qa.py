@@ -217,11 +217,13 @@ for tbl in tbls:
             f"  ↳ Table {tbl_mapped} does not exist, skipping PK check.")
         continue
     pk_cols = get_table_pk_cols(tbl_mapped)
+    if not pk_cols:
+        logger.info(
+            f"  ↳ Skipping: {tbl_mapped}, due to no PK's defined.")
+        continue
     logger.info(f'  ↳ Asserting {pk_cols} as PK for {tbl_mapped}')
     df_tbl_pk = spark.table(tbl_mapped)
     assert_pk(df_tbl_pk, pk_cols)
-
-logger.info("Run Complete")
 
 
 # Themes checks
@@ -300,3 +302,5 @@ if pc_multi_themes > MAX_MULTI_THEMES_PC:
     logger.warning(msg_multi_themes)
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, msg_multi_themes)
+
+logger.info("Run Complete")
