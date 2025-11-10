@@ -99,13 +99,16 @@ df_ads_tgt = (
 
 # Create subset of ads for Best
 df_ads_tgt_best = (
-    df_ads
-    .where(~F.col('Tags').contains('[Test Group] Variant Only'))
+    df_ads_tgt
+    .where(
+        (F.col('Tags').isNull())
+        | (~F.col('Tags').contains('[Test Group] Variant Only'))
+    )
 )
 
 # Create subset of ads for BestChallenger
 df_ads_tgt_best_challenger = (
-    df_ads
+    df_ads_tgt
     .where(F.col('Themes').isNotNull())
     .where(F.col('Themes') != '')
 )
@@ -119,8 +122,7 @@ ads_required_cols = ['UniqueAdID',
 df_ads = df_ads.select(ads_required_cols)
 df_ads_tgt = df_ads_tgt.select(ads_required_cols)
 df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
-df_ads_tgt_best_challenger = (
-    df_ads_tgt_best_challenger.select(ads_required_cols))
+df_ads_tgt_best_challenger = df_ads_tgt_best_challenger.select(ads_required_cols)  # noqa
 
 
 if df_ads_tgt.count() == 0:
