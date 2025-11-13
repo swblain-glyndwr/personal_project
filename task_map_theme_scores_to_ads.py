@@ -47,6 +47,7 @@ df_theme2ad = (
     .table(CONTROL_SHEET_LATEST)
     .select('Themes', 'UniqueAdID')
     .where(F.col('Themes').isNotNull())
+    .where(F.col('Themes') != '')
     .distinct()
 )
 
