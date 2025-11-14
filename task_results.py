@@ -539,6 +539,7 @@ sdates_valid = [
     x[0].date() for x in
     df_valid_assignments.select('SessionDate').distinct().collect()
     ]
+assert sdates_valid, f'No valid sessions found for any dates between {SESSION_DATE_START} and {SESSION_DATE_END}'  # noqa
 sdates_valid.sort()
 
 sdates_missing = list(set(sdates).difference(set(sdates_valid)))
