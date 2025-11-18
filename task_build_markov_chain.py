@@ -45,8 +45,9 @@ THEME_TRANSITIONS_LATEST = map_tbl(tbls["theme_transitions_latest"], **tbl_args)
 THEME_TRANSITIONS = map_tbl(tbls["theme_transitions"], **tbl_args)
 NEXT_THEME_SCORES_LATEST = map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
 NEXT_THEME_SCORES = map_tbl(tbls["next_theme_scores"], **tbl_args)
+THEME_SCORING_EVENTS_LATEST = map_tbl(tbls["theme_scoring_events_latest"], **tbl_args)  # noqa
 
-SCORE_LAST_N_BASKETS = jobparser.get_arg('--score-last-n-baskets') or 3
+SCORE_LAST_N_BASKETS = jobparser.get_arg('--score-last-n-baskets') or 10
 BASKET_HISTORY_DAYS = jobparser.get_arg('--basket-history-days') or 364
 yesterday = date.today() - timedelta(days=1)
 ACTIONS_END = jobparser.get_arg('--actions-end') or yesterday
@@ -96,9 +97,37 @@ baskets_with_themes = (
     .join(item_themes, on='pid', how='inner')
     .withColumn('order_no', F.dense_rank().over(w_acc) - 1)
     .join(item_titles, on='pid', how='left')
-    .select('account_number', 'order_no', 'pid', 'title', 'theme')
+    .select('account_number', 'order_no', 'ordertakendate',
+            'pid', 'title', 'theme')
     .distinct()
 )
+
+baskets_with_themes_export = (
+    baskets_with_themes
+    .withColumn('EventType', F.lit('order'))
+    .withColumn('EventWeight',
+                F.when(F.col('order_no') < SCORE_LAST_N_BASKETS,
+                       F.lit(1.0)
+                       ).otherwise(None))
+    .select(F.col('account_number').alias('AccountNumber'),
+            F.col('ordertakendate').alias('EventDate'),
+            'EventType',
+            'EventWeight',
+            F.col('pid').alias('PID'),
+            F.col('title').alias('ItemTitle'),
+            F.col('theme').alias('Theme'))
+)
+# Remove order date (not required for downstream processing)
+baskets_with_themes = baskets_with_themes.drop('ordertakendate')
+
+logger.info(
+    f'Loading baskets to scoring events table {THEME_SCORING_EVENTS_LATEST}')
+truncate_and_load(
+    baskets_with_themes_export,
+    THEME_SCORING_EVENTS_LATEST,
+    pk_cols=['AccountNumber', 'EventDate', 'EventType', 'PID', 'Theme']
+)
+
 
 if TEST_ACCOUNT:
     logger.info('History with themes for test account:')

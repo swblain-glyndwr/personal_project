@@ -617,11 +617,21 @@ def assign_preranked_ads(
         )
     else:
         logger.debug('No location provided, using global preranked ads')
+        logger.debug(
+            'Ads reranked to cover case where only subset of ads are eligible')
         df_adscores = (
             get_spark()
             .table(preranked_ads_table)
             .select(rank_tbl_cols)
             .join(df_ads, on='UniqueAdID', how='inner')
+            .withColumn(
+                'Rank',
+                F.rank().over(
+                    Window
+                    .partitionBy(F.col('AccountNumber'))
+                    .orderBy(F.col('Rank'))
+                )
+            )
         )
 
     if df_cust:

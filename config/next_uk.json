@@ -565,16 +565,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -583,16 +589,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -601,16 +613,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -619,16 +637,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -637,16 +661,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -655,16 +685,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -673,16 +709,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -691,16 +733,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -709,16 +757,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -727,16 +781,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -745,16 +805,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -763,16 +829,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -781,16 +853,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -799,16 +877,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -817,16 +901,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -835,16 +925,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -853,16 +949,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -871,16 +973,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -889,16 +997,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -907,16 +1021,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -925,16 +1045,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -943,16 +1069,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -961,16 +1093,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -979,16 +1117,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -997,16 +1141,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1015,16 +1165,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1033,16 +1189,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1051,16 +1213,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1069,16 +1237,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1087,16 +1261,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1105,16 +1285,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1123,16 +1309,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1141,16 +1333,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1159,16 +1357,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1177,16 +1381,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1195,16 +1405,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1213,16 +1429,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1231,16 +1453,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1249,16 +1477,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1267,16 +1501,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1285,16 +1525,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1303,16 +1549,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1321,16 +1573,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1339,16 +1597,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1357,16 +1621,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1375,16 +1645,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1393,16 +1669,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1411,16 +1693,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1429,16 +1717,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1447,16 +1741,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1465,16 +1765,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1483,16 +1789,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1501,16 +1813,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1519,16 +1837,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1537,16 +1861,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1555,16 +1885,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1573,16 +1909,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1591,16 +1933,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1609,16 +1957,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1627,16 +1981,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         },
@@ -1645,16 +2005,22 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
-                    ],
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "A"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest6", "op": "eq", "val": "B"}
+                    ],
+                    "then": {"col": "UniqueAdIDBestChallenger"}
                 }
             ]
         }
@@ -1777,6 +2143,9 @@
             "theme_transitions_latest": "marketingdata_prod.{schema}.{client}_nextads_theme_transitions_latest",
             "next_theme_scores": "marketingdata_prod.{schema}.{client}_nextads_next_theme_scores",
             "next_theme_scores_latest": "marketingdata_prod.{schema}.{client}_nextads_next_theme_scores_latest",
+            "theme_score_components": "marketingdata_prod.{schema}.{client}_nextads_theme_score_components",
+            "theme_score_components_latest": "marketingdata_prod.{schema}.{client}_nextads_theme_score_components_latest",
+            "theme_scoring_events_latest": "marketingdata_prod.{schema}.{client}_nextads_theme_scoring_events_latest",
             "preranked_ads_from_themes_latest": "marketingdata_prod.{schema}.{client}_nextads_preranked_ads_from_themes_latest",
             "results_topline": "marketingdata_prod.{schema}.{client}_nextads_results_topline",
             "results_aggregated": "marketingdata_prod.{schema}.{client}_nextads_results_aggregated",
