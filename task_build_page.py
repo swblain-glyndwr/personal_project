@@ -205,6 +205,7 @@ else:
     df_assigned_best_challenger = assign_preranked_ads(
         df_ads=df_ads_tgt_best_challenger,
         preranked_ads_table=PRERANKED_THEMES_TABLE,
+        location=LOCATION,
         df_cust=df_cells.select("AccountNumber"),
         **best_kwargs
     )

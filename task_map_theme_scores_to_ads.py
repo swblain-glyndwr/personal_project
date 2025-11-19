@@ -5,7 +5,7 @@ from pyspark.sql import Window
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import truncate_and_load, map_tbl
+from dsutils.etl import truncate_and_load, delete_from_and_load, map_tbl
 
 from next_ads.Assignment import get_ad_feedback_scores
 
@@ -30,7 +30,9 @@ logger.info(f"Configuring run for client: {CLIENT}")
 with open(f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
-APPLY_AD_FEEDBACK = jobparser.has_arg('--apply_ad_feedback')
+APPLY_AD_FEEDBACK = jobparser.has_arg('--apply-ad-feedback')
+AD_FEEDBACK_WEIGHT = jobparser.get_arg('--ad-feedback-weight') or 0.05
+TOP_ADS_PER_LOCATION = jobparser.get_arg('--top-ads-per-location') or 3
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
@@ -58,6 +60,7 @@ logger.info(f'Getting theme to ad mappings from {CONTROL_SHEET_LATEST}')
 df_theme2ad = (
     spark
     .table(CONTROL_SHEET_LATEST)
+    .where(F.col('AudienceOnly') != 1)
     .select('Themes', 'UniqueAdID')
     .where(F.col('Themes').isNotNull())
     .where(F.col('Themes') != '')
@@ -74,11 +77,11 @@ score_range = max_score - min_score
 logger.info(f'Norm min/max/range: {min_score}/{max_score}/{score_range}')
 
 if APPLY_AD_FEEDBACK:
-    logger.info('Getting ad feedback scores')
+    logger.info(f'Getting ad feedback scores (weight: {AD_FEEDBACK_WEIGHT})')
     df_ad_feedback_scores = get_ad_feedback_scores(
         ad_results_table=AD_RESULTS,
         control_sheet_latest_table=CONTROL_SHEET_LATEST,
-        ad_feedback_weight=0.5
+        ad_feedback_weight=AD_FEEDBACK_WEIGHT
     )
 
     if not df_ad_feedback_scores or df_ad_feedback_scores.isEmpty():
@@ -100,7 +103,7 @@ else:
     logger.info('Defaulting to incremental score of 1.0 for all ads')
     df_theme2ad = df_theme2ad.withColumn('IncrementalScore', F.lit(1.0))
 
-logger.info('Normalising theme scores, mapping to ads, applying ad feedback')
+logger.info('Normalising theme scores and mapping to ads')
 df_score_components = (
     df_theme_scores
     .withColumn(
@@ -118,6 +121,7 @@ df_score_components = (
             'IncrementalScore',
             'Score')
 )
+df_score_components.cache()
 
 logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS_LATEST}')
 truncate_and_load(
@@ -127,33 +131,114 @@ truncate_and_load(
 )
 
 logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS}')
-truncate_and_load(
+delete_from_and_load(
     df_score_components,
     THEME_SCORE_COMPONENTS,
-    pk_cols=['AccountNumber', 'Theme', 'UniqueAdID']
+    pk_cols=['AccountNumber', 'Theme', 'UniqueAdID'],
+    del_where={"rundate": "current_date()"}
 )
 
-logger.info('Ranking ads by final score (with tie breaker)')
-df_ad_scores = (
+
+# Locations commonly have the same set of eligible ads, so to avoid repeating
+# ranking processes multiple times (which is computationally expensive), we
+# identify distinct ad sets across locations and rank ads per ad set first, and
+# then map back to locations.
+# Also, we can't just perform a global ranking and select the top ad per loc
+# as the top ad according to the global ranking may not be eligible for that
+# location. Another solution would be to take the max score per location during
+# the task_build_page step, which would be less computationally expensive, but
+# could be limiting if we needed to assign more than one ads per location.
+logger.info('Fetching ad location mappings')
+df_ad2loc = (
+    spark
+    .table(CONTROL_SHEET_LATEST)
+    .where(F.col('AudienceOnly') != 1)
+    .select('UniqueAdID', 'Location')
+    .distinct()
+)
+
+logger.info(
+    'Finding distinct ad sets across locations to minimise repeated ranking')
+# Use string of sorted ad IDs as ad set identifier (effectively a hash key)
+df_adsets = (
+    df_ad2loc
+    .groupBy('Location')
+    .agg(F.array_sort(F.collect_list('UniqueAdID')).alias('AdSetSorted'))
+    .withColumn('AdSet', F.concat_ws('|', F.col('AdSetSorted')))
+    .groupBy('AdSet')
+    .agg(F.collect_set('Location').alias('LocationSet'))
+    .withColumn(
+        'AdSetID',
+        F.row_number().over(
+            Window.partitionBy(F.lit(1)).orderBy(F.lit(1))
+            )
+        )
+    .select('AdSetID', 'LocationSet')
+)
+
+df_adset2loc = (
+    df_adsets
+    .select('AdSetID', F.explode('LocationSet').alias('Location'))
+)
+
+nLocs = df_adset2loc.select('Location').distinct().count()
+nAdSets = df_adsets.count()
+logger.info(f'{nAdSets:,} distinct ad sets found across {nLocs:,} locations')
+
+adsets_rows = df_adsets.collect()
+for row in adsets_rows:
+    locations = ', '.join(sorted(row['LocationSet']))
+    logger.info(f"AdSetID {row['AdSetID']}: Locations [{locations}]")
+
+df_ad2adset = (
+    df_ad2loc
+    .join(df_adset2loc, on='Location', how='inner')
+    .select('UniqueAdID', 'AdSetID')
+    .distinct()
+)
+
+logger.info(f'Ranking and returning top {TOP_ADS_PER_LOCATION} ads per ad set')
+df_adset_scores = (
     df_score_components
+    .select('AccountNumber', 'UniqueAdID', 'Score')
+    .join(df_ad2adset, on='UniqueAdID', how='inner')
     .withColumn('TieBreaker', F.rand())
     .withColumn(
         'Rank',
         F.rank().over(
             Window
-            .partitionBy('AccountNumber')
+            .partitionBy('AccountNumber', 'AdSetID')
             .orderBy(F.col('Score').desc(), F.desc('TieBreaker'))
         )
     )
-    .select('AccountNumber', 'UniqueAdID', 'Score', 'Rank')
+    .where(F.col('Rank') <= TOP_ADS_PER_LOCATION)
 )
+df_adset_scores.cache()
+
+logger.info('Mapping ranked ads back to locations')
+df_ad_scores = (
+    df_adset_scores
+    .join(df_adset2loc, on='AdSetID', how='inner')
+    .select('AccountNumber', 'UniqueAdID', 'Location', 'Score', 'Rank')
+)
+
+logger.info('Checking for ads assigned to ineligible locations')
+df_violations = (
+    df_ad_scores
+    .join(df_ad2loc, on=['Location', 'UniqueAdID'], how='left_anti')
+)
+assert df_violations.count() == 0, 'Ads assigned to ineligible locations'
 
 logger.info(
     f'Loading preranked theme ads to {PRERANKED_ADS_FROM_THEMES_LATEST}')
 truncate_and_load(
     df_ad_scores,
     PRERANKED_ADS_FROM_THEMES_LATEST,
-    pk_cols=['AccountNumber', 'UniqueAdID']
+    pk_cols=['AccountNumber', 'UniqueAdID', 'Location']
 )
+
+logger.info('Unpersisting cached dataframes')
+df_score_components.unpersist()
+df_adset_scores.unpersist()
 
 logger.info('Run complete')
