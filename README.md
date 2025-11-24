@@ -83,10 +83,14 @@ This job:
 - Reads, validates and loads the control sheet from google sheets into Databricks
 - Parses the item to attribute to theme mappings defined in the control sheet
 - Performs inferencing of the lightweight model
+- Applies the ad feedback loop (if enabled)
 - Assigns ads to customers for each location, depending on model scores, config and customer cells
 - Performs QA checks on the assignments and tables (e.g. Primary Key validity)
 
 __NOTE__: This job is currently (2025-11-21), split into two jobs, with the control sheet load, item-theme parsing and lightweight modelling having been moved to [mktg_next_uk_nextads_load_control_sheet](https://adb-6188831950334199.19.azuredatabricks.net/jobs/35962584101213?o=6188831950334199). This is done to accommodate external modelling - i.e. the Next Best Label model - which takes several hours to run. The ad assignment and QA taks remain in the original job.
+
+#### Ad feedback loop
+The ad feedback loop centres around the function `Assignment.get_ad_feedback_scores()`, which is applied to the base relevance scores provided by whichever internal or extenal model is being used. The function boosts/penalises ads in the final ranking based on the ad's current commercial performance. There is a [wiki page](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_wiki/wikis/Directory%20Marketing%20Platform/50090/Ad-Feedback-Loop) that runs through how the loop works, with a number of worked examples.
 
 #### Assignments - Dev
 There is an equivalent 'dev' assignments job [dev_mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/518755454712672?o=6188831950334199) that can be used for end-to-end testing. The difference being that this job is:
@@ -259,10 +263,6 @@ Various webhook messages are triggered by certain conditions throughout the engi
 ### Other useful resources
 [Next Ads Whitepaper - August 2025](https://docs.google.com/document/d/1Bxve39oUx_6hdqVHPIdkW5lhKERalN8KGAmh5zk6Kcs/edit?tab=t.0#heading=h.ormk6jw0wrj6)  
 Paper provides an overview of how the Next Ads system worked at the time. It sought to define clearer ownership and responsibilities across Next Ads, and highlighted a number of strategic decisions that needed to be made in order to progress the project and align stakeholders, trade teams and data teams.
-
-[Ad Feedback Loop explainer](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_wiki/wikis/Directory%20Marketing%20Platform/50090/Ad-Feedback-Loop)  
-The ad feedback loop is a function within the engine that enables boosting/penalising of ads during assignment, based on their average recent performance.
-
 
 ### Diagram of Next Ads components
 ```mermaid
