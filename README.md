@@ -37,15 +37,15 @@
 
 
 ## Introduction
-`next-ads` is a process that assigns relevant adverts to customers browsing the NEXT website. The code enclosed within this repo - often referred to as the "Next Ads engine" - uses predictive model scores to determine which ad is 'best' for each customer. The code within this repo also well builds the control cells and results tables to measure performance of these personalised ads.
+`next-ads` is a process that assigns relevant adverts to customers browsing the NEXT website. The code enclosed within this repo - often referred to as the "Next Ads engine" - uses predictive model scores to determine which ad is 'best' for each customer. The code within this repo also builds the control cells and results tables to measure performance of these personalised ads.
 
-The model score input to the 'engine' can occur internally, which is suitable if the model is relatively lightweight, and build only/primarily for the purpose of applying to ads. More complex modelling processes, or models that serve applications outside of ads are better suited to being set up as an external modelling process; the engine has the capability to either:
+The model score input to the 'engine' can occur internally, which is suitable if the model is relatively lightweight, and built only/primarily for the purpose of being applied to ads. More complex modelling processes, or models that serve applications outside of ads are better suited to being set up as an external modelling process; the engine has the capability to either:
 - Ingest a table of scores and perform the ranking within the engine (e.g propensity scores)
 - Ingest a table of pre-ranked ads (e.g. Next Best Label rankings)
 
 
 ## Control Sheet
-The control sheet [Google Sheet](https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsP/edit?gid=1718512789#gid=1718512789) is used to control the ads that are input into the engine. This includes details such as:
+The control sheet [Google Sheet](https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0) is used to control the ads that are input into the engine. This includes details such as:
 - The UniqueAdID for each ad
 - Which pages/locations it is eligible for
 - Metadata/labels pertaining to the algorithm (e.g. AlgoDivision, AudienceOnly, Theme)
@@ -54,48 +54,48 @@ The control sheet [Google Sheet](https://docs.google.com/spreadsheets/d/1ZVZxP6p
 > N.B. Tags are primarily used for reporting, but those prefaced with square brackets will be ignored by the reporting scripts and can therefore be used to inform the algorithm of something, e.g. `AdBrandName` tells the reporting to produce a cut of the results for all ads tagged as this, while something like `[TestGroup]NewAlgoOnly` could be used to make ads eligible for a specific variant of the algorithm only, and would not automatically generate a cut within the results.
 
 ### Responsibilities
-- Trade/OSA (On-site Advertising): Maintaining accurate input to the sheet
-- Data: The file itself (tabs, columns/table schema, input validation etc.)
+- Trade/OSA (On-site Advertising) team: Ensuring input to the sheet is complete and accurate
+- Data team: Managing the file itself (tabs, columns/table schema, input validation etc.)
 
 
 ## Engine
 ### Configuration
 The engine is built around a central config that aims to make management of the algorithm much easier via:
 - Providing a single source of truth for algorithm parameters (that is version controlled)
-- Facilitating easy changes to the way ads are assigned accross for each location
-- Enabling refactoring of new data sources
+- Facilitating easy changes to the way ads are assigned accross each location
+- Making data sources used throughout the process clear and visible
 
-The idea is that parameters are _defined_ in the config, and the code _applies_ what has been defined in the config.
+The idea is that parameters and resources are _defined_ in the config, and the code _applies_ what has been defined in the config.
 
 #### Client-wise structure
 Configs are kept as JSON in the `config/` directory, with the file being named after the client (e.g. `config/next_uk.json`). The intent is that this client-wise config structure will enable easier horizontal scaling of the process to other countries/TP clients in future, however the process of personalising ads is currently only active for Next UK. 
 
-Tasks use `CLIENT` to control which config to retrieve and map process table names (check out the `['tables']['write']` section of the config).
+Tasks use `CLIENT` to control which config to retrieve and map parameterised process table names (check out the `['tables']['write']` section of the config).
 `CLIENT` is inferred from the job name when run as a job (via the job parser in `dsutils.argparser`) but can be passed manually to the script when running interactively. 
 
 #### Configuring assignments for locations
-Examples of various location configurations have been provided in the Appendix.
+Examples of various assignment configurations for different locations have been provided in the Appendix.
 
 ### Assignments
 The production assignments job is: [mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/851069914792732?o=6188831950334199)
 
 This job:
 - Reads, validates and loads the control sheet from google sheets into Databricks
-- Parses the item to attribute to theme mappings defined in the control sheet
-- Performs inferencing of the lightweight model
+- Parses and maps the item:attribute and attribute:theme lookups defined in the control sheet
+- Performs inferencing using the lightweight model
 - Applies the ad feedback loop (if enabled)
 - Assigns ads to customers for each location, depending on model scores, config and customer cells
 - Performs QA checks on the assignments and tables (e.g. Primary Key validity)
 
-__NOTE__: This job is currently (2025-11-21), split into two jobs, with the control sheet load, item-theme parsing and lightweight modelling having been moved to [mktg_next_uk_nextads_load_control_sheet](https://adb-6188831950334199.19.azuredatabricks.net/jobs/35962584101213?o=6188831950334199). This is done to accommodate external modelling - i.e. the Next Best Label model - which takes several hours to run. The ad assignment and QA taks remain in the original job.
+__NOTE__: This job is currently (2025-11-21) split into two jobs, with the control sheet load, item-theme parsing and lightweight modelling having been moved to [mktg_next_uk_nextads_load_control_sheet](https://adb-6188831950334199.19.azuredatabricks.net/jobs/35962584101213?o=6188831950334199). This is done to accommodate external modelling - i.e. the Next Best Label model - which takes several hours to run. The ad assignment and QA tasks remain in the original job.
 
 #### Ad feedback loop
 The ad feedback loop centres around the function `Assignment.get_ad_feedback_scores()`, which is applied to the base relevance scores provided by whichever internal or extenal model is being used. The function boosts/penalises ads in the final ranking based on the ad's current commercial performance. There is a [wiki page](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_wiki/wikis/Directory%20Marketing%20Platform/50090/Ad-Feedback-Loop) that runs through how the loop works, with a number of worked examples.
 
 #### Assignments - Dev
-There is an equivalent 'dev' assignments job [dev_mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/518755454712672?o=6188831950334199) that can be used for end-to-end testing. The difference being that this job is:
+There is an equivalent 'dev' assignments job [dev_mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/518755454712672?o=6188831950334199) that can be used for end-to-end testing. The differences between this and the 'prod' version of the job is that the 'dev' job is:
 - Not scheduled
-- Writes all data to copies of the process tables in the `ds_sandbox` schema instead of the `warehouse` schema (which contains the production tables). This happens automatically via the `dsutils.argparser` at the start of each task.
+- Writes all data to copies of the process tables in the `ds_sandbox` schema instead of the `warehouse` schema (which contains the production tables). This happens automatically at the start of each task via the argument parser (`dsutils.argparser`), which defines the `job_env`, which in turn defines the write schema at the start of each task.
 
 NOTE: When running scripts interactively, the process will default to 'dev' at runtime, via the same `dsutils.argparser`.
 
@@ -108,13 +108,13 @@ This job:
 - Maps ad/MASID assignments to browsing data and infers impressions (Next Ads doesn't currently have a functional GA tagging setup)
 - Aggregates the results and exports them to the [Next Ads 2.0](https://lookerstudio.google.com/u/0/reporting/f3dace74-791a-413d-b0e7-9d5a350b1c3a/page/p_0wnaekamod) dashboard
 
-An high-level explanation of the results methodology and associated caveats are outlined in the following document: [Next Ads Dashboard - Diagrams for Interpretation](https://drive.google.com/file/d/1JEYtwoAYEdMHqSeTY7w3u5OwkJLx31eq/view).
+A high-level explanation of the results methodology and associated caveats are outlined in the following document: [Next Ads Dashboard - Diagrams for Interpretation](https://drive.google.com/file/d/1JEYtwoAYEdMHqSeTY7w3u5OwkJLx31eq/view). There is also a 'Guidance' page at the back of the Looker dashboard linked above that is intended to be a more stakeholder-friendly summary of the these diagrams.
 
 #### Results - Dev
 There is no 'dev' results job because:
 - The process is less complex and requires fewer intermediate tables.
 - Using upstream next ads 'dev' tables as inputs into the dev results is problematic as the dev tables typically contain incomplete historical assingments, which may not be based on the same treatment cells that are defined in prod. 
-- Results can always be recalculated for dates in the past, therefore operational failures can always be remediated after the fact.
+- Results can always be recalculated for dates in the past, therefore operational failures can be remediated after the fact.
 
 ### External Models
 #### Next Best Label
@@ -187,7 +187,9 @@ TODO
 
 ## DevOps
 ### Deployment patterns
-The project is structured as a Databricks Asset Bundle. Only the code is deployed, and the jobs referencd in the [Engine](#engine) section point to the relevant deployment target.
+The project is structured as a Databricks Asset Bundle. The bundle is currently only utilised to deploy the code; the jobs referenced in the [Engine](#engine) section point to the relevant deployment, i.e. the prod job points to the code in the deployed 'prod' directory, and the 'dev' job points to the 'preprod' directory.
+
+> NOTE: The dev target is a default target in Databricks Asset Bundles and is designed for users to be able to deploy code to their own user space, for experimentation and testing in a like-for-like way with a production deployment. The 'dev' next ads jobs are intended as a shared space, hence use of the preprod target for 'dev' jobs.
 
 To deploy code to the 'prod' target (which is picked up by the prod jobs, i.e. those not prefixed with dev), checkout the version of the code you want to deploy, and run the following command:
 
@@ -248,7 +250,7 @@ Existing tests can be contained in `tests/`. These are largely designed to test 
 
 These tests can be run using `pytest` directly,
 ```bash
-python -m pytest tests/
+python -m pytest tests
 ```
 or via the integrated test runner in VS Code (see __View: Show Testing__ and __Test: Run All Tests__ in the VS Code command palette).
 
