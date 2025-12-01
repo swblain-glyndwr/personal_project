@@ -183,7 +183,54 @@ The assignments output by the engine are picked up by the MASID/preference frame
 The Global Solution (GS) job: [mktg_nextads_plp_gs](https://adb-6188831950334199.19.azuredatabricks.net/jobs/1073338107374443?o=6188831950334199) picks up the ad-location-URL mapping from the Next Ads Control Sheet and passes assignmetns to the Global Solution, which is a new process for delivering these mappings to site (currently only used for PLP assignments, but planned to extend to other locations).
 
 ## Real-Time
-TODO
+
+The Next Ads real-time personalisation system extends the batch ads recommendation process (known as the Next-Ads engine) through tracking in-session actions to update ad recommendations in real-time.
+
+### Overview: Real-Time Unknown vs Known
+
+**Real-Time Unknown (Live)** provides ad recommendations to users who have accepted cookies but are not logged into an account. Non-logged-in sessions currently account for around 55% of all sessions (see split below), so even showing ads to these users (irrespective of personalisation quality) is considered high value.
+
+```
+Known/unknown sessions split (180 days)
++---------+-----------+
+|pct_known|pct_unknown|
++---------+-----------+
+|    43.84|      56.16|
++---------+-----------+
+```
+
+The initial implementation of real-time unknown (Part 1) was primarily a test of the viability of updating real-time MASID values and uses a viewed-bought lift approach. The process looks at in-stream session-level views and joins on the `warehouse.ir_vb` table (Intel Recs viewed-bought relationships). The bought-side items from this relationship are joined back to the `warehouse.next_ads_sort_order_latest` table (created in the `mktg_next_ads_data_pull` job). For each location, the ad with the bought-side item showing the maximum lift is selected.
+
+
+**Real-Time Part 3: Known Customers** (in development) operates on live sessions where the user is logged into an account and has accepted cookies. Real-time known can be considered an extension of batch recommendations, as it applies to the same customer groups but adjusts recommendations based on real-time session actions.
+
+Three solutions for real-time known were initially proposed: 
+1. Comparing batch customer-ad-theme affinity embeddings with real-time session-level affinities
+2. Re-ordering pre-computed batch recommendations using session actions ("smart shuffling")
+3. Bloomreach scenarios conditional logic approach to tweaking live MASID values
+
+Solution 2 ("smart shuffling") was chosen as the most pragmatic approach to getting something live for real-time, while retaining flexibility to adapt to new requirements. This approach boosts theme scores based on in-session views and add-to-bag actions, then re-ranks batch recommendations accordingly. See `realtime-p3.py` for the current implementation.
+
+### Databricks Structured Streaming
+
+Structured streaming jobs are unlike standard Databricks jobs - they are continuously running processes which use micro-batches to divide live streaming data into manageable chunks that can then go through a recommendation process. Processing time is an important factor to consider when developing streaming processes; if it takes 2 minutes to process each batch of live sessions but the average session length is 1 minute, the approach would be unsuitable.
+
+Since streaming jobs operate on continuous data (datasets that never end), Databricks restricts the use of many standard data operations. The following operations are not permitted: left/right/cross joins, `orderBy`, `row_number`, `rank`, and `sort`.
+
+In the current implementation of real-time ads, the Data Engineering (DE) team has taken ownership of the structured streaming jobs which process the live streaming data. The Data Science (DS) team passes the recommendation logic to DE, and they work in conjunction to test its suitability for structured streaming. DE ultimately deploys the job and provides DS with a tracking table (e.g., `warehouse.rtp_exponea_tracking`) which contains a record of all live MASID (ad recommendation) updates. The structured streaming job currently lives at `databricks\notebooks\resources\azure_DABs\mktgdata_platform_dab\src\real_time_personalisation\real_time_ads.py`.
+
+### Real-Time Reporting
+
+#### Real-Time Unknown Reporting
+
+`warehouse.rtp_exponea_tracking` provides a record of real-time unknown MASID changes for given anonymous `rpid` (alongside metadata like timestamp). Eligible sessions are randomly split into Control/Treatment using an 85/15 split, with control sessions indicated by having `PS1_Z` in their MASID. This information can be combined with the BQ tables (actions and sessions) available in the Unity Catalog to get a top-line read of CVR, AOV, and PRV for Control/Treatment sessions. The results script `task_realtime_results_topline.py` handles this analysis.
+
+#### Real-Time Known Reporting
+
+*Currently in early development*
+
+
+See [NextAds Real Time - Project Charter](https://docs.google.com/document/d/1wnl7BQ2zs3f-LoPSbD1yPiIzFSIMfyHnibupwaOIwfU/edit?tab=t.0) for full project background and [NextAds Realtime - Part 3 Known Customers Solutions](https://docs.google.com/document/d/1403KFCB0qA0xrJwY87CuX00Yjiu0q0vZD3elO3C-ZUU/edit?tab=t.0) for known customer implementation options.
 
 ## DevOps
 ### Deployment patterns
