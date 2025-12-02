@@ -99,8 +99,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 9, 2)
-    SESSION_DATE_END = date(2025, 9, 3)
+    SESSION_DATE_START = date(2025, 11, 22)
+    SESSION_DATE_END = date(2025, 11, 22)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -572,8 +572,15 @@ df_days_pages = (
 # Create date-aware screen mappings for filtering
 df_screen_mapping = (
     df_ad_metadata
+    .withColumn(
+        'Screen',
+        F.when(
+            F.col('Screen') == 'PLP',
+            F.col('Page')).otherwise(F.col('Screen'))
+    )
     .select('SessionDate', 'Location', F.col('Screen').alias('PagePath'))
     .filter(F.col('PagePath').isNotNull())
+    .filter(F.col('PagePath') != '')
     .distinct()
 )
 
@@ -603,6 +610,12 @@ df_pages = (
             .where(F.col('date') >= SESSION_DATE_START)
             .where(F.col('date') <= SESSION_DATE_END)
             .withColumn('NextPagePath', F.lit(None).cast('string'))
+            .withColumn(
+                'ScreenName',
+                F.when(
+                    F.col('ScreenName') == 'PLP',
+                    F.col('PagePath')).otherwise(F.col('ScreenName'))
+            )
             .select('date',
                     'UniqueVisitID',
                     'ScreenName',
@@ -667,6 +680,9 @@ assert df_sessions.count() > 0, (
     f' {SESSION_DATE_START} and {SESSION_DATE_END}'
     f' in table {BQ_SESSIONS}')
 
+# Filter by device and page/screen to reflect where ads can be served
+# TODO - reference a table in the control sheet where trade can toggle
+# device and page/screen combinations on/off rather than hard-coding here
 df_sessions_pages = (
     df_sessions
     .join(df_pages,
