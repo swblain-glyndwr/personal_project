@@ -1,10 +1,11 @@
 from datetime import date, timedelta
+from collections import defaultdict
 from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 from collections.abc import Callable
 from dsutils.dbc import get_spark
 from dsutils.logtools import get_logger
-from dsutils.etl import assert_pk
+from dsutils.etl import assert_pk, build_spark_schema
 from dsutils.columnscalers import subtract_mean
 from dsutils.timing import timer
 
@@ -802,118 +803,99 @@ def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
 
 
 @timer
-def greedy_batch_assignment(
+def greedy_assignment(
         df: DataFrame,
-        user_col: str,
-        item_col: str,
-        min_users_per_item: int = 1,
-        batches: int = 10,
-        score_col: str = 'score',
-        score_descending: bool = True,
-        item_sort_col: str = None,
-        item_sort_descending: bool = False
-        ) -> DataFrame:
+        item_quotas: dict,
+        item_col: str = 'item',
+        user_col: str = 'user',
+        rank_col: str = 'rank',
+        logging_interval: int = 100000) -> dict:
+    """
+    Make greedy assignmends of users to items, based on a sequence of
+    item-user pairs, and associated item quotas.
+    It is recommended that the supplied dataframe is filtered to items
+    with quotas before passing it to the function for efficiency
+    (if not all items have quotas).
 
-    if score_descending:
-        w_within_item = (
-            Window.partitionBy(item_col)
-            .orderBy(F.desc(F.col(score_col)), F.col(user_col))
-        )
-    else:
-        w_within_item = (
-            Window.partitionBy(item_col)
-            .orderBy(F.col(score_col), F.col(user_col))
-        )
+    Args:
+        `df`: PySpark DataFrame with columns [item, user, rank]
+            where rank is ascending order of processing.
+        `item_quotas`: Dictionary of `{item: quota}`. Items not in
+            the dictionary are assumed to have zero quota (i.e. will
+            be excluded from greedy assignment).
+        `item_col`: Name of item column in df
+        `user_col`: Name of user column in df
+        `rank_col`: Name of rank column in df
+        `logging_interval`: How many cycles between progress logs
+    """
 
-    if score_descending:
-        w_within_user = (
-            Window.partitionBy(user_col)
-            .orderBy(F.desc(F.col(score_col)), F.col(item_col))
-        )
-    else:
-        w_within_user = (
-            Window.partitionBy(user_col)
-            .orderBy(F.col(score_col), F.col(item_col))
-        )
+    logger.info('Starting greedy assignment')
 
-    if item_sort_col is None:
-        item_sort_col = 'item_sort'
-        df = df.withColumn(item_sort_col, F.rand(seed=42))
+    cmap = {
+            'item': item_col,
+            'user': user_col,
+            'rank': rank_col
+        }
+    output_schema = build_spark_schema([
+        [cmap['item'], 'string', 'not null'],
+        [cmap['user'], 'string', 'not null']
+    ])
 
-    if item_sort_descending:
-        w_global_item = (
-            Window.partitionBy(F.lit(1))
-            .orderBy(F.desc(F.col(item_sort_col), F.col(item_col)))
-        )
-    else:
-        w_global_item = (
-            Window.partitionBy(F.lit(1))
-            .orderBy(F.col(item_sort_col), F.col(item_col))
-        )
-    logger.debug('Pre-ranking data for sequential greedy assignment')
-    df = (
-        df
-        .withColumn('item_processing_order',
-                    F.dense_rank().over(w_global_item))
-        .withColumn('item_rank_for_user',
-                    F.dense_rank().over(w_within_user))
-    )
-    df.cache()
-    item_keys = [
-        x[0] for x
-        in (df.select('item_processing_order')
-            .distinct().orderBy('item_processing_order').collect())
-        ]
-    logger.debug(f'{item_col} keys: {item_keys}')
-    batch_size = min_users_per_item // batches
-    logger.debug(f'Batch size: {batch_size}')
-    for b in range(1, batches+1):
-        logger.debug(f'Processing batch {b}')
-        for ik in item_keys:
-            logger.debug(f'Processing {item_col} key {ik}')
-            # Find top batch_size users for each item in order
-            df_bik = (
-                df
-                .where(F.col('item_processing_order') == ik)
-                .withColumn('rank_user_within_item',
-                            F.dense_rank().over(w_within_item))
-                .where(F.col('rank_user_within_item') <= batch_size)
-            )
-            # Remove users that have been assigned
-            df = (
-                df
-                .join(
-                    df_bik.select(user_col).distinct(),
-                    on=user_col, how='left_anti'
-                )
+    if not item_quotas:
+        logger.error('No item quotas supplied, aborting greedy assignment')
+        return get_spark().createDataFrame([], schema=output_schema)
+
+    if all(cap <= 0 for cap in item_quotas.values()):
+        logger.error('No positive item quotas supplied, aborting greedy assignment')  # noqa
+        return get_spark().createDataFrame([], schema=output_schema)
+
+    assignments = defaultdict(list)
+    assigned_users = set()
+    processed_count = 0
+
+    assert set([item_col, user_col, rank_col]).issubset(set(df.columns)), f"Supplied col names not in supplied df"  # noqa
+    cmap = {
+        'item': item_col,
+        'user': user_col,
+        'rank': rank_col
+    }
+
+    df = df.withColumnsRenamed({v: k for k, v in cmap.items()})
+
+    for row in df.orderBy('rank').toLocalIterator():
+        processed_count += 1
+
+        if processed_count % logging_interval == 0:
+            filled = sum(1 for cap in item_quotas.values() if cap <= 0)
+            logger.info(
+                f"Processed {processed_count:,} records"
+                + f"    {filled}/{len(item_quotas.keys()):,} items filled"
             )
 
-            df_batch = (
-                    df_bik
-                    .select(user_col, item_col, score_col,
-                            'item_rank_for_user', 'item_processing_order')
-                    .withColumn('batch', F.lit(b))
-                )
+        # Skip if user already assigned
+        if row.user in assigned_users:
+            continue
 
-            if b == 1 and ik == 1:
-                df_assigned = df_batch
-            else:
-                df_assigned = df_assigned.unionByName(df_batch)
+        # Skip if item is at quota
+        item_quota_remaining = item_quotas.get(row.item, 0)
+        assert item_quota_remaining >= 0,  f"Negative quota encounterd for item {row.item}"  # noqa
+        if item_quota_remaining <= 0:
+            continue
 
-        if df.count() == 0:
-            logger.debug(f'All users assigned by batch {b}')
+        # Otherwise assign user to item and decrement quota
+        assignments[row.item].append(row.user)
+        assigned_users.add(row.user)
+        item_quotas[row.item] -= 1
+
+        # Early termination: all items filled
+        if all(cap <= 0 for cap in item_quotas.values()):
+            logger.info(
+                f"All items full after processing {processed_count:,} records")
             break
-    users_after_greedy = df.select('user').distinct().count()
-    if users_after_greedy > 0:
-        logger.debug(f'Assigning remaining users ({users_after_greedy:,})')
-        df_top_up = (
-            df
-            .withColumn('final_rank', F.dense_rank().over(w_within_user))
-            .where(F.col('final_rank') == 1)
-            .select(user_col, item_col, score_col,
-                    'item_rank_for_user', 'item_processing_order')
-            .withColumn('batch', F.lit(None))
-        )
-        df_assigned = df_assigned.unionByName(df_top_up)
 
-    return df_assigned
+    # Convert result back to DataFrame for consistency
+    result_data = [
+        (item, user) for item, users in assignments.items() for user in users]
+    result = get_spark().createDataFrame(result_data, schema=output_schema)
+
+    return result

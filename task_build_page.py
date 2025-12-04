@@ -53,8 +53,6 @@ CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 PRERANKED_THEMES_TABLE = map_tbl(tbls["preranked_ads_from_themes_latest"],
                                  **tbl_args)
 
-PRERANKED_TABLE = cfg["tables"]["read"]["preranked_ads_latest"]
-
 # Read results data from prod schema dataset
 tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
 AD_RESULTS_TABLE = map_tbl(tbls['results_ads'], **tbl_args_results)
@@ -100,15 +98,6 @@ df_ads_tgt = (
 # Create subset of ads for Best
 df_ads_tgt_best = (
     df_ads_tgt
-    .where(
-        (F.col('Tags').isNull())
-        | (~F.col('Tags').contains('[Test Group] Variant Only'))
-    )
-)
-
-# Create subset of ads for BestChallenger
-df_ads_tgt_best_challenger = (
-    df_ads_tgt
     .where(F.col('Themes').isNotNull())
     .where(F.col('Themes') != '')
 )
@@ -122,7 +111,6 @@ ads_required_cols = ['UniqueAdID',
 df_ads = df_ads.select(ads_required_cols)
 df_ads_tgt = df_ads_tgt.select(ads_required_cols)
 df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
-df_ads_tgt_best_challenger = df_ads_tgt_best_challenger.select(ads_required_cols)  # noqa
 
 
 if df_ads_tgt.count() == 0:
@@ -194,22 +182,14 @@ else:
 
     df_assigned_best = assign_preranked_ads(
         df_ads=df_ads_tgt_best,
-        preranked_ads_table=PRERANKED_TABLE,
+        preranked_ads_table=PRERANKED_THEMES_TABLE,
         location=LOCATION,
         df_cust=df_cells.select("AccountNumber"),
         **best_kwargs
     )
     df_assigned_best.cache()
 
-    logger.info("Assigning Ads with Best Targeting (Challenger)")
-    df_assigned_best_challenger = assign_preranked_ads(
-        df_ads=df_ads_tgt_best_challenger,
-        preranked_ads_table=PRERANKED_THEMES_TABLE,
-        location=LOCATION,
-        df_cust=df_cells.select("AccountNumber"),
-        **best_kwargs
-    )
-    df_assigned_best_challenger.cache()
+    df_assigned_best_challenger = df_assigned_best
 
     logger.info("Determining Ad to show based on assignments and fixed cells")
     df_assignments = (
