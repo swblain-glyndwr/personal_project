@@ -532,13 +532,29 @@
             "map": [
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"},
+                        {"col": "AdHocABTest7", "op": "eq", "val": "A"}
+                    ],
+                    "then": {"col": "AdSuppressed"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"},
+                        {"col": "AdHocABTest7", "op": "eq", "val": "B"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest7", "op": "eq", "val": "A"}
+                    ],
+                    "then": {"col": "AdSuppressed"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
+                        {"col": "AdHocABTest7", "op": "eq", "val": "B"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -1593,6 +1609,14 @@
         ]
     },
 
+    "plx_urls_sheet": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
+        "sheet": "PLX aditional PLPs",
+        "read_schema": [
+            ["URL", "string", "null"]
+        ]
+    },
+
     "schema": {
         "dev": "ds_sandbox",
         "prod": "warehouse"
@@ -1620,6 +1644,8 @@
             "ad_items": "marketingdata_prod.{schema}.{client}_nextads_ad_items",
             "control_sheet": "marketingdata_prod.{schema}.{client}_nextads_control_sheet",
             "control_sheet_latest": "marketingdata_prod.{schema}.{client}_nextads_control_sheet_latest",
+            "multipage_locations": "marketingdata_prod.{schema}.{client}_nextads_multipage_locations",
+            "multipage_locations_latest": "marketingdata_prod.{schema}.{client}_nextads_multipage_locations_latest",
             "customer_cells_fixed_latest": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_fixed_latest",
             "customer_cells_fixed_history": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_fixed_history",
             "customer_cells_transient": "marketingdata_prod.{schema}.{client}_nextads_customer_cells_transient",
@@ -1744,5 +1770,18 @@
         "min_theme_pids": 500000,
         "max_zero_themes_pc": 0.20,
         "max_multi_themes_pc": 0.02
+    },
+
+    "greedy_themes": {
+        "tiles": 1000,
+        "switch_tiles": true,
+        "quotas": {
+            "seasons varley": 200000,
+            "seasons polo ralph lauren mens": 200000,
+            "seasons polo ralph lauren womens": 200000,
+            "seasons mulberry": 200000,
+            "seasons coach": 200000,
+            "seasons marc jacobs": 200000
+        }
     }
 }

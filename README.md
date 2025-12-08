@@ -692,8 +692,55 @@ Process:
 Diagnostics:
 - The basket item and theme history along with predictions can be obtained from this script by running it with the `--test-account` argument (if the account of interest was ABC123, you would pass `--test-account ABC123`).
 
-#### WIP - Greedy Assignment to give minimum volume to niche themes
-- A function `Assignmet.greedy_batch_assignment()` is in development. The idea is that this would rank themes from least to most common and assignment of N customers would occur for themes sequentially. This would prevent customers with high scores across all themes being assigned the most common theme, and guarantee niche themes a minimum volume. Due to its sequential nature, this greedy assignment approach is currently slow, but offers a pragmatic solution to minimum volumes, when full optimisation (i.e. MIP or CP) might be overkill due to its computational expense.
+### Greedy Assignment of Themes
+Greedy assignment of themes has been implemented to enable the specification of quotas for given themes. The quotas are a minimum number of customers that the algorithm will attempt to assign greedily, i.e. it will assign the themes with quotas the their 'best' customers (those with the highest scores) and remove those customers from selection by other themes, before the remainder of customers are assigned their best theme.
+
+Example config:
+```JSON
+"greedy_themes": {
+        "tiles": 4,
+        "switch_tiles": true,
+        "quotas": {
+            "theme1": 1000,
+            "theme2": 2000
+        }
+    }
+```
+
+In the example above theme1 and theme2 will be greedily assigned 1000 and 2000 distinct customers respectively, before the remaining customers are assigned to their best theme. The ordering of cases (i.e. each customer-theme score) for greedy assignment occurs in the `task_map_theme_scores_to_ads.py` script. This ordered dataframe is then passed to the `Assignment.greedy_assignment()` function for execution.
+
+#### Enforcement of greedy assignments
+- Greedily assigned themes take precedence by having 1 added to their `RelevanceScore` (after the relevance score has been scaled to [0,1)).
+
+> __Note: This does not guarantee that a greedily assigned theme will take precedence after the ad feedback loop has been applied, although this is unlikely. Consideration should be given to the interaction betwen these two features, and the expected behaviour in various edge cases should be refined to align with expectations of the business.__
+
+#### Theme ordering and options
+Themes are currently hard-coded to assign the theme with the lowest global popularity (i.e. the most niche theme) first. Note that this ordering has less effect with increasing `"tiles"` and when `"switch_tiles"` is enabled.  
+
+##### `tiles`
+`"tiles"` can be specified in the config for the greedy theme assignment. This is an integer that instructs the number of tiles each theme's scores are split into, and consequently ordered by.
+- `"tiles": 1` greedily assigns through all the customer-theme scores for the first theme* that has a quota before moving onto the next theme that has a quota.
+- `"tiles": 2` greedily assigns the top 50% ranked customers for the first theme that has a quota before moving on to the top 50% ranked customers of the next theme. Once the top 50% of customers for each theme with a quota have been assigned, the algorithm continues the assignment (unless all quotas have been successfully filled) on the second 50% ranked customers for each theme that has a quota.
+- `"tiles": 100` would yield percentiles and the same process as for 2 tiles is followed, however instead of evaluating the top 50% for each theme in turn, the algorithm runs through the top 1% of each theme, then the second %, then the third 3 etc.
+
+##### `switch_tiles`
+`"switch_tiles": true` alternates the order of themes over which the greedy assignment passes. For example, if there were two ads with quotas specified, `"tiles": 4`, and `"switch_tiles": true` the algorithm would pass over customer-theme scores in the following order:
+
+1. First Quartile of scores for the most niche ranked theme
+2. First Quartile of scores for the second most niche ranked theme
+3. _Second Quartile of scores for the second most niche ranked theme_
+4. _Second Quartile of scores for the most niche ranked theme_
+5. Third Quartile of scores for the most niche ranked theme
+6. Third Quartile of scores for the second most niche ranked theme
+7. _Fourth Quartile of scores for the second most niche ranked theme_
+8. _Fourth Quartile of scores for the most niche ranked theme_
+
+> Note the even numbered tiles order themes in the opposite direction. When `"switch_tiles": false`, all tiles run from most to least niche theme.
+
+### How many tiles to use and when to use `switch_tiles`
+The design intent of tiling was to avoid all assigning all of the most universally engaged customers to the most niche theme (which would happen with 1 tile and `switch_tiles` off).
+- Prioritising more niche themes may be desirable in some circumstances, in which case, fewer `tiles` without `switch_tiles` enabled would be advisable.
+- For more a more balanced distribution of customers between the themes with quotas, more `tiles` and enabling `switch_themes` is advisable.
 
 
 #### Summary: Attribute and Theme parsing

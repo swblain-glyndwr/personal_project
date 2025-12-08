@@ -45,6 +45,7 @@ for k in VALID_LOCATIONS:
 
 CONTROL_SHEET = cfg["control_sheet"]
 PLACEMENTS_SHEET = cfg["placements_sheet"]
+PLX_URLS_SHEET = cfg["plx_urls_sheet"]
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
@@ -54,6 +55,8 @@ logger.info(f'Write schema set to {SCHEMA}')
 tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 TARGET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
 TARGET_TABLE_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
+TARGET_MPL_TABLE = map_tbl(tbls["multipage_locations"], **tbl_args)
+TARGET_MPL_TABLE_LATEST = map_tbl(tbls["multipage_locations_latest"], **tbl_args)  # noqa
 
 WEBHOOK_URL = cfg["webhooks"]["Input Warnings"]
 
@@ -84,6 +87,25 @@ df_placements = gcp.spark_df_from_sheets(
     gcp_key=cfg["gcp"]["key"],
     schema=PLACEMENTS_SHEET["read_schema"]
     )
+
+logger.info("Reading PLX URLs Sheet from Google Sheets")
+
+try:
+    df_plx_urls = gcp.spark_df_from_sheets(
+        url=PLX_URLS_SHEET["url"],
+        worksheet_name=PLX_URLS_SHEET["sheet"],
+        gcp_scope=cfg["gcp"]["scope"],
+        gcp_key=cfg["gcp"]["key"],
+        schema=PLX_URLS_SHEET["read_schema"]
+        )
+except Exception as e:
+    df_plx_urls = None
+    plx_load_msg = "Error loading PLX URLs sheet - URLs not refreshed"
+    logger.warning(plx_load_msg)
+    logger.error(e)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, plx_load_msg)
+
 
 date_fmt = CONTROL_SHEET["date_format"]
 date_regex = CONTROL_SHEET["date_regex"]
@@ -293,33 +315,6 @@ df_processed = (
     )
 )
 
-logger.info('Theme:Ad mapping should be one-to-one - checking for violations')
-multi_ad_themes = (
-    df_processed
-    .where(F.col('Themes').isNotNull())
-    .where(F.col('Themes') != '')
-    .groupBy('Themes')
-    .agg(F.countDistinct('UniqueAdID').alias('nAds'))
-    .where(F.col('nAds') > 1)
-    .select('Themes')
-).collect()
-
-if len(multi_ad_themes) > 0:
-    mat_found_msg = 'Themes mappped to multiple ads found'
-    logger.warning(mat_found_msg)
-    if JOB_ENV == "prod":
-        post_to_webhook(WEBHOOK_URL, mat_found_msg)
-    for mat in [x[0] for x in multi_ad_themes]:
-        mat_remove_msg = f'Removing theme "{mat}" and associated ads'
-        logger.warning(mat_remove_msg)
-        if JOB_ENV == "prod":
-            post_to_webhook(WEBHOOK_URL, mat_remove_msg)
-        df_processed = (
-            df_processed
-            .where((F.col('Themes').isNull()) | (F.col('Themes') != mat))
-        )
-
-
 df_valid_ad_ids = df_processed.select(
     F.col('UniqueAdID').alias('valid_id')
 ).distinct()
@@ -364,5 +359,34 @@ logger.info("Loading output to table (latest)")
 truncate_and_load(df_processed.select(*target_cols),
                   TARGET_TABLE_LATEST,
                   pk_cols=["UniqueAdID", "Location"])
+
+if df_plx_urls:
+    try:
+        logger.info("Updating PLX URLs in multipage locations table")
+        df_multipage_locs = (
+            df_plx_urls
+            .withColumnRenamed("URL", "Page")
+            .withColumn("Screen", F.lit("PLP"))
+            .withColumn("Location", F.lit("PLX"))
+            .select("Location", "Page", "Screen")
+            .drop_duplicates()
+        )
+        logger.info("Loading multipage locations to table")
+        delete_from_and_load(df_multipage_locs,
+                             TARGET_MPL_TABLE,
+                             pk_cols=["Location", "Page", "Screen"],
+                             del_where={"rundate": "current_date()"})
+
+        logger.info("Loading multipage locations to table (latest)")
+        truncate_and_load(df_multipage_locs,
+                          TARGET_MPL_TABLE_LATEST,
+                          pk_cols=["Location", "Page", "Screen"])
+
+    except Exception as e:
+        plx_write_msg = "Error writing to multipage locations table; URLs not refreshed" # noqa
+        logger.warning(plx_write_msg)
+        logger.error(e)
+        if JOB_ENV == "prod":
+            post_to_webhook(WEBHOOK_URL, plx_write_msg)
 
 logger.info("Run complete")

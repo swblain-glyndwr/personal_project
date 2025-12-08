@@ -6,8 +6,8 @@ from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import truncate_and_load, delete_from_and_load, map_tbl
-
-from next_ads.Assignment import get_ad_feedback_scores
+from dsutils.etl import post_to_webhook
+from next_ads.Assignment import get_ad_feedback_scores, greedy_assignment
 
 
 jobparser = get_job_parser()
@@ -42,10 +42,13 @@ tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 # Read tables
 NEXT_THEME_SCORES_LATEST = map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
 CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
+CUSTOMER_CELLS_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
 # Write tables
 THEME_SCORE_COMPONENTS_LATEST = map_tbl(tbls["theme_score_components_latest"], **tbl_args)  # noqa
 THEME_SCORE_COMPONENTS = map_tbl(tbls["theme_score_components"], **tbl_args)  # noqa
 PRERANKED_ADS_FROM_THEMES_LATEST = map_tbl(tbls["preranked_ads_from_themes_latest"], **tbl_args)  # noqa
+
+WEBHOOK_URL = cfg['webhooks']['DS Warnings']
 
 # Force read from prod results tables for ad feedback scores
 AD_RESULTS = map_tbl(
@@ -67,14 +70,114 @@ df_theme2ad = (
     .distinct()
 )
 
+logger.info(f'Getting customer base from {CUSTOMER_CELLS_LATEST}')
+df_cust = spark.table(CUSTOMER_CELLS_LATEST).select('AccountNumber')
+
 logger.info(f'Getting theme scores from {NEXT_THEME_SCORES_LATEST}')
-df_theme_scores = spark.table(NEXT_THEME_SCORES_LATEST)
+# Limit to customers with cells so we don't waste processing accounts
+# that will be dropped downstream
+df_theme_scores = (
+    spark
+    .table(NEXT_THEME_SCORES_LATEST)
+    .join(df_cust, on='AccountNumber', how='inner')
+)
 
 logger.info('Normalising theme scores')
 min_score = df_theme_scores.agg(F.min('ProbAggRebased')).collect()[0][0]
 max_score = df_theme_scores.agg(F.max('ProbAggRebased')).collect()[0][0]
 score_range = max_score - min_score
 logger.info(f'Norm min/max/range: {min_score}/{max_score}/{score_range}')
+
+GREEDY_CFG = cfg.get('greedy_themes', {})
+
+# Validate greedy quota format
+gcfg_isdict = isinstance(GREEDY_CFG['quotas'], dict)
+gcfg_val_int = all([isinstance(k, int) for k in GREEDY_CFG['quotas'].values()])
+
+if GREEDY_CFG['quotas'] and all([gcfg_isdict, gcfg_val_int]):
+    # Process greedy config
+    greedy_quotas = GREEDY_CFG.get('quotas')
+    max_quota = max(greedy_quotas.values())
+    logger.info(f'Greedy quotas: {greedy_quotas}')
+    # Default options for switching ntiles and switching behaviour
+    switch_tiles = GREEDY_CFG.get('switch_tiles', True)
+    tiles = GREEDY_CFG.get('tiles', 1000)
+    logger.info(f'Greedy tiles: {tiles} (switching: {switch_tiles})')
+    switch_multiplier = -1 if switch_tiles else 1
+
+    # Rank themes from most niche to least niche
+    df_theme_order = (
+        df_theme_scores
+        .where(F.col('NextTheme').isin(list(greedy_quotas.keys())))
+        .groupBy('NextTheme')
+        .agg(F.first('ProbBase').alias('ProbBase'))
+        .orderBy(F.col('ProbBase'))
+        .withColumn('ThemeOrder', F.monotonically_increasing_id() + 1)
+    )
+
+    df_theme_scores_global_rank = (
+        df_theme_scores
+        .join(df_theme_order, on='NextTheme', how='inner')
+        .withColumn(
+            'RankInTheme',
+            F.row_number().over(
+                Window
+                .partitionBy('NextTheme')
+                .orderBy(F.col('ProbAggRebased').desc())
+            )
+        )
+        .where(F.col('RankInTheme') <= (len(greedy_quotas.keys()) * max_quota))
+        .withColumn(
+            'nTile',
+            F.ntile(1000).over(
+                Window
+                .partitionBy('NextTheme')
+                .orderBy(F.col('ProbAggRebased').desc())
+            )
+        )
+        .withColumn(
+            'SwitchRank',
+            F.when(
+                F.col('nTile') % 2 == 0,
+                F.col('ThemeOrder') * F.lit(switch_multiplier)
+            ).otherwise(F.col('ThemeOrder'))
+        )
+        .orderBy(
+            F.col('nTile'),
+            F.col('SwitchRank'),
+            F.col('ProbAggRebased').desc()
+        )
+        .withColumn('GlobalRank', F.monotonically_increasing_id() + 1)
+    )
+
+    df_theme_scores_global_rank.cache()
+    gr_records = df_theme_scores_global_rank.count()
+    logger.info(f'{gr_records:,} records passed to greedy assignment')
+
+    df_theme_scores_greedy = greedy_assignment(
+        df_theme_scores_global_rank,
+        greedy_quotas,
+        item_col='NextTheme',
+        user_col='AccountNumber',
+        rank_col='GlobalRank'
+    )
+
+    df_theme_scores = (
+        df_theme_scores
+        .join(df_theme_scores_greedy.withColumn('GreedyScore', F.lit(1)),
+              on=['AccountNumber', 'NextTheme'], how='left')
+        .fillna(0, subset=['GreedyScore'])
+    )
+else:
+    if GREEDY_CFG:
+        bad_gcfg_msg = 'Invalid greedy theme config, skipping greedy assignment' # noqa
+        logger.warning(bad_gcfg_msg)
+        if JOB_ENV == "prod":
+            post_to_webhook(WEBHOOK_URL, bad_gcfg_msg)
+    logger.info('Greedy assignment not enabled')
+    logger.info('Defaulting to greedy score of 0 for all themes')
+    df_theme_scores = df_theme_scores.withColumn('GreedyScore', F.lit(0))
+
 
 if APPLY_AD_FEEDBACK:
     logger.info(f'Getting ad feedback scores (weight: {AD_FEEDBACK_WEIGHT})')
@@ -104,11 +207,14 @@ else:
     df_theme2ad = df_theme2ad.withColumn('IncrementalScore', F.lit(1.0))
 
 logger.info('Normalising theme scores and mapping to ads')
+# Add GreedyScore after normalisation so greedy assignments exist in
+# range [1, 2), which normal scores fall in range [0, 1)
 df_score_components = (
     df_theme_scores
     .withColumn(
         'RelevanceScore',
-        (F.col('ProbAggRebased') - F.lit(min_score)) / F.lit(score_range)
+        ((F.col('ProbAggRebased') - F.lit(min_score)) / F.lit(score_range))
+        + F.col('GreedyScore')
     )
     .join(df_theme2ad.withColumnRenamed('Themes', 'NextTheme'),
           on='NextTheme', how='inner')
@@ -198,8 +304,18 @@ df_ad2adset = (
 )
 
 logger.info(f'Ranking and returning top {TOP_ADS_PER_LOCATION} ads per ad set')
+# De-duplicate multi-ad themes (random uniform selection)
 df_adset_scores = (
     df_score_components
+    .withColumn('Rand', F.rand())
+    .withColumn(
+        'AdPerThemeRank',
+        F.rank().over(
+            Window
+            .partitionBy('AccountNumber', 'Theme')
+            .orderBy(F.col('Rand'))
+        ))
+    .where(F.col('AdPerThemeRank') == 1)
     .select('AccountNumber', 'UniqueAdID', 'Score')
     .join(df_ad2adset, on='UniqueAdID', how='inner')
     .withColumn('TieBreaker', F.rand())
