@@ -142,20 +142,9 @@ The GRU model ran via the [mktg_nextAds_UK_GRU](https://adb-6188831950334199.19.
 
 ## Dependencies
 ### dsutils
-- `dsutils` is an internal Python library that centralises and standardises a number of utility functions that are essential to Data Science projects.
+- `dsutils` is an internal Python library that centralises and standardises a number of utility functions essential to Data Science projects.
 - `next-ads` v2.12 is compatible with `dsutils` v0.1.8  
-- The source code for the dsutils library can be found in the [dsutils repo](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_git/dsutils)
-
-#### Installation
-- A repository of `dsutils` verisons can be found at the following location in Volumes in Databricks:
-[/Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/volumes/marketingdata_prod/ds_sandbox/ds_volume?o=6188831950334199&volumePath=%2FVolumes%2Fmarketingdata_prod%2Fds_sandbox%2Fds_volume%2Fdslib%2Fdsutils%2F)
-    - The library can be specified for any Databricks job tasks using the libraries option and specifying the path above
-- For local development, the `dsutils` .whl must be installed manually in your local development environment. To do this, download the relevant .whl file from the location in Volumes above, move it to the root directory of your local `next-ads` repo, activate the virtual environment and run:
-```sh
-pip install dsutils-0.1.8-py3-none-any.whl 
-```
-
-> NOTE: Adding this package to the artefacts repository in Azure DevOps would be a more robust solution to this package management and installation process, and would enable use of formal conventions (e.g. `pyproject.toml` files) to specify this library as a dependency of this project. However, given the current frequency of updates to the `dsutils` library, and relatively small user base, manually building and uploading to Volumes is an adequate and proportionate solution.
+- Source code and documentation for the `dsutils` library can be found in the [dsutils repo](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_git/dsutils)
 
 ### Next Ads Data Pull
 The [mktg_next_ads_data_pull](https://adb-6188831950334199.19.azuredatabricks.net/jobs/201505739615907?o=6188831950334199) job generates the following tables:
