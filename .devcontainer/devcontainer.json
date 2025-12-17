@@ -1,0 +1,38 @@
+{
+  "name": "next-ads",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "LOCAL_USER": "${localEnv:USER}"
+    }
+  },
+  "workspaceFolder": "/workspaces/next-ads",
+  "remoteUser": "vscode",
+  "runArgs": ["--network", "host"],
+  "forwardPorts": [8020],
+  "remoteEnv": {
+  "DATABRICKS_CONFIG_DIR": "/workspaces/next-ads/.databricks"
+},
+  "customizations": {
+  "vscode": {
+    "settings": {
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "python.analysis.extraPaths": [
+      "/workspaces/next-ads/.venv/lib/python3.11/site-packages"
+    ]
+    },
+    "extensions": [
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "ms-python.debugpy",
+      "eamodio.gitlens",           // better Git experience
+      "njpwerner.autodocstring",   // Python docstrings
+      "databricks.databricks"
+    ]
+  }
+},
+  "postCreateCommand": "chmod +x .devcontainer/post_create.sh",
+  "postStartCommand":  "./.devcontainer/post_create.sh",
+  "shutdownAction": "stopContainer"
+}

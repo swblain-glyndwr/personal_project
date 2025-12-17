@@ -1,0 +1,15 @@
+# Local virtual environments
+.venv
+venv
+env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VS Code settings
+.vscode
+
+# Git
+.git
+.gitignore
