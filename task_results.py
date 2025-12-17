@@ -55,6 +55,7 @@ ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
 TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"],
                                 **tbl_args)
 CONTROL_SHEET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
+MULTIPAGE_LOCATIONS_TABLE = map_tbl(tbls["multipage_locations"], **tbl_args)
 
 # Get read tables
 RPID_WITH_ACCOUNTS = cfg["tables"]["read"]["rpid_with_accounts"]
@@ -114,9 +115,6 @@ sdates.sort()
 logger.info(
     f'Processing results from {SESSION_DATE_START} to {SESSION_DATE_END}')
 
-# Suppress PLX location until the corresponding column is live in the PF table
-if 'PLX' in LOCATIONS:
-    del LOCATIONS['PLX']
 
 loc2pf = dict()
 for k in LOCATIONS:
@@ -153,6 +151,15 @@ df_ad_metadata = (
     .withColumn('SessionDate', F.to_date(F.col('rundate') + timedelta(days=1)))
 )
 
+# add PLX PagePaths and Screen to control sheet data
+df_multipage_lookup = (
+    spark
+    .table(MULTIPAGE_LOCATIONS_TABLE)
+    .where(F.col('rundate') >= (SESSION_DATE_START - timedelta(days=1)))
+    .where(F.col('rundate') <= (SESSION_DATE_END - timedelta(days=1)))
+    .withColumn('SessionDate', F.to_date(F.col('rundate') + timedelta(days=1)))
+)
+
 # Force deletion of SessionDate 29th May from ads tables
 # MASID failed on 29th, but was not re-run, so need to force copying forward
 # of ads tables from previous rundate (these will have inhereted from the
@@ -174,17 +181,6 @@ df_ad_metadata = (
     .where(~(F.col('Location').isin(plp_locs)
              & (F.col('rundate') < '2025-09-19')))
 )
-
-# suppress PLX location from results
-df_assignments = (
-    df_assignments
-    .where(F.col('Location') != 'PLX')
-)
-df_ad_metadata = (
-    df_ad_metadata
-    .where(F.col('Location') != 'PLX')
-)
-
 
 loc2page = {}
 loc2screen = {}
@@ -554,9 +550,30 @@ df_days_locations = (
     .distinct()
 )
 
+# Expand df_ad_metadata to accommodate multi-page/screen Locations
+df_ad_metadata_mult = (
+    df_ad_metadata
+    .join(
+        (
+            df_multipage_lookup
+            .select(
+                'SessionDate',
+                'Location',
+                F.col('Page').alias('mult_page'),
+                F.col('Screen').alias('mult_screen')
+            )
+        ),
+        on=['SessionDate', 'Location'],
+        how='left'
+        )
+    .withColumn('Page', F.coalesce(F.col('mult_page'), F.col('Page')))
+    .withColumn('Screen', F.coalesce(F.col('mult_screen'), F.col('Screen')))
+    .drop('mult_page', 'mult_screen')
+)
+
 # Create date-aware page mappings for filtering
 df_page_mapping = (
-    df_ad_metadata
+    df_ad_metadata_mult
     .select('SessionDate', 'Location', F.col('Page').alias('PagePath'))
     .filter(F.col('PagePath').isNotNull())
     .distinct()
@@ -571,7 +588,7 @@ df_days_pages = (
 
 # Create date-aware screen mappings for filtering
 df_screen_mapping = (
-    df_ad_metadata
+    df_ad_metadata_mult
     .withColumn(
         'Screen',
         F.when(
@@ -626,7 +643,7 @@ df_pages = (
             .join(df_days_screens, on=['SessionDate', 'PagePath'], how='inner')
         )
     )
-)
+).distinct()
 assert df_pages.count() > 0, (
     'No broswing data (pages) found between' +
     f' {SESSION_DATE_START} and {SESSION_DATE_END}'
@@ -877,24 +894,25 @@ else:
     logger.info('Getting fixed customer cells from latest table')
     df_fixed_cells = spark.table(FIXED_CELLS_LATEST_TABLE)
 
+df_valid_assignments_pages = (
+    df_valid_assignments
+    .join(df_page_mapping, on=['SessionDate', 'Location'], how='inner')
+    .select('AccountNumber', 'SessionDate', 'PagePath')
+    .unionByName(
+        df_valid_assignments
+        .join(df_screen_mapping, on=['SessionDate', 'Location'], how='inner')
+        .select('AccountNumber', 'SessionDate', 'PagePath')
+    )
+    .distinct()
+)
+
 df_sessions_ads_valid = (
     df_sessions_pages_trimmed
     .join(
         df_fixed_cells.select('AccountNumber', 'FallowControl'),
         on='AccountNumber', how='inner')
     .join(
-        (
-            df_valid_assignments
-            .join(df_page_mapping, on=['SessionDate', 'Location'], how='inner')
-            .select('AccountNumber', 'SessionDate', 'PagePath')
-            .unionByName(
-                df_valid_assignments
-                .join(df_screen_mapping,
-                      on=['SessionDate', 'Location'], how='inner')
-                .select('AccountNumber', 'SessionDate', 'PagePath')
-            )
-            .distinct()
-        ),
+        df_valid_assignments_pages,
         on=['AccountNumber', 'SessionDate', 'PagePath'], how='inner'
          )
 )
@@ -1301,6 +1319,7 @@ df_exclude_credit_dates = (
     .select('SessionDate')
     .distinct()
     .where((F.col('SessionDate') >= '2025-09-16'))
+    .where((F.col('SessionDate') <= '2025-11-10'))
 )
 
 df_credit_account_date_combinations = (
