@@ -1629,8 +1629,10 @@
             "bq_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
             "bq_sessions_with_accounts": "marketingdata_prod.warehouse.bq_views_sessions_next_uk_with_accounts",
             "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
+            "bq_views": "marketingdata_prod.warehouse.bq_views_next_uk",
             "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
+            "bq_views_app": "marketingdata_prod.warehouse.bq_views_next_uk_app",
             "baskets": "marketingdata_prod.warehouse.baskets_uk_3y",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "product_catalog": "marketingdata_prod.warehouse.product_catalog_history",
@@ -1686,7 +1688,8 @@
             "conditional_probability_item_themes_latest": "marketingdata_prod.{schema}.{client}_nextads_conditional_probability_item_themes_latest",
             "conditional_probability_customer_item_interactions_latest": "marketingdata_prod.{schema}.{client}_nextads_conditional_probability_customer_item_interactions_latest",
             "conditional_probability_customer_theme_interactions_latest": "marketingdata_prod.{schema}.{client}_nextads_conditional_probability_customer_theme_interactions_latest",
-            "conditional_probability_theme_associations_latest": "marketingdata_prod.{schema}.{client}_nextads_conditional_probability_theme_associations_latest"
+            "conditional_probability_theme_associations_latest": "marketingdata_prod.{schema}.{client}_nextads_conditional_probability_theme_associations_latest",
+            "viewed_bought_latest": "marketingdata_prod.{schema}.{client}_nextads_viewed_bought_latest"
         }
     },
 
@@ -1783,5 +1786,15 @@
             "seasons coach": 200000,
             "seasons marc jacobs": 200000
         }
+    },
+
+    "viewed_bought": {
+        "time_window_days": 90,
+        "revenue_percentile": 0.90,
+        "min_co_occurrences": 5,
+        "top_n_per_item": 150,
+        "min_conversion_rate": 0.001,
+        "purchase_window_days": 1,
+        "decay_half_life_ratio": 3
     }
 }
