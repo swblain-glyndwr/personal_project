@@ -1,4 +1,6 @@
 import json
+import re
+
 from pyspark.sql import functions as F
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
@@ -40,10 +42,17 @@ TOP_ADS_BY_LOC = map_tbl(tbls['results_ads_top_by_location'], **tbl_args)
 
 WEBHOOK_URL = cfg['webhooks']['Results Warnings']
 
+exclude_locations_like = (
+    cfg['real_time_unknown']['backfill']['exclude_locations_like']
+)
+exclude_pattern = r"^(%s)" % "|".join(
+    map(re.escape, exclude_locations_like)
+)
+location_filter = ~F.col("Location").rlike(exclude_pattern)
+
 df_valid_realtime_ads = (
     spark.table(CONTROL_SHEET_LATEST)
-    .filter(~F.col("Location").like("PH%") &
-            ~F.col("Location").like("HN%"))
+    .filter(location_filter)
     .select("UniqueAdID", "Location", "MASIDToken")
 )
 

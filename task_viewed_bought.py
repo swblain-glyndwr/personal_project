@@ -44,7 +44,8 @@ logger.info(f'Write schema set to {SCHEMA}')
 tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 VB_TABLE_LATEST = map_tbl(tbls["viewed_bought_latest"], **tbl_args)
 
-vb_config = cfg["viewed_bought"]
+vb_config = cfg["real_time_unknown"]["viewed_bought"]
+
 TIME_WINDOW_DAYS = vb_config["time_window_days"]
 REVENUE_PERCENTILE = vb_config["revenue_percentile"]
 MIN_CO_OCCURRENCES = vb_config["min_co_occurrences"]

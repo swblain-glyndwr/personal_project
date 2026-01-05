@@ -1788,13 +1788,19 @@
         }
     },
 
-    "viewed_bought": {
-        "time_window_days": 90,
-        "revenue_percentile": 0.90,
-        "min_co_occurrences": 5,
-        "top_n_per_item": 150,
-        "min_conversion_rate": 0.001,
-        "purchase_window_days": 1,
-        "decay_half_life_ratio": 3
+    "real_time_unknown":{
+        "backfill": {
+            "lookback_days": 14,
+            "exclude_locations_like": ["PH","HN","PL"]
+        },
+        "viewed_bought": {
+            "time_window_days": 90,
+            "revenue_percentile": 0.90,
+            "min_co_occurrences": 5,
+            "top_n_per_item": 150,
+            "min_conversion_rate": 0.001,
+            "purchase_window_days": 1,
+            "decay_half_life_ratio": 3
+        }
     }
 }
