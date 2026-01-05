@@ -878,6 +878,7 @@ elif history_dates and all_dates_from_history and HISTORY_CELLS_DATE:
     df_fixed_cells = (
         spark
         .table(FIXED_CELLS_HISTORY_TABLE)
+        .where(F.col('specialaccountindicator').isNull())
         .where(F.col('RunDateEnd') == HISTORY_CELLS_DATE)
         .withColumnRenamed('RunDateEnd', 'rundate')
     )
@@ -892,7 +893,11 @@ elif history_dates and all_dates_from_history and HISTORY_CELLS_DATE:
     assert_pk(df_fixed_cells, pk_cols=['AccountNumber'])
 else:
     logger.info('Getting fixed customer cells from latest table')
-    df_fixed_cells = spark.table(FIXED_CELLS_LATEST_TABLE)
+    df_fixed_cells = (
+        spark
+        .table(FIXED_CELLS_LATEST_TABLE)
+        .where(F.col('specialaccountindicator').isNull())
+    )
 
 df_valid_assignments_pages = (
     df_valid_assignments

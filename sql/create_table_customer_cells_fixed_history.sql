@@ -15,6 +15,7 @@ create table marketingdata_prod.{schema}.{client}_nextads_customer_cells_fixed_h
     AdHocABTest8 string not null,
     AdHocABTest9 string not null,
     ChampionChallenger string not null,
+    specialaccountindicator string,
     RunDateEnd date not null,
   constraint pk_{client}_nextads_customer_cells_fixed_history primary key (
     AccountNumber,

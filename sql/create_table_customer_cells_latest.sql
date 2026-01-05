@@ -15,6 +15,7 @@ create table marketingdata_prod.{schema}.{client}_nextads_customer_cells_latest 
     AdHocABTest8 string not null,
     AdHocABTest9 string not null,
     ChampionChallenger string not null,
+    specialaccountindicator string,
     AlgoDivision string not null,
     Audience string not null,
     IsPremium int not null,

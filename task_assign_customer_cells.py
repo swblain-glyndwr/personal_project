@@ -135,9 +135,12 @@ df_cust = (
         & (F.col("LatestAccountKeyIndicator") == 1)
         )
     .join(df_rpid_w_acc, on="account_number")
-    .select("account_number")
+    .select("account_number", "specialaccountindicator")
     .withColumnRenamed("account_number", "AccountNumber")
 )
+
+df_staff = df_cust.where(F.col("specialaccountindicator") == 'S')
+df_cust = df_cust.select("AccountNumber")
 
 assert_pk(df_cust, ["AccountNumber"])
 df_cust.cache()
@@ -178,6 +181,37 @@ df_cells = (
                         F.when(F.col("FallowControl"),
                                F.lit(FALLOW_TRUE_LABEL)
                                ).otherwise(F.lit(FALLOW_FALSE_LABEL)))
+)
+
+df_cells = (
+    df_cells
+    .join(
+        df_staff, on='AccountNumber', how='left'
+    ).withColumn(
+        'FallowControl',
+        F.when(F.col('specialaccountindicator') == 'S',
+               FALLOW_FALSE_LABEL).otherwise(F.col('FallowControl'))
+    ).withColumn(
+        'HomePageTest1',
+        F.when(F.col('specialaccountindicator') == 'S',
+               'Best').otherwise(F.col('HomePageTest1'))
+    ).withColumn(
+        'ShoppingBagTest1',
+        F.when(F.col('specialaccountindicator') == 'S',
+               'Best').otherwise(F.col('ShoppingBagTest1'))
+    ).withColumn(
+        'OrderCompleteTest1',
+        F.when(F.col('specialaccountindicator') == 'S',
+               'Best').otherwise(F.col('OrderCompleteTest1'))
+    ).withColumn(
+        'LandingPageTest1',
+        F.when(F.col('specialaccountindicator') == 'S',
+               'Best').otherwise(F.col('LandingPageTest1'))
+    ).withColumn(
+        'ChampionChallenger',
+        F.when(F.col('specialaccountindicator') == 'S',
+               'Challenger').otherwise(F.col('ChampionChallenger'))
+    )
 )
 
 df_cells_existing = (
