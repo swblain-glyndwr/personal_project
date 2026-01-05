@@ -87,7 +87,12 @@ This job:
 - Assigns ads to customers for each location, depending on model scores, config and customer cells
 - Performs QA checks on the assignments and tables (e.g. Primary Key validity)
 
-__NOTE__: This job is currently (2025-11-21) split into two jobs, with the control sheet load, item-theme parsing and lightweight modelling having been moved to [mktg_next_uk_nextads_load_control_sheet](https://adb-6188831950334199.19.azuredatabricks.net/jobs/35962584101213?o=6188831950334199). This is done to accommodate external modelling - i.e. the Next Best Label model - which takes several hours to run. The ad assignment and QA tasks remain in the original job.
+#### "Switching off" ad assignments
+To effectively "switch off" ad assignments, the following steps should be performed.
+1. Pause the schedule of the `mktg_next_uk_nextads` job - this will stop assignments from being updated.
+2. Pausing the job will mean that assignments in customers' MASID ad slots will stop updating, but without any additional action they will stay as the assignments from the last time the job was run. The easiest way to set all ad-related MASID assignments to `_Z` (which means no ad will show), is to truncate `warehouse.next_uk_nextads_assignments_latest`, which can be done conveniently by running the associated task manually in the `mktg_next_uk_nextads` job. This table being empty means that the `mktg_pf_masid_v2` job will have no "current" ads to pick up for any customer for any location, and will default to `_Z` assignments for all ad slots.  
+
+To restart assignments, simply unpause the `mktg_next_uk_nextads` job.
 
 #### Ad feedback loop
 The ad feedback loop centres around the function `Assignment.get_ad_feedback_scores()`, which is applied to the base relevance scores provided by whichever internal or extenal model is being used. The function boosts/penalises ads in the final ranking based on the ad's current commercial performance. There is a [wiki page](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_wiki/wikis/Directory%20Marketing%20Platform/50090/Ad-Feedback-Loop) that runs through how the loop works, with a number of worked examples.
