@@ -104,7 +104,16 @@ df_catalog = (
                 F.array_contains(F.split(F.lower(F.col('range')), '\\|'),
                                  'n premium the snuggle grand')
             ),
-            'npremium').otherwise(F.col('brand'))
+            'npremium')
+        .when(
+            (
+                F.lower(F.col('title')).rlike('signature')) &
+                (F.lower(F.col('range')).rlike('signature') | F.lower(F.col('range')).rlike('next signature')) &
+                (F.lower(F.col('brand')) == 'next') &
+                (F.col('next_department') == 'menswear')
+                ,
+                'nextsignature'
+        ).otherwise(F.col('brand'))
     )
     .withColumnsRenamed(
         {
