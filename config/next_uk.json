@@ -1775,19 +1775,6 @@
         "max_multi_themes_pc": 0.02
     },
 
-    "greedy_themes": {
-        "tiles": 1000,
-        "switch_tiles": true,
-        "quotas": {
-            "seasons varley": 200000,
-            "seasons polo ralph lauren mens": 200000,
-            "seasons polo ralph lauren womens": 200000,
-            "seasons mulberry": 200000,
-            "seasons coach": 200000,
-            "seasons marc jacobs": 200000
-        }
-    },
-
     "real_time_unknown":{
         "backfill": {
             "lookback_days": 14,

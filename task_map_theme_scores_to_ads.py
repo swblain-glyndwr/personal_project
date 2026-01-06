@@ -91,10 +91,15 @@ logger.info(f'Norm min/max/range: {min_score}/{max_score}/{score_range}')
 GREEDY_CFG = cfg.get('greedy_themes', {})
 
 # Validate greedy quota format
-gcfg_isdict = isinstance(GREEDY_CFG['quotas'], dict)
-gcfg_val_int = all([isinstance(k, int) for k in GREEDY_CFG['quotas'].values()])
+gcfg_isdict = isinstance(GREEDY_CFG.get('quotas', None), dict)
+if gcfg_isdict:
+    gcfg_val_int = all(
+        [isinstance(k, int) for k in GREEDY_CFG['quotas'].values()]
+        )
+else:
+    gcfg_val_int = False
 
-if GREEDY_CFG['quotas'] and all([gcfg_isdict, gcfg_val_int]):
+if all([gcfg_isdict, gcfg_val_int]):
     # Process greedy config
     greedy_quotas = GREEDY_CFG.get('quotas')
     max_quota = max(greedy_quotas.values())
