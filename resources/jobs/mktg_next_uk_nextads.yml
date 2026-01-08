@@ -1,0 +1,436 @@
+resources:
+  jobs:
+    mktg_next_uk_nextads_cicd: # TODO temp name to avoid clash with existing job
+      name: mktg_next_uk_nextads_cicd # TODO change back to {{job.name}}
+      run_as:
+        service_principal_name: ${var.run_as_SPN_name}
+      queue:
+        enabled: true
+      parameters:
+        - name: job_name
+          default: mktg_next_uk_nextads_cicd #"{{job.name}}" # TODO swap back to parameter
+      # job_clusters: ${var.job_clusters_config}
+      email_notifications:
+        on_failure:
+          - tom_corke@next.co.uk
+          - mktg_data_support@next.co.uk
+          - edward_taylor@next.co.uk
+      notification_settings:
+        no_alert_for_skipped_runs: true
+        no_alert_for_canceled_runs: true
+      schedule:
+        quartz_cron_expression: 0 0 18 * * ?
+        timezone_id: Europe/London
+      tasks:
+        - task_key: assign_customer_cells
+          spark_python_task:
+            python_file: ../../scripts/assign_customer_cells.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --refresh_control_date
+              - "2026-01-08"
+          job_cluster_key: next_uk_nextads_assign_customer_cells
+          libraries:
+            - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          timeout_seconds: 7200
+        - task_key: combine_customer_cells
+          depends_on:
+            - task_key: assign_customer_cells
+          spark_python_task:
+            python_file: ../../scripts/combine_customer_cells.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+          job_cluster_key: next_uk_nextads_assign_customer_cells
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          timeout_seconds: 3600
+        - task_key: load_control_sheet
+          spark_python_task:
+            python_file: ../../scripts/load_control_sheet.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+          job_cluster_key: next_uk_nextads_load_control_sheet
+          libraries:
+            - pypi:
+                package: gspread==6.1.2
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          timeout_seconds: 3600
+        - task_key: parse_attributes
+          depends_on:
+            - task_key: load_control_sheet
+          spark_python_task:
+            python_file: ../../scripts/parse_attributes.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --set
+          job_cluster_key: next_uk_nextads_attributes_cluster
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          timeout_seconds: 7200
+        - task_key: parse_theme_mapping
+          depends_on:
+            - task_key: parse_attributes
+          spark_python_task:
+            python_file: ../../scripts/parse_theme_mapping.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --set
+          job_cluster_key: next_uk_nextads_attributes_cluster
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+            - pypi:
+                package: gspread==6.1.2
+          timeout_seconds: 3600
+        - task_key: score_lightweight
+          depends_on:
+            - task_key: parse_theme_mapping
+          spark_python_task:
+            python_file: ../../scripts/build_markov_chain.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --train
+          job_cluster_key: next_uk_nextads_score_lightweight
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+            - pypi:
+                package: networkx==3.5
+            - pypi:
+                package: plotly==6.3.1
+          timeout_seconds: 10800
+        - task_key: map_theme_scores_to_ads
+          depends_on:
+            - task_key: score_lightweight
+          spark_python_task:
+            python_file: ../../scripts/map_theme_scores_to_ads.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --apply-ad-feedback
+          job_cluster_key: next_uk_nextads_score_lightweight
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          timeout_seconds: 10800
+        - task_key: truncate_assignments_latest
+          depends_on:
+            - task_key: combine_customer_cells
+          spark_python_task:
+            python_file: ../../scripts/truncate_assignments_latest.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+          job_cluster_key: next_uk_nextads_assign_customer_cells
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          timeout_seconds: 3600
+        - task_key: build_page
+          depends_on:
+            - task_key: truncate_assignments_latest
+            - task_key: map_theme_scores_to_ads
+          for_each_task:
+            inputs: '["SB1","OC1","LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9","LP10","LP11","PL1","PL2","PL3","PL4","PL5","PL6","PL7","PL8","PL9","PL10","PL11","PL12","PL13","PL14","PL15","PL16","PL17","PL18","PL19","PL20","PL21","PL22","PL23","PL24","PL25","PL26","PL27","PL28","PL29","PL30","PL31","PL32","PL33","PL34","PL35","PL36","PL37","PL38","PL39","PL40","PL41","PL42","PL43","PL44","PL45","PL46","PL47","PL48","PL49","PL50","PL51","PL52","PL53","PL54","PL55","PL56","PL57","PL58","PL59","PL60","PL61","PLX"]'
+            concurrency: 30
+            task:
+              task_key: build_page_iteration
+              spark_python_task:
+                python_file: ../../scripts/build_page.py
+                parameters:
+                  - --client
+                  - "next_uk"
+                  - --job_env
+                  - ${var.job_parameter_environment_name}
+                  - --location
+                  - "{{input}}"
+              job_cluster_key: next_uk_nextads_page_build
+              libraries:
+                - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+              max_retries: 2
+              min_retry_interval_millis: 5000
+              timeout_seconds: 10800
+        - task_key: QA
+          depends_on:
+            - task_key: build_page
+          run_if: ALL_DONE
+          spark_python_task:
+            python_file: ../../scripts/qa.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+          job_cluster_key: next_uk_nextads_page_build
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          timeout_seconds: 3600
+        - task_key: viewed_bought
+          spark_python_task:
+            python_file: ../../scripts/viewed_bought.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+          job_cluster_key: viewed_bought_cluster
+          libraries:
+            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.12-py3-none-any.whl
+          timeout_seconds: 10800
+      job_clusters:
+        - job_cluster_key: next_uk_nextads_assign_customer_cells
+          new_cluster:
+            policy_id: ${var.job_cluster_policy_id}
+            spark_version: 15.4.x-scala2.12
+            spark_conf:
+              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
+              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
+              spark.hadoop.google.cloud.auth.service.account.enable: "true"
+              spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
+              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
+              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
+              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+            azure_attributes:
+              first_on_demand: 1
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_D8ads_v5
+            driver_node_type_id: Standard_D4ads_v5
+            custom_tags:
+              Team Cost Centre: C9871
+              Recharge Department: MarketingData
+              Recharge Cost Centre: C9871
+              Team: MarketingData
+            spark_env_vars:
+              CURRENT_ENV: prod
+              GOOGLE_CLOUD_PROJECT: big-query-156009
+            enable_elastic_disk: true
+            workload_type:
+              clients:
+                notebooks: true
+                jobs: true
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            runtime_engine: STANDARD
+            num_workers: 2
+        - job_cluster_key: next_uk_nextads_attributes_cluster
+          new_cluster:
+            policy_id: ${var.job_cluster_policy_id}
+            spark_version: 15.4.x-scala2.12
+            spark_conf:
+              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
+              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
+              spark.hadoop.google.cloud.auth.service.account.enable: "true"
+              spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
+              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
+              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
+              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+            azure_attributes:
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_D16ads_v5
+            driver_node_type_id: Standard_D4ads_v5
+            custom_tags:
+              Showback Cost Centre: C9871
+              Recharge Department: MarketingData
+              Showback Team: MarketingData
+              Recharge Cost Centre: C9871
+            spark_env_vars:
+              CURRENT_ENV: prod
+              GOOGLE_CLOUD_PROJECT: big-query-156009
+            workload_type:
+              clients:
+                notebooks: true
+                jobs: true
+            data_security_mode: SINGLE_USER
+            runtime_engine: STANDARD
+            autoscale:
+              min_workers: 4
+              max_workers: 4
+        - job_cluster_key: next_uk_nextads_build_targeting_scores
+          new_cluster:
+            policy_id: ${var.job_cluster_policy_id}
+            spark_version: 15.4.x-scala2.12
+            spark_conf:
+              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
+              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
+              spark.hadoop.google.cloud.auth.service.account.enable: "true"
+              spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
+              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
+              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
+              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+            azure_attributes:
+              first_on_demand: 1
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_D16ads_v5
+            driver_node_type_id: Standard_D4ads_v5
+            custom_tags:
+              Team Cost Centre: C9871
+              Recharge Department: MarketingData
+              Recharge Cost Centre: C9871
+              Team: MarketingData
+            spark_env_vars:
+              CURRENT_ENV: prod
+              GOOGLE_CLOUD_PROJECT: big-query-156009
+            enable_elastic_disk: true
+            workload_type:
+              clients:
+                notebooks: true
+                jobs: true
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            runtime_engine: STANDARD
+            num_workers: 2
+        - job_cluster_key: next_uk_nextads_load_control_sheet
+          new_cluster:
+            policy_id: ${var.job_cluster_policy_id}
+            spark_version: 15.4.x-scala2.12
+            spark_conf:
+              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
+              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
+              spark.hadoop.google.cloud.auth.service.account.enable: "true"
+              spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
+              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
+              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
+              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+            azure_attributes:
+              first_on_demand: 1
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_D4ads_v5
+            driver_node_type_id: Standard_D4ads_v5
+            custom_tags:
+              Team Cost Centre: C9871
+              Recharge Department: MarketingData
+              Recharge Cost Centre: C9871
+              Team: MarketingData
+            spark_env_vars:
+              CURRENT_ENV: prod
+              GOOGLE_CLOUD_PROJECT: big-query-156009
+            enable_elastic_disk: true
+            workload_type:
+              clients:
+                notebooks: true
+                jobs: true
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            runtime_engine: STANDARD
+            num_workers: 1
+        - job_cluster_key: next_uk_nextads_page_build
+          new_cluster:
+            policy_id: ${var.job_cluster_policy_id}
+            spark_version: 15.4.x-scala2.12
+            spark_conf:
+              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
+              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
+              spark.hadoop.google.cloud.auth.service.account.enable: "true"
+              spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
+              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
+              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
+              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+            azure_attributes:
+              first_on_demand: 1
+              availability: ON_DEMAND_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_D32ads_v5
+            driver_node_type_id: Standard_D32ads_v5
+            custom_tags:
+              Team Cost Centre: C9871
+              Recharge Department: MarketingData
+              Recharge Cost Centre: C9871
+              Team: marketing_job
+            spark_env_vars:
+              CURRENT_ENV: prod
+              GOOGLE_CLOUD_PROJECT: big-query-156009
+            enable_elastic_disk: true
+            workload_type:
+              clients:
+                notebooks: true
+                jobs: true
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            runtime_engine: PHOTON
+            num_workers: 4
+        - job_cluster_key: next_uk_nextads_score_lightweight
+          new_cluster:
+            policy_id: ${var.job_cluster_policy_id}
+            spark_version: 15.4.x-scala2.12
+            spark_conf:
+              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
+              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
+              spark.hadoop.google.cloud.auth.service.account.enable: "true"
+              spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
+              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
+              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
+              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+            azure_attributes:
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_D16ads_v5
+            driver_node_type_id: Standard_D4ads_v5
+            custom_tags:
+              Showback Cost Centre: C9871
+              Recharge Department: MarketingData
+              Showback Team: MarketingData
+              Recharge Cost Centre: C9871
+            spark_env_vars:
+              CURRENT_ENV: prod
+              GOOGLE_CLOUD_PROJECT: big-query-156009
+            workload_type:
+              clients:
+                notebooks: true
+                jobs: true
+            data_security_mode: SINGLE_USER
+            runtime_engine: STANDARD
+            autoscale:
+              min_workers: 4
+              max_workers: 4
+        - job_cluster_key: viewed_bought_cluster
+          new_cluster:
+            policy_id: ${var.job_cluster_policy_id}
+            spark_version: 15.4.x-scala2.12
+            spark_conf:
+              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
+              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
+              spark.hadoop.google.cloud.auth.service.account.enable: "true"
+              spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
+              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
+              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
+              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+            azure_attributes:
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_D32ads_v5
+            driver_node_type_id: Standard_D32ads_v5
+            custom_tags:
+              Showback Cost Centre: C9871
+              Recharge Department: MarketingData
+              Showback Team: MarketingData
+              Recharge Cost Centre: C9871
+            spark_env_vars:
+              CURRENT_ENV: prod
+              GOOGLE_CLOUD_PROJECT: big-query-156009
+            workload_type:
+              clients:
+                notebooks: true
+                jobs: true
+            data_security_mode: SINGLE_USER
+            runtime_engine: STANDARD
+            autoscale:
+              min_workers: 1
+              max_workers: 4

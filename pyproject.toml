@@ -8,13 +8,14 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = [
-    "ipykernel (==6.29.5)",
-    "databricks-connect (==15.4.2)",
-    "gspread (==6.1.2)",
-    "pytest (>=8.3.3)",
-]
 
+[tool.poetry.dependencies]
+python = ">=3.11"
+ipykernel = "6.29.5"
+databricks-connect = "15.4.2"
+gspread = "6.1.2"
+pytest = ">=8.3.3"
+dsutils = {path = "./wheels/dsutils-0.1.8-py3-none-any.whl"}
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -23,6 +24,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.group.dev.dependencies]
 plotly = "^6.3.1"
 networkx = "^3.5"
+ruff = "^0.14.9"
 
 [tool.ruff.format]
 quote-style = "double"

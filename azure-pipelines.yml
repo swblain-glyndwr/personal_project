@@ -1,0 +1,94 @@
+# Azure DevOps Pipeline - Complete CI/CD
+# Combines validation (CI) with deployment (CD) using Databricks Bundles
+
+name: mktg-next-ads-ci-cd-$(Build.SourceVersion)-$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none # all manual for now
+
+parameters:
+  # - name: deploymentEnvironment
+  #   displayName: Target Environment
+  #   type: string
+  #   default: Development
+  #   values:
+  #   - Development
+  #   - PreProduction
+  #   - Production
+  - name: destroyBundle
+    type: boolean
+    default: false
+    displayName: 'Delete DAB resources'
+
+variables:
+  - template: devops/variables/common.yml
+
+stages:
+  - stage: CI
+    displayName: 'Continuous Integration'
+    variables:
+    - group: Development
+    jobs:
+      - template: devops/templates/unit-tests.yml
+        parameters:
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+
+  - stage: DeployDEV
+    displayName: 'Deploy to DEV'
+    dependsOn: CI
+    variables:
+    - group: Development
+    jobs:
+      - template: devops/templates/deploy-dab.yml
+        parameters:
+          target: 'DEV'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+
+  - stage: DestroyDEV
+    displayName: 'Destroy DEV'
+    condition: eq('${{ parameters.destroyBundle }}', 'true')
+    variables:
+    - group: Development
+    jobs:
+      - template: devops/templates/destroy-dab.yml
+        parameters:
+          target: 'DEV'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+
+  - stage: DeployPREPROD
+    displayName: 'Deploy PREPROD to PROD'
+    dependsOn: DeployDEV
+    condition: succeeded()
+    variables:
+    - group: Production
+    jobs:
+      - template: devops/templates/deploy-dab.yml
+        parameters:
+          target: 'PREPROD'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_prod)
+          azureSubscription: $(serviceConnectionName_prod)
+          KeyVaultName: $(strKeyVaultName)
+
+  - stage: DeployPROD
+    displayName: 'Deploy to PROD'
+    dependsOn: DeployPREPROD
+    condition: succeeded()
+    variables:
+    - group: Production
+    jobs:
+      - template: devops/templates/deploy-dab.yml
+        parameters:
+          target: 'PROD'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_prod)
+          azureSubscription: $(serviceConnectionName_prod)
+          KeyVaultName: $(strKeyVaultName)

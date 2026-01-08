@@ -1,0 +1,24 @@
+variables:
+  - name: serviceConnectionName_dev
+    value: 'AzureDevOps-SPN-MKT-DEV'
+    readonly: true
+
+  - name: serviceConnectionName_preprod
+    value: 'AzureDevOps-SPN-MKT-PREPROD'
+    readonly: true
+
+  - name: serviceConnectionName_prod
+    value: 'AzureDevOps-SPN-MKT-PROD'
+    readonly: true
+
+  - name: agentpool_dev
+    value: 'ADOBA-VMSS-MKT-DEV-EUW'
+
+  - name: agentpool_preprod
+    value: 'ADOBA-VMSS-MKT-PREPROD-EUW'
+
+  - name: agentpool_prod
+    value: 'ADOBA-VMSS-MKT-PROD-EUW'
+
+  - name: PYTHON_VERSION
+    value: '3.11'

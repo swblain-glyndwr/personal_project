@@ -1,0 +1,84 @@
+parameters:
+  - name: pythonVersion
+    type: string
+    default: '3.11'
+  - name: AzureBuildAgentPool
+    type: string
+  - name: azureSubscription
+    type: string
+  - name: KeyVaultName
+    type: string
+
+jobs:
+  - job: UnitTests
+    displayName: 'Run Unit Tests with Poetry'
+    pool:
+      name: '${{parameters.AzureBuildAgentPool}}'
+      vmImage: ubuntu-latest
+    steps:
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: ${{ parameters.pythonVersion }}
+        displayName: 'Set up Python ${{ parameters.pythonVersion }}'
+
+      - script: |
+          python -m pip install --upgrade pip poetry==2.2.1
+          poetry --version
+          poetry install
+        displayName: 'Install Poetry and dependencies'
+
+      - task: AzureKeyVault@2
+        inputs:
+          azureSubscription: ${{ parameters.azureSubscription }}
+          KeyVaultName: ${{ parameters.KeyVaultName }}
+          SecretsFilter: "Databricks-Spn-MarketingData-ClientId,Databricks-Spn-MarketingData-SecretValue"
+          RunAsPreJob: true
+        displayName: 'Fetch secrets from Key Vault'
+
+      - script: |
+          bash devops/scripts/install_databricks_cli.sh
+        displayName: 'Install Databricks CLI'
+        env:
+          DATABRICKS_HOST: $(DATABRICKS_HOST)
+          DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
+          DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
+
+      - bash: |
+          echo "Starting cluster: $(DATABRICKS_CLUSTER_ID)"
+          bash devops/scripts/start_db_cluster.sh $(DATABRICKS_CLUSTER_ID)
+        name: start_test_cluster
+        displayName: Start the testing cluster
+        env:
+          DATABRICKS_CLUSTER_ID: $(DATABRICKS_CLUSTER_ID)
+
+      - bash: |
+          poetry run pytest tests/ -v --junitxml=junit/test-results.xml
+        name: run_unit_tests
+        displayName: Run Python Unit Tests
+        continueOnError: true
+        env:
+          DATABRICKS_HOST: $(DATABRICKS_HOST)
+          DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
+          DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
+          DATABRICKS_CLUSTER_ID: $(DATABRICKS_CLUSTER_ID)
+
+      - task: PublishTestResults@2
+        condition: succeededOrFailed()
+        inputs:
+          testResultsFiles: 'junit/test-results.xml'
+          testRunTitle: 'Python Unit Tests'
+          mergeTestResults: true
+        displayName: 'Publish test results'
+
+      - script: |
+          echo "Linting Python code..."
+          poetry run ruff check || echo "⚠️  Formatting issues"
+        displayName: 'Lint code'
+        continueOnError: true
+
+      # - task: PublishCodeCoverageResults@1
+      #   condition: succeededOrFailed()
+      #   inputs:
+      #     codeCoverageTool: Cobertura
+      #     summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+      #   displayName: 'Publish code coverage'

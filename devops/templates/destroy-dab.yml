@@ -1,0 +1,52 @@
+parameters:
+  - name: target
+    type: string
+    default: 'DEV'
+  - name: pythonVersion
+    type: string
+    default: '3.11'
+  - name: AzureBuildAgentPool
+    type: string
+  - name: azureSubscription
+    type: string
+  - name: KeyVaultName
+    type: string
+
+jobs:
+  - job: DestroyDAB
+    displayName: 'Destroy DAB Resources'
+    pool:
+      name: '${{parameters.AzureBuildAgentPool}}'
+      vmImage: ubuntu-latest
+    steps:
+      - checkout: self
+
+      - task: AzureKeyVault@2
+        inputs:
+          azureSubscription: ${{ parameters.azureSubscription }}
+          KeyVaultName: ${{ parameters.KeyVaultName }}
+          SecretsFilter: "Databricks-Spn-MarketingData-ClientId,Databricks-Spn-MarketingData-SecretValue"
+          RunAsPreJob: true
+        displayName: 'Fetch secrets from Key Vault'
+
+      - script: |
+          bash devops/scripts/install_databricks_cli.sh
+        displayName: 'Install Databricks CLI'
+        env:
+          DATABRICKS_HOST: $(DATABRICKS_HOST)
+          DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
+          DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
+
+      - script: |
+          echo "Starting DAB cleanup..."
+          unset DATABRICKS_CLUSTER_ID
+          databricks bundle destroy -t ${{ parameters.target }} --auto-approve
+          echo "Bundle destruction completed"
+        displayName: 'Execute Bundle Destruction'
+
+      - script: |
+          echo "Verifying destruction..."
+          unset DATABRICKS_CLUSTER_ID
+          databricks bundle summary -t ${{ parameters.target }} || echo "Bundle workspace cleaned"
+        displayName: 'Verify cleanup'
+        continueOnError: true

@@ -227,6 +227,24 @@ In the current implementation of real-time ads, the Data Engineering (DE) team h
 See [NextAds Real Time - Project Charter](https://docs.google.com/document/d/1wnl7BQ2zs3f-LoPSbD1yPiIzFSIMfyHnibupwaOIwfU/edit?tab=t.0) for full project background and [NextAds Realtime - Part 3 Known Customers Solutions](https://docs.google.com/document/d/1403KFCB0qA0xrJwY87CuX00Yjiu0q0vZD3elO3C-ZUU/edit?tab=t.0) for known customer implementation options.
 
 ## DevOps
+
+See [cicd_pipeline_guide](/docs/cicd_pipeline_guide.md).
+
+### Project Structure Setup
+
+```md
+next-ads/
+├── azure-pipelines.yml          # Main pipeline
+├── databricks.yml               # DAB configuration
+├── devops/                      # DevOps resources
+│   ├── scripts/
+│   ├── templates/
+│   └── variables/
+├── resources/                   # DAB resources
+│   └── jobs/
+```
+
+
 ### Deployment patterns
 The project is structured as a Databricks Asset Bundle. The bundle is currently only utilised to deploy the code; the jobs referenced in the [Engine](#engine) section point to the relevant deployment, i.e. the prod job points to the code in the deployed 'prod' directory, and the 'dev' job points to the 'preprod' directory.
 
