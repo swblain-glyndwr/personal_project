@@ -1,3 +1,17 @@
+import sys
+from pathlib import Path
+try:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+except NameError:
+    # __file__ is not defined when running as a Databricks notebook
+    notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get() # type: ignore # noqa
+    if not notebook_path.startswith('/Workspace'):
+        notebook_path = '/Workspace' + notebook_path
+    PROJECT_ROOT = Path(notebook_path).parent.parent
+finally:
+    print(f"Project root resolved to: {PROJECT_ROOT}")
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import json
 from pyspark.sql import functions as F
 from dsutils.dbc import configure_spark
@@ -26,7 +40,7 @@ if not CLIENT:
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
 logger.info(f"Configuring run for client: {CLIENT}")
-with open(f"config/{CLIENT}.json") as f:
+with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 SET_ATTRIBUTES = jobparser.has_arg('--set') or False
@@ -106,13 +120,17 @@ df_catalog = (
             ),
             'npremium')
         .when(
+            (F.lower(F.col('title')).rlike('signature'))
+            &
             (
-                F.lower(F.col('title')).rlike('signature')) &
-                (F.lower(F.col('range')).rlike('signature') | F.lower(F.col('range')).rlike('next signature')) &
-                (F.lower(F.col('brand')) == 'next') &
-                (F.col('next_department') == 'menswear')
-                ,
-                'nextsignature'
+                F.lower(F.col('range')).rlike('signature')
+                | F.lower(F.col('range')).rlike('next signature')
+            )
+            &
+            (F.lower(F.col('brand')) == 'next')
+            &
+            (F.col('next_department') == 'menswear'),
+            'nextsignature'
         ).otherwise(F.col('brand'))
     )
     .withColumnsRenamed(
@@ -260,6 +278,13 @@ if SET_ATTRIBUTES:
         df_attribute_set,
         ATTRIBUTE_SET_LATEST,
         pk_cols=['attribute', 'value']
+    )
+
+    logger.info('Refreshing latest item-attribute mapping (using new attribute set)')  # noqa
+    truncate_and_load(
+        df_attributes_master,
+        ITEM_ATTRIBUTES_LATEST,
+        pk_cols=['pid', 'attribute', 'value']
     )
 
 else:
