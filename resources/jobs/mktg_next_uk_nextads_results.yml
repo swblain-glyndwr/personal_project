@@ -124,4 +124,6 @@ resources:
             runtime_engine: STANDARD
             kind: CLASSIC_PREVIEW
             is_single_node: false
-            num_workers: 3
+            autoscale:
+              min_workers: 3
+              max_workers: 3

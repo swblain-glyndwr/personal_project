@@ -74,7 +74,6 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-              - --set
           job_cluster_key: next_uk_nextads_attributes_cluster
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
@@ -89,7 +88,6 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-              - --set
           job_cluster_key: next_uk_nextads_attributes_cluster
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
@@ -106,7 +104,6 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-              - --train
           job_cluster_key: next_uk_nextads_score_lightweight
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
@@ -149,7 +146,7 @@ resources:
             - task_key: truncate_assignments_latest
             - task_key: map_theme_scores_to_ads
           for_each_task:
-            inputs: '["SB1","OC1","LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9","LP10","LP11","PL1","PL2","PL3","PL4","PL5","PL6","PL7","PL8","PL9","PL10","PL11","PL12","PL13","PL14","PL15","PL16","PL17","PL18","PL19","PL20","PL21","PL22","PL23","PL24","PL25","PL26","PL27","PL28","PL29","PL30","PL31","PL32","PL33","PL34","PL35","PL36","PL37","PL38","PL39","PL40","PL41","PL42","PL43","PL44","PL45","PL46","PL47","PL48","PL49","PL50","PL51","PL52","PL53","PL54","PL55","PL56","PL57","PL58","PL59","PL60","PL61","PLX"]'
+            inputs: '["SB1","OC1"]'
             concurrency: 30
             task:
               task_key: build_page_iteration
@@ -229,7 +226,11 @@ resources:
                 jobs: true
             data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: STANDARD
-            num_workers: 2
+            kind: CLASSIC_PREVIEW
+            is_single_node: false
+            autoscale:
+              min_workers: 2
+              max_workers: 2
         - job_cluster_key: next_uk_nextads_attributes_cluster
           new_cluster:
             policy_id: ${var.job_cluster_policy_id}
@@ -261,6 +262,8 @@ resources:
                 jobs: true
             data_security_mode: SINGLE_USER
             runtime_engine: STANDARD
+            kind: CLASSIC_PREVIEW
+            is_single_node: false
             autoscale:
               min_workers: 4
               max_workers: 4
@@ -297,7 +300,11 @@ resources:
                 jobs: true
             data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: STANDARD
-            num_workers: 2
+            kind: CLASSIC_PREVIEW
+            is_single_node: false
+            autoscale:
+              min_workers: 2
+              max_workers: 2
         - job_cluster_key: next_uk_nextads_load_control_sheet
           new_cluster:
             policy_id: ${var.job_cluster_policy_id}
@@ -331,7 +338,11 @@ resources:
                 jobs: true
             data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: STANDARD
-            num_workers: 1
+            kind: CLASSIC_PREVIEW
+            is_single_node: false
+            autoscale:
+              min_workers: 1
+              max_workers: 1
         - job_cluster_key: next_uk_nextads_page_build
           new_cluster:
             policy_id: ${var.job_cluster_policy_id}
@@ -346,7 +357,7 @@ resources:
               credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
             azure_attributes:
               first_on_demand: 1
-              availability: ON_DEMAND_AZURE
+              availability: SPOT_WITH_FALLBACK_AZURE
               spot_bid_max_price: -1
             node_type_id: Standard_D32ads_v5
             driver_node_type_id: Standard_D32ads_v5
@@ -365,7 +376,11 @@ resources:
                 jobs: true
             data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: PHOTON
-            num_workers: 4
+            kind: CLASSIC_PREVIEW
+            is_single_node: false
+            autoscale:
+              min_workers: 4
+              max_workers: 4
         - job_cluster_key: next_uk_nextads_score_lightweight
           new_cluster:
             policy_id: ${var.job_cluster_policy_id}
@@ -397,6 +412,8 @@ resources:
                 jobs: true
             data_security_mode: SINGLE_USER
             runtime_engine: STANDARD
+            kind: CLASSIC_PREVIEW
+            is_single_node: false
             autoscale:
               min_workers: 4
               max_workers: 4
@@ -431,6 +448,8 @@ resources:
                 jobs: true
             data_security_mode: SINGLE_USER
             runtime_engine: STANDARD
+            kind: CLASSIC_PREVIEW
+            is_single_node: false
             autoscale:
               min_workers: 1
               max_workers: 4
