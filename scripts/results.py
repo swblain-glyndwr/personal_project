@@ -30,7 +30,6 @@ from next_ads.Results import (check_for_missing_dates,
 
 jobparser = get_job_parser()
 jobparser._parse_args()
-JOBNAME = jobparser.get_arg('--jobname')
 JOB_ENV = jobparser.get_arg('--job_env')
 CLIENT = jobparser.get_arg('--client')
 LOG_LEVEL = jobparser.get_arg('--log_level')
@@ -40,7 +39,8 @@ spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
 
 if not CLIENT:
-    assert not JOBNAME, 'Client must be specified when running as a job'
+    assert JOB_ENV.lower() == 'dev', \
+        f'Client must be specified when running in {JOB_ENV}'
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
@@ -95,13 +95,13 @@ TMP_RESULTS_LOCATION = f'{cfg["dbfs_base_path"]}/{JOB_ENV}/tmp'
 
 dates_provided = True if (DATESTART and DATEEND) else False
 
-if JOBNAME and not dates_provided:
+if JOB_ENV.lower() != 'dev' and not dates_provided:
     # If no date args provided, use default set of recent days
     OFFSET_START_DAYS = cfg['results_prm']['default_offset_start']
     OFFSET_END_DAYS = cfg['results_prm']['default_offset_end']
     SESSION_DATE_START = date.today() - timedelta(days=OFFSET_START_DAYS)
     SESSION_DATE_END = date.today() - timedelta(days=OFFSET_END_DAYS)
-    logger.info(f'No dates provided to job: {JOBNAME}')
+    logger.info('No dates provided to job')
     logger.info('Default date offsets assumed')
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END}')
 elif dates_provided:

@@ -26,7 +26,6 @@ from pyspark.sql.window import Window
 
 jobparser = get_job_parser()
 jobparser._parse_args()
-JOBNAME = jobparser.get_arg('--jobname')
 JOB_ENV = jobparser.get_arg('--job_env')
 CLIENT = jobparser.get_arg('--client')
 LOG_LEVEL = jobparser.get_arg('--log_level')
@@ -36,7 +35,8 @@ spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
 
 if not CLIENT:
-    assert not JOBNAME, 'Client must be specified when running as a job'
+    assert JOB_ENV.lower() == 'dev', \
+        f'Client must be specified when running in {JOB_ENV}'
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
