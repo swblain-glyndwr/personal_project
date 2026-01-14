@@ -70,6 +70,7 @@ targets:
     mode: development
     default: true
     presets:
+      name_prefix: '[${bundle.target} ${workspace.current_user.short_name}] '
       trigger_pause_status: PAUSED
     workspace:
       host: https://adb-6694370232251359.19.azuredatabricks.net/
@@ -105,6 +106,7 @@ targets:
     # intended to deploy as in prod simulating prod, in prod mode etc.
     mode: development
     presets:
+      name_prefix: '[${bundle.target} ${workspace.current_user.short_name}] '
       trigger_pause_status: PAUSED
     workspace:
       host: https://adb-6188831950334199.19.azuredatabricks.net/
@@ -124,6 +126,8 @@ targets:
       user_name: tom_corke@next.co.uk
     - level: CAN_MANAGE
       user_name: edward_taylor@next.co.uk
+    - level: CAN_MANAGE
+      user_name: thomas_lynch@next.co.uk
     variables:
       mktgdata_catalog: marketingdata_prod
       environment_name: prod
@@ -155,6 +159,8 @@ targets:
       user_name: tom_corke@next.co.uk
     - level: CAN_MANAGE
       user_name: edward_taylor@next.co.uk
+    - level: CAN_MANAGE
+      user_name: thomas_lynch@next.co.uk
     variables:
       mktgdata_catalog: marketingdata_prod
       environment_name: prod

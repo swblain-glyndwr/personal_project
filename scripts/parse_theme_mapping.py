@@ -14,6 +14,7 @@ finally:
 
 import json
 from pyspark.sql import functions as F
+from datetime import date
 from pyspark.sql import Window
 from next_ads.Attributes import parse_ad_attributes
 from dsutils.dbc import configure_spark
@@ -31,6 +32,7 @@ jobparser._parse_args()
 JOB_ENV = jobparser.get_arg('--job_env')
 CLIENT = jobparser.get_arg('--client')
 LOG_LEVEL = jobparser.get_arg('--log_level')
+REFRESH_THEMES_DATE = jobparser.get_arg('--refresh_themes_date')
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
@@ -46,7 +48,8 @@ logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
-SET_THEME_ATTRIBUTES = jobparser.has_arg('--set') or False
+TODAY = date.today().strftime(format='%Y-%m-%d')
+SET_THEME_ATTRIBUTES = REFRESH_THEMES_DATE == TODAY or False
 THEME_RANKING_MODE = jobparser.get_arg('--theme-ranking-mode')
 if not THEME_RANKING_MODE:
     THEME_RANKING_MODE = 'adtype-themetype'
@@ -110,6 +113,7 @@ if invalid_theme_count > 0:
 df_themes = df_themes.filter(valid_ranks_condition)
 
 if SET_THEME_ATTRIBUTES:
+    logger.info(f'REFRESH_THEMES_DATE matches today ({TODAY})')
     logger.info('Setting theme-to-attribute mapping')
     theme_attributes = parse_ad_attributes(
         df=df_themes.select('Theme', 'TargetingAttributes'),

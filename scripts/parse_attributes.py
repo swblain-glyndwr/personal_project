@@ -14,6 +14,7 @@ finally:
 
 import json
 from pyspark.sql import functions as F
+from datetime import date
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (build_spark_schema,
@@ -28,6 +29,7 @@ jobparser._parse_args()
 JOB_ENV = jobparser.get_arg('--job_env')
 CLIENT = jobparser.get_arg('--client')
 LOG_LEVEL = jobparser.get_arg('--log_level')
+REFRESH_ATTRIBUTES_DATE = jobparser.get_arg('--refresh_attributes_date')
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
@@ -43,7 +45,8 @@ logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
-SET_ATTRIBUTES = jobparser.has_arg('--set') or False
+TODAY = date.today().strftime(format='%Y-%m-%d')
+SET_ATTRIBUTES = REFRESH_ATTRIBUTES_DATE == TODAY or False
 BQ_EXPORT = jobparser.has_arg('--bq') or False
 
 tbls = cfg["tables"]["write"]
@@ -204,6 +207,7 @@ for attribute in ATTRIBUTES:
     )
 
     if SET_ATTRIBUTES:
+        logger.info(f'REFRESH_ATTRIBUTES_DATE matches today ({TODAY})')
         logger.info(f'Creating new attribute set for {attribute}')
         logger.info(f'Filtering where {PC_CUTOFF_COL} >= {FREQ_CUTOFF_PC}%')
         df_count = (

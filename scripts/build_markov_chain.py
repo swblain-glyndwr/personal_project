@@ -68,7 +68,11 @@ ACTIONS_END = jobparser.get_arg('--actions-end') or yesterday
 if isinstance(ACTIONS_END, str):
     ACTIONS_END = date.fromisoformat(ACTIONS_END)
 ACTIONS_START = ACTIONS_END - timedelta(days=BASKET_HISTORY_DAYS)
-TRAIN = jobparser.has_arg('--train')
+
+REFRESH_MODEL_DATE = jobparser.get_arg('--refresh_model_date')
+TODAY = date.today().strftime(format='%Y-%m-%d')
+TRAIN = REFRESH_MODEL_DATE == TODAY or False
+
 TEST_ACCOUNT = jobparser.get_arg('--test-account')
 SHOW_TOP_N = jobparser.get_arg('--show-top-n') or 100
 PLOT_GRAPH = jobparser.has_arg('--plot-graph')
@@ -174,6 +178,8 @@ baskets_with_themes_next = (
 )
 
 if TRAIN:
+    logger.info(f'REFRESH_MODEL_DATE matches today ({TODAY})')
+    logger.info('Refreshing theme transition probabilities')
     # Global theme frequencies will become node weights
     # Count should be performed after the self-join (last basket is dropped)
     theme_frequency = (

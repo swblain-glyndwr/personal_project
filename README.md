@@ -14,6 +14,7 @@
     - Results
         - Map ad/MASID assignments to page views and infer impressions and clicks
         - Aggregate and export results for the Next Ads 2.0 dashboard
+        - Refreshing the control group
 - [External Models](#external-models)
     - Next Best Label
 - [Dependencies](#dependencies)
@@ -121,6 +122,26 @@ There is no 'dev' results job because:
 - Using upstream next ads 'dev' tables as inputs into the dev results is problematic as the dev tables typically contain incomplete historical assingments, which may not be based on the same treatment cells that are defined in prod. 
 - Results can always be recalculated for dates in the past, therefore operational failures can be remediated after the fact.
 
+#### Refreshing the control group
+The "fallow" (long-term) control group for ads is refreshed periodically as part of good measurement practice. Refreshing the control group can be invoked by passing today's date (fmt: "YYYY-mm-dd") to the named argument `--refresh_control_date` of the `assign_customer_cells.py` script. For example, to refresh the control group on 8th Jan 2026:
+
+```sh
+python scripts/assign_customer_cells.py --refresh_control_date "2026-01-08"
+```
+
+- When refreshing the control group is invoked, the current control cell assignments (`fixed_cells_latest` table) are archived to the `fixed_cells_history` table, the `fixed_cells_latest` table is truncated, and all customers are assigned new fixed cells. Given that refreshing the control group enables customers to be in and out of the control group at different points in time, it is important to capture this so that we know which cells a given customer was in on a given date (i.e. was a customer in the control group or not). This enables us to retain the ability to recalculate/backcalculate results, if necessary. 
+- When refreshing the control group is *not* invoked, the `fixed_cells_latest` table behaves in an append-only fashion. If a customer has already been assigned fixed cells, they will be ingored by the script. New customers will be assigned new cells and appended to the `fixed_cells_latest` table.
+
+> IMPORTANT: The control group should not be refreshed while tests are active.
+
+#### Forcing staff customers into the test group (and excluding them from the results)
+
+Starting 1st Jan 2026, all staff customers (identified by `warehouse.svoccust_hist.specialaccountindicator == 'S'`) are automatically forced into the 'Ads' (i.e. not the fallow control), 'Best' and 'Challenger' fixed cells to ensure that all those working on the ads project can see ads on site. This blanket rule obviously applies to many more staff customers than just those that are directly involved in the project, but is much cleaner and easier to maintain than managing smaller bespoke lists of staff that work directly on ads.
+
+Forcing staff customers to not be in the control group would bias results without correction (staff are typically higher-value customers, and would not be represented in the control group). Therefore customers marked as staff during the `scripts/assign_customer_cells.py` script are subsequently excluded from results processing in `scripts/results.py`.
+
+It should be noted that staff status is captured at the time the customer is 'new' to the `assign_customer_cells.py` script, so this customer status reflects that a customer "has been staff" moreso than this customer "is staff". If a customer was staff and is no longer staff, this change in staff status will be reflected when the control group is next refreshed. Additionally, when back calculating results, ensuring that the correct version of `fixed_cells_latest` or `fixed_cells_history` is used is important for ensuring the integrity of this staff customer measurement exclusion.
+
 ### External Models
 #### Next Best Label
 The incumbent targeting algorithm is the 'Next Best Label' algorithm, written by Philippe Dagher (contractor, 2025).
@@ -135,7 +156,7 @@ There are various propensity modelling jobs external to Next Ads, but these no l
 
 When they were utilised as the targeting scores for Next Ads:
 - The "Models" column of the control sheet contained a reference to the model(s) to be used for targeting that ad
-- The task `task_build_targeting_scores.py` would take these model references in the control sheet and generate the necessary scores using the view [next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199) (in which the column names match to the options in the control sheet) and output them to the `targeting_scores_latest` table, which would then be picked up by the `task_build_page.py` script for each location build.
+- The task `scripts/build_targeting_scores.py` would take these model references in the control sheet and generate the necessary scores using the view [next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199) (in which the column names match to the options in the control sheet) and output them to the `targeting_scores_latest` table, which would then be picked up by the `scripts/build_page.py` script for each location build.
 
 ##### ALS
 The ALS model was part of the [mktg_next_ads_data_pull](https://adb-6188831950334199.19.azuredatabricks.net/jobs/201505739615907?o=6188831950334199) job, but it's output is no longer used.
@@ -217,7 +238,7 @@ In the current implementation of real-time ads, the Data Engineering (DE) team h
 
 #### Real-Time Unknown Reporting
 
-`warehouse.rtp_exponea_tracking` provides a record of real-time unknown MASID changes for given anonymous `rpid` (alongside metadata like timestamp). Eligible sessions are randomly split into Control/Treatment using an 85/15 split, with control sessions indicated by having `PS1_Z` in their MASID. This information can be combined with the BQ tables (actions and sessions) available in the Unity Catalog to get a top-line read of CVR, AOV, and PRV for Control/Treatment sessions. The results script `task_realtime_results_topline.py` handles this analysis.
+`warehouse.rtp_exponea_tracking` provides a record of real-time unknown MASID changes for given anonymous `rpid` (alongside metadata like timestamp). Eligible sessions are randomly split into Control/Treatment using an 85/15 split, with control sessions indicated by having `PS1_Z` in their MASID. This information can be combined with the BQ tables (actions and sessions) available in the Unity Catalog to get a top-line read of CVR, AOV, and PRV for Control/Treatment sessions. The results script `scripts/realtime_results_topline.py` handles this analysis.
 
 #### Real-Time Known Reporting
 
@@ -560,7 +581,7 @@ This example is the same as the Example 1, with an additional pre-defined audien
                         {
                             "col": "Audience",
                             "op": "eq",
-                            "val": "Vido Ad Test - A"
+                            "val": "Video Ad Test - A"
                         }
                     ],
                     "then": {"lit": "P123_C123_VideoAdA_Womens"},
@@ -568,7 +589,7 @@ This example is the same as the Example 1, with an additional pre-defined audien
                         {
                             "col": "Audience",
                             "op": "eq",
-                            "val": "Vido Ad Test - B"
+                            "val": "Video Ad Test - B"
                         }
                     ],
                     "then": {"lit": "P123_C123_VideoAdB_Womens"},
@@ -599,7 +620,7 @@ This example is the same as the Example 1, with an additional pre-defined audien
 
 #### Example 4 - Multiple when conditions and algo A/B test
 This is the same a example 1 with the addition of setting up an A/B test for two algos.
-- If Algo A is set up in the `task_build_page.py` script to output assignments to the "UniqueAdIDBest" column in the `assignments_latest` table, and Algo B is set up in the same script to output to the "UniqueAdIDBestChallenger" column of the same table, splitting Shopping Bag assignments 50/50 between these two algorithms can be achieved as shown below.
+- If Algo A is set up in the `scripts/build_page.py` script to output assignments to the "UniqueAdIDBest" column in the `assignments_latest` table, and Algo B is set up in the same script to output to the "UniqueAdIDBestChallenger" column of the same table, splitting Shopping Bag assignments 50/50 between these two algorithms can be achieved as shown below.
 - NOTE: The list of when conditions are applied as a series of operations joined by logical `&` operators, therefore the below config will assign whatever ad is in the "UniqueAdIDBest" column of the `assignments_latest` table to any customer where `col("ShoppingBagTest1") == "Best"`  AND `col("AdHocABTest1") == "A"` (in the `customer_cells_latest` table) evaluate to `True`.
 
 > There are multiple pre-defined random AB splits in the `customer_cells_latest` table; these should be rotated to avoid the same random splits being applied repeatedly to successive tests.
@@ -664,33 +685,45 @@ The following scripts have been created to parse and create the following mappin
 - `theme:attribute` (one-to-many)
 - `item:theme` (one-to-many*)
 
-* one-to-one can be achieved by using ranking mode `adtype-themefreq` and selecting the top ranked theme per item.
+*one-to-one can be achieved by using ranking mode `adtype-themefreq` and selecting the top ranked theme per item. For caveats that surround this one-to-one relationship when using `adtype-themetype` as the ranking mode, see the note in the [scripts/theme_mapping.py](#scriptsparse_theme_mappingpy) section below.
 
-#### `task_parse_attributes.py`
+#### `scripts/parse_attributes.py`
 
 Purpose:
 - Parse and clean selected attributes from `warehouse.product_catalog`, and produce a mapping of `item:attribute`.
     - The attributes to parse are specified in the `"attributes"` config key, along with other parameters (e.g. lookback period, frequency cutoffs based on item counts, or counts of orders featuring those items).
 
 Process:
-- An "attribute set" is a fixed set of attributes and values to be included in all downstream mappings and are stored in the `attribute_set[_latest]` table.
-    - To invoke creating a new "attribute "set", `task_parse_attributes.py` must be run with the `--set` flag.
-- Running without the `--set` flag will take the latest "attribute set" and and apply this mapping to the items (`pid`) in `warehouse.product_catalog` (going as far back as the lookback period), outputting the item-attribute mapping to `item_attributes[_latest]` table.
+- An "attribute set" is a fixed set of attributes and values to be included in all downstream theme mappings and are stored in the `attribute_set[_latest]` table. Creation of a new "attribute set", `scripts/parse_attributes.py` will be invoked when the script is run with today's date as the named argument `--refresh_attribute_date`. The below example would refresh the attribute set on 8th Jan 2026.
 
-#### `task_parse_theme_mapping.py`
+```sh
+python scripts/parse_attributes.py --refresh_attribute_date "2026-01-08" 
+```
+
+- When refreshing the attribute set is invoked, the new "attribute set" will then be mapped to all the items (`pid`) in `warehouse.product_catalog` (going as far back as the lookback period), outputting the item-attribute mapping to `item_attributes[_latest]` table.
+- When refreshing the attribute set is *not* invoked (or when the refresh date is specified, but today's date is not the refresh date), the script will map the *existing* "attribute set" (i.e. that in the `_latest` attribute set table) to all items (`pid`) in `warehouse.product_catalog` (going as far back as the lookback period), outputting the item-attribute mapping to `item_attributes[_latest]` table.
+
+#### `scripts/parse_theme_mapping.py`
 
 Purpose:
 - Parse and clean theme mapping defined by trade in the Next Ads Control Sheet, and product a mapping of `item:theme`.
 
 Process:
-- A "theme mapping" is a fixed set of themes and its corresponding attributes. This is defined in the Next Ads Control Sheet Google Sheet (see `"theme_mapping"` config key for details).
-    - To invoke reading and setting a new theme mapping, use the `--set` flag. This will cause the script to output a new theme mapping to the `theme_mappping[_latest]` table.
-- The script then maps themes to items and outputs to `item_themes[_latest]`, via the cleaned attributes in the `item_attributes_latest` table.
-- A given item might have multiple themes, as such, themes are ranked within-item. There are currently two options for ranking:
+- A "theme mapping" is a fixed set of themes and its corresponding attributes. This mapping is defined in the Next Ads Control Sheet Google Sheet (see `"theme_mapping"` config key for details). Creation of a new "theme mapping" will be invoked when the script is run with today's date as the named argument `--refresh_themes_date`. This will cause the script to output a new "theme mapping" to the `theme_mappping[_latest]` table. The below example would refresh the theme mapping on 8th Jan 2026.
+
+```sh
+python scripts/parse_theme_mapping.py --refresh_themes_date "2026-01-08" 
+```
+
+- When refreshing the theme mapping is invoked, the new theme mapping will be used to create the theme-item mapping (using attributes as the "connective tissue") and outputs this mapping to `item_themes[_latest]`.
+- When refreshing the theme mapping is *not* invoked, the *existing* theme mapping (i.e. the data in the `theme_mapping_latest` table) will be used to generate the theme-item mapping.
+- It should be noted that, a given item might have multiple themes, as such, themes are ranked within-item. There are currently two options for ranking:
     - `--theme-ranking-mode adtype-themefreq` results in the themes being ranked by AdType (column specified in the theme mapping tab of the Next Ads Control Sheet Google Sheet) followed by theme frequency. Ranking by theme frequency means that the theme with the smaller number of matching items will take precedence, the idea being that this will naturally rank niche themes higher, resulting in less overall convergence around the most common themes.
     - `--theme-ranking-mode adtype-themetype` results in the themes being ranked by AdType, then ThemeType, which are both specified manually by the trade team in the theme mapping tab of the Next Ads Control Sheet Google Sheet.
 
-#### `task_markov_chain.py`
+> **NOTE:** Using mode `adtype-themetype` applies manually defined precedence of themes for items that match multiple themes. There are cases (e.g. a unisex childrens sportswear ad) where an item may deliberately have tied top-ranked themes (e.g. 'boys sports' and 'girls sports' may be the tied top-ranked themes for the unisex sports ad and related items, because unisex themes do not yet exist).
+
+#### `scripts/build_markov_chain.py`
 
 Purpose:
 - Lightweight directional graph of theme associations.
@@ -698,8 +731,16 @@ Purpose:
 - The probability of transferring from one theme to another is calculated via global frequencies of transitioning from one state to another, i.e. customer A buys 'womens jeans', and 'womens casualwear' is in their next basket, this would be a count for the 'womens jeans' to 'womens casualwear' transition. These frequencies are calculated globally, and form theme transition probabilities. Fractional counting is utilised to account for the fact that multiple themes may exist per basket.
 
 Process:
-- To "train" the markov chain, run the script with the `--train` flag. This will take baskets from the specified history period and calculate these theme transition probabilities, outputting these probabilities to the `theme_transitions[_latest]` table.
-- Running the script without the `--train` flag, runs it in 'scoring' mode, which looks at the customer's last N baskets (defined by `--score-last-n-baskets`). This will output "next theme scores" for each customer into the `next_theme_scores[_latest]` table, featuring a global next theme probability and the raw score rebased to this global average for each customer.
+- To "refresh" (i.e. re-train) the markov chain, run the script with today's date as the `--refresh_model_date` flag. The below example would refresh the theme mapping on 8th Jan 2026.
+
+```sh
+python scripts/build_markov_chain.py --refresh_model_date "2026-01-08" 
+```
+
+- When the model is refreshed (re-trained), the script will take baskets from the specified history period and calculate new theme transition probabilities, outputting these probabilities to the `theme_transitions[_latest]` table.
+- When model refresh is invoked, the new theme transition probabilities will be used for scoring.
+- When model refresh is *not* invoked, the *existing* theme transition probabilities (i.e. the data in the `theme_transitions_latest` table) will be used for scoring.
+- Scoring involves retrieving the customer's last N baskets (defined by `--score-last-n-baskets`), and using the theme transition probabilities to output "next theme scores" for each customer to the `next_theme_scores[_latest]` table, which include a global next theme probability, the probability of each theme for each customer (for which a probability could be calculated), the average probability for each theme (across all customers) and the customer-level probability rebased to this theme-wise average (i.e. the 'rebased' score).
 
 Diagnostics:
 - The basket item and theme history along with predictions can be obtained from this script by running it with the `--test-account` argument (if the account of interest was ABC123, you would pass `--test-account ABC123`).
@@ -719,7 +760,7 @@ Example config:
     }
 ```
 
-In the example above theme1 and theme2 will be greedily assigned 1000 and 2000 distinct customers respectively, before the remaining customers are assigned to their best theme. The ordering of cases (i.e. each customer-theme score) for greedy assignment occurs in the `task_map_theme_scores_to_ads.py` script. This ordered dataframe is then passed to the `Assignment.greedy_assignment()` function for execution.
+In the example above theme1 and theme2 will be greedily assigned 1000 and 2000 distinct customers respectively, before the remaining customers are assigned to their best theme. The ordering of cases (i.e. each customer-theme score) for greedy assignment occurs in the `scripts/map_theme_scores_to_ads.py` script. This ordered dataframe is then passed to the `Assignment.greedy_assignment()` function for execution.
 
 #### Enforcement of greedy assignments
 - Greedily assigned themes take precedence by having 1 added to their `RelevanceScore` (after the relevance score has been scaled to [0,1)).
@@ -757,12 +798,56 @@ The design intent of tiling was to avoid all assigning all of the most universal
 
 #### Summary: Attribute and Theme parsing
 
-`python task_parse_attributes.py --set` refreshes `{schema}.{client}_nextads_attribute_set[_latest]`  
-`python task_parse_attributes.py` refreshes `{schema}.{client}_nextads_item_attributes[_latest]`  
+Running...
+```sh
+scripts/parse_attributes.py --refresh_attributes_date "2026-01-08"
+```
+...refreshes*...  
+`{schema}.{client}_nextads_attribute_set[_latest]`  
+`{schema}.{client}_nextads_item_attributes[_latest]`  
+*\*on 2026-01-08*  
 
-`python task_parse_theme_mapping.py --set` refreshes `{schema}.{client}_nextads_theme_mapping[_latest]` and `{schema}.{client}_nextads_item_themes[_latest]`  
-`python task_parse_theme_mapping.py` refreshes `{schema}.{client}_nextads_item_themes[_latest]` (N.B. this refresh will respect any changes to the theme hierarchy in the Next Ads Control Sheet Google Sheet)  
+Running...
+```sh
+scripts/parse_attributes.py
+```
+...refreshes:  
+`{schema}.{client}_nextads_item_attributes[_latest]` 
 
-`python task_build_markov_chain.py --train` refreshes `{schema}.{client}_nextads_theme_transitions[_latest]`  
-`python task_build_markov_chain.py` refreshes `{schema}.{client}_nextads_item_next_theme_scores[_latest]`  
-`python task_build_markov_chain.py --test-account ########` logs diagnostics for that account to the console  
+Running...
+```sh
+scripts/parse_theme_mapping.py --refresh_themes_date "2026-01-08"
+```
+...refreshes*...  
+`{schema}.{client}_nextads_theme_mapping[_latest]`  
+`{schema}.{client}_nextads_item_themes[_latest]`  
+*\*on 2026-01-08*  
+
+Running...
+```sh
+scripts/parse_theme_mapping.py
+```
+...refreshes:  
+`{schema}.{client}_nextads_item_themes[_latest]` 
+
+Running...
+```sh
+scripts/build_markov_chain.py --refresh_model_date "2026-01-08"
+```
+...refreshes*...  
+`{schema}.{client}_nextads_theme_transitions[_latest]`  
+`{schema}.{client}_nextads_next_theme_scores[_latest]`  
+*\*on 2026-01-08*  
+
+Running...
+```sh
+scripts/build_markov_chain.py
+```
+...refreshes:  
+`{schema}.{client}_nextads_next_theme_scores[_latest]` 
+
+Running...
+```sh
+scripts/build_markov_chain.py --test-account "{insert account number}"
+```
+...logs diagnostics for that account to the console.  
