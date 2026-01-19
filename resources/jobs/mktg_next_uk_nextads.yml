@@ -91,7 +91,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
               - --refresh_themes_date
-              - "2026-01-08"
+              - "2026-01-19"
           job_cluster_key: next_uk_nextads_attributes_cluster
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
@@ -109,7 +109,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
               - --refresh_model_date
-              - "2026-01-08"
+              - "2026-01-19"
           job_cluster_key: next_uk_nextads_score_lightweight
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
