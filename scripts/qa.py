@@ -69,6 +69,8 @@ PID_LOOKBACK_DAYS = cfg["attributes"]["lookback_days"]
 
 WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
+errors = []  # Collect all assertion errors and raise at end of script
+
 df_assigned = spark.table(ASSIGNMENTS_TABLE_LATEST)
 df_cells = spark.table(CELLS_TABLE_LATEST)
 
@@ -132,10 +134,20 @@ df_cells_dt = (df_cells.select("rundate").distinct())
 assigned_dts = [x[0] for x in df_assigned_dt.collect()]
 cells_dts = [x[0] for x in df_cells_dt.collect()]
 
-assert len(assigned_dts) == 1, f"Multiple dates in {ASSIGNMENTS_TABLE_LATEST}"
-assert len(cells_dts) == 1, f"Multiple dates in {CELLS_TABLE_LATEST}"
-assert assigned_dts == cells_dts
+try:
+    assert len(assigned_dts) == 1, f"Multiple dates in {ASSIGNMENTS_TABLE_LATEST}"  # noqa
+except AssertionError as e:
+    errors.append(str(e))
 
+try:
+    assert len(cells_dts) == 1, f"Multiple dates in {CELLS_TABLE_LATEST}"
+except AssertionError as e:
+    errors.append(str(e))
+
+try:
+    assert assigned_dts == cells_dts, "Assignment dates do not equal Cells dates"  # noqa
+except AssertionError as e:
+    errors.append(str(e))
 
 logger.info("Checking integrity of Fallow Control")
 df_assignments_w_cells = (
@@ -150,7 +162,10 @@ df_fallow_with_ads = (
 
 ads_in_control = df_fallow_with_ads.count()
 
-assert ads_in_control == 0, "Ads assigned to Fallow Control customers"
+try:
+    assert ads_in_control == 0, "Ads assigned to Fallow Control customers"
+except AssertionError as e:
+    errors.append(str(e))
 
 
 logger.info("Checking integrity of Local Controls")
@@ -181,7 +196,10 @@ for lc in lc_to_location:
             .where(F.col("UniqueAdIDAssigned") != "NoAd")
             )
         ads_in_lc = df_lc_with_ads.count()
-        assert ads_in_lc == 0, f'Ads assigned to {lc} at location: {location}'
+        try:
+            assert ads_in_lc == 0, f'Ads assigned to {lc} at location: {location}'  # noqa
+        except AssertionError as e:
+            errors.append(str(e))
 
 
 logger.info("Checking that all NoAd assignments map to MASID ending _Z")
@@ -191,7 +209,11 @@ df_noad_nonz = (
     .where(~F.col("MASID").endswith("_Z"))
 )
 df_noad_nonz_n = df_noad_nonz.count()
-assert df_noad_nonz_n == 0, "Non _Z-ending MASIDs found for NoAd assignments"
+
+try:
+    assert df_noad_nonz_n == 0, "Non _Z-ending MASIDs found for NoAd assignments"  # noqa
+except AssertionError as e:
+    errors.append(str(e))
 
 logger.info("Checking for excessive NoAdFound assignments")
 df_avg_no_ad_found = (
@@ -237,7 +259,11 @@ for tbl in tbls:
         continue
     logger.info(f'  ↳ Asserting {pk_cols} as PK for {tbl_mapped}')
     df_tbl_pk = spark.table(tbl_mapped)
-    assert_pk(df_tbl_pk, pk_cols)
+
+    try:
+        assert_pk(df_tbl_pk, pk_cols), f"Primary Key invalid: {tbl_mapped}"
+    except AssertionError as e:
+        errors.append(str(e))
 
 
 # Themes checks
@@ -272,8 +298,9 @@ n_all_pids = all_pids.count()
 n_theme_pids = themes.select('pid').distinct().count()
 logger.info('Checking count of distinct PIDs with themes assigned')
 if n_theme_pids < MIN_THEME_PIDS:
-    msg_min_pids = (f'Only {n_all_pids:,} distinct PIDs found in '
-                    + f'product catalog (expected >= {MIN_THEME_PIDS:,})')
+    msg_min_pids = (f'Only {n_theme_pids:,} distinct PIDs with themes'
+                    + ' associated returned from product catalog'
+                    + f' (expected >= {MIN_THEME_PIDS:,})')
     logger.warning(msg_min_pids)
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, msg_min_pids)
@@ -316,5 +343,12 @@ if pc_multi_themes > MAX_MULTI_THEMES_PC:
     logger.warning(msg_multi_themes)
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, msg_multi_themes)
+
+if errors:
+    msg_finalassertion = "\n".join(errors)
+    if JOB_ENV == "prod":
+        post_to_webhook(WEBHOOK_URL, msg_finalassertion)
+    # Raise a combined AssertionError with all messages
+    raise AssertionError(msg_finalassertion)
 
 logger.info("Run Complete")
