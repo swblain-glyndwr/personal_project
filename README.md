@@ -1,5 +1,5 @@
 # Next Ads
-> *Up to date as of v2.12*  
+> *Up to date as of v2.15*  
 
 ## Table of Contents
 
@@ -27,7 +27,6 @@
 - [Real-Time](#real-time)
 - [DevOps](#devops)
     - Deployment patterns
-    - Dev/Prod "environments"
     - Git strategy
 - [Testing, Monitoring and QA](#testing-monitoring-and-qa)  
 </br>
@@ -38,7 +37,7 @@
 
 
 ## Introduction
-`next-ads` is a process that assigns relevant adverts to customers browsing the NEXT website. The code enclosed within this repo - often referred to as the "Next Ads engine" - uses predictive model scores to determine which ad is 'best' for each customer. The code within this repo also builds the control cells and results tables to measure performance of these personalised ads.
+`next-ads` is a process that assigns relevant adverts to customers browsing the NEXT website. The code enclosed within this repo uses predictive model scores to determine which ad is 'best' for each customer. There are also processes to build control cells of customers, results tables to measure performance, and supporting processes for real time ad applications.
 
 The model score input to the 'engine' can occur internally, which is suitable if the model is relatively lightweight, and built only/primarily for the purpose of being applied to ads. More complex modelling processes, or models that serve applications outside of ads are better suited to being set up as an external modelling process; the engine has the capability to either:
 - Ingest a table of scores and perform the ranking within the engine (e.g propensity scores)
@@ -52,7 +51,7 @@ The control sheet [Google Sheet](https://docs.google.com/spreadsheets/d/1ZVZxP6p
 - Metadata/labels pertaining to the algorithm (e.g. AlgoDivision, AudienceOnly, Theme)
 - Metadata/labels pertaining to reporting (e.g. TradeDivison)
 - Tags
-> N.B. Tags are primarily used for reporting, but those prefaced with square brackets will be ignored by the reporting scripts and can therefore be used to inform the algorithm of something, e.g. `AdBrandName` tells the reporting to produce a cut of the results for all ads tagged as this, while something like `[TestGroup]NewAlgoOnly` could be used to make ads eligible for a specific variant of the algorithm only, and would not automatically generate a cut within the results.
+> N.B. Tags are primarily used for reporting, however those starting with an opening square bracket will be ignored by the tag-specific aggregates in the reporting scripts, which enables them to be used to inform the algorithm of something. For example, `AdBrandName` tells the reporting to produce a cut of the results for all ads with this tag, whereas `[TestGroup]NewAlgoOnly` could be used to specify ads that are eligible for the 'new algorithm' only (N.B. filtering on such a tag must be configured in the 'build page' task). This might be useful if A/B testing a new algorithm that is able to target types of ad that the incumbent algorithm is not designed to, for example.
 
 ### Responsibilities
 - Trade/OSA (On-site Advertising) team: Ensuring input to the sheet is complete and accurate
@@ -69,16 +68,18 @@ The engine is built around a central config that aims to make management of the 
 The idea is that parameters and resources are _defined_ in the config, and the code _applies_ what has been defined in the config.
 
 #### Client-wise structure
-Configs are kept as JSON in the `config/` directory, with the file being named after the client (e.g. `config/next_uk.json`). The intent is that this client-wise config structure will enable easier horizontal scaling of the process to other countries/TP clients in future, however the process of personalising ads is currently only active for Next UK. 
+Configs are kept as JSON in the `config/` directory, with the file being named after the client (e.g. `config/next_uk.json`). The intent is that this client-wise config structure will enable easier horizontal scaling of the process to other countries/TP clients in future, however the process of personalising ads is currently only active for Next UK.
 
-Tasks use `CLIENT` to control which config to retrieve and map parameterised process table names (check out the `['tables']['write']` section of the config).
-`CLIENT` is inferred from the job name when run as a job (via the job parser in `dsutils.argparser`) but can be passed manually to the script when running interactively. 
+It is worth noting that the current structure is predicated on the idea that the control sheet and all tables will be mirrored for each new client. This may be feasible for a few clients, however consideration should be given to scaling beyond this, as managing such large numbers of tables may become difficult.
+
+Tasks use `CLIENT` to control which config to retrieve and map parameterised process table names (see the `['tables']['write']` section of the config).
+Prior to 1st Jan 2026, `CLIENT` was inferred from the job name when run as a job (via the job parser in `dsutils.argparser`). Post 1st Jan 2026, client was no longer inferred from the job name, and must be passed explicitly to job tasks (this change was made as part of restructuring the project as a Databricks Asset Bundle). When running the code interactively, `CLIENT` will default to 'next_uk', but other clients can be specified by the user.
 
 #### Configuring assignments for locations
 Examples of various assignment configurations for different locations have been provided in the Appendix.
 
 ### Assignments
-The production assignments job is: [mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/851069914792732?o=6188831950334199)
+The production assignments job is: [mktg_next_uk_nextads_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/423717571222490?o=6188831950334199) and is defined in the `resources/jobs/` directory of this repo, which is included in the Asset Bundle.
 
 This job:
 - Reads, validates and loads the control sheet from google sheets into Databricks
@@ -88,39 +89,40 @@ This job:
 - Assigns ads to customers for each location, depending on model scores, config and customer cells
 - Performs QA checks on the assignments and tables (e.g. Primary Key validity)
 
+#### Time constraints
+The final `assignments` and `assignments_latest` tables **must be written to before midnight** (i.e. all iterations of the `build_page` task must finish before 00:00). This is because the write functions that are currently implemented (using `dsutils`) append a `rundate` column that reflects the date of the write operation.
+
+If the `assignments` tables are populated after midnight, the `rundate` will be the following date, which will cause the assignments data to be out of sync when joining to the browsing data during results processing. The results assume `SessionDate` (browsing data) aligns with `rundate` from the `assignments` table *plus one day*
+
+There is a check in the QA script that will raise an assertion error if there are multiple dates in the `assignments_latest` table (this also flags instances of the `assignments_latest` table not having been cleared properly from the previous day's run). Multiple dates in this table would therefore flag the case where the `build_page` task has bridged midnight (i.e. some locations were written with `rundate` as one date, and other locations with `rundate` as the next date). It is important to note that there are currently no checks to flag severe overrunning of an upstream task, i.e. where all locations are written to the assignments table after midnight.
+
+At the time of writing (Jan 2026), the [mktg_next_uk_nextads_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/423717571222490?o=6188831950334199) job runs from 6pm-8:30pm, therefore comfortably finishing before midnight, but it is important to be aware of this requirement.   
+
 #### "Switching off" ad assignments
 To effectively "switch off" ad assignments, the following steps should be performed.
-1. Pause the schedule of the `mktg_next_uk_nextads` job - this will stop assignments from being updated.
-2. Pausing the job will mean that assignments in customers' MASID ad slots will stop updating, but without any additional action they will stay as the assignments from the last time the job was run. The easiest way to set all ad-related MASID assignments to `_Z` (which means no ad will show), is to truncate `warehouse.next_uk_nextads_assignments_latest`, which can be done conveniently by running the associated task manually in the `mktg_next_uk_nextads` job. This table being empty means that the `mktg_pf_masid_v2` job will have no "current" ads to pick up for any customer for any location, and will default to `_Z` assignments for all ad slots.  
+1. Pause the schedule of the `mktg_next_uk_nextads_cicd` job - this will stop assignments from being updated.
+2. Pausing the job will mean that assignments in customers' MASID ad slots will stop updating, but without any additional action they will stay as the assignments from the last time the job was run. The easiest way to set all ad-related MASID assignments to `_Z` (which means no ad will show), is to truncate `warehouse.next_uk_nextads_assignments_latest`, which can be done conveniently by running the associated task manually in the `mktg_next_uk_nextads_cicd` job. This table being empty means that the `mktg_pf_masid_v2` job will have no "current" ads to pick up for any customer for any location, and will default to `_Z` assignments for all ad slots.  
 
-To restart assignments, simply unpause the `mktg_next_uk_nextads` job.
+To restart assignments, simply unpause the `mktg_next_uk_nextads_cicd` job.
 
 #### Ad feedback loop
 The ad feedback loop centres around the function `Assignment.get_ad_feedback_scores()`, which is applied to the base relevance scores provided by whichever internal or extenal model is being used. The function boosts/penalises ads in the final ranking based on the ad's current commercial performance. There is a [wiki page](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_wiki/wikis/Directory%20Marketing%20Platform/50090/Ad-Feedback-Loop) that runs through how the loop works, with a number of worked examples.
 
-#### Assignments - Dev
-There is an equivalent 'dev' assignments job [dev_mktg_next_uk_nextads](https://adb-6188831950334199.19.azuredatabricks.net/jobs/518755454712672?o=6188831950334199) that can be used for end-to-end testing. The differences between this and the 'prod' version of the job is that the 'dev' job is:
-- Not scheduled
-- Writes all data to copies of the process tables in the `ds_sandbox` schema instead of the `warehouse` schema (which contains the production tables). This happens automatically at the start of each task via the argument parser (`dsutils.argparser`), which defines the `job_env`, which in turn defines the write schema at the start of each task.
+#### Deploying the jobs to different bundle targets
+The next-ads jobs can be deployed to different targets, i.e. DEV/PREPROD/PROD (see `databricks.yml`), using the [next-uk-nextads-ci-cd](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_build?definitionId=23267) pipeline, which is defined in the `azure-pipelines.yml` file in this repo. It is also possible to deploy to non-prod targets using the Databricks CLI. These non-prod deployments are very useful for end-to-end testing of the next-ads proces in a way that does not affect prod. This is achieved by parameterised schema mapping, where deployed prod runs will write data to `warehouse`, and non-prod deployments will automatically switch to writing to the `ds_sandbox` schema. `JOB_ENV` is defined at the start of each script, which in turn dictates the write schema, as mapped in the associated `config/*.json` file.
 
 NOTE: When running scripts interactively, the process will default to 'dev' at runtime, via the same `dsutils.argparser`.
 
 For more on the specifics of this dev/prod delineation, see the [DevOps](#devops) section below.
 
 ### Results
-The production results job is: [mktg_next_uk_nextads_results](https://adb-6188831950334199.19.azuredatabricks.net/jobs/876285369413830?o=6188831950334199)
+The production results job is: [mktg_next_uk_nextads_results_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/350665639525302?o=6188831950334199) and is defined in the `resources/jobs/` directory of this repo, which is included in the Asset Bundle.
 
 This job:
 - Maps ad/MASID assignments to browsing data and infers impressions (Next Ads doesn't currently have a functional GA tagging setup)
 - Aggregates the results and exports them to the [Next Ads 2.0](https://lookerstudio.google.com/u/0/reporting/f3dace74-791a-413d-b0e7-9d5a350b1c3a/page/p_0wnaekamod) dashboard
 
 A high-level explanation of the results methodology and associated caveats are outlined in the following document: [Next Ads Dashboard - Diagrams for Interpretation](https://drive.google.com/file/d/1JEYtwoAYEdMHqSeTY7w3u5OwkJLx31eq/view). There is also a 'Guidance' page at the back of the Looker dashboard linked above that is intended to be a more stakeholder-friendly summary of the these diagrams.
-
-#### Results - Dev
-There is no 'dev' results job because:
-- The process is less complex and requires fewer intermediate tables.
-- Using upstream next ads 'dev' tables as inputs into the dev results is problematic as the dev tables typically contain incomplete historical assingments, which may not be based on the same treatment cells that are defined in prod. 
-- Results can always be recalculated for dates in the past, therefore operational failures can be remediated after the fact.
 
 #### Refreshing the control group
 The "fallow" (long-term) control group for ads is refreshed periodically as part of good measurement practice. Refreshing the control group can be invoked by passing today's date (fmt: "YYYY-mm-dd") to the named argument `--refresh_control_date` of the `assign_customer_cells.py` script. For example, to refresh the control group on 8th Jan 2026:
@@ -143,12 +145,7 @@ Forcing staff customers to not be in the control group would bias results withou
 It should be noted that staff status is captured at the time the customer is 'new' to the `assign_customer_cells.py` script, so this customer status reflects that a customer "has been staff" moreso than this customer "is staff". If a customer was staff and is no longer staff, this change in staff status will be reflected when the control group is next refreshed. Additionally, when back calculating results, ensuring that the correct version of `fixed_cells_latest` or `fixed_cells_history` is used is important for ensuring the integrity of this staff customer measurement exclusion.
 
 ### External Models
-#### Next Best Label
-The incumbent targeting algorithm is the 'Next Best Label' algorithm, written by Philippe Dagher (contractor, 2025).
-- The code for this model is kept in the [next-ads-incrementality](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_git/next-ads-incrementality) repo
-- The jobs assocaited with this model are defined in the `resources/` directory of the repo.
-- The version that is currently deployed to production is v0.2.5
-    - The repo employs release branches, so the production release can be found on the `release/v0.2.5` branch, not `main` (which contains subsequent developments)
+There are currently no 'external models' being utilised for ads. 
 
 #### Deprecated External Models
 ##### Propensity Models
@@ -165,6 +162,14 @@ The ALS model was part of the [mktg_next_ads_data_pull](https://adb-618883195033
 
 ##### GRU
 The GRU model ran via the [mktg_nextAds_UK_GRU](https://adb-6188831950334199.19.azuredatabricks.net/jobs/228092093223614?o=6188831950334199) job, but it's output is no longer used.
+
+#### Next Best Label
+The 'Next Best Label' algorithm (also known as the 'attribute sequencer'), was written by Philippe Dagher (contractor, 2025).
+- The code for this model is kept in the [next-ads-incrementality](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_git/next-ads-incrementality) repo
+- The jobs assocaited with this model are defined in the `resources/` directory of that repo.
+- The version that was last deployed to production was v0.2.5
+    - The repo employs release branches, so the production release can be found on the `release/v0.2.5` branch, not `main` (which contains subsequent developments)
+- The model was decommissioned in Dec 2025.
 
 ## Dependencies
 ### dsutils
@@ -188,14 +193,14 @@ These tables served as inputs to various external models used for Next Ads:
 
 
 ### Unity Catalog tables
-Numerous Unity Catalog tables serve as inputs to the engine's assignments and results process. For complete and up-to-date details of these tables, see the relevant config file (i.e. `config/next_uk.json` for the tables used as inputs to Next UK Next Ads).
+Numerous Unity Catalog tables serve as inputs to the engine's assignments and results process. For complete and up-to-date details of these tables, see the relevant config file (i.e. `config/*.json` for the tables used as inputs to Next UK Next Ads).
 
 ## Downstream Processes
 ### MASID job
 The assignments output by the engine are picked up by the MASID/preference framework job: [mktg_pf_masid_v2](https://adb-6188831950334199.19.azuredatabricks.net/jobs/753137801628438?o=6188831950334199) 
 
 ### Global Solution job
-The Global Solution (GS) job: [mktg_nextads_plp_gs](https://adb-6188831950334199.19.azuredatabricks.net/jobs/1073338107374443?o=6188831950334199) picks up the ad-location-URL mapping from the Next Ads Control Sheet and passes assignmetns to the Global Solution, which is a new process for delivering these mappings to site (currently only used for PLP assignments, but planned to extend to other locations).
+The Global Solution (GS) job: [mktg_nextads_plp_gs](https://adb-6188831950334199.19.azuredatabricks.net/jobs/1073338107374443?o=6188831950334199) picks up the ad-location-URL mapping from the Next Ads Control Sheet and passes assignments to the Global Solution, which is a new process for delivering these mappings to site (currently only used for PLP assignments, but planned to extend to other locations).
 
 ## Real-Time
 
@@ -265,42 +270,6 @@ next-ads/
 │   └── jobs/
 ```
 
-
-### Deployment patterns
-The project is structured as a Databricks Asset Bundle. The bundle is currently only utilised to deploy the code; the jobs referenced in the [Engine](#engine) section point to the relevant deployment, i.e. the prod job points to the code in the deployed 'prod' directory, and the 'dev' job points to the 'preprod' directory.
-
-> NOTE: The dev target is a default target in Databricks Asset Bundles and is designed for users to be able to deploy code to their own user space, for experimentation and testing in a like-for-like way with a production deployment. The 'dev' next ads jobs are intended as a shared space, hence use of the preprod target for 'dev' jobs.
-
-To deploy code to the 'prod' target (which is picked up by the prod jobs, i.e. those not prefixed with dev), checkout the version of the code you want to deploy, and run the following command:
-
-```sh
-databricks bundle deploy -t prod
-```
-
-To deploy code to the 'preprod' target (which is picked up by the dev jobs, i.e. those prefixed with 'dev_'), checkout the version of the code you want to deploy, and run the following command:
-```sh
-databricks bundle deploy -t preprod
-```
-Being able to deploy the code to the preprod target, and run the dev job enables like-for-like end-to-end testing before deploying the code to production.
-
-The 'dev' jobs are manually kept in a like-for-like state with the 'prod' jobs above. A better solution to this would be to make the job definitions part of the Databricks Asset Bundle, and deploy them with the code. However, because the 'prod' job writes to tables in the `warehouse` schema, this requires the job to run as the correct Service Principal (SP), and users (understandably) cannot deploy Databricks Asset Bundles with jobs that run as the SP.
-
-__RECOMMENDATION__
-Set up job definitions as part of the Asset Bundle and a CICD pipeline to automatically deploy to prod (with run as SP) when certain conditions are met. This would ensure job parity between what was tested in dev and what is deployed to prod.
-
-### Job environments
-#### Job environments and schema mapping
->__IMPORTANT__
-The scripts know that the job is running in 'dev' via the job name prefix. This is automatically parsed to the tasks within the job via the job parser in `dsutils.argparser`. Any job not starting with the 'dev_' prefix will be considered a 'prod' run.
-
-This projects employs a `job_env:schema` convention for tables that the process can write to. As such `job_env` is a returned from of parsing the name of the Databricks workflow from which the code is being run.
-- When the code is being run via a Databricks workflow that starts with "dev_*", or the code is being run interactively, the `job_env` is _dev_
-- When the code is being run via a Databricks workflow that does not start with "dev_*", the `job_env` is _prod_
-
-The config file contains the `job_env:schema` mapping. This maps the process' "write" tables - also specified in the config - to identical tables in different schemas depending on whether the process is running in the _dev_ or _prod_ `job_env`.
-
-The process' "read" tables are always "prod" data, regardless of `job_env`, which enables the process to be run interactively, or end-to-end via the _dev_ workflow in a way that is maximally identical to the _prod_ workflow, enabling more thorough development and testing before changes are "productionised".
-
 ### Environment and Dependency Management
 Users can optionally use either the built in `venv` module or Poetry for environment and dependency management of this project. Guidance on how to install Poetry and install project dependencies into a local environment can be found on the [Poetry website](https://python-poetry.org/).
 > __Note__  
@@ -320,9 +289,8 @@ Primary keys are specified in table definitions. While primary keys are not curr
 2. It enables programmatic validation of the primary key constraint for all of the projects tables, guaranteeing that these conditions are met and therefore the integrity of the processes tables.
 
 ### Git Strategy
-- Two approvers of all PRs to main branch (including at least one repo owner: currently Tom Corke and Ted Taylor)
-- New versions are tagged with an incremented version number after squashing to main, before deployment
-
+- Two approvers of all PRs to main branch
+- Commits that are deployed from main should be tagged with an appropriately incremented version number.
 
 ### Testing, Monitoring and QA
 #### Unit and Integration Tests
@@ -548,27 +516,39 @@ This example is the same as the Example 1, with an additional pre-defined audien
     "transient_cells": {
         ...
         "Audiences": [
-                "video_audiences": {
-                    "account_col": "account_number",
-                    "label_col": "test_group"
-                }
+                [
+                    "video_audiences",
+                    {"account_col": "account_number", "label_col": "test_group"}
+                ]
             ]
         }
     }
 
 ```
-> NOTE: Multiple audiences can be passed to the algorithm at once, although this is not recommended as customers can only belong to one audience. Customers will be assigned to audiences in the order that they are provided, so in the example above, if another audience of "seasons" customers was provided subsequently in the list, only customers not assigned a "video_audiences" label would be avialble for "seasons" audience labels.
+It is important to note that the structure of the "Audiences" entry, is `list[list[str, dict]]`, i.e. a list of audiences (each audience is a list of two elements), where the first element is the audience table key (specified in the 'tables' entry in the config), and the second element is a dict mapping the names of the account and label columns.
 
-- In terms of the subsequent location mapping, these audiences end up in the `Audience` column in the `customer_cells_latest` table
+Multiple predefined audiences can be provided and used to map hardcoded assignments, as shown below where an additional 'seasonal_audience' has been specified (note, 'seasonal_audience' must also be a key in the 'tables' section of the config).
+```json
+    "transient_cells": {
+        ...
+        "Audiences": [
+                [
+                    "video_audiences",
+                    {"account_col": "account_number", "label_col": "test_group"}
+                ],
+                [
+                    "seasons_audience",
+                    {"account_col": "AccountNumber", "label_col": "SeasonsGrp"}
+                ]
+            ]
+        }
+    }
+```
+**It is important to note that customers can only belong to one audience**, therefore multiple predefined audiences should be used with caution. Mutually exclusive audiences are likely to lead to the most transparent use of this feature, as the first audience in the list will take precedence in cases where a customer is in multiple audiences. For example, if a customer was labeled 'Video Test - A' in the `video_audiences` table, and was labelled 'SeasonsPremium' in the `seasons_audience` table, their 'Audience' in the customer_cells table would be 'Video Test - A'. 
 
-- If a customer is in the "Video Ad Test - A/B" in this `Audience` column, and in `ShoppingBagTest1` 'Basic' or 'Best', the when-then mapping is parsed in sequence, so entries appearing first take precedence (in this case the Video Test customers are assigned first).
-- __IMPORTANT__
-    - Note that the key in the then clause is "lit", not "col". Specifying "lit" as the key means that the value is assigned as a literal (i.e. whatever string is provided should be the ad associated with this audience). When "col" is specified, it takes the value from the column in the `assignments_latest` table of the same name (i.e. one of the algorithmically assigned columns).
-    - When assigning ads using predefined audiences the `AudienceOnly` column in the control sheet should likely also be selected.
-        - If `AudienceOnly` _is_ selected for an ad, it will be removed from algorithmic targeting, and can __only be assigned to customers via pre-defined audiences__, as per the example below. This is useful if you want to guarantee volumes, or hard-code ads to certain customers based on some external targeting, but is limited to 1:1 customer-to-ad  mappings.
-        - If `AudienceOnly` _wasn't_ selected for "VideoAdA" in the control sheet, __it would be eligible for algorithmic targeting too__. Therefore if could be assigned to customers outside of the "Video Ad Test - A" audience, which may or may not be desired behaviour (it could be used to force a minimum assignment volume for an ad, but this is not recommended).  
- 
+- This prioritisation of predefined audiences happens in the `assign_customer_cells` script and each customer's final audience is written to the `Audience` column in the `customer_cells_latest` table.
 
+- A similar order of precedence is applied to the location configuration. In the example below, if a customer has been assigned "Video Ad Test - A/B" in their `Audience` column, and is in `ShoppingBagTest1` 'Basic' or 'Best', the when-then mapping is parsed in sequence, so entries appearing first take precedence (in this case the Video Test customers are assigned first).
 ```json
 "locations": {
     ...
@@ -617,6 +597,11 @@ This example is the same as the Example 1, with an additional pre-defined audien
     ...
 }
 ```
+- __IMPORTANT__
+    - Note that the key in the then clause is "lit", not "col". Specifying "lit" as the key means that the value is assigned as a literal (i.e. whatever string is provided should be the ad associated with this audience). When "col" is specified, it takes the value from the column in the `assignments_latest` table of the same name (i.e. one of the algorithmically assigned columns).
+    - When assigning ads using predefined audiences the `AudienceOnly` column in the control sheet should likely also be selected.
+        - If `AudienceOnly` _is_ selected for an ad, it will be removed from algorithmic targeting, and can __only be assigned to customers via pre-defined audiences__, as per the example below. This is useful if you want to guarantee volumes, or hard-code ads to certain customers based on some external targeting, but is limited to 1:1 customer-to-ad  mappings.
+        - If `AudienceOnly` _wasn't_ selected for "VideoAdA" in the control sheet, __it would be eligible for algorithmic targeting too__. Therefore if could be assigned to customers outside of the "Video Ad Test - A" audience, which may or may not be desired behaviour (it could be used to force a minimum assignment volume for an ad, but this is not recommended).  
 
 #### Example 4 - Multiple when conditions and algo A/B test
 This is the same a example 1 with the addition of setting up an A/B test for two algos.
