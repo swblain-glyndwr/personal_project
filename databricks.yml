@@ -123,8 +123,6 @@ targets:
     - level: CAN_MANAGE
       group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
     - level: CAN_MANAGE
-      user_name: tom_corke@next.co.uk
-    - level: CAN_MANAGE
       user_name: edward_taylor@next.co.uk
     - level: CAN_MANAGE
       user_name: thomas_lynch@next.co.uk
@@ -155,8 +153,6 @@ targets:
       group_name: AzUsers-DBK-MarketingData-Viewer-Prod
     - level: CAN_MANAGE
       group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
-    - level: CAN_MANAGE
-      user_name: tom_corke@next.co.uk
     - level: CAN_MANAGE
       user_name: edward_taylor@next.co.uk
     - level: CAN_MANAGE

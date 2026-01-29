@@ -57,6 +57,8 @@ tbl_args = {'schema': SCHEMA, 'client': CLIENT}
 NEXT_THEME_SCORES_LATEST = map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
 CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
 CUSTOMER_CELLS_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
+KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
+
 # Write tables
 THEME_SCORE_COMPONENTS_LATEST = map_tbl(tbls["theme_score_components_latest"], **tbl_args)  # noqa
 THEME_SCORE_COMPONENTS = map_tbl(tbls["theme_score_components"], **tbl_args)  # noqa
@@ -74,11 +76,12 @@ AD_RESULTS = map_tbl(
 spark = configure_spark()
 
 logger.info(f'Getting theme to ad mappings from {CONTROL_SHEET_LATEST}')
+# Below will need changing back for live
 df_theme2ad = (
     spark
     .table(CONTROL_SHEET_LATEST)
     .where(F.col('AudienceOnly') != 1)
-    .select('Themes', 'UniqueAdID')
+    .select('Themes', 'UniqueAdID', 'AdVariant')
     .where(F.col('Themes').isNotNull())
     .where(F.col('Themes') != '')
     .distinct()
@@ -324,16 +327,49 @@ df_ad2adset = (
 
 logger.info(f'Ranking and returning top {TOP_ADS_PER_LOCATION} ads per ad set')
 # De-duplicate multi-ad themes (random uniform selection)
+
+# Create map to get age group to numeric value
+age_order_map = F.create_map([F.lit(x) for pair in [
+    ('newborn', 0), ('toddler', 1), ('younger', 2), ('older', 3), ('teen', 4)
+] for x in pair])
+
+# Use map to get customer age group to numeric value
+customer_prefs = (
+    spark.table(KIDS_AGE_GROUPS)
+    .drop('rundate')
+    .withColumnRenamed('account_number', 'AccountNumber')
+    .withColumnRenamed('rank', 'customer_rank')
+    .withColumn('customer_age_order', age_order_map[F.col('kids_age_group')])
+    .select('AccountNumber', 'customer_age_order', 'customer_rank')
+)
+
 df_adset_scores = (
     df_score_components
+    .join(customer_prefs, 'AccountNumber', how='left')
+    .withColumn('ad_age_order', age_order_map[F.col('AdVariant')])
+    # Calculate age_diff only for variant ads
+    .withColumn('age_diff',
+                F.when(F.col('ad_age_order').isNotNull() &
+                       F.col('customer_age_order').isNotNull(),
+                       F.col('ad_age_order') - F.col('customer_age_order')))
+    # Filter: variant ads must be within 1 age group, or customer has no preference # noqa
+    .filter(
+        F.col('ad_age_order').isNull() |  # Non-variant themes always pass
+        F.col('customer_age_order').isNull() |  # No customer preference - all variants pass # noqa
+        ((F.col('age_diff') >= 0) & (F.col('age_diff') <= 1))
+    )
     .withColumn('Rand', F.rand())
     .withColumn(
         'AdPerThemeRank',
         F.rank().over(
-            Window
-            .partitionBy('AccountNumber', 'Theme')
-            .orderBy(F.col('Rand'))
-        ))
+            Window.partitionBy('AccountNumber', 'Theme')
+            .orderBy(
+                F.coalesce(F.col('age_diff'), F.lit(99)).asc(),  # Exact match first, nulls last # noqa
+                F.coalesce(F.col('customer_rank'), F.lit(999)).asc(),  # Customer's preference order # noqa
+                F.col('Rand').asc()
+            )
+        )
+    )
     .where(F.col('AdPerThemeRank') == 1)
     .select('AccountNumber', 'UniqueAdID', 'Score')
     .join(df_ad2adset, on='UniqueAdID', how='inner')
@@ -343,7 +379,7 @@ df_adset_scores = (
         F.rank().over(
             Window
             .partitionBy('AccountNumber', 'AdSetID')
-            .orderBy(F.col('Score').desc(), F.desc('TieBreaker'))
+            .orderBy(F.desc('Score'), F.desc('TieBreaker'))
         )
     )
     .where(F.col('Rank') <= TOP_ADS_PER_LOCATION)

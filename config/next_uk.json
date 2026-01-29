@@ -1594,7 +1594,8 @@
             ["FlatJPG", "string", "null"],
             ["Tags", "string", "null"],
             ["TargetingAttributes", "string", "null"],
-            ["Themes", "string", "null"]
+            ["Themes", "string", "null"],
+            ["AdVariant", "string", "null"]
         ]
     },
 
@@ -1641,7 +1642,8 @@
             "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest",
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
-            "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915"
+            "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
+            "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest"
         },
         "write": {
             "ad_items": "marketingdata_prod.{schema}.{client}_nextads_ad_items",

@@ -12,7 +12,6 @@ resources:
       # job_clusters: ${var.job_clusters_config}
       email_notifications:
         on_failure:
-          - tom_corke@next.co.uk
           - mktg_data_support@next.co.uk
           - edward_taylor@next.co.uk
       notification_settings:
@@ -230,7 +229,6 @@ resources:
               clients:
                 notebooks: true
                 jobs: true
-            data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: STANDARD
             kind: CLASSIC_PREVIEW
             is_single_node: false
@@ -266,7 +264,6 @@ resources:
               clients:
                 notebooks: true
                 jobs: true
-            data_security_mode: SINGLE_USER
             runtime_engine: STANDARD
             kind: CLASSIC_PREVIEW
             is_single_node: false
@@ -304,7 +301,6 @@ resources:
               clients:
                 notebooks: true
                 jobs: true
-            data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: STANDARD
             kind: CLASSIC_PREVIEW
             is_single_node: false
@@ -342,7 +338,6 @@ resources:
               clients:
                 notebooks: true
                 jobs: true
-            data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: STANDARD
             kind: CLASSIC_PREVIEW
             is_single_node: false
@@ -380,7 +375,6 @@ resources:
               clients:
                 notebooks: true
                 jobs: true
-            data_security_mode: DATA_SECURITY_MODE_DEDICATED
             runtime_engine: PHOTON
             kind: CLASSIC_PREVIEW
             is_single_node: false
@@ -416,7 +410,6 @@ resources:
               clients:
                 notebooks: true
                 jobs: true
-            data_security_mode: SINGLE_USER
             runtime_engine: STANDARD
             kind: CLASSIC_PREVIEW
             is_single_node: false
@@ -452,7 +445,6 @@ resources:
               clients:
                 notebooks: true
                 jobs: true
-            data_security_mode: SINGLE_USER
             runtime_engine: STANDARD
             kind: CLASSIC_PREVIEW
             is_single_node: false

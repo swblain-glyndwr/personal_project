@@ -42,6 +42,7 @@ create table marketingdata_prod.{schema}.{client}_nextads_control_sheet (
   Tags string,
   TargetingAttributes string,
   Themes string,
+  AdVariant string,
   Page string,
   Screen string,
   PageGroup string,
