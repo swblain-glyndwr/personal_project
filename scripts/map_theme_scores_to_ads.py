@@ -245,22 +245,25 @@ df_score_components = (
     .select('AccountNumber',
             F.col('NextTheme').alias('Theme'),
             'UniqueAdID',
+            'AdVariant',
             'RelevanceScore',
             'IncrementalScore',
             'Score')
 )
 df_score_components.cache()
 
+df_score_components_for_write = df_score_components.drop('AdVariant')
+
 logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS_LATEST}')
 truncate_and_load(
-    df_score_components,
+    df_score_components_for_write,
     THEME_SCORE_COMPONENTS_LATEST,
     pk_cols=['AccountNumber', 'Theme', 'UniqueAdID']
 )
 
 logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS}')
 delete_from_and_load(
-    df_score_components,
+    df_score_components_for_write,
     THEME_SCORE_COMPONENTS,
     pk_cols=['AccountNumber', 'Theme', 'UniqueAdID'],
     del_where={"rundate": "current_date()"}
