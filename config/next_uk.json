@@ -198,7 +198,10 @@
     },
     
     "transient_cells": {
-        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
+        "Audiences": [
+            ["eid_audience", {"account_col": "AccountNumber", "label_col": "Label"}]
+        ]
     },
 
     "locations": {
@@ -226,6 +229,26 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidA"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidB"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidC"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidD"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidE"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
                 },
                 {
                     "when": [
@@ -259,6 +282,26 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidA"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidB"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidC"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidD"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
+                },
+                {
+                    "when": [{"col": "Audience", "op": "eq", "val": "EidE"}],
+                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
                 },
                 {
                     "when": [
@@ -532,29 +575,13 @@
             "map": [
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"},
-                        {"col": "AdHocABTest7", "op": "eq", "val": "A"}
-                    ],
-                    "then": {"col": "AdSuppressed"}
-                },
-                {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"},
-                        {"col": "AdHocABTest7", "op": "eq", "val": "B"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "AdHocABTest7", "op": "eq", "val": "A"}
-                    ],
-                    "then": {"col": "AdSuppressed"}
-                },
-                {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"},
-                        {"col": "AdHocABTest7", "op": "eq", "val": "B"}
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
                     "then": {"col": "UniqueAdIDBest"}
                 }
@@ -1643,7 +1670,8 @@
             "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest",
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
             "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
-            "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest"
+            "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest",
+            "eid_audience": "marketingdata_prod.ds_sandbox.nextads_eid_2026"
         },
         "write": {
             "ad_items": "marketingdata_prod.{schema}.{client}_nextads_ad_items",

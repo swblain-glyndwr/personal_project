@@ -183,6 +183,14 @@ df_multipage_lookup = (
 df_assignments = df_assignments.where(F.col('SessionDate') != '2025-05-29')
 df_ad_metadata = df_ad_metadata.where(F.col('SessionDate') != '2025-05-29')
 
+# Force deletion of SessionDate 30th Jan 2026 from ads tables
+# Assignment job failed with rundate 2026-01-29, so no assignments exist for
+# SessionDate 2026-01-30 (SessionDate = rundate + 1). MASID served almost all
+# 'Z' (NoAd) with no valid test/control split. Results processing would fail
+# and even if it ran, data would be invalid.
+df_assignments = df_assignments.where(F.col('SessionDate') != '2026-01-30')
+df_ad_metadata = df_ad_metadata.where(F.col('SessionDate') != '2026-01-30')
+
 # remove PLP locations prior to 20th Sept (pre-launch period)
 plp_locs = ['PL' + str(num) for num in range(1, 62, 1)]
 df_assignments = (
