@@ -7,12 +7,13 @@ bundle:
 
 include:
   - resources/jobs/mktg_next_uk_nextads.yml
+  - resources/variables/clusters.yml
+  - resources/variables/libraries.yml
   - resources/jobs/mktg_next_uk_nextads_results.yml
-  # - resources/variables/clusters.yml
 
-# sync:
-#   exclude:
-#     - notebooks/
+sync:
+  exclude:
+    - notebooks/
 
 variables:
   environment_name:
@@ -24,46 +25,27 @@ variables:
   job_cluster_policy_id:
     description: policy id for job clusters
     default: 00076A5E6270EA99
-  # single_node_policy_id:
-  #   description: policy id for single node clusters
-  #   default: 0005DD8A483C9B30
-  # dlt_policy_id:
-  #   description: the policy id for clusters used in delta live tables
-  #   default: 000CC98093ABF8DC
   run_as_SPN_name:
     description: the name of the service principal identity that will deploy the bundle
     default: 7ecc733a-4b66-4783-b984-985333d55c38
-  # BIS_source_catalog:
-  #   description: the name of the BIS unity catalog we will find our source data in, e.g. businessintelligencesystems_prod
-  #   default: businessintelligencesystems_dev 
   mktgdata_catalog:
     description: the name of the marketing unity catalog we are using, e.g. marketingdata_prod
     default: marketingdata_dev
-  # ecom_subscription_id:
-  #   description: the subscription id for the ecom environment equivalent to where we are deploying, eg. "CI" environment for Databricks Dev
-  #   default: c10b49dd-b454-432a-98a0-410a238d5d07
-  # ecom_env_name:
-  #   description: the name of the ecom environment equivalent to where we are deploying, eg. "CI" environment for Databricks Dev, case sensitive, used in resource group names
-  #   default: CI
-  # notebooks_root:
-  #   description: root path for source code when deployed - standard across workspaces
-  #   default: /Workspace/root/${bundle.name}
-  # prod_email_notifications:
-  #   description: Prod email notifications
-  #   type: complex
-  #   default:
-  #     on_failure:
-  #       - mktg_eng_support@next.co.uk
-  #     no_alert_for_skipped_runs: true
-  # prod_notification_settings:
-  #   description: Prod notification settings
-  #   type: complex
-  #   default:
-  #     no_alert_for_skipped_runs: true
-  #     no_alert_for_canceled_runs: true
-  # cosmos_connector_coordinates:
-  #   description: the maven coordinates for the cosmos connector we are using
-  #   default: com.azure.cosmos.spark:azure-cosmos-spark_3-5_2-12:4.40.0
+  deploy_timestamp:
+    description: Deployment timestamp
+    default: "unknown"
+  git_commit_sha:
+    description: Git commit SHA for tracking
+    default: "unknown"
+  git_branch:
+    description: Git branch name
+    default: "unknown"
+  deployed_by:
+    description: Deployed by user
+    default: ${workspace.current_user.userName}
+  notification_emails:
+    description: Email addresses for job failure notifications
+    default: []
 
 targets:
   DEV:
@@ -82,13 +64,15 @@ targets:
       group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
     - level: CAN_MANAGE
       service_principal_name: ${var.run_as_SPN_name}
+    - level: CAN_RUN
+      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
     variables:
       mktgdata_catalog: marketingdata_dev
       environment_name: dev
       job_cluster_policy_id: 00076A5E6270EA99
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
-  
+      
   # PREPROD:
   #   # intended to deploy as in prod simulating prod, in prod mode etc.
   #   mode: production
@@ -123,9 +107,7 @@ targets:
     - level: CAN_MANAGE
       group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
     - level: CAN_MANAGE
-      user_name: edward_taylor@next.co.uk
-    - level: CAN_MANAGE
-      user_name: thomas_lynch@next.co.uk
+      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
     variables:
       mktgdata_catalog: marketingdata_prod
       environment_name: prod
@@ -153,6 +135,8 @@ targets:
       group_name: AzUsers-DBK-MarketingData-Viewer-Prod
     - level: CAN_MANAGE
       group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
+    - level: CAN_RUN
+      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
     - level: CAN_MANAGE
       user_name: edward_taylor@next.co.uk
     - level: CAN_MANAGE
@@ -163,3 +147,6 @@ targets:
       job_cluster_policy_id: 0019C79D3B6399F0
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
+      notification_emails:
+        - mktg_data_support@next.co.uk
+        - edward_taylor@next.co.uk

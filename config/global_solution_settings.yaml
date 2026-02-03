@@ -1,0 +1,30 @@
+default:
+  task_plp_gs_per_client:
+    control_sheet_lookup:
+      next:
+        GB:
+          url: "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=1626227848#gid=1626227848"
+          control_sheet_tab_name: "Control Sheet UK"
+          plp_placements_tab_name: "Placements"
+          additional_plp_placements_tab_name: "PLX aditional PLPs"
+      
+      fatface:
+        GB:
+          url: "https://docs.google.com/spreadsheets/d/1ffvuUz09HFwFbWiFLYkMtlvNJKppH_pB1i-ECmCaSYU/edit?gid=0#gid=0"
+          control_sheet_tab_name: "fatface Control Sheet"
+          plp_placements_tab_name: "fatface Placements"
+          additional_plp_placements_tab_name: "fatface additional placements"
+    control_sheet_table_name: "@format {this.schema}.next_uk_nextads_control_sheet_latest"
+
+    output_table_name_plp_gs:
+      next:
+        gb: "@format {this.schema}.next_uk_nextads_plp_gs_next_gb_latest"
+      fatface:
+        gb: "@format {this.schema}.next_uk_nextads_plp_gs_fatface_gb_latest"
+
+  task_plp_gs_combiner:
+    tables_to_combine:
+      - "@format {this.task_plp_gs_per_client.output_table_name_plp_gs.next.gb}"
+      - "@format {this.task_plp_gs_per_client.output_table_name_plp_gs.fatface.gb}"
+    output_table_name_latest: "@format {this.schema}.next_uk_nextads_plp_gs_latest"
+    az_output_abfss_path: "@format abfss://adsconfigfeeds@{this.az_st_account}.dfs.core.windows.net/input"

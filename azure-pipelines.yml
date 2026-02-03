@@ -6,14 +6,6 @@ name: mktg-next-ads-ci-cd-$(Build.SourceVersion)-$(Date:yyyyMMdd)$(Rev:.r)
 trigger: none # all manual for now
 
 parameters:
-  # - name: deploymentEnvironment
-  #   displayName: Target Environment
-  #   type: string
-  #   default: Development
-  #   values:
-  #   - Development
-  #   - PreProduction
-  #   - Production
   - name: destroyBundle
     type: boolean
     default: false
@@ -28,26 +20,29 @@ stages:
     variables:
     - group: Development
     jobs:
-      - template: devops/templates/unit-tests.yml
+      - template: devops/templates/run-tests.yml
         parameters:
           pythonVersion: $(PYTHON_VERSION)
           AzureBuildAgentPool: $(agentpool_dev)
           azureSubscription: $(serviceConnectionName_dev)
           KeyVaultName: $(strKeyVaultName)
-
-  - stage: DeployDEV
-    displayName: 'Deploy to DEV'
-    dependsOn: CI
-    variables:
-    - group: Development
-    jobs:
-      - template: devops/templates/deploy-dab.yml
-        parameters:
+          testType: 'unit'
           target: 'DEV'
+
+  - stage: IntegrationTests
+    displayName: 'Integration Tests on PROD'
+    variables:
+    - group: Production
+    dependsOn: [] # to run in parallel with CI
+    jobs:
+      - template: devops/templates/run-tests.yml
+        parameters:
           pythonVersion: $(PYTHON_VERSION)
-          AzureBuildAgentPool: $(agentpool_dev)
-          azureSubscription: $(serviceConnectionName_dev)
+          AzureBuildAgentPool: $(agentpool_prod)
+          azureSubscription: $(serviceConnectionName_prod)
           KeyVaultName: $(strKeyVaultName)
+          testType: 'integration'
+          target: 'PROD'
 
   - stage: DestroyDEV
     displayName: 'Destroy DEV'
@@ -63,6 +58,36 @@ stages:
           azureSubscription: $(serviceConnectionName_dev)
           KeyVaultName: $(strKeyVaultName)
 
+  - stage: DeployDEV
+    displayName: 'Deploy to DEV'
+    dependsOn:
+      - CI
+      - IntegrationTests
+    variables:
+    - group: Development
+    jobs:
+      - template: devops/templates/deploy-dab.yml
+        parameters:
+          target: 'DEV'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+
+  - stage: DestroyPREPROD
+    displayName: 'Destroy PREPROD'
+    condition: eq('${{ parameters.destroyBundle }}', 'true')
+    variables:
+    - group: Production
+    jobs:
+      - template: devops/templates/destroy-dab.yml
+        parameters:
+          target: 'PREPROD'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_prod)
+          azureSubscription: $(serviceConnectionName_prod)
+          KeyVaultName: $(strKeyVaultName)
+
   - stage: DeployPREPROD
     displayName: 'Deploy PREPROD to PROD'
     dependsOn: DeployDEV
@@ -73,6 +98,20 @@ stages:
       - template: devops/templates/deploy-dab.yml
         parameters:
           target: 'PREPROD'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_prod)
+          azureSubscription: $(serviceConnectionName_prod)
+          KeyVaultName: $(strKeyVaultName)
+
+  - stage: DestroyPROD
+    displayName: 'Destroy PROD'
+    condition: eq('${{ parameters.destroyBundle }}', 'true')
+    variables:
+    - group: Production
+    jobs:
+      - template: devops/templates/destroy-dab.yml
+        parameters:
+          target: 'PROD'
           pythonVersion: $(PYTHON_VERSION)
           AzureBuildAgentPool: $(agentpool_prod)
           azureSubscription: $(serviceConnectionName_prod)

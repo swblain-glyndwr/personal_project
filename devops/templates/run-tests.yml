@@ -1,4 +1,7 @@
 parameters:
+  - name: target
+    type: string
+    default: 'DEV'
   - name: pythonVersion
     type: string
     default: '3.11'
@@ -8,10 +11,18 @@ parameters:
     type: string
   - name: KeyVaultName
     type: string
+  - name: testType
+    type: string
+    default: 'unit'
+    values:
+      - unit
+      - integration
+      - all
+    displayName: 'Test type to run'
 
 jobs:
-  - job: UnitTests
-    displayName: 'Run Unit Tests with Poetry'
+  - job: RunTests
+    displayName: 'Run ${{ parameters.testType }} Tests with Poetry'
     pool:
       name: '${{parameters.AzureBuildAgentPool}}'
       vmImage: ubuntu-latest
@@ -44,17 +55,29 @@ jobs:
           DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
 
       - bash: |
-          echo "Starting cluster: $(DATABRICKS_CLUSTER_ID)"
-          bash devops/scripts/start_db_cluster.sh $(DATABRICKS_CLUSTER_ID)
+          bash devops/scripts/start_db_cluster.sh $(DATABRICKS_CLUSTER_ID) ${{ parameters.target }}
         name: start_test_cluster
         displayName: Start the testing cluster
-        env:
-          DATABRICKS_CLUSTER_ID: $(DATABRICKS_CLUSTER_ID)
+        # env:
+        #   DATABRICKS_CLUSTER_ID: $(DATABRICKS_CLUSTER_ID)
 
       - bash: |
-          poetry run pytest tests/ -v --junitxml=junit/test-results.xml
-        name: run_unit_tests
-        displayName: Run Python Unit Tests
+          # Determine test path based on parameter
+          if [ "${{ parameters.testType }}" = "unit" ]; then
+            TEST_PATH="tests/unit/"
+            echo "Running UNIT tests from: $TEST_PATH"
+          elif [ "${{ parameters.testType }}" = "integration" ]; then
+            TEST_PATH="tests/integration/"
+            echo "Running INTEGRATION tests from: $TEST_PATH"
+          else
+            TEST_PATH="tests/"
+            echo "Running ALL tests from: $TEST_PATH"
+          fi
+          
+          # Run pytest with selected path
+          poetry run pytest $TEST_PATH -v --junitxml=junit/test-results.xml
+        name: run_tests
+        displayName: Run Python ${{ parameters.testType }} Tests
         continueOnError: true
         env:
           DATABRICKS_HOST: $(DATABRICKS_HOST)
@@ -66,7 +89,7 @@ jobs:
         condition: succeededOrFailed()
         inputs:
           testResultsFiles: 'junit/test-results.xml'
-          testRunTitle: 'Python Unit Tests'
+          testRunTitle: 'Python ${{ parameters.testType }} Tests'
           mergeTestResults: true
         displayName: 'Publish test results'
 
@@ -74,6 +97,14 @@ jobs:
           echo "Linting Python code..."
           poetry run ruff check || echo "⚠️  Formatting issues"
         displayName: 'Lint code'
+        condition: |
+          and(
+            succeededOrFailed(),
+            or(
+              eq('${{ parameters.testType }}', 'unit'),
+              eq('${{ parameters.testType }}', 'all')
+            )
+          )
         continueOnError: true
 
       # - task: PublishCodeCoverageResults@1

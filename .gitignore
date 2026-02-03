@@ -16,3 +16,5 @@ scratch*
 *data_catalogue.yml
 typings/
 .ruff_cache
+data/*
+config/settings.local.yaml # local dynaconf config

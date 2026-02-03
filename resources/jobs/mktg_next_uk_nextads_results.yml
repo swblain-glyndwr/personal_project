@@ -6,14 +6,16 @@ resources:
         service_principal_name: ${var.run_as_SPN_name}
       queue:
         enabled: true
-      parameters:
-        - name: job_name
-          default: mktg_next_uk_nextads_results_cicd #"{{job.name}}" # TODO swap back to parameter
-      # job_clusters: ${var.job_clusters_config}
+      job_clusters: ${var.job_clusters_config}
+      tags:
+        deployed_at: ${var.deploy_timestamp}
+        git_commit: ${var.git_commit_sha}
+        git_branch: ${var.git_branch}
+        deployed_by: ${var.deployed_by}
+        department: marketing
+        project: nextads
       email_notifications:
-        on_failure:
-          - mktg_data_support@next.co.uk
-          - edward_taylor@next.co.uk
+        on_failure: ${var.notification_emails}
       notification_settings:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
@@ -29,7 +31,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_uk_nextads_results
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 21600
@@ -43,7 +45,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_uk_nextads_results
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
@@ -57,7 +59,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_uk_nextads_results
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
@@ -71,7 +73,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_uk_nextads_results
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
@@ -85,43 +87,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_uk_nextads_results
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
-      job_clusters:
-        - job_cluster_key: next_uk_nextads_results
-          new_cluster:
-            cluster_name: ""
-            spark_version: 15.4.x-scala2.12
-            spark_conf:
-              spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
-              spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
-              spark.hadoop.google.cloud.auth.service.account.enable: "true"
-              spark.hadoop.fs.gs.project.id: big-query-156009
-              spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
-              spark.databricks.sql.initial.catalog.name: marketingdata_prod
-              credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
-            azure_attributes:
-              first_on_demand: 1
-              availability: SPOT_WITH_FALLBACK_AZURE
-              spot_bid_max_price: -1
-            node_type_id: Standard_D16ads_v5
-            driver_node_type_id: Standard_D16ads_v5
-            custom_tags:
-              Recharge Cost Centre: C9871
-              Team: marketing_job
-            spark_env_vars:
-              CURRENT_ENV: prod
-              GOOGLE_CLOUD_PROJECT: big-query-156009
-            enable_elastic_disk: true
-            workload_type:
-              clients:
-                notebooks: true
-                jobs: true
-            runtime_engine: STANDARD
-            kind: CLASSIC_PREVIEW
-            is_single_node: false
-            autoscale:
-              min_workers: 3
-              max_workers: 3

@@ -1,0 +1,34 @@
+# When Dynaconf reads a YAML file with environments=True, it performs a specific loading sequence:
+# It looks for your environment block (e.g., dev:).
+# It takes every key under that block and "hoists" it to the top level of your settings object.
+
+default:
+  job_env: dev
+  warehouse: marketingdata_dev
+  schema: ds_sandbox
+  az_st_container_name: adsconfigfeeds
+  az_tenant_id: "f009f285-5242-433a-9365-daa1edf145c3"
+  secret_key_spn_clientid: "Databricks-Spn-MarketingData-ClientId"
+  secret_key_spn_secret: "Databricks-Spn-MarketingData-ClientSecret"
+
+dev:
+  warehouse: marketingdata_dev
+  schema: ds_sandbox
+  az_st_account: adsstecmdeveun
+  az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
+  dbutils_secret_scope: "DataIng-KV-MKT-Dev-EUW"
+
+# NOTE: we are configuring some of the below for PREPROD on PROD setup
+preprod:
+  warehouse: marketingdata_prod
+  schema: ds_sandbox
+  az_st_account: adsstecmppeuw
+  az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
+  dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
+
+prod:
+  warehouse: marketingdata_prod
+  schema: warehouse
+  az_st_account: adsstecmprodeuw
+  az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
+  dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"

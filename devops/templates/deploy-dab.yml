@@ -36,14 +36,16 @@ jobs:
           DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
 
       - script: |
-          echo "Validating bundle for target ${{ parameters.target }}..."
+          echo "Validating and planning bundle for target ${{ parameters.target }}..."
           unset DATABRICKS_CLUSTER_ID
           databricks bundle validate -t ${{ parameters.target }}
-        displayName: 'Validate bundle'
+          databricks bundle plan -t ${{ parameters.target }}
+        displayName: 'Validate and plan bundle'
 
       - script: |
           echo "Deploying to ${{ parameters.target }} target..."
           unset DATABRICKS_CLUSTER_ID
+          source devops/scripts/set_db_tags.sh
           databricks bundle deploy -t ${{ parameters.target }} --auto-approve
         displayName: 'Deploy DAB to ${{ parameters.target }}'
 

@@ -11,7 +11,7 @@ if [ -f '~/.databrickscfg' ]; then
 fi
 
 echo "Install databricks cli"
-curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/refs/tags/v0.281.0/install.sh | sh
 
 echo "Databricks CLI version:"
 databricks --version
@@ -36,9 +36,9 @@ chmod 600 ~/.databrickscfg
 echo "✓ Databricks configuration file created"
 echo ""
 
-unset DATABRICKS_CLUSTER_ID # this is because we loaded this from DevOps variables
-
 # Verify authentication works
-echo "Testing authentication with DEV profile:"
+unset DATABRICKS_CLUSTER_ID # this is because we loaded this from DevOps variables
+echo "Testing authentication with profile:"
 databricks auth env
+databricks auth profiles
 echo ""
