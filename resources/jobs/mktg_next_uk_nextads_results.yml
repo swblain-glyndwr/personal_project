@@ -31,7 +31,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 21600
@@ -45,7 +45,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
@@ -59,7 +59,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
@@ -73,7 +73,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
@@ -87,7 +87,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D16ads_v5_3_3
+          job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
           libraries:
             - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
           timeout_seconds: 3600
