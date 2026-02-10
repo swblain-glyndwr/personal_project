@@ -7,7 +7,7 @@ class TestABFSConnection:
     @pytest.mark.abfs_integration
     def test_connection_to_abfs(self, spark, dbutils, config_prod):
         """Test spark connection to ABFS."""
-        from scripts.plp_gs_combiner import _configure_abfs
+        from next_ads.utils import gs_helpers
 
         # Load config
         config = config_prod
@@ -17,7 +17,7 @@ class TestABFSConnection:
             config.task_plp_gs_combiner.az_output_abfss_path
         )
 
-        _configure_abfs(
+        gs_helpers.configure_abfs(
             spark=spark,
             dbutils=dbutils,
             account_name=account_name,

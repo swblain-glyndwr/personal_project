@@ -9,11 +9,7 @@ except NameError:
 
     dbutils = get_dbutils()
     notebook_path = (
-        dbutils.notebook.entry_point.getDbutils()
-        .notebook()
-        .getContext()
-        .notebookPath()
-        .get()
+        dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
     )  # type: ignore # noqa
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
@@ -22,11 +18,12 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from typing import Dict
 import json
 from pyspark.sql.functions import col, concat, lit, when
 from pyspark.sql.dataframe import DataFrame
 
-from dsutils.dbc import configure_spark, get_dbutils
+from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.utils import gs_helpers
@@ -38,38 +35,53 @@ from next_ads.data_validation import schemas
 
 logger = get_logger(__name__)
 spark = configure_spark()
-dbutils = get_dbutils()
+
+
+def load_control_sheet_config(cfg: Dynaconf, client: str, territory: str) -> Dict:
+    CONTROL_SHEET_LOOKUP = cfg.task_plp_gs_per_client.control_sheet_lookup.to_dict()  # noqa
+    CONTROL_SHEET_URL = CONTROL_SHEET_LOOKUP[client][territory]["url"]
+    CONTROL_SHEET_TAB = CONTROL_SHEET_LOOKUP[client][territory]["control_sheet_tab_name"]
+    PLP_PLACEMENTS_TAB = CONTROL_SHEET_LOOKUP[client][territory]["plp_placements_tab_name"]
+    ADDITIONAL_PLP_PLACEMENTS_TAB = CONTROL_SHEET_LOOKUP[client][territory][
+        "additional_plp_placements_tab_name"
+    ]
+
+    return {
+        "CONTROL_SHEET_LOOKUP": CONTROL_SHEET_LOOKUP,
+        "CONTROL_SHEET_URL": CONTROL_SHEET_URL,
+        "CONTROL_SHEET_TAB": CONTROL_SHEET_TAB,
+        "PLP_PLACEMENTS_TAB": PLP_PLACEMENTS_TAB,
+        "ADDITIONAL_PLP_PLACEMENTS_TAB": ADDITIONAL_PLP_PLACEMENTS_TAB,
+    }
 
 
 @pa.check_output(schemas.GlobalSolutionOutputModel, lazy=True)
-def process_control_sheet(config: Dynaconf) -> "DataFrame":
-    """
-    Process control sheet from config.
+def process_control_sheet(control_sheet_config: Dict) -> "DataFrame":
+    CONTROL_SHEET_URL = control_sheet_config["CONTROL_SHEET_URL"]
+    CONTROL_SHEET_TAB = control_sheet_config["CONTROL_SHEET_TAB"]
+    PLP_PLACEMENTS_TAB = control_sheet_config["PLP_PLACEMENTS_TAB"]
+    ADDITIONAL_PLP_PLACEMENTS_TAB = control_sheet_config["ADDITIONAL_PLP_PLACEMENTS_TAB"]
 
-    Args:
-        config: Dynaconf config object with expected keys:
-            - tables_write.control_sheet_raw_latest: str
-            - tables_write.control_sheet_plp_raw_latest: str
-            - tables_write.multipage_locations_latest: str
-            - warehouse: str
-            - schema: str
-
-    Returns:
-        DataFrame: Processed output DataFrame
-    """
-    logger.info(
-        f"Loading control sheet from tables: {config.tables_write.control_sheet_raw_latest}, {config.tables_write.control_sheet_plp_raw_latest}, {config.tables_write.multipage_locations_latest}"
+    logger.info(f"Reading control sheet from Google sheet: {CONTROL_SHEET_URL}")
+    latest_control_sheet = gs_helpers.read_from_google_sheets_to_dataframe(
+        sheet_url=CONTROL_SHEET_URL, worksheet_name=CONTROL_SHEET_TAB
     )
-    latest_control_sheet = spark.table(config.tables_write.control_sheet_raw_latest)
-    plp_placements = spark.table(config.tables_write.control_sheet_plp_raw_latest)
-    plx_placements = spark.table(config.tables_write.multipage_locations_latest)
-
-    latest_control_sheet = latest_control_sheet.filter(
-        latest_control_sheet.UniqueAdID != ""
-    ).filter(latest_control_sheet.CMSPageID != "")
+    # Data validation.
+    # NOTE: soft validation (no assert) due to some inconsistency between
+    # fatface and next
+    latest_control_sheet = latest_control_sheet.filter(latest_control_sheet.UniqueAdID != "")
+    latest_control_sheet = schemas.ControlSheetInputModel.validate(latest_control_sheet, lazy=True)
+    errors_json = json.dumps(
+        dict(latest_control_sheet.pandera.errors),
+        indent=2,
+    )
+    logger.info(f"Data validation errors: {errors_json}")
 
     latest_control_sheet.createOrReplaceTempView("control_sheet")
 
+    plp_placements = gs_helpers.read_from_google_sheets_to_dataframe(
+        sheet_url=CONTROL_SHEET_URL, worksheet_name=PLP_PLACEMENTS_TAB
+    )
     plp_placements = (
         plp_placements.where(col("Page") != "")
         .where(col("Location").startswith("PL"))
@@ -79,11 +91,13 @@ def process_control_sheet(config: Dynaconf) -> "DataFrame":
     plp_placements.createOrReplaceTempView("plp_placements")
 
     try:
-        plx_placements = (
-            plx_placements.withColumnsRenamed({"Location": "PLP_slot", "Page": "URL"})
-            .where(col("URL") != "")
-            .select("PLP_slot", "URL")
+        plx_placements = gs_helpers.read_from_google_sheets_to_dataframe(
+            sheet_url=CONTROL_SHEET_URL,
+            worksheet_name=ADDITIONAL_PLP_PLACEMENTS_TAB,
         )
+
+        plx_placements = plx_placements.drop("Sales").withColumn("PLP_slot", lit("PLX"))
+        plx_placements = plx_placements.where(col("URL") != "")
         plx_placements = plx_placements.join(
             plp_placements.select("URL"), how="left_anti", on=["URL"]
         )
@@ -94,9 +108,7 @@ def process_control_sheet(config: Dynaconf) -> "DataFrame":
         logger.error("No additional PLP placements found")
 
     # Derive Trade name from URL and join to search test cells
-    plp_slots = [
-        i for i in latest_control_sheet.columns if i.lower().startswith("pl")
-    ] + ["PLX"]
+    plp_slots = [i for i in latest_control_sheet.columns if i.lower().startswith("pl")] + ["PLX"]
 
     latest_control_sheet = latest_control_sheet.select(
         "uniqueadid",
@@ -132,11 +144,9 @@ def process_control_sheet(config: Dynaconf) -> "DataFrame":
         "PLP_bools",
     )
 
-    latest_control_sheet_melt = latest_control_sheet_melt.join(
-        plp_placements, on=["PLP_slot"]
-    )
+    latest_control_sheet_melt = latest_control_sheet_melt.join(plp_placements, on=["PLP_slot"])
     latest_control_sheet_melt = latest_control_sheet_melt.dropDuplicates(
-        subset=["URL", "PLP_slot", "uniqueadid"]
+        subset=["URL", "PLP_slot", "CMSPageID"]
     )
 
     # filter for ticked PL slots
@@ -165,9 +175,9 @@ def process_control_sheet(config: Dynaconf) -> "DataFrame":
         ),
     )
 
-    output_df = latest_control_sheet_melt.groupby(
-        "action", "realm", "territory", "URL"
-    ).apply(gs_helpers.get_masid_csmid_columns_udf)
+    output_df = latest_control_sheet_melt.groupby("action", "realm", "territory", "URL").apply(
+        gs_helpers.get_masid_csmid_columns_udf
+    )
 
     output_df = gs_helpers.format_output_col_names(
         output_df,
@@ -238,7 +248,9 @@ if __name__ == "__main__":
 
     spark.sql(f"USE CATALOG {WAREHOUSE}")
 
-    output_df = process_control_sheet(config=config)
+    control_sheet_config = load_control_sheet_config(cfg=config, client=CLIENT, territory=TERRITORY)
+    CONTROL_SHEET_LOOKUP = control_sheet_config["CONTROL_SHEET_LOOKUP"]
+    output_df = process_control_sheet(control_sheet_config=control_sheet_config)
 
     # Data validation
     pandera_errors = output_df.pandera.errors
@@ -277,8 +289,6 @@ if __name__ == "__main__":
         .option("header", True)
         .csv(AZ_OUTPUT_ABFSS_PATH)
     )
-    logger.info(
-        f"Written output_df with {output_count} records "
-        f"to {AZ_OUTPUT_ABFSS_PATH}"
-    )
+    logger.info(f"Written output_df with {output_count} records to {AZ_OUTPUT_ABFSS_PATH}")
+
     logger.info("Run complete")

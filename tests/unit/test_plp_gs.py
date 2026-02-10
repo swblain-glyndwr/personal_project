@@ -3,15 +3,15 @@ from unittest.mock import patch
 from pyspark.sql.types import StructType, StructField, StringType
 
 
-@pytest.fixture
-def mock_control_sheet_config():
-    """Mock control sheet configuration."""
-    return {
-        "CONTROL_SHEET_URL": "https://docs.google.com/spreadsheets/d/test123",
-        "CONTROL_SHEET_TAB": "Control Sheet",
-        "PLP_PLACEMENTS_TAB": "Placements",
-        "ADDITIONAL_PLP_PLACEMENTS_TAB": "Additional Placements",
-    }
+# @pytest.fixture
+# def mock_control_sheet_config():
+#     """Mock control sheet configuration."""
+#     return {
+#         "CONTROL_SHEET_URL": "https://docs.google.com/spreadsheets/d/test123",
+#         "CONTROL_SHEET_TAB": "Control Sheet",
+#         "PLP_PLACEMENTS_TAB": "Placements",
+#         "ADDITIONAL_PLP_PLACEMENTS_TAB": "Additional Placements",
+#     }
 
 
 @pytest.fixture
@@ -48,7 +48,7 @@ def mock_control_sheet_data(spark):
         (
             "AD002",
             "c1778_v2",
-            "fatface",
+            "Next",
             "GB",
             "BBQT",
             "FALSE",
@@ -99,13 +99,14 @@ def mock_plp_placements_data(spark):
 def mock_plx_placements_data(spark):
     """Mock PLX additional placements data."""
     schema = StructType([
+        StructField("Location", StringType(), True),
         StructField("Page", StringType(), True),
-        StructField("Sales", StringType(), True),
+        StructField("Screen", StringType(), True),
     ])
 
     data = [
-        ("/plx-page1", "100"),
-        ("/plx-page2", "200"),
+        ("PLX", "/plx-page1", "PLP"),
+        ("PLX", "/plx-page2", "PLP"),
     ]
 
     return spark.createDataFrame(data, schema)
@@ -178,53 +179,51 @@ def mock_control_sheet_table_df(spark):
 
 def test_process_control_sheet_basic(
     spark,
-    mock_control_sheet_config,
+    config_dev,
     mock_control_sheet_data,
-    mock_plp_placements_data
+    mock_plp_placements_data,
+    mock_plx_placements_data
 ):
     """Test basic processing of control sheet data."""
 
-    with patch(
-        "next_ads.utils.gs_helpers.read_from_google_sheets_to_dataframe"
-    ) as mock_read:
-        # Mock the Google Sheets reads
-        mock_read.side_effect = [
-            mock_control_sheet_data,
-            mock_plp_placements_data,
-            IndexError("No PLX tab"),
-        ]
+    with patch("scripts.plp_gs.spark") as mock_spark:
+        # Setup mock spark.table() to return our test data
+        def spark_table_side_effect(table_name):
+            if "control_sheet_raw_latest" in table_name:
+                return mock_control_sheet_data
+            elif "control_sheet_plp_raw_latest" in table_name:
+                return mock_plp_placements_data
+            elif "multipage_locations_latest" in table_name:
+                return mock_plx_placements_data
+            else:
+                raise ValueError(f"Unknown table: {table_name}")
 
-        # Import after patching to use mocked version
+        mock_spark.table.side_effect = spark_table_side_effect
+        # Keep the real SQL operations
+        mock_spark.sql = spark.sql
+
+        # Import after patching
         from scripts.plp_gs import process_control_sheet
 
-        # Run the function with config parameter
-        result_df = process_control_sheet(
-            control_sheet_config=mock_control_sheet_config
-        )
+        # Run the function
+        result_df = process_control_sheet(config=config_dev)
 
         # Assertions
         assert result_df is not None
         assert result_df.count() > 0
 
-        # Verify Google Sheets was called with correct parameters
-        assert mock_read.call_count == 3
-        mock_read.assert_any_call(
-            sheet_url=mock_control_sheet_config["CONTROL_SHEET_URL"],
-            worksheet_name=mock_control_sheet_config["CONTROL_SHEET_TAB"]
-        )
-        mock_read.assert_any_call(
-            sheet_url=mock_control_sheet_config["CONTROL_SHEET_URL"],
-            worksheet_name=mock_control_sheet_config["PLP_PLACEMENTS_TAB"]
-        )
+        # Verify spark.table was called 3 times
+        assert mock_spark.table.call_count == 3
 
-        # Check output schema
-        expected_columns = [
-            "Action",
-            "realm",
-            "territory",
-            "url",
-            "masIdSlotsAndCMSContent",
-        ]
+        # Define expected schema
+        expected_schema = {
+            "Action": StringType,
+            "realm": StringType,
+            "territory": StringType,
+            "url": StringType,
+            "masIdSlotsAndCMSContent": StringType,
+        }
+        expected_columns = list(expected_schema.keys())
         actual_columns = result_df.columns
 
         assert set(expected_columns).issubset(set(actual_columns)), (
@@ -241,30 +240,6 @@ def test_process_control_sheet_basic(
                 f"Column {col} should be StringType, got "
                 f"{type(schema_dict[col])}"
             )
-
-
-def test_process_control_sheet_output_schema(
-    spark,
-    mock_control_sheet_config,
-    mock_control_sheet_data,
-    mock_plp_placements_data
-):
-    """Test that output schema matches expected format."""
-
-    with patch(
-        "next_ads.utils.gs_helpers.read_from_google_sheets_to_dataframe"
-    ) as mock_read:
-        mock_read.side_effect = [
-            mock_control_sheet_data,
-            mock_plp_placements_data,
-            IndexError("No PLX tab"),
-        ]
-
-        from scripts.plp_gs import process_control_sheet
-
-        result_df = process_control_sheet(
-            control_sheet_config=mock_control_sheet_config
-        )
 
         # Define expected schema
         expected_schema = {
@@ -294,25 +269,34 @@ def test_process_control_sheet_output_schema(
 
 def test_process_control_sheet_filters_active_plp(
     spark,
-    mock_control_sheet_config,
+    config_dev,
     mock_control_sheet_data,
-    mock_plp_placements_data
+    mock_plp_placements_data,
+    mock_plx_placements_data
 ):
-    """Test that only TRUE PLP placements are included."""
+    """Test basic processing of control sheet data."""
 
-    with patch(
-        "next_ads.utils.gs_helpers.read_from_google_sheets_to_dataframe"
-    ) as mock_read:
-        mock_read.side_effect = [
-            mock_control_sheet_data,
-            mock_plp_placements_data,
-            IndexError("No PLX tab"),
-        ]
+    with patch("scripts.plp_gs.spark") as mock_spark:
+        # Setup mock spark.table() to return our test data
+        def spark_table_side_effect(table_name):
+            if "control_sheet_raw_latest" in table_name:
+                return mock_control_sheet_data
+            elif "control_sheet_plp_raw_latest" in table_name:
+                return mock_plp_placements_data
+            elif "multipage_locations_latest" in table_name:
+                return mock_plx_placements_data
+            else:
+                raise ValueError(f"Unknown table: {table_name}")
 
+        mock_spark.table.side_effect = spark_table_side_effect
+        # Keep the real SQL operations
+        mock_spark.sql = spark.sql
+
+        # Import after patching
         from scripts.plp_gs import process_control_sheet
 
         result_df = process_control_sheet(
-            control_sheet_config=mock_control_sheet_config
+            config=config_dev
         )
 
         # All rows should have action='upsert' (since we filter for TRUE PLPs)
@@ -323,82 +307,3 @@ def test_process_control_sheet_filters_active_plp(
         assert all(action == "upsert" for action in actions), (
             "All actions should be 'upsert' for active PLPs"
         )
-
-
-def test_process_control_sheet_with_plx(
-    spark,
-    mock_control_sheet_config,
-    mock_control_sheet_data,
-    mock_plp_placements_data
-):
-    """Test processing with PLX additional placements."""
-
-    # Create mock PLX data
-    plx_schema = StructType([
-        StructField("URL", StringType(), True),
-        StructField("Sales", StringType(), True),
-    ])
-
-    plx_data = [
-        ("https://example.com/plx-page1", "100"),
-        ("https://example.com/plx-page2", "200"),
-    ]
-
-    mock_plx_data = spark.createDataFrame(plx_data, plx_schema)
-
-    with patch(
-        "next_ads.utils.gs_helpers.read_from_google_sheets_to_dataframe"
-    ) as mock_read:
-        mock_read.side_effect = [
-            mock_control_sheet_data,
-            mock_plp_placements_data,
-            mock_plx_data,
-        ]
-
-        from scripts.plp_gs import process_control_sheet
-
-        result_df = process_control_sheet(
-            control_sheet_config=mock_control_sheet_config
-        )
-
-        assert result_df is not None
-        assert result_df.count() > 0
-
-        # Check that all calls were made
-        assert mock_read.call_count == 3
-
-
-@patch("scripts.plp_gs.spark.table")
-def test_output_schema(
-    mock_spark_table,
-    mock_control_sheet_table_df,
-    config_dev
-):
-    """Test that output_df has correct schema after transformation."""
-    from scripts.plp_gs import process_control_sheet_from_table
-
-    mock_spark_table.return_value = mock_control_sheet_table_df
-
-    # Execute
-    result = process_control_sheet_from_table(
-        control_sheet_table_name=(
-            config_dev.task_plp_gs_per_client.control_sheet_table_name
-        )
-    )
-
-    # Assert schema
-    assert result is not None
-    assert len(result.columns) == 5
-    assert "Action" in result.columns
-    assert "realm" in result.columns
-    assert "territory" in result.columns
-    assert "url" in result.columns
-    assert "masIdSlotsAndCMSContent" in result.columns
-
-    # Verify schema types
-    schema_dict = {field.name: field.dataType for field in result.schema}
-    assert schema_dict["Action"].typeName() == "string"
-    assert schema_dict["realm"].typeName() == "string"
-    assert schema_dict["territory"].typeName() == "string"
-    assert schema_dict["url"].typeName() == "string"
-    assert schema_dict["masIdSlotsAndCMSContent"].typeName() == "string"

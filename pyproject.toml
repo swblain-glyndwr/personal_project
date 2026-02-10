@@ -21,6 +21,8 @@ azure-identity = "1.25.1"
 azure-storage-blob = "12.28.0"
 azure-mgmt-resource = "24.0.0"
 dynaconf = {extras = ["yaml"], version = "3.2.12"}
+networkx = "3.5"
+plotly = "6.3.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -31,8 +33,53 @@ plotly = "^6.3.1"
 networkx = "^3.5"
 ruff = "^0.14.9"
 
+[tool.ruff]
+line-length = 79
+target-version = "py311"
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    ".eggs",
+    "*.egg-info",
+    ".pytest_cache",
+    ".mypy_cache",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+# Equivalent to flake8 error codes
+select = [
+    "E",     # PEP8 errors
+    "W",     # PEP8 warnings
+    "F",     # PyFlakes
+    "C90",   # McCabe complexity
+    "N",     # pep8-naming
+    "D",     # pydocstyle (docstrings)
+]
+ignore = [
+    "E203",  # Whitespace before ':'
+    "E501",  # Line too long (handled by formatter)
+    "D100",  # Missing module docstring
+    "D101",  # Missing class docstring
+    "D102",  # Missing method docstring
+    "D103",  # Missing method docstring
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.format]
 quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"

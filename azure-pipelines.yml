@@ -8,7 +8,7 @@ trigger: none # all manual for now
 parameters:
   - name: destroyBundle
     type: boolean
-    default: false
+    default: "false"
     displayName: 'Delete DAB resources'
 
 variables:
@@ -46,6 +46,9 @@ stages:
 
   - stage: DestroyDEV
     displayName: 'Destroy DEV'
+    dependsOn:
+      - CI
+      - IntegrationTests
     condition: eq('${{ parameters.destroyBundle }}', 'true')
     variables:
     - group: Development
@@ -63,6 +66,7 @@ stages:
     dependsOn:
       - CI
       - IntegrationTests
+      - DestroyDEV
     variables:
     - group: Development
     jobs:
@@ -90,7 +94,9 @@ stages:
 
   - stage: DeployPREPROD
     displayName: 'Deploy PREPROD to PROD'
-    dependsOn: DeployDEV
+    dependsOn: 
+      - DeployDEV
+      - DestroyPREPROD
     condition: succeeded()
     variables:
     - group: Production
@@ -119,7 +125,9 @@ stages:
 
   - stage: DeployPROD
     displayName: 'Deploy to PROD'
-    dependsOn: DeployPREPROD
+    dependsOn: 
+      - DeployPREPROD
+      - DestroyPROD
     condition: succeeded()
     variables:
     - group: Production

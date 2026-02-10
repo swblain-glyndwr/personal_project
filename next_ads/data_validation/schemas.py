@@ -9,14 +9,18 @@ class ControlSheetInputModel(DataFrameModel):
     """Input schema for Google Sheets control sheet data"""
 
     _CMSPageID_PATTERN = r"^c[0-9]+(_[a-zA-Z]+[0-9]+)*$"
-    _MASID_TOKEN_PATTERN = r"^[A-Z]{4}$"  # Exactly 4 uppercase letters
+    _MASID_TOKEN_PATTERN = (
+        r"^[A-Z]{4}$"  # Not a hard constraint - Exactly 4 uppercase letters
+    )
 
     UniqueAdID: StringType = pa.Field(
-        nullable=False, description="Unique ad identifier"
+        nullable=False,
+        description="Unique ad identifier",
+        unique_spark={"check": True},
     )
     Realm: StringType = pa.Field(
         nullable=False,
-        isin_spark={"allowed_values": ["Next", "fatface"]},
+        isin_spark={"allowed_values": ["Next"]},
     )
     Territory: StringType = pa.Field(
         nullable=False,
@@ -25,17 +29,19 @@ class ControlSheetInputModel(DataFrameModel):
     Status: StringType = pa.Field(
         nullable=True,
         # Status is not used so no need to enforce strict check
-        # isin_spark={"allowed_values": [
-        #     "active", "inactive", "Active", "Inactive"
-        # ]},
+        isin_spark={
+            "allowed_values": ["active", "inactive", "Active", "Inactive"]
+        },
     )
     CMSPageID: StringType = pa.Field(
         nullable=False,
         str_matches_spark={"pattern": _CMSPageID_PATTERN},
+        unique_spark={"check": True},
     )
     MASIDToken: StringType = pa.Field(
-        nullable=True,
+        nullable=False,
         str_matches_spark={"pattern": _MASID_TOKEN_PATTERN},
+        unique_spark={"check": True},
     )
 
     class Config:
@@ -49,8 +55,12 @@ class ControlSheetInputModel(DataFrameModel):
 class ControlSheetPlacementsInputModel(DataFrameModel):
     """Input schema for Google Sheets control sheet Placements data"""
 
-    Location: StringType = pa.Field(nullable=False)
-    Page: StringType = pa.Field(nullable=True)
+    Location: StringType = pa.Field(
+        nullable=False,
+        unique_spark={"check": True},
+    )
+    Page: StringType = pa.Field(nullable=False)
+    Screen: StringType = pa.Field(nullable=True)
 
     class Config:
         """ControlSheetInputModel config"""
@@ -60,41 +70,20 @@ class ControlSheetPlacementsInputModel(DataFrameModel):
         coerce = True
 
 
-class ControlSheetTableInputModel(DataFrameModel):
-    """Input schema for Control Sheet table data"""
+class ControlSheetPLXInputModel(DataFrameModel):
+    """Input schema for Google Sheets control sheet PLX data"""
 
-    _CMSPageID_PATTERN = r"^c[0-9]+(_[a-zA-Z]+[0-9]+)*$"
-    _MASID_TOKEN_PATTERN = r"^[A-Z]{4}$"  # Exactly 4 uppercase letters
-
-    UniqueAdID: StringType = pa.Field(
-        nullable=False, description="Unique ad identifier"
-    )
-    Realm: StringType = pa.Field(
+    URL: StringType = pa.Field(
         nullable=False,
-        isin_spark={"allowed_values": ["Next"]},
-    )
-    Territory: StringType = pa.Field(
-        nullable=False,
-        isin_spark={"allowed_values": ["GB"]},
-    )
-    Page: StringType = pa.Field(nullable=False)
-    Location: StringType = pa.Field(nullable=False)
-    CMSPageID: StringType = pa.Field(
-        nullable=False,
-        str_matches_spark={"pattern": _CMSPageID_PATTERN},
-    )
-    MASIDToken: StringType = pa.Field(
-        nullable=True,
-        str_matches_spark={"pattern": _MASID_TOKEN_PATTERN},
+        unique_spark={"check": True},
     )
 
     class Config:
         """ControlSheetInputModel config"""
 
-        name = "control_sheet_table_input"
-        strict = False  # False to Allow additional columns
-        coerce = True  # Attempt type coercion
-        # unique = True  # Ensure rows are unique
+        name = "control_sheet_plx_input"
+        strict = False
+        coerce = True
 
 
 class GlobalSolutionOutputModel(DataFrameModel):
@@ -135,7 +124,9 @@ class GlobalSolutionOutputModel(DataFrameModel):
     )
 
     url: StringType = pa.Field(
-        nullable=False, str_matches_spark={"pattern": _URL_PATH_PATTERN}
+        nullable=False,
+        str_matches_spark={"pattern": _URL_PATH_PATTERN},
+        unique_spark={"check": True},
     )
 
     masIdSlotsAndCMSContent: StringType = pa.Field(

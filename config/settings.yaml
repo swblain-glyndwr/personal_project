@@ -10,6 +10,11 @@ default:
   az_tenant_id: "f009f285-5242-433a-9365-daa1edf145c3"
   secret_key_spn_clientid: "Databricks-Spn-MarketingData-ClientId"
   secret_key_spn_secret: "Databricks-Spn-MarketingData-ClientSecret"
+  gcp:
+    scope: mktg_gcp
+    key: mktg-gcp-service-account-b64-encoded
+  webhooks:
+    input_warnings: "https://chat.googleapis.com/v1/spaces/AAAA_rFP3_s/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MhMWyk0iva0jwnyeH5pfkVd5m4SVy306sqj4hDqLAhU"
 
 dev:
   warehouse: marketingdata_dev

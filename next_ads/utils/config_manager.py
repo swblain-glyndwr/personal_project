@@ -4,8 +4,11 @@ from dynaconf import Dynaconf
 def load_config(job_env: str) -> Dynaconf:
     """Load configuration."""
     config = Dynaconf(
-        settings_files=["config/settings.yaml",
-                        "config/global_solution_settings.yaml"],
+        settings_files=[
+            "config/settings.yaml",
+            "config/global_solution_settings.yaml",
+            "config/load_control_sheet_settings.yaml",
+        ],
         environments=True,
         env_switcher="JOB_ENV",
     )

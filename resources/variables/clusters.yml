@@ -1,4 +1,4 @@
-_base_cluster_config_standard: &base_cluster_standard
+_base_cluster_config: &base_cluster
   policy_id: ${var.job_cluster_policy_id}
   spark_version: 15.4.x-scala2.12
   spark_conf:
@@ -15,7 +15,7 @@ _base_cluster_config_standard: &base_cluster_standard
     spot_bid_max_price: -1
   custom_tags:
     Showback Cost Centre: C9871
-    Showback: MarketingData
+    Showback: MarketingData # TODO there is a policy change in DEV to MARKETING DATA
     Recharge Department: MarketingData
     Recharge Cost Centre: C9871
   spark_env_vars:
@@ -26,40 +26,15 @@ _base_cluster_config_standard: &base_cluster_standard
     clients:
       notebooks: true
       jobs: true
-  runtime_engine: STANDARD
   is_single_node: false
 
+_base_cluster_config_standard: &base_cluster_standard
+  <<: *base_cluster
+  runtime_engine: STANDARD
+
 _base_cluster_config_photon: &base_cluster_photon
-  policy_id: ${var.job_cluster_policy_id}
-  spark_version: 15.4.x-scala2.12
-  spark_conf:
-    spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
-    spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
-    spark.hadoop.google.cloud.auth.service.account.enable: "true"
-    spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
-    spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
-    spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
-    credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
-  azure_attributes:
-    first_on_demand: 1
-    availability: SPOT_WITH_FALLBACK_AZURE
-    spot_bid_max_price: -1
-  custom_tags:
-    Showback Cost Centre: C9871
-    Showback: MarketingData
-    Recharge Department: MarketingData
-    Recharge Cost Centre: C9871
-    Team: marketing_job
-  spark_env_vars:
-    CURRENT_ENV: ${var.environment_name}
-    GOOGLE_CLOUD_PROJECT: big-query-156009
-  enable_elastic_disk: true
-  workload_type:
-    clients:
-      notebooks: true
-      jobs: true
+  <<: *base_cluster
   runtime_engine: PHOTON
-  is_single_node: false
 
 variables:
   job_clusters_config:

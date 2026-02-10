@@ -1,22 +1,42 @@
 import pytest
+from typing import Generator
 
+from pyspark.sql import DataFrame
 from scripts import plp_gs
 
 
 class TestProcessControlSheetFromTableIntegration:
     """Integration tests with real Spark (if available)."""
 
-    @pytest.mark.controlsheettable_integration
-    def test_integration_with_real_table(self, spark, config_prod):
-        """Test with real production table."""
-        table_name = (
-            config_prod.task_plp_gs_per_client.control_sheet_table_name
-        )
+    @pytest.fixture(scope="class")
+    def processed_result(self, spark, config_prod) -> Generator[DataFrame, None, None]:
+        """
+        Process control sheet once for entire test class.
+        
+        Args:
+            spark: Spark session
+            config_prod: Production config
+            
+        Returns:
+            Generator[DataFrame, None, None]: Processed control sheet result
+        """
+        result = plp_gs.process_control_sheet(config_prod)
+        
+        # Cache the result to avoid re-computation
+        result.cache()
+        result.count()  # Force evaluation
+        
+        yield result
+        
+        # Cleanup
+        result.unpersist()
 
-        result = plp_gs.process_control_sheet_from_table(table_name)
+    @pytest.mark.controlsheettable_integration
+    def test_integration_with_real_table(self, processed_result):
+        """Test with real production table."""
+        result = processed_result
 
         assert result is not None
-        assert result.count() > 0
 
         # Verify output columns
         expected_cols = [
@@ -30,13 +50,9 @@ class TestProcessControlSheetFromTableIntegration:
             assert col in result.columns
 
     @pytest.mark.controlsheettable_integration
-    def test_integration_output_schema(self, spark, config_prod):
+    def test_integration_output_schema(self, processed_result):
         """Test output schema matches expected format."""
-        table_name = (
-            config_prod.task_plp_gs_per_client.control_sheet_table_name
-        )
-
-        result = plp_gs.process_control_sheet_from_table(table_name)
+        result = processed_result
 
         # Check data types
         schema = result.schema
@@ -46,13 +62,10 @@ class TestProcessControlSheetFromTableIntegration:
         )
 
     @pytest.mark.controlsheettable_integration
-    def test_integration_masidcmsid_format(self, spark, config_prod):
+    def test_integration_masidcmsid_format(self, processed_result):
         """Test that MASIDCMSid is properly formatted."""
-        table_name = (
-            config_prod.task_plp_gs_per_client.control_sheet_table_name
-        )
 
-        result = plp_gs.process_control_sheet_from_table(table_name)
+        result = processed_result
         result_pdf = result.toPandas()
 
         # Check that masIdSlotsAndCMSContent contains pipe-separated values

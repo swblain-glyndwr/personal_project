@@ -231,6 +231,7 @@ def create_dl_table(
     limit_history=True,
     limit_history_days=731,
     merge_schema=False,
+    join_condition="(source.rundate=dest.rundate)",
     OUTPUT_TABLE=None,
 ):
     # Add rundate
@@ -243,8 +244,6 @@ def create_dl_table(
     model_output.createOrReplaceTempView("model_output_table")
 
     print("Delta processing")
-    join_condition = "(source.rundate=dest.rundate)"
-
     if merge_schema:
         print(
             "merge_schema is set to True - Turning on AutoMerge Option "
@@ -262,3 +261,64 @@ WHEN NOT MATCHED THEN INSERT *
         f_limit_history(OUTPUT_TABLE, limit_history_days)
 
     return None
+
+
+def configure_abfs(
+    spark,
+    dbutils,
+    account_name: str,
+    tenant_id: str,
+    dbutils_secret_scope: str,
+    secret_key_spn_clientid: str,
+    secret_key_spn_secret: str,
+) -> None:
+    """
+    Configure Spark for ABFS authentication and write DataFrame to CSV.
+
+    Args:
+        spark: SparkSession instance
+        dbutils: Databricks utilities instance
+        account_name: Azure storage account name
+        tenant_id: Azure tenant ID
+        dbutils_secret_scope: Databricks secret scope name
+        secret_key_spn_clientid: Secret key for Service Principal client ID
+        secret_key_spn_secret: Secret key for Service Principal secret
+    """
+    logger.info("Configuring ABFS authentication...")
+
+    # Get credentials from Databricks secrets
+    client_id = dbutils.secrets.get(
+        scope=dbutils_secret_scope, key=secret_key_spn_clientid
+    )
+    client_secret = dbutils.secrets.get(
+        scope=dbutils_secret_scope, key=secret_key_spn_secret
+    )
+
+    # Configure Spark for ABFS OAuth authentication
+    spark.conf.set(
+        f"fs.azure.account.auth.type.{account_name}"
+        ".dfs.core.windows.net",
+        "OAuth",
+    )
+    spark.conf.set(
+        f"fs.azure.account.oauth.provider.type.{account_name}"
+        ".dfs.core.windows.net",
+        "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider",
+    )
+    spark.conf.set(
+        f"fs.azure.account.oauth2.client.id.{account_name}"
+        ".dfs.core.windows.net",
+        client_id,
+    )
+    spark.conf.set(
+        f"fs.azure.account.oauth2.client.secret.{account_name}"
+        ".dfs.core.windows.net",
+        client_secret,
+    )
+    spark.conf.set(
+        f"fs.azure.account.oauth2.client.endpoint.{account_name}"
+        ".dfs.core.windows.net",
+        f"https://login.microsoftonline.com/{tenant_id}/oauth2/token",
+    )
+
+    logger.info("ABFS authentication configured")
