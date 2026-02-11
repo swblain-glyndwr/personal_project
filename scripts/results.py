@@ -114,8 +114,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2025, 11, 22)
-    SESSION_DATE_END = date(2025, 11, 22)
+    SESSION_DATE_START = date(2026, 1, 21)
+    SESSION_DATE_END = date(2026, 1, 22)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -1317,6 +1317,19 @@ df_sessions_master_meta = (
             (F.col('PageGroup') == 'HomePage')
             & (F.col('FirstTimestamp') > '2025-08-07 15:00:00')
             & (F.col('FirstTimestamp') < '2025-08-08 14:00:00')
+        )
+    )
+)
+
+# Homepage not live yet - Jan/Feb 2026
+df_sessions_master_meta = (
+    df_sessions_master_meta
+    .where(
+        ~(
+            (F.col('PageGroup') == 'HomePage')
+            & (F.col('SessionDate') >= date(2026, 1, 20))
+            # Update when we have the end date for this HomePage exclusion
+            # & (F.col('FirstTimestamp') <= date(2026, 2, XX))
         )
     )
 )
