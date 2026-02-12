@@ -28,6 +28,7 @@ stages:
           KeyVaultName: $(strKeyVaultName)
           testType: 'unit'
           target: 'DEV'
+          databricksClusterId: $(DATABRICKS_CLUSTER_ID_15_4)
 
   - stage: IntegrationTests
     displayName: 'Integration Tests on PROD'
@@ -43,6 +44,7 @@ stages:
           KeyVaultName: $(strKeyVaultName)
           testType: 'integration'
           target: 'PROD'
+          databricksClusterId: $(DATABRICKS_CLUSTER_ID_15_4)
 
   - stage: DestroyDEV
     displayName: 'Destroy DEV'

@@ -19,6 +19,8 @@ parameters:
       - integration
       - all
     displayName: 'Test type to run'
+  - name: databricksClusterId
+    type: string
 
 jobs:
   - job: RunTests
@@ -55,13 +57,13 @@ jobs:
           DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
 
       - bash: |
-          bash devops/scripts/start_db_cluster.sh $(DATABRICKS_CLUSTER_ID) ${{ parameters.target }}
+          bash devops/scripts/start_db_cluster.sh ${{ parameters.databricksClusterId }} ${{ parameters.target }}
         name: start_test_cluster
         displayName: Start the testing cluster
-        # env:
-        #   DATABRICKS_CLUSTER_ID: $(DATABRICKS_CLUSTER_ID)
 
       - bash: |
+          export DATABRICKS_CLUSTER_ID="${{ parameters.databricksClusterId }}"
+          echo "Running ${{ parameters.testType }} tests on Databricks cluster $DATABRICKS_CLUSTER_ID for target ${{ parameters.target }}..."
           # Determine test path based on parameter
           if [ "${{ parameters.testType }}" = "unit" ]; then
             TEST_PATH="tests/unit/"
@@ -83,7 +85,6 @@ jobs:
           DATABRICKS_HOST: $(DATABRICKS_HOST)
           DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
           DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
-          DATABRICKS_CLUSTER_ID: $(DATABRICKS_CLUSTER_ID)
 
       - task: PublishTestResults@2
         condition: succeededOrFailed()

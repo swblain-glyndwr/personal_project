@@ -13,11 +13,6 @@ _base_cluster_config: &base_cluster
     first_on_demand: 1
     availability: SPOT_WITH_FALLBACK_AZURE
     spot_bid_max_price: -1
-  custom_tags:
-    Showback Cost Centre: C9871
-    Showback: MarketingData # TODO there is a policy change in DEV to MARKETING DATA
-    Recharge Department: MarketingData
-    Recharge Cost Centre: C9871
   spark_env_vars:
     CURRENT_ENV: ${var.environment_name}
     GOOGLE_CLOUD_PROJECT: big-query-156009

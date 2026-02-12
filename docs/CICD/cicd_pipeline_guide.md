@@ -76,6 +76,7 @@ AzureBuildAgentPool
 AzureRegion
 BIS_source_catalog_name
 DATABRICKS_CLUSTER_ID
+DATABRICKS_CLUSTER_ID_15_4
 DATABRICKS_HOST
 DBK_SearchSchemaContributor
 DataFactoryName
