@@ -114,8 +114,8 @@ elif dates_provided:
     logger.info(f'Running from {SESSION_DATE_START} to {SESSION_DATE_END})')
 else:
     # For interactive debugging
-    SESSION_DATE_START = date(2026, 1, 21)
-    SESSION_DATE_END = date(2026, 1, 22)
+    SESSION_DATE_START = date(2026, 1, 18)
+    SESSION_DATE_END = date(2026, 1, 19)
     logger.warning(
         f'Start Date not specified (defaulting to {SESSION_DATE_START})')
     logger.warning(
@@ -635,11 +635,14 @@ df_pages = (
     .table(BQ_PAGES)
     .where(F.col('date') >= SESSION_DATE_START)
     .where(F.col('date') <= SESSION_DATE_END)
+    # Dummy ScreenName as this needs to be carried through for PLP in App
+    .withColumn('ScreenName', F.lit('NA'))
     .select('date',
             'UniqueVisitID',
             'PagePath',
             'NextPagePath',
-            'FirstTimestamp')
+            'FirstTimestamp',
+            'ScreenName')
     .withColumnRenamed('date', 'SessionDate')
     .join(df_days_pages, on=['SessionDate', 'PagePath'], how='inner')
     .unionByName(
@@ -649,20 +652,27 @@ df_pages = (
             .where(F.col('date') >= SESSION_DATE_START)
             .where(F.col('date') <= SESSION_DATE_END)
             .withColumn('NextPagePath', F.lit(None).cast('string'))
-            .withColumn(
-                'ScreenName',
-                F.when(
-                    F.col('ScreenName') == 'PLP',
-                    F.col('PagePath')).otherwise(F.col('ScreenName'))
-            )
-            .select('date',
-                    'UniqueVisitID',
-                    'ScreenName',
-                    'NextPagePath',
-                    'FirstTimestamp')
-            .withColumnRenamed('date', 'SessionDate')
-            .withColumnRenamed('ScreenName', 'PagePath')
-            .join(df_days_screens, on=['SessionDate', 'PagePath'], how='inner')
+    .withColumn(
+        'ScreenName2',
+        F.when(
+            F.col('ScreenName') == 'PLP',
+            F.col('PagePath')).otherwise(F.col('ScreenName'))
+    )
+    .select('date',
+            'UniqueVisitID',
+            'ScreenName',
+            'ScreenName2',
+            'NextPagePath',
+            'FirstTimestamp')
+    .withColumnRenamed('date', 'SessionDate')
+    .withColumnRenamed('ScreenName2', 'PagePath')
+    .select('SessionDate',
+            'UniqueVisitID',
+            'PagePath',
+            'NextPagePath',
+            'FirstTimestamp',
+            'ScreenName')
+    .join(df_days_screens, on=['SessionDate', 'PagePath'], how='inner')
         )
     )
 ).distinct()
@@ -731,7 +741,22 @@ df_sessions_pages = (
         (F.col('Device').isin('Desktop', 'Mobile'))
         |
         ((F.col('Device') == 'App')
-         & (F.col('PagePath').isin('Home', 'Cart')))
+        #  Add PLP on iOS in from 2026-01-19
+         & ((F.col('ScreenName').isin('Home', 'Cart', 'PLP') 
+         & (F.col('SessionDate') >= date(2026, 1, 19))
+         & (F.col('OS') == 'iOS')))
+        #  Add PLP on Android in from 2026-01-21
+         | ((F.col('ScreenName').isin('Home', 'Cart', 'PLP') 
+         & (F.col('SessionDate') >= date(2026, 1, 21))
+         & (F.col('OS') == 'Android')))
+        # Just HomePage and ShoppingBag previously
+         | ((F.col('ScreenName').isin('Home', 'Cart')) 
+         & (F.col('SessionDate') < date(2026, 1, 19))
+         & (F.col('OS') == 'iOS'))
+         | ((F.col('ScreenName').isin('Home', 'Cart')) 
+         & (F.col('SessionDate') < date(2026, 1, 21))
+         & (F.col('OS') == 'Android'))
+        )
     )
 )
 df_sessions_pages.cache()
