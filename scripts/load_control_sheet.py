@@ -150,9 +150,8 @@ except Exception as e:
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, plx_load_msg)
 
-### Writing control sheet data to tables
-logger.info(f"Writing Control Sheet to {config.tables_write.control_sheet_raw}")
 df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
+
 delete_from_and_load(
     df=df_ctrl_raw_filtered,
     table=config.tables_write.control_sheet_raw,

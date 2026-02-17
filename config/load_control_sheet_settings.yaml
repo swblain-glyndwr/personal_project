@@ -1062,326 +1062,6 @@ default:
           val: Best
         then:
           col: UniqueAdIDBest
-    PL41:
-      pf_col: PL_slot_41
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL42:
-      pf_col: PL_slot_42
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL43:
-      pf_col: PL_slot_43
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL44:
-      pf_col: PL_slot_44
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL45:
-      pf_col: PL_slot_45
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL46:
-      pf_col: PL_slot_46
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL47:
-      pf_col: PL_slot_47
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL48:
-      pf_col: PL_slot_48
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL49:
-      pf_col: PL_slot_49
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL50:
-      pf_col: PL_slot_50
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL51:
-      pf_col: PL_slot_51
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL52:
-      pf_col: PL_slot_52
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL53:
-      pf_col: PL_slot_53
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL54:
-      pf_col: PL_slot_54
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL55:
-      pf_col: PL_slot_55
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL56:
-      pf_col: PL_slot_56
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL57:
-      pf_col: PL_slot_57
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL58:
-      pf_col: PL_slot_58
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL59:
-      pf_col: PL_slot_59
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL60:
-      pf_col: PL_slot_60
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
     PL61:
       pf_col: PL_slot_61
       basic_within: AlgoDivision
@@ -1392,6 +1072,426 @@ default:
           val: Basic
         then:
           col: UniqueAdIDBasic
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+
+    FY1:
+      pf_col: FY_slot_1
+      basic_within: AlgoDivision
+      best_kwargs:
+        return_ranks:
+        - 1
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY2:
+      pf_col: FY_slot_2
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 2
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY3:
+      pf_col: FY_slot_3
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 3
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY4:
+      pf_col: FY_slot_4
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 4
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY5:
+      pf_col: FY_slot_5
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 5
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY6:
+      pf_col: FY_slot_6
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 6
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY7:
+      pf_col: FY_slot_7
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 7
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY8:
+      pf_col: FY_slot_8
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 8
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY9:
+      pf_col: FY_slot_9
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 9
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY10:
+      pf_col: FY_slot_10
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 10
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY11:
+      pf_col: FY_slot_11
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 11
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY12:
+      pf_col: FY_slot_12
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 12
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY13:
+      pf_col: FY_slot_13
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 13
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY14:
+      pf_col: FY_slot_14
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 14
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY15:
+      pf_col: FY_slot_15
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 15
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY16:
+      pf_col: FY_slot_16
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 16
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY17:
+      pf_col: FY_slot_17
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 17
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY18:
+      pf_col: FY_slot_18
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 18
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY19:
+      pf_col: FY_slot_19
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 19
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    FY20:
+      pf_col: FY_slot_20
+      basic_within: AlgoDivision
+      inherit_ads_from: FY1
+      best_kwargs:
+        return_ranks:
+        - 20
+        inherit_rank_from_location: FY1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
       - when:
         - col: ShoppingBagTest1
           op: eq

@@ -3,7 +3,7 @@ default:
     control_sheet_lookup:
       next:
         GB:
-          url: "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=1626227848#gid=1626227848"
+          url: "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0"
           control_sheet_tab_name: "Control Sheet UK"
           plp_placements_tab_name: "Placements"
           additional_plp_placements_tab_name: "PLX aditional PLPs"

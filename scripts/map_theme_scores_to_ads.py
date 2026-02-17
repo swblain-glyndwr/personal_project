@@ -46,7 +46,7 @@ with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
 
 APPLY_AD_FEEDBACK = jobparser.has_arg('--apply-ad-feedback')
 AD_FEEDBACK_WEIGHT = jobparser.get_arg('--ad-feedback-weight') or 0.05
-TOP_ADS_PER_LOCATION = jobparser.get_arg('--top-ads-per-location') or 3
+TOP_ADS_PER_LOCATION = jobparser.get_arg('--top-ads-per-location') or 20
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
@@ -301,7 +301,9 @@ df_adsets = (
     .withColumn(
         'AdSetID',
         F.row_number().over(
-            Window.partitionBy(F.lit(1)).orderBy(F.lit(1))
+            # Deterministic ordering is important here: ordering by a constant
+            # makes row_number assignment non-deterministic across retries.
+            Window.partitionBy(F.lit(1)).orderBy(F.col('AdSet'))
             )
         )
     .select('AdSetID', 'LocationSet')
@@ -361,7 +363,8 @@ df_adset_scores = (
         F.col('customer_age_order').isNull() |  # No customer preference - all variants pass # noqa
         ((F.col('age_diff') >= 0) & (F.col('age_diff') <= 1))
     )
-    .withColumn('Rand', F.rand())
+    # Use seeded randomness so results are stable across Spark task retries.
+    .withColumn('Rand', F.rand(seed=13))
     .withColumn(
         'AdPerThemeRank',
         F.rank().over(
@@ -376,7 +379,7 @@ df_adset_scores = (
     .where(F.col('AdPerThemeRank') == 1)
     .select('AccountNumber', 'UniqueAdID', 'Score')
     .join(df_ad2adset, on='UniqueAdID', how='inner')
-    .withColumn('TieBreaker', F.rand())
+    .withColumn('TieBreaker', F.rand(seed=17))
     .withColumn(
         'Rank',
         F.rank().over(

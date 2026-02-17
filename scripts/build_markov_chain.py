@@ -33,6 +33,8 @@ LOG_LEVEL = jobparser.get_arg('--log_level')
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
+spark.conf.set("spark.sql.shuffle.partitions", "auto")
+spark.conf.set("spark.sql.adaptive.enabled", "true")
 logger.info(f"Running in job environment: {JOB_ENV}")
 
 if not CLIENT:
@@ -48,6 +50,13 @@ with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
 PRODUCT_CATALOG = cfg['tables']['read']['product_catalog']
 BASKETS = cfg['tables']['read']['baskets']
 
+# View history tables (optional — set to None to disable view scoring)
+SESSIONS = cfg['tables']['read']['bq_sessions']
+SESSIONS_APP = cfg['tables']['read']['bq_sessions_app']
+VIEWS = cfg['tables']['read']['bq_views']
+VIEWS_APP = cfg['tables']['read']['bq_views_app']
+VIEWS_ENABLED = all([SESSIONS, VIEWS])
+
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
 logger.info(f'Write schema set to {SCHEMA}')
@@ -61,23 +70,18 @@ NEXT_THEME_SCORES_LATEST = map_tbl(tbls["next_theme_scores_latest"], **tbl_args)
 NEXT_THEME_SCORES = map_tbl(tbls["next_theme_scores"], **tbl_args)
 THEME_SCORING_EVENTS_LATEST = map_tbl(tbls["theme_scoring_events_latest"], **tbl_args)  # noqa
 
-SCORE_LAST_N_BASKETS = jobparser.get_arg('--score-last-n-baskets') or 10
-BASKET_HISTORY_DAYS = jobparser.get_arg('--basket-history-days') or 364
-yesterday = date.today() - timedelta(days=1)
-ACTIONS_END = jobparser.get_arg('--actions-end') or yesterday
+
+ACTIONS_END = jobparser.get_arg('--actions-end') or (date.today() - timedelta(days=1))
 if isinstance(ACTIONS_END, str):
     ACTIONS_END = date.fromisoformat(ACTIONS_END)
-ACTIONS_START = ACTIONS_END - timedelta(days=BASKET_HISTORY_DAYS)
+ACTIONS_START = ACTIONS_END - timedelta(days=364)
 
 REFRESH_MODEL_DATE = jobparser.get_arg('--refresh_model_date')
 TODAY = date.today().strftime(format='%Y-%m-%d')
 TRAIN = REFRESH_MODEL_DATE == TODAY or False
 
 TEST_ACCOUNT = jobparser.get_arg('--test-account')
-SHOW_TOP_N = jobparser.get_arg('--show-top-n') or 100
 PLOT_GRAPH = jobparser.has_arg('--plot-graph')
-
-spark = configure_spark()
 
 w_item_by_modified = (
     Window
@@ -95,11 +99,11 @@ item_titles = (
 msg = 'Duplicate PIDs found when retrieving item titles'
 assert item_titles.count() == item_titles.select('pid').distinct().count(), msg
 
-# Only consider highest-ranked theme for each item
 item_themes = (
     spark.table(ITEM_THEMES)
     .where(F.col('theme_rank') == 1)
     .select('pid', 'theme')
+    .distinct()
 )
 
 logger.info(f'Retrieving baskets from {ACTIONS_START} to {ACTIONS_END}')
@@ -118,13 +122,14 @@ baskets_with_themes = (
     .select('account_number', 'order_no', 'ordertakendate',
             'pid', 'title', 'theme')
     .distinct()
+    .cache()
 )
 
 baskets_with_themes_export = (
     baskets_with_themes
     .withColumn('EventType', F.lit('order'))
     .withColumn('EventWeight',
-                F.when(F.col('order_no') < SCORE_LAST_N_BASKETS,
+                F.when(F.col('order_no') < 10,
                        F.lit(1.0)
                        ).otherwise(None))
     .select(F.col('account_number').alias('AccountNumber'),
@@ -146,7 +151,6 @@ truncate_and_load(
     pk_cols=['AccountNumber', 'EventDate', 'EventType', 'PID', 'Theme']
 )
 
-
 if TEST_ACCOUNT:
     logger.info('History with themes for test account:')
     (
@@ -155,11 +159,11 @@ if TEST_ACCOUNT:
         .groupBy('account_number', 'order_no', 'pid', 'title')
         .agg(F.collect_set('theme').alias('themes'))
         .orderBy('order_no')
-        .show(SHOW_TOP_N, truncate=False)
+        .show(100, truncate=False)
     )
 
 if TRAIN:
-    baskets_with_themes.cache()
+    baskets_with_themes
 
 # Self join to get next theme in sequence
 w_acc_order_theme = Window.partitionBy('account_number', 'order_no', 'theme')
@@ -257,11 +261,10 @@ if TRAIN:
         del_where={"rundate": "current_date()"})
 
 
-# Get recent themes for each account
-# TODO: Consider weighting by recency or frequency
+# Get recent purchase themes for each account (baseline interest)
 account_themes = (
     baskets_with_themes
-    .where(F.col('order_no') < SCORE_LAST_N_BASKETS)
+    .where(F.col('order_no') < 10)
     .select('account_number', 'theme')
     .distinct()
 )
@@ -270,35 +273,178 @@ if TEST_ACCOUNT:
     (
         baskets_with_themes
         .where(F.col('account_number') == TEST_ACCOUNT)
-        .where(F.col('order_no') < SCORE_LAST_N_BASKETS)
+        .where(F.col('order_no') < 10)
         .select('account_number', 'order_no', 'theme')
         .orderBy('account_number', 'order_no')
-        .show(SHOW_TOP_N, truncate=False)
+        .show(100, truncate=False)
     )
+
+# --- View history (immediate intent signal) ---
+if VIEWS_ENABLED:
+    logger.info('Loading view history for scoring')
+
+    rpid_lookup = (
+        spark.table(SESSIONS)
+        .where(F.col('AccountNumber_RPID').isNotNull())
+        .where(F.col('date').between(ACTIONS_START, ACTIONS_END))
+        .select('UniqueVisitID',
+                F.col('AccountNumber_RPID').alias('account_number'))
+    )
+    if SESSIONS_APP:
+        rpid_lookup = rpid_lookup.unionByName(
+            spark.table(SESSIONS_APP)
+            .where(F.col('AccountNumber_RPID').isNotNull())
+            .where(F.col('date').between(ACTIONS_START, ACTIONS_END))
+            .select('UniqueVisitID',
+                    F.col('AccountNumber_RPID').alias('account_number'))
+        )
+    rpid_lookup = rpid_lookup.distinct()
+
+    w_view = (Window.partitionBy('account_number')
+              .orderBy(F.desc('date')))
+
+    views_raw = (
+        spark.table(VIEWS)
+        .where(F.col('date').between(ACTIONS_START, ACTIONS_END))
+        .select('UniqueVisitID', 'date',
+                F.col('ProductSKU').alias('pid'))
+    )
+    if VIEWS_APP:
+        views_raw = views_raw.unionByName(
+            spark.table(VIEWS_APP)
+            .where(F.col('date').between(ACTIONS_START, ACTIONS_END))
+            .select('UniqueVisitID', 'date',
+                    F.col('ProductSKU').alias('pid'))
+        )
+
+    account_view_themes = (
+        views_raw
+        .join(rpid_lookup, on='UniqueVisitID', how='inner')
+        .join(F.broadcast(item_themes), on='pid', how='inner')
+        .select('account_number', 'theme', 'date')
+        .withColumn('rank', F.row_number().over(w_view))
+        .where(F.col('rank') <= 1)
+        .select('account_number', 'theme')
+    )
+
+    if TEST_ACCOUNT:
+        logger.info('Recent view themes for test account:')
+        (
+            account_view_themes
+            .where(F.col('account_number') == TEST_ACCOUNT)
+            .show()
+        )
+else:
+    account_view_themes = None
+    logger.info('View tables not configured — scoring from purchases only')
+
 
 if not TRAIN:
     logger.info(
         f'Reading transition probabilities from {THEME_TRANSITIONS_LATEST}')
     transition_probs = spark.table(THEME_TRANSITIONS_LATEST)
 
+# --- Blended scoring (purchase baseline + view boost) ---
+logger.info('Scoring purchase history against transition matrix')
+transition_probs_slim = (
+    transition_probs.select('theme', 'next_theme', 'probability')
+)
+
+scores_buy = (
+    account_themes
+    .join(transition_probs_slim, on='theme', how='inner')
+    .groupBy('account_number', 'next_theme')
+    .agg(F.mean('probability').alias('score_buy'))
+)
+
+if VIEWS_ENABLED and account_view_themes is not None:
+    logger.info('Scoring view history against transition matrix')
+    scores_view = (
+        account_view_themes
+        .join(transition_probs_slim, on='theme', how='inner')
+        .groupBy('account_number', 'next_theme')
+        .agg(F.mean('probability').alias('score_view'))
+    )
+
+    combined = (
+        scores_buy
+        .join(scores_view, on=['account_number', 'next_theme'], how='outer')
+        .na.fill(0)
+        .withColumn(
+            'prob_agg',
+            F.col('score_buy')
+            + (F.col('score_view') * F.lit(0.1))
+        )
+    )
+else:
+    combined = scores_buy.withColumnRenamed('score_buy', 'prob_agg')
+
+# Dynamic batch normalisation (rebase against population mean)
 w_next_theme = Window.partitionBy('next_theme')
 next_theme_probs = (
-    account_themes
-    .join(transition_probs.select('theme', 'next_theme', 'probability'),
-          on='theme', how='inner')
-    .groupBy('account_number', 'next_theme')
-    .agg(F.mean('probability').alias('prob_agg'))
+    combined
     .withColumn('prob_base', F.mean('prob_agg').over(w_next_theme))
     .withColumn('prob_agg_rebased',
                 F.col('prob_agg') - F.col('prob_base'))
+    .select('account_number', 'next_theme',
+            'prob_agg', 'prob_base', 'prob_agg_rebased')
 )
+
+# --- Safety net: backfill with global best sellers ---
+logger.info(f'Building safety net from top 25 recent themes')
+global_top_themes = (
+    spark.table(BASKETS)
+    .where(F.col('ordertakendate') >= F.date_sub(F.current_date(), 30))
+    .withColumnRenamed('itemno', 'pid')
+    .join(F.broadcast(item_themes), on='pid', how='inner')
+    .groupBy('theme')
+    .agg(F.count('*').alias('sales_count'))
+    .orderBy(F.desc('sales_count'))
+    .limit(25)
+    .select(F.col('theme').alias('next_theme'))
+    .withColumn('prob_agg', F.lit(0.0))
+    .withColumn('prob_base', F.lit(0.0))
+    .withColumn('prob_agg_rebased', F.lit(-999.0))
+)
+
+unique_users = next_theme_probs.select('account_number').distinct()
+backfill_block = unique_users.crossJoin(F.broadcast(global_top_themes))
+
+next_theme_probs = (
+    next_theme_probs
+    .unionByName(backfill_block)
+    .withColumn(
+        '_dedup_rank',
+        F.row_number().over(
+            Window.partitionBy('account_number', 'next_theme')
+            .orderBy(F.desc('prob_agg_rebased'))
+        )
+    )
+    .where(F.col('_dedup_rank') == 1)
+    .drop('_dedup_rank')
+)
+
+# # --- Rank output ---
+# next_theme_probs = (
+#     next_theme_probs
+#     .withColumn(
+#         'rank',
+#         F.row_number().over(
+#             Window.partitionBy('account_number')
+#             .orderBy(F.desc('prob_agg_rebased'))
+#         )
+#     )
+#     .where(F.col('rank') <= 100)
+#     .drop('rank')
+# )
+
 if TEST_ACCOUNT:
     logger.info('Next theme probabilities for test account:')
     (
         next_theme_probs
         .where(F.col('account_number') == TEST_ACCOUNT)
         .orderBy(F.desc('prob_agg_rebased'))
-        .show(SHOW_TOP_N, truncate=False)
+        .show(100, truncate=False)
     )
 else:
     next_theme_probs = (
@@ -312,7 +458,7 @@ else:
                 'prob_agg_rebased': 'ProbAggRebased'
             }
         )
-    )
+    ).cache()
 
     logger.info('Loading customer next-theme scores to'
                 + f' {NEXT_THEME_SCORES_LATEST}')
