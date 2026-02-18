@@ -251,6 +251,7 @@ df_score_components = (
             'Score')
 )
 df_score_components.cache()
+df_score_components.count()
 
 df_score_components_for_write = df_score_components.drop('AdVariant')
 
@@ -407,6 +408,14 @@ df_violations = (
 assert df_violations.count() == 0, 'Ads assigned to ineligible locations'
 
 logger.info(
+    'Persisting final results to break lineage and prevent '
+    'shuffle retry issues'
+)
+df_ad_scores = df_ad_scores.persist()
+row_count = df_ad_scores.count()
+logger.info(f'Materialized {row_count} rows in final result set')
+
+logger.info(
     f'Loading preranked theme ads to {PRERANKED_ADS_FROM_THEMES_LATEST}')
 truncate_and_load(
     df_ad_scores,
@@ -414,8 +423,11 @@ truncate_and_load(
     pk_cols=['AccountNumber', 'UniqueAdID', 'Location']
 )
 
+df_ad_scores.show()
+
 logger.info('Unpersisting cached dataframes')
 df_score_components.unpersist()
 df_adset_scores.unpersist()
+df_ad_scores.unpersist()
 
 logger.info('Run complete')
