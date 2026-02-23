@@ -179,7 +179,7 @@ resources:
                   - "{{input.territory}}"
               job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
               libraries: ${var.shared_libraries}
-              timeout_seconds: 5400
+              timeout_seconds: 1800
         # - task_key: nextads_plp_gs_combiner
         #   depends_on:
         #     - task_key: nextads_plp_gs

@@ -103,11 +103,11 @@ class GlobalSolutionOutputModel(DataFrameModel):
     _URL_PATH_PATTERN = (
         r"^/"  # Must start with /
         # Path: URL-safe chars, optional trailing /
-        r"([A-Za-z0-9._~!$&'()*+,;=:@%-]+(/)?)*"
+        r"[A-Za-z0-9._~!$&'()*+,;=:@%/\-]*" 
         # Query: optional ?key=value&key2=value2
-        r"(\?[A-Za-z0-9._~!$&'()*+,;=:@%/-]*)?"
+        r"(\?[A-Za-z0-9._~!$&'()*+,;=:@%/\-]*)?"
         # Fragment: optional #anchor
-        r"(#[A-Za-z0-9._~!$&'()*+,;=:@%/-]+)?$"
+        r"(#[A-Za-z0-9._~!$&'()*+,;=:@%/\-]+)?$"
     )
 
     Action: StringType = pa.Field(
