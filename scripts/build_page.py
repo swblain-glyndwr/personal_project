@@ -14,7 +14,8 @@ finally:
 
 import json
 from pyspark.sql import functions as F
-from next_ads.Assignment import assign_preranked_ads, assign_random_ads
+from next_ads.Assignment import (assign_preranked_ads, assign_random_ads,
+                                 assign_random_ads_with_exclusions)
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (build_spark_schema,
@@ -46,6 +47,7 @@ with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 LOCATION = jobparser.get_arg('--location')
+INHERIT_BASIC_FROM = jobparser.get_arg('--inherit_basic_from')
 if not LOCATION:
     assert JOB_ENV.lower() == 'dev', \
         f'Location must be specified when running in {JOB_ENV}'
@@ -174,17 +176,65 @@ else:
         )
         raise Exception(protected_colname_msg)
 
-    if basic_within == 'global':
-        df_assigned_basic = assign_random_ads(
-            df_ads_tgt.select("UniqueAdID"),
-            df_cells.select("AccountNumber"),
+    # Check if we need to exclude ads from a previous location assignment
+    inherit_location_key = "inherit_basic_from"
+    if INHERIT_BASIC_FROM or inherit_location_key in LOCATIONS[LOCATION]:
+        inherit_location = (
+            INHERIT_BASIC_FROM or
+            LOCATIONS[LOCATION].get(inherit_location_key)
+        )
+        logger.info(
+            f"Inheriting basic assignments from {inherit_location} - "
+            "excluding already-assigned ads"
+        )
+
+        # Get assignments from the inherited location
+        df_inherited_assignments = (
+            spark
+            .table(ASSIGNMENTS_TABLE_LATEST)
+            .where(F.col("Location") == inherit_location)
+            .where(F.col("UniqueAdIDBasic").isNotNull())
+            .select(
+                "AccountNumber",
+                F.col("UniqueAdIDBasic").alias("ExcludedAdID")
+            )
+        )
+        
+        # Join to cells to get excluded ads per customer
+        df_cells_with_exclusions = (
+            df_cells
+            .join(df_inherited_assignments, on="AccountNumber", how="left")
+        )
+        
+        # Assign random ads excluding the already-assigned ones
+        if basic_within == 'global':
+            df_assigned_basic = assign_random_ads_with_exclusions(
+                df_ads_tgt.select("UniqueAdID"),
+                df_cells_with_exclusions.select(
+                    "AccountNumber", "ExcludedAdID"
+                )
+            )
+        else:
+            df_assigned_basic = assign_random_ads_with_exclusions(
+                df_ads_tgt.select("UniqueAdID", basic_within),
+                df_cells_with_exclusions.select(
+                    "AccountNumber", basic_within, "ExcludedAdID"
+                ),
+                grp_col=basic_within
             )
     else:
-        df_assigned_basic = assign_random_ads(
-            df_ads_tgt.select("UniqueAdID", basic_within),
-            df_cells.select("AccountNumber", basic_within),
-            grp_col=basic_within
-            )
+        # Original logic for locations without basic inheritance
+        if basic_within == 'global':
+            df_assigned_basic = assign_random_ads(
+                df_ads_tgt.select("UniqueAdID"),
+                df_cells.select("AccountNumber"),
+                )
+        else:
+            df_assigned_basic = assign_random_ads(
+                df_ads_tgt.select("UniqueAdID", basic_within),
+                df_cells.select("AccountNumber", basic_within),
+                grp_col=basic_within
+                )
 
     df_assigned_basic.cache()
 

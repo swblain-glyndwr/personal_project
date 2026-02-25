@@ -225,6 +225,7 @@
         "SB1": {
             "pf_col": "SB_slot_1",
             "basic_within": "AlgoDivision",
+            "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "SB1"},
             "map": [
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
@@ -261,6 +262,9 @@
         "SB2": {
             "pf_col": "SB_slot_2",
             "basic_within": "AlgoDivision",
+            "inherit_ads_from": "SB1",
+            "inherit_basic_from": "SB1",
+            "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "SB1"},
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
             },
@@ -278,12 +282,13 @@
         "OC1": {
             "pf_col": "OC_slot_1",
             "basic_within": "AlgoDivision",
+            "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "OC1"},
             "map": [
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
-                {
+                                {
                     "when": [{"col": "Audience", "op": "eq", "val": "EidA"}],
                     "then": {"lit": "P148_C580_Brands_Girls_LauraAshley_Eid_CF_Girls"}
                 },
@@ -302,6 +307,25 @@
                 {
                     "when": [{"col": "Audience", "op": "eq", "val": "EidE"}],
                     "then": {"lit": "P148_C619_Campaign_Mixed_Eid_Womens"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "OC2": {
+            "pf_col": "OC_slot_2",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "OC1",
+            "inherit_basic_from": "OC1",
+            "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "OC1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
                     "when": [
@@ -1987,44 +2011,8 @@
                 }
             ]
         },
-        "PL61": {
-            "pf_col": "PL_slot_61",
-            "basic_within": "AlgoDivision",
-            "map": [
-                {
-                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
-                    "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "EidA"}],
-                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "EidB"}],
-                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "EidC"}],
-                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "EidD"}],
-                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "EidE"}],
-                    "then": {"lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"}
-                },
-                {
-                    "when": [
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
-                    ],
-                    "then": {"col": "UniqueAdIDBest"}
-                }
-            ]
-        },
         "FY1": {
-            "pf_col": "FY_slot_1",
+            "pf_col": "fy_slot_1",
             "basic_within": "AlgoDivision",
             "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "FY1"},
             "map": [
@@ -2041,7 +2029,7 @@
             ]
         },
         "FY2": {
-            "pf_col": "FY_slot_2",
+            "pf_col": "fy_slot_2",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "FY1",
             "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "FY1"},
@@ -2059,7 +2047,7 @@
             ]
         },
         "FY3": {
-            "pf_col": "FY_slot_3",
+            "pf_col": "fy_slot_3",
             "basic_within": "AlgoDivision",
             "inherit_ads_from": "FY1",
             "best_kwargs": {"return_ranks": [3], "inherit_rank_from_location": "FY1"},

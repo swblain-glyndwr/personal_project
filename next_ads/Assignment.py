@@ -78,6 +78,109 @@ def assign_random_ads(
     return df_cust_rdm_ads.select('AccountNumber', 'UniqueAdID')
 
 
+def assign_random_ads_with_exclusions(
+        df_ads: DataFrame,
+        df_cust_grp: DataFrame,
+        grp_col: str = None) -> DataFrame:
+    """
+    Assigns Ads randomly (and uniformly) within group, excluding specific ads
+    per customer.
+    
+    Arguments:
+        df_ads - PySpark dataframe with cols ("UniqueAdID", grp_col)
+        df_cust_grp - PySpark dataframe with cols ("AccountNumber",
+                      grp_col, "ExcludedAdID")
+        grp_col - column reference to group (partition) by
+                  (e.g. "AlgoDivision")
+    
+    Returns:
+        Dataframe - Ads assigned randomly (uniform) to customers
+                    within-group, excluding the ExcludedAdID for each
+                    customer
+    """
+
+    if grp_col is None:
+        df_ads = df_ads.withColumn('global', F.lit(1))
+        df_cust_grp = df_cust_grp.withColumn('global', F.lit(1))
+        grp_col = 'global'
+        logger.info('Assigning ads randomly with exclusions')
+    else:
+        logger.info(
+            f'Assigning ads randomly within group: {grp_col} '
+            'with exclusions'
+        )
+
+    w = Window.partitionBy(grp_col).orderBy("UniqueAdID")
+    df_ads = df_ads.withColumn("RandomKey", F.row_number().over(w))
+
+    # Dictionary of Ads per group (max RandomKey)
+    df_ad_counts = (
+        df_ads
+        .groupBy(grp_col)
+        .agg(F.max("RandomKey").alias("nAds"))
+    )
+    grp_ads = {row[grp_col]: row["nAds"] for row in df_ad_counts.collect()}
+
+    # Assign random ads per customer, excluding their ExcludedAdID
+    grp_cust_rdm_list = []
+    
+    for grp_k in grp_ads:
+        logger.debug(f'Assigning for {grp_col}: {grp_k}')
+
+        # Get eligible ads for this group
+        df_ads_grp = (
+            df_ads
+            .where(F.col(grp_col) == grp_k)
+        )
+
+        # Get customers for this group
+        df_cust_grp_filtered = (
+            df_cust_grp
+            .where(F.col(grp_col) == grp_k)
+        )
+
+        # Cross join customers with eligible ads, excluding ExcludedAdID
+        df_cust_ads = (
+            df_cust_grp_filtered
+            .select("AccountNumber", grp_col, "ExcludedAdID")
+            .crossJoin(
+                df_ads_grp.select("UniqueAdID", "RandomKey", grp_col)
+            )
+            .where(
+                (F.col("ExcludedAdID").isNull()) |
+                (F.col("UniqueAdID") != F.col("ExcludedAdID"))
+            )
+        )
+        
+        # Assign random selection within eligible ads per customer
+        w_customer = (
+            Window
+            .partitionBy("AccountNumber")
+            .orderBy("RandomValue")
+        )
+        df_cust_rdm_grp = (
+            df_cust_ads
+            .withColumn("RandomValue", F.rand(seed=42))
+            .withColumn(
+                "SelectionRank",
+                F.row_number().over(w_customer)
+            )
+            .where(F.col("SelectionRank") == 1)
+            .select("AccountNumber", "UniqueAdID")
+        )
+
+        grp_cust_rdm_list.append(df_cust_rdm_grp)
+    
+    # Union all groups
+    df_assigned = grp_cust_rdm_list.pop()
+    for df_grp in grp_cust_rdm_list:
+        df_assigned = df_assigned.unionByName(df_grp)
+
+    assert_pk(df_assigned, ["AccountNumber"])
+
+    return df_assigned
+
+
 def assign_best_ads(
         df_ads: DataFrame,
         targeting_scores_table: str,

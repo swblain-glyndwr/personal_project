@@ -47,7 +47,6 @@ CREATE TABLE marketingdata_prod.{schema}.{client}_nextads_control_sheet_raw (
   AdVariant STRING,
   HN1 STRING,
   SB1 STRING,
-  SB2 STRING,
   OC1 STRING,
   LP1 STRING,
   LP2 STRING,
@@ -101,7 +100,6 @@ CREATE TABLE marketingdata_prod.{schema}.{client}_nextads_control_sheet_raw (
   PL38 STRING,
   PL39 STRING,
   PL40 STRING,
-  PL61 STRING,
   FY1 STRING,
   rundate DATE,
   CONSTRAINT `pk_{client}_nextads_control_sheet_raw` PRIMARY KEY (`Realm`, `Territory`, `UniqueAdID`))

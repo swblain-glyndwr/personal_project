@@ -96,6 +96,10 @@ default:
     SB1:
       pf_col: SB_slot_1
       basic_within: AlgoDivision
+      best_kwargs:
+        return_ranks:
+        - 1
+        inherit_rank_from_location: SB1
       map:
       - when:
         - col: ShoppingBagTest1
@@ -112,6 +116,11 @@ default:
     SB2:
       pf_col: SB_slot_2
       basic_within: AlgoDivision
+      inherit_ads_from: SB1
+      best_kwargs:
+        return_ranks:
+        - 2
+        inherit_rank_from_location: SB1
       constraints:
         targeting_within_division: AlgoDivision
       map:
@@ -120,7 +129,7 @@ default:
           op: eq
           val: Basic
         then:
-          col: UniqueAdIDBasic
+          col: UniqueAdIDBest
       - when:
         - col: ShoppingBagTest1
           op: eq
@@ -130,13 +139,38 @@ default:
     OC1:
       pf_col: OC_slot_1
       basic_within: AlgoDivision
+      best_kwargs:
+        return_ranks:
+        - 1
+        inherit_rank_from_location: OC1
       map:
       - when:
         - col: ShoppingBagTest1
           op: eq
           val: Basic
         then:
-          col: UniqueAdIDBasic
+          col: UniqueAdIDBest
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Best
+        then:
+          col: UniqueAdIDBest
+    OC2:
+      pf_col: OC_slot_2
+      basic_within: AlgoDivision
+      inherit_ads_from: OC1
+      best_kwargs:
+        return_ranks:
+        - 2
+        inherit_rank_from_location: OC1
+      map:
+      - when:
+        - col: ShoppingBagTest1
+          op: eq
+          val: Basic
+        then:
+          col: UniqueAdIDBest
       - when:
         - col: ShoppingBagTest1
           op: eq
