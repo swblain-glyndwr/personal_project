@@ -116,7 +116,7 @@ class GlobalSolutionOutputModel(DataFrameModel):
     )
     realm: StringType = pa.Field(
         nullable=False,
-        isin_spark={"allowed_values": ["Next", "fatface"]},
+        isin_spark={"allowed_values": ["Next"]},
     )
     territory: StringType = pa.Field(
         nullable=False,

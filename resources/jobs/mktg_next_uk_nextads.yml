@@ -240,28 +240,3 @@ resources:
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
           libraries: ${var.shared_libraries_wheel_only_0_1_12}
           timeout_seconds: 10800
-        # TEMP separation of fatface GS job. We will delete these tasks once trade team is ready to run fatface by themselves.
-        - task_key: nextads_plp_gs_fatface
-          spark_python_task:
-            python_file: ../../scripts/plp_gs_fatface.py
-            parameters:
-              - --client
-              - "fatface"
-              - --territory
-              - "GB"
-              - --job_env
-              - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-          libraries: ${var.shared_libraries}
-          timeout_seconds: 1800
-        # - task_key: nextads_plp_gs_combiner_fatface
-        #   depends_on:
-        #     - task_key: nextads_plp_gs_fatface
-        #   spark_python_task:
-        #     python_file: ../../scripts/plp_gs_combiner.py
-        #     parameters:
-        #       - --job_env
-        #       - ${var.job_parameter_environment_name}
-        #   job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-        #   libraries: ${var.shared_libraries}
-        #   timeout_seconds: 600

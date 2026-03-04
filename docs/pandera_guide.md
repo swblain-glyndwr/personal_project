@@ -66,7 +66,7 @@ Create reusable custom checks:
 
 ```python
 Realm: StringType = pa.Field(
-    isin_spark={"allowed_values": ["Next", "fatface"]}
+    isin_spark={"allowed_values": ["Next"]}
 )
 ```
 
