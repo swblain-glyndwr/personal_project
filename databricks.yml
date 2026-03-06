@@ -52,27 +52,27 @@ targets:
     mode: development
     default: true
     presets:
-      name_prefix: '[${bundle.target} ${workspace.current_user.short_name}] '
+      name_prefix: "[${bundle.target} ${workspace.current_user.short_name}] "
       trigger_pause_status: PAUSED
     workspace:
       host: https://adb-6694370232251359.19.azuredatabricks.net/
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target} # default
     permissions:
-    - level: CAN_MANAGE
-      group_name: AzUsers-DBK-MarketingData-Contributor-Dev
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
-    - level: CAN_MANAGE
-      service_principal_name: ${var.run_as_SPN_name}
-    - level: CAN_RUN
-      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
+      - level: CAN_MANAGE
+        group_name: AzUsers-DBK-MarketingData-Contributor-Dev
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
+      - level: CAN_MANAGE
+        service_principal_name: ${var.run_as_SPN_name}
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
     variables:
       mktgdata_catalog: marketingdata_dev
       environment_name: dev
       job_cluster_policy_id: 00076A5E6270EA99
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
-      
+
   # PREPROD:
   #   # intended to deploy as in prod simulating prod, in prod mode etc.
   #   mode: production
@@ -82,32 +82,32 @@ targets:
   #   permissions:
   #   - level: CAN_MANAGE
   #     group_name: AzUsers-DBK-MarketingData-Contributor-PreProd
-      # variables:
-      #       mktgdata_catalog: marketingdata_dev
+  # variables:
+  #       mktgdata_catalog: marketingdata_dev
 
   # PREPROD on PROD
   PREPROD:
     # intended to deploy as in prod simulating prod, in prod mode etc.
     mode: development
     presets:
-      name_prefix: '[${bundle.target} ${workspace.current_user.short_name}] '
+      name_prefix: "[${bundle.target} ${workspace.current_user.short_name}] "
       trigger_pause_status: PAUSED
     workspace:
       host: https://adb-6188831950334199.19.azuredatabricks.net/
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     permissions:
-    - level: CAN_MANAGE
-      service_principal_name: ${var.run_as_SPN_name}
-    - level: CAN_RUN      
-      group_name: AzUsers-DBK-MarketingData-Contributor-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Prod
-    - level: CAN_VIEW
-      group_name: AzUsers-DBK-MarketingData-Viewer-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
+      - level: CAN_MANAGE
+        service_principal_name: ${var.run_as_SPN_name}
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-Contributor-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Prod
+      - level: CAN_VIEW
+        group_name: AzUsers-DBK-MarketingData-Viewer-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
     variables:
       mktgdata_catalog: marketingdata_prod
       environment_name: prod
@@ -125,22 +125,22 @@ targets:
       host: https://adb-6188831950334199.19.azuredatabricks.net/
       root_path: /root/MarketingData/DABs/${bundle.name}/.bundle/
     permissions:
-    - level: CAN_MANAGE
-      service_principal_name: ${var.run_as_SPN_name}
-    - level: CAN_RUN      
-      group_name: AzUsers-DBK-MarketingData-Contributor-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Prod
-    - level: CAN_VIEW
-      group_name: AzUsers-DBK-MarketingData-Viewer-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
-    - level: CAN_RUN
-      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
-    - level: CAN_MANAGE
-      user_name: edward_taylor@next.co.uk
-    - level: CAN_MANAGE
-      user_name: thomas_lynch@next.co.uk
+      - level: CAN_MANAGE
+        service_principal_name: ${var.run_as_SPN_name}
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-Contributor-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Prod
+      - level: CAN_VIEW
+        group_name: AzUsers-DBK-MarketingData-Viewer-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
+      - level: CAN_MANAGE
+        user_name: edward_taylor@next.co.uk
+      - level: CAN_MANAGE
+        user_name: thomas_lynch@next.co.uk
     variables:
       mktgdata_catalog: marketingdata_prod
       environment_name: prod
@@ -150,3 +150,16 @@ targets:
       notification_emails:
         - mktg_data_support@next.co.uk
         - edward_taylor@next.co.uk
+        - adrienne_lowe@next.co.uk
+        - hadi_miah@next.co.uk
+        - thomas_harrop@next.co.uk
+        - stephen_blain@next.co.uk
+        - jack_douglas@next.co.uk
+        - jane_hobday@next.co.uk
+        - james_hobday@next.co.uk
+        - sarah_galloway-grant@next.co.uk
+        - ines_bonnin-ward@next.co.uk
+        - evelyn_jones@next.co.uk
+        - dimitrios_liakouras@next.co.uk
+        - nitin_surti@next.co.uk
+        - sonal_sakaria@next.co.uk
