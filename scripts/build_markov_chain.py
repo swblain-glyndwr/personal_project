@@ -125,8 +125,6 @@ baskets_with_themes = (
     .cache()
 )
 
-baskets_with_themes.count()
-
 baskets_with_themes_export = (
     baskets_with_themes
     .withColumn('EventType', F.lit('order'))
@@ -409,19 +407,22 @@ global_top_themes = (
     .withColumn('prob_agg_rebased', F.lit(-999.0))
 )
 
-
-existing_pairs = next_theme_probs.select('account_number', 'next_theme')
 unique_users = next_theme_probs.select('account_number').distinct()
+backfill_block = unique_users.crossJoin(F.broadcast(global_top_themes))
 
-backfill_block = (
-    unique_users
-    .crossJoin(F.broadcast(global_top_themes))
-    .join(existing_pairs,
-          on=['account_number', 'next_theme'],
-          how='left_anti')
+next_theme_probs = (
+    next_theme_probs
+    .unionByName(backfill_block)
+    .withColumn(
+        '_dedup_rank',
+        F.row_number().over(
+            Window.partitionBy('account_number', 'next_theme')
+            .orderBy(F.desc('prob_agg_rebased'))
+        )
+    )
+    .where(F.col('_dedup_rank') == 1)
+    .drop('_dedup_rank')
 )
-
-next_theme_probs = next_theme_probs.unionByName(backfill_block)
 
 # # --- Rank output ---
 # next_theme_probs = (
@@ -458,7 +459,6 @@ else:
             }
         )
     ).cache()
-    next_theme_probs.count()
 
     logger.info('Loading customer next-theme scores to'
                 + f' {NEXT_THEME_SCORES_LATEST}')
