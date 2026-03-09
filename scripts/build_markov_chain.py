@@ -268,6 +268,9 @@ account_themes = (
     .select('account_number', 'theme')
     .distinct()
 )
+
+baskets_with_themes.unpersist()
+
 if TEST_ACCOUNT:
     logger.info('Recent themes for test account:')
     (
@@ -414,29 +417,33 @@ next_theme_probs = (
     next_theme_probs
     .unionByName(backfill_block)
     .withColumn(
+        'tiebreak',
+        F.hash('account_number', 'next_theme')
+        )
+    .withColumn(
         '_dedup_rank',
         F.row_number().over(
             Window.partitionBy('account_number', 'next_theme')
-            .orderBy(F.desc('prob_agg_rebased'))
+            .orderBy(F.desc('prob_agg_rebased'),F.desc('prob_agg'),'tiebreak')
         )
     )
     .where(F.col('_dedup_rank') == 1)
-    .drop('_dedup_rank')
+    .drop('_dedup_rank','tiebreak')
 )
 
-# # --- Rank output ---
-# next_theme_probs = (
-#     next_theme_probs
-#     .withColumn(
-#         'rank',
-#         F.row_number().over(
-#             Window.partitionBy('account_number')
-#             .orderBy(F.desc('prob_agg_rebased'))
-#         )
-#     )
-#     .where(F.col('rank') <= 100)
-#     .drop('rank')
-# )
+# --- Rank output ---
+next_theme_probs = (
+    next_theme_probs
+    .withColumn(
+        'rank',
+        F.row_number().over(
+            Window.partitionBy('account_number')
+            .orderBy(F.desc('prob_agg_rebased'),F.desc('prob_agg'))
+        )
+    )
+    .where(F.col('rank') <= 100)
+    .drop('rank')
+)
 
 if TEST_ACCOUNT:
     logger.info('Next theme probabilities for test account:')

@@ -108,6 +108,7 @@ resources:
               - "2026-01-19"
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
           libraries: ${var.shared_libraries}
+          max_retries: 2
           timeout_seconds: 10800
         - task_key: map_theme_scores_to_ads
           depends_on:
