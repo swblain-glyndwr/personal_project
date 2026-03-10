@@ -1,0 +1,39 @@
+{
+    "real_time_unknown": {
+        "tables": {
+            "read": {
+                "vb": "marketingdata_prod.ds_sandbox.next_uk_nextads_viewed_bought_latest",
+                "sort_order_latest": "marketingdata_prod.warehouse.next_ads_sort_order_latest",
+                "control_sheet_latest": "marketingdata_prod.warehouse.next_uk_nextads_control_sheet_latest",
+                "top_performing_ads_by_location": "marketingdata_prod.warehouse.next_uk_nextads_results_ads_top_by_location"
+            }
+        },
+        "schema": {
+            "dev": "ds_sandbox",
+            "prod": "warehouse"
+        },
+        "target_by_env": {
+            "dev": "dev",
+            "prod": "prod"
+        },
+        "db_secretscope": "realtime",
+        "SPN_secretscope": "DataIng-KV-MKT-PROD-EUW",
+        "eventhub_connections": [
+            {
+                "eventhub_namespace": "ecmrealtimeehubnspdeun",
+                "inbound_topic": "ecmrealtimeehubinpdeun",
+                "checkpoint_suffix": "_1"
+            },
+            {
+                "eventhub_namespace": "ecmrealtimeehubnspdeuw",
+                "inbound_topic": "ecmrealtimeehubinpdeuw",
+                "checkpoint_suffix": "_2"
+            }
+        ],
+        "checkpoint_base_path": "abfss://staging@datastmktprodeuw.dfs.core.windows.net/realtime/realTimeAds",
+        "rpid_filter": "",
+        "test_split": 0.85,
+        "control_masid": "PS1_Z",
+        "exclude_locations_like": ["PH", "HN","PL"]
+    }
+}

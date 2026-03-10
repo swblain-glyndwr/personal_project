@@ -15,7 +15,7 @@ ipykernel = "6.29.5"
 databricks-connect = "15.4.2"
 gspread = "6.1.2"
 pytest = ">=8.3.3"
-dsutils = {path = "./wheels/dsutils-0.1.8-py3-none-any.whl"}
+dsutils = {path = "wheels/dsutils-0.1.11-py3-none-any.whl"}
 pandera = "^0.27.1"
 azure-identity = "1.25.1"
 azure-storage-blob = "12.28.0"
@@ -66,6 +66,18 @@ ignore = [
     "D101",  # Missing class docstring
     "D102",  # Missing method docstring
     "D103",  # Missing method docstring
+    "D205", # 1 blank line required after class docstring
+    "D415", # First line should end with a period, question mark, or exclamation point
+    "D200", # One-line docstring should fit in one line with quotes
+    "N806", # Variable in function should be lowercase
+    "N812", # Lowercase imported as non lowercase
+    "D417", # Docstring should not be empty
+    "N999", # Ignore all naming issues
+    "D104", # Missing docstring in public package
+    "D107", # Missing docstring in __init__
+    "N803", # Argument name should be lowercase
+    "N815", # MixedCase variable in class scope
+    "E402", # Module level import not at top of file
 ]
 
 [tool.ruff.lint.mccabe]
