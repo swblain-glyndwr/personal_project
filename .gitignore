@@ -13,6 +13,7 @@ scratch/**
 scratch*
 .pytest_cache
 *.whl
+!wheels/*
 *data_catalogue.yml
 typings/
 .ruff_cache
