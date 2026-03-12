@@ -14,6 +14,7 @@ finally:
 
 import json
 from pyspark.sql import functions as F
+from pyspark.sql import Window
 from next_ads.Assignment import (assign_preranked_ads, assign_random_ads,
                                  assign_random_ads_with_exclusions)
 from dsutils.dbc import configure_spark
@@ -24,6 +25,7 @@ from dsutils.etl import (build_spark_schema,
                          delete_from_and_load,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
+import datetime
 
 
 jobparser = get_job_parser()
@@ -55,6 +57,22 @@ if not LOCATION:
     logger.warning(f'Location not specified (defaulting to {LOCATION})')
 
 LOCATIONS = cfg["locations"]
+MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
+INCREMENTAL_LOOKBACK = cfg['incrementality']['incremental_lookback']
+CHECK_SESSIONS_FROM = (datetime.date.today() -
+                       datetime.timedelta(days=INCREMENTAL_LOOKBACK+1))
+
+# Switch to turn incrementality on or off
+INCREMENTALITY_ADS_SUPPRESSION_SWITCH = (cfg['incrementality']
+                                         ['incrementality_ads_suppression_switch']
+                                         )
+ADS_SWITCH_LABEL = cfg['incrementality']['ads_switch_label']
+INCREMENTALITY_LOCATIONS = cfg['incrementality']['locations']
+INCREMENTALITY_TREATMENTS = cfg['incrementality']['treatments']
+AD_SUPPRESSION_MASID_TOKEN = cfg['incrementality']['masid_test_token']
+INC_AD_SUPPRESSION_THRESHOLD = cfg['incrementality']['incremental_value_threshold']
+INC_ADS_SUFFIX = cfg['incrementality']['incremental_ads_suffix']
+
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
@@ -104,7 +122,58 @@ df_ads = (
         "Tags",
         "Themes")
 )
-# TODO: Remove underperforming Ads
+
+if INCREMENTALITY_ADS_SUPPRESSION_SWITCH:
+    # Aggregate the results table to an ad level view
+    df_incremental = (
+        spark.table(AD_RESULTS_TABLE)
+        .where((F.col('SessionDate') >= CHECK_SESSIONS_FROM)
+               & (F.col('UniqueAdID').rlike(INC_ADS_SUFFIX+"$"))
+               )
+        .groupBy('UniqueAdID')
+        .agg(
+            F.sum('ApportionedRevenue').alias('ApportionedRevenue'),
+            F.sum('Sessions').alias('Sessions'),
+            F.sum('C_ApportionedRevenue').alias('C_ApportionedRevenue'),
+            F.sum('C_Sessions').alias('C_Sessions'),
+            F.when(
+                F.sum('Sessions') > 0,
+                F.sum(F.col('SessionOverlapRatio') *
+                      F.col('Sessions')
+                      ) / F.sum('Sessions')
+            ).otherwise(F.lit(None)).alias('SessionOverlapRatio'),
+        )
+        .withColumn('ARPS',
+            F.when(F.col('Sessions') > 0,
+                F.col('ApportionedRevenue') / F.col('Sessions'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('C_ARPS',
+            F.when(F.col('C_Sessions') > 0,
+                F.col('C_ApportionedRevenue') / F.col('C_Sessions'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('IncARPS', F.col('ARPS') - F.col('C_ARPS'))
+        .withColumn('IncARPSAdj',
+            F.when(F.col('SessionOverlapRatio').isNotNull()
+                & (F.col('SessionOverlapRatio') > 0),
+                F.col('IncARPS') / F.col('SessionOverlapRatio'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('EstContribution', F.col('IncARPSAdj') * F.col('Sessions'))
+        .withColumn('IncPct',
+            F.when(F.col('C_ARPS').isNotNull() & (F.col('C_ARPS') != 0),
+                F.col('IncARPS') / F.col('C_ARPS'))
+            .otherwise(F.lit(None))
+        )
+    )
+
+    df_incremental = (df_incremental
+                      .select(F.col('UniqueAdID').alias('UniqueAdIDAssigned'),
+                              F.col('C_Sessions'),
+                              'EstContribution'
+                              )
+                      )
 
 df_ads_tgt = (
     df_ads
@@ -128,7 +197,6 @@ ads_required_cols = ['UniqueAdID',
 df_ads = df_ads.select(ads_required_cols)
 df_ads_tgt = df_ads_tgt.select(ads_required_cols)
 df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
-
 
 if df_ads_tgt.count() == 0:
 
@@ -199,13 +267,13 @@ else:
                 F.col("UniqueAdIDBasic").alias("ExcludedAdID")
             )
         )
-        
+
         # Join to cells to get excluded ads per customer
         df_cells_with_exclusions = (
             df_cells
             .join(df_inherited_assignments, on="AccountNumber", how="left")
         )
-        
+
         # Assign random ads excluding the already-assigned ones
         if basic_within == 'global':
             df_assigned_basic = assign_random_ads_with_exclusions(
@@ -429,7 +497,49 @@ else:
             .where(F.col("UniqueAdIDMeasurement").isNotNull())
         )
 
-    df_ad_assigned_masid_output = (
+    if INCREMENTALITY_ADS_SUPPRESSION_SWITCH:
+        suppression_cond = (
+            (F.col('Location').isin(INCREMENTALITY_LOCATIONS))
+            & (F.col('Treatment').isin(INCREMENTALITY_TREATMENTS))
+            & (F.col('EstContribution') < INC_AD_SUPPRESSION_THRESHOLD)
+            & (F.col('EstContribution') < 0)
+            & (F.col('C_Sessions') >= MIN_C_SESSIONS)
+        )
+
+        df_ad_assigned_masid = (
+            df_ad_assigned_masid
+            .join(df_incremental, on=['UniqueAdIDAssigned'], how='left')
+            .withColumn('UniqueAdIDAssigned',
+                        F.when(
+                            suppression_cond,
+                            F.lit(ADS_SWITCH_LABEL)
+                        ).otherwise(F.col('UniqueAdIDAssigned')))
+            .withColumn('MASID',
+                        F.when(
+                            suppression_cond,
+                            F.concat(F.col('Location'),
+                                     F.lit('_'),
+                                     F.lit(AD_SUPPRESSION_MASID_TOKEN))
+                        ).otherwise(F.col('MASID')))
+        )
+
+        df_ad_assigned_masid_output = (
+            df_ad_assigned_masid
+            .withColumn("Location", F.lit(LOCATION))
+            .select(
+                "AccountNumber",
+                "Location",
+                "UniqueAdIDBasic",
+                "UniqueAdIDBest",
+                "UniqueAdIDBestChallenger",
+                "Treatment",
+                "UniqueAdIDMeasurement",
+                "UniqueAdIDAssigned",
+                "MASID")
+        )
+
+    else:
+        df_ad_assigned_masid_output = (
         df_ad_assigned_masid
         .withColumn("Location", F.lit(LOCATION))
         .select(

@@ -52,6 +52,7 @@ CONTROL_CHECK_START = (
     date.today() - timedelta(days=cfg["results_prm"]["lookback_days"]))
 ctrl_pc = cfg['fallow_control']['proportion']
 CONTROL_RATIO = (ctrl_pc/(1-ctrl_pc))*100
+INCREMENTAL_VALUE_THRESHOLD = cfg['incrementality']['incremental_value_threshold']
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
@@ -75,30 +76,54 @@ df_ads_active = (
 )
 
 df_ad_results = (
-    spark
-    .table(AD_RESULTS)
-    .where(F.col('SessionDate') >= CHECK_SESSIONS_FROM)
-    .groupBy('UniqueAdID')
-    .agg(
-        F.sum('ApportionedRevenue').alias('ApportionedRevenue'),
-        F.sum('Sessions').alias('Sessions'),
-        F.sum('C_ApportionedRevenue').alias('C_ApportionedRevenue'),
-        F.sum('C_Sessions').alias('C_Sessions'),
-        F.mean('SessionOverlapRatio').alias('AvgSessionOverlapRatio')
-    )
+    spark.table(AD_RESULTS)
+        .where(F.col('SessionDate') >= CHECK_SESSIONS_FROM)
+        .groupBy('UniqueAdID')
+        .agg(
+            F.sum('ApportionedRevenue').alias('ApportionedRevenue'),
+            F.sum('Sessions').alias('Sessions'),
+            F.sum('C_ApportionedRevenue').alias('C_ApportionedRevenue'),
+            F.sum('C_Sessions').alias('C_Sessions'),
+            F.when(
+                F.sum('Sessions') > 0,
+                F.sum(F.col('SessionOverlapRatio') *
+                      F.col('Sessions')
+                      ) / F.sum('Sessions')
+            ).otherwise(F.lit(None)).alias('SessionOverlapRatio'),
+        )
+        .withColumn('ARPS',
+            F.when(F.col('Sessions') > 0,
+                F.col('ApportionedRevenue') / F.col('Sessions'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('C_ARPS',
+            F.when(F.col('C_Sessions') > 0,
+                F.col('C_ApportionedRevenue') / F.col('C_Sessions'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('IncARPS', F.col('ARPS') - F.col('C_ARPS'))
+        .withColumn('IncARPSAdj',
+            F.when(F.col('SessionOverlapRatio').isNotNull()
+                & (F.col('SessionOverlapRatio') > 0),
+                F.col('IncARPS') / F.col('SessionOverlapRatio'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('EstContribution', F.col('IncARPSAdj') * F.col('Sessions'))
+        .withColumn('IncPct',
+            F.when(F.col('C_ARPS').isNotNull() & (F.col('C_ARPS') != 0),
+                F.col('IncARPS') / F.col('C_ARPS'))
+            .otherwise(F.lit(None))
+        )
 )
 
 df_ad_results_underperf = (
     df_ad_results
-    .withColumn('ARPS', F.col('ApportionedRevenue') / F.col('Sessions'))
-    .withColumn('C_ARPS', F.col('C_ApportionedRevenue') / F.col('C_Sessions'))
-    .withColumn('IncARPS', F.col('ARPS') - F.col('C_ARPS'))
-    .withColumn('IncARPSAdj',
-                F.col('IncARPS') / F.col('AvgSessionOverlapRatio'))
-    .withColumn('EstContribution', F.col('IncARPSAdj') * F.col('Sessions'))
-    .where(F.col('C_Sessions') >= MIN_C_SESSIONS)
-    .where(F.col('IncARPSAdj') < 0)
-)
+    .filter(
+        (F.col('EstContribution') < INCREMENTAL_VALUE_THRESHOLD)
+        & (F.col('EstContribution') < 0)
+        & (F.col('C_Sessions') >= MIN_C_SESSIONS)
+        )
+    )
 
 underperf_ads_col = (
     df_ad_results_underperf

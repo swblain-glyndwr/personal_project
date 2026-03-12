@@ -1810,7 +1810,7 @@
         "default_offset_end": 2, 
         "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
-        "min_c_sessions": 30000,
+        "min_c_sessions": 15000,
         "lookback_days": 14
     },
 
@@ -1867,5 +1867,16 @@
             "purchase_window_days": 1,
             "decay_half_life_ratio": 3
         }
+    },
+
+    "incrementality": {
+        "incrementality_ads_suppression_switch": false,
+        "incremental_lookback": 14,
+        "incremental_value_threshold": -20000,
+        "ads_switch_label": "NegativeIncAdRemoved",
+        "locations": ["SB1","SB2"],
+        "treatments": ["Best"],
+        "masid_test_token": "Z",
+        "incremental_ads_suffix": "_r2"
     }
 }

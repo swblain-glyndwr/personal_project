@@ -47,6 +47,8 @@ with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
 APPLY_AD_FEEDBACK = jobparser.has_arg('--apply-ad-feedback')
 AD_FEEDBACK_WEIGHT = jobparser.get_arg('--ad-feedback-weight') or 0.05
 TOP_ADS_PER_LOCATION = jobparser.get_arg('--top-ads-per-location') or 20
+MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
+INCREMENTAL_LOOKBACK = cfg['incrementality']['incremental_lookback']
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]
@@ -206,7 +208,9 @@ if APPLY_AD_FEEDBACK:
     df_ad_feedback_scores = get_ad_feedback_scores(
         ad_results_table=AD_RESULTS,
         control_sheet_latest_table=CONTROL_SHEET_LATEST,
-        ad_feedback_weight=AD_FEEDBACK_WEIGHT
+        ad_feedback_weight=AD_FEEDBACK_WEIGHT,
+        sessions_threshold=MIN_C_SESSIONS,
+        lookback_period_days = INCREMENTAL_LOOKBACK
     )
 
     if not df_ad_feedback_scores or df_ad_feedback_scores.isEmpty():
