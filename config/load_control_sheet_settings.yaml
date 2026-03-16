@@ -117,6 +117,7 @@ default:
       pf_col: SB_slot_2
       basic_within: AlgoDivision
       inherit_ads_from: SB1
+      inherit_basic_from: SB1
       best_kwargs:
         return_ranks:
         - 2
@@ -129,7 +130,7 @@ default:
           op: eq
           val: Basic
         then:
-          col: UniqueAdIDBest
+          col: UniqueAdIDBasic
       - when:
         - col: ShoppingBagTest1
           op: eq
@@ -149,7 +150,7 @@ default:
           op: eq
           val: Basic
         then:
-          col: UniqueAdIDBest
+          col: UniqueAdIDBasic
       - when:
         - col: ShoppingBagTest1
           op: eq
@@ -160,6 +161,7 @@ default:
       pf_col: OC_slot_2
       basic_within: AlgoDivision
       inherit_ads_from: OC1
+      inherit_basic_from: OC1
       best_kwargs:
         return_ranks:
         - 2
@@ -170,7 +172,7 @@ default:
           op: eq
           val: Basic
         then:
-          col: UniqueAdIDBest
+          col: UniqueAdIDBasic
       - when:
         - col: ShoppingBagTest1
           op: eq

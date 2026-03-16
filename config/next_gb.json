@@ -429,11 +429,6 @@
         ],
         "Audiences": [
             [
-                "eid_audience",
-                {
-                    "account_col": "AccountNumber",
-                    "label_col": "Label"
-                }
             ]
         ]
     },
@@ -491,66 +486,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C580_Brands_Girls_LauraAshley_Eid_CF_Girls"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C2186_Brands_Mixed_Boden_Eid_CF_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C668_Brands_Childrens_Angel&Rocket_Eid_CF_Girls"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C761_Brands_Childrens_BakerByTed_Eid_CF_Girls"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C619_Campaign_Mixed_Eid_Womens"
                     }
                 },
                 {
@@ -628,66 +563,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C580_Brands_Girls_LauraAshley_Eid_CF_Girls"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C2186_Brands_Mixed_Boden_Eid_CF_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C668_Brands_Childrens_Angel&Rocket_Eid_CF_Girls"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C761_Brands_Childrens_BakerByTed_Eid_CF_Girls"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C619_Campaign_Mixed_Eid_Womens"
                     }
                 },
                 {
@@ -1202,66 +1077,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -1287,66 +1102,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -1382,66 +1137,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -1472,66 +1167,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -1557,66 +1192,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -1682,66 +1257,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -1767,66 +1282,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -1862,66 +1317,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -1947,66 +1342,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -2042,66 +1377,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -2127,66 +1402,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -2222,66 +1437,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -2307,66 +1462,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -2402,66 +1497,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -2487,66 +1522,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -2612,66 +1587,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -2697,66 +1612,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -2792,66 +1647,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -2877,66 +1672,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -2972,66 +1707,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -3057,66 +1732,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -3152,66 +1767,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -3237,66 +1792,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -3362,66 +1857,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -3447,66 +1882,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -3542,66 +1917,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -3627,66 +1942,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -3722,66 +1977,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -3807,66 +2002,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -3902,66 +2037,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -3987,66 +2062,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -4082,66 +2097,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -4167,66 +2122,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -4262,66 +2157,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -4347,66 +2182,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {
@@ -4442,66 +2217,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -4532,66 +2247,6 @@
                 {
                     "when": [
                         {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
                             "col": "ShoppingBagTest1",
                             "op": "eq",
                             "val": "Best"
@@ -4617,66 +2272,6 @@
                     ],
                     "then": {
                         "col": "UniqueAdIDBasic"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidA"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidB"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidC"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidD"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
-                    }
-                },
-                {
-                    "when": [
-                        {
-                            "col": "Audience",
-                            "op": "eq",
-                            "val": "EidE"
-                        }
-                    ],
-                    "then": {
-                        "lit": "P148_C1754_Campaign_Mixed_Ramadan_Womens"
                     }
                 },
                 {

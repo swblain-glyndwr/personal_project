@@ -540,19 +540,19 @@ else:
 
     else:
         df_ad_assigned_masid_output = (
-        df_ad_assigned_masid
-        .withColumn("Location", F.lit(LOCATION))
-        .select(
-            "AccountNumber",
-            "Location",
-            "UniqueAdIDBasic",
-            "UniqueAdIDBest",
-            "UniqueAdIDBestChallenger",
-            "Treatment",
-            "UniqueAdIDMeasurement",
-            "UniqueAdIDAssigned",
-            "MASID")
-    )
+            df_ad_assigned_masid
+            .withColumn("Location", F.lit(LOCATION))
+            .select(
+                "AccountNumber",
+                "Location",
+                "UniqueAdIDBasic",
+                "UniqueAdIDBest",
+                "UniqueAdIDBestChallenger",
+                "Treatment",
+                "UniqueAdIDMeasurement",
+                "UniqueAdIDAssigned",
+                "MASID")
+        )
 
     logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE}")
     delete_from_and_load(df_ad_assigned_masid_output,
