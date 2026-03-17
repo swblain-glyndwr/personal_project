@@ -19,10 +19,11 @@ from pyspark.sql import functions as F
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (truncate_and_load,
-                         map_tbl,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
 from pyspark.sql.window import Window
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 jobparser = get_job_parser()
 jobparser._parse_args()
@@ -40,19 +41,21 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
 LOOKBACK_DAYS = cfg['results_realtime_ads']['lookback_days']
-CONTROL_SHEET_LATEST = map_tbl(tbls['control_sheet_latest'], **tbl_args)
-AD_RESULTS = map_tbl(tbls['results_ads'], **tbl_args)
-TOP_ADS_BY_LOC = map_tbl(tbls['results_ads_top_by_location'], **tbl_args)
+CONTROL_SHEET_LATEST = etl.map_tbl(tbls['control_sheet_latest'], **tbl_args)
+AD_RESULTS = etl.map_tbl(tbls['results_ads'], **tbl_args)
+TOP_ADS_BY_LOC = etl.map_tbl(tbls['results_ads_top_by_location'], **tbl_args)
 
 WEBHOOK_URL = cfg['webhooks']['Results Warnings']
 

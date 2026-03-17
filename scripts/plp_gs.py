@@ -200,14 +200,25 @@ if __name__ == "__main__":
     # load configuration
     config = config_manager.load_config(JOB_ENV)
 
-    output_table_name_map = config.task_plp_gs_per_client.output_table_name_plp_gs
-    OUTPUT_TABLE_NAME = output_table_name_map[CLIENT][TERRITORY]
-    WAREHOUSE = config.warehouse
-    SCHEMA = config.schema
+    output_table_name_map = config.tables_write.nextads_plp_gs
+    OUTPUT_TABLE_NAME = output_table_name_map[CLIENT][TERRITORY]["latest"]
+    WAREHOUSE = config.catalog_read
+    SCHEMA = config.schema_write
+
+    # final output write
+    GS_FINAL_OUTPUT_TABLE_NAME = config.tables_write.nextads_plp_gs_latest
+    ACCOUNT_NAME = config.az_st_account
+    ACCOUNT_URL = config.az_st_account_url
+    CONTAINER_NAME = config.az_st_container_name
+    DBUTILS_SECRET_SCOPE = config.dbutils_secret_scope
+    SECRET_KEY_SPN_CLIENTID = config.secret_key_spn_clientid
+    SECRET_KEY_SPN_SECRET = config.secret_key_spn_secret
+    TENANT_ID = config.az_tenant_id
+    AZ_OUTPUT_ABFSS_PATH = config.task_plp_gs_combiner.az_output_abfss_path
 
     # final output write
     # TABLES_TO_COMBINE = config.task_plp_gs_combiner.tables_to_combine.to_list()
-    GS_FINAL_OUTPUT_TABLE_NAME = config.task_plp_gs_combiner.output_table_name_latest
+    GS_FINAL_OUTPUT_TABLE_NAME = config.tables_write.nextads_plp_gs_latest
     ACCOUNT_NAME = config.az_st_account
     ACCOUNT_URL = config.az_st_account_url
     CONTAINER_NAME = config.az_st_container_name
@@ -226,7 +237,6 @@ if __name__ == "__main__":
         f"CLIENT: {CLIENT}, "
         f"TERRITORY: {TERRITORY}, "
         f"OUTPUT_TABLE_NAME: {OUTPUT_TABLE_NAME}, "
-        # f"TABLES_TO_COMBINE: {TABLES_TO_COMBINE}, "
         f"GS_FINAL_OUTPUT_TABLE_NAME: {GS_FINAL_OUTPUT_TABLE_NAME}, "
         f"ACCOUNT_NAME: {ACCOUNT_NAME}, "
         f"ACCOUNT_URL: {ACCOUNT_URL}, "

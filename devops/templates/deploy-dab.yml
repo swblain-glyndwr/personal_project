@@ -45,7 +45,7 @@ jobs:
       - script: |
           echo "Deploying to ${{ parameters.target }} target..."
           unset DATABRICKS_CLUSTER_ID
-          source devops/scripts/set_db_tags.sh
+          source devops/scripts/set_dab_vars.sh
           databricks bundle deploy -t ${{ parameters.target }} --auto-approve
         displayName: 'Deploy DAB to ${{ parameters.target }}'
 

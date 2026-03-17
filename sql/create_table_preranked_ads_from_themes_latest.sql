@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_preranked_ads_from_themes_latest (
+create table {catalog}.{schema}.{client}_nextads_preranked_ads_from_themes_latest (
     AccountNumber string not null,
     UniqueAdID string not null,
     Location string not null,

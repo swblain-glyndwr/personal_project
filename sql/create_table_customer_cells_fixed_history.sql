@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_customer_cells_fixed_history (
+create table {catalog}.{schema}.{client}_nextads_customer_cells_fixed_history (
     AccountNumber string not null,
     FallowControl string not null,
     HomePageTest1 string not null,

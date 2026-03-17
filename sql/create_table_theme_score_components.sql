@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_theme_score_components (
+create table {catalog}.{schema}.{client}_nextads_theme_score_components (
     AccountNumber string not null,
     Theme string not null,
     UniqueAdID string not null,

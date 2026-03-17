@@ -25,6 +25,8 @@ from dsutils.argparser import get_job_parser
 from next_ads.Assignment import (assign_predetermined_audience,
                                  get_algo_divisions,
                                  melt_transient_cells)
+from next_ads.utils import etl
+from next_ads.utils import config_manager
 
 
 jobparser = get_job_parser()
@@ -32,11 +34,17 @@ jobparser._parse_args()
 JOB_ENV = jobparser.get_arg('--job_env')
 CLIENT = jobparser.get_arg('--client')
 LOG_LEVEL = jobparser.get_arg('--log_level')
+SAMPLE_MODE = jobparser.get_arg('--sample_mode')  # True/False
 REFRESH_CONTROL_DATE = jobparser.get_arg('--refresh_control_date')
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
+if SAMPLE_MODE:
+    SAMPLE_FRACTION= 0.0001
+    logger.warning(f"SAMPLE MODE ENABLED - Using {SAMPLE_FRACTION*100:.5f}% of data")
+else:
+    SAMPLE_FRACTION=1.0
 
 if not CLIENT:
     assert JOB_ENV.lower() == 'dev', \
@@ -44,21 +52,23 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
 # Map write schema to parameterised write table names
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-FIXED_CELLS_TABLE = map_tbl(tbls["customer_cells_fixed_latest"], **tbl_args)
-FIXED_CELLS_HISTORY_TABLE = map_tbl(tbls["customer_cells_fixed_history"],
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
+FIXED_CELLS_TABLE = etl.map_tbl(tbls["customer_cells_fixed_latest"], **tbl_args)
+FIXED_CELLS_HISTORY_TABLE = etl.map_tbl(tbls["customer_cells_fixed_history"],
                                     **tbl_args)
-TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"], **tbl_args)
-TRANSIENT_CELLS_TABLE_LATEST = map_tbl(
+TRANSIENT_CELLS_TABLE = etl.map_tbl(tbls["customer_cells_transient"], **tbl_args)
+TRANSIENT_CELLS_TABLE_LATEST = etl.map_tbl(
     tbls["customer_cells_transient_latest"], **tbl_args)
 
 # Get read tables
@@ -134,7 +144,6 @@ df_rpid_w_acc = (
         spark
         .table(RPID_WITH_ACCOUNTS)
         .select("account_number", "roamingprofileid")
-        .distinct()
 )
 
 # SVOC table used because it contains older accounts too, apparently
@@ -147,12 +156,16 @@ df_cust = (
         & (F.col("client") == "NEXT")
         & (F.col("AccountIsCurrent") == "Y")
         & (F.col("LatestAccountKeyIndicator") == 1)
-        )
+    )
+    .sample(withReplacement=False, fraction=SAMPLE_FRACTION, seed=42)
+)
+df_cust = (
+    df_cust
     .join(df_rpid_w_acc, on="account_number")
     .select("account_number", "specialaccountindicator")
     .withColumnRenamed("account_number", "AccountNumber")
 )
-
+df_cust = df_cust.distinct()
 df_staff = df_cust.where(F.col("specialaccountindicator") == 'S')
 df_cust = df_cust.select("AccountNumber")
 

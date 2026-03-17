@@ -11,6 +11,8 @@ Before starting, ensure you have:
 - Git and Azure CLI installed locally
 - Python 3.11 with Poetry installed
 - Databricks CLI configured
+- Setup project tables as required
+- Setup project configuration for local development
 
 ### Setup Check
 

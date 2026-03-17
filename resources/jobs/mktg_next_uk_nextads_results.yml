@@ -1,9 +1,7 @@
 resources:
   jobs:
     mktg_next_uk_nextads_results_cicd: # TODO temp name to avoid clash with existing job
-      name: mktg_next_uk_nextads_results_cicd # TODO change back to {{job.name}}
-      run_as:
-        service_principal_name: ${var.run_as_SPN_name}
+      name: mktg_next_uk_nextads_results_cicd
       queue:
         enabled: true
       job_clusters: ${var.job_clusters_config}
@@ -32,8 +30,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_8
-          libraries:
-            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          libraries: ${var.shared_libraries}
           timeout_seconds: 36000
         - task_key: results_agg
           depends_on:
@@ -46,8 +43,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_8
-          libraries:
-            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          libraries: ${var.shared_libraries}
           timeout_seconds: 3600
         - task_key: results_performance_check
           depends_on:
@@ -60,8 +56,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_8
-          libraries:
-            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          libraries: ${var.shared_libraries}
           timeout_seconds: 3600
         - task_key: results_to_bigquery
           depends_on:
@@ -74,8 +69,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_8
-          libraries:
-            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          libraries: ${var.shared_libraries}
           timeout_seconds: 3600
         - task_key: results_top_ads
           depends_on:
@@ -88,6 +82,5 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_8
-          libraries:
-            - whl: /Volumes/marketingdata_prod/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
+          libraries: ${var.shared_libraries}
           timeout_seconds: 3600

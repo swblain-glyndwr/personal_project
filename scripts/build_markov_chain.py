@@ -20,7 +20,9 @@ from datetime import date, timedelta
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import delete_from_and_load, truncate_and_load, map_tbl
+from dsutils.etl import delete_from_and_load, truncate_and_load
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 from next_ads.Plotting import DirectedGraphPlotter
 
@@ -43,6 +45,8 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
@@ -58,17 +62,17 @@ VIEWS_APP = cfg['tables']['read']['bq_views_app']
 VIEWS_ENABLED = all([SESSIONS, VIEWS])
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
 # Map write schema to parameterised write table names
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-ITEM_THEMES = map_tbl(tbls["item_themes_latest"], **tbl_args)
-THEME_TRANSITIONS_LATEST = map_tbl(tbls["theme_transitions_latest"], **tbl_args)  # noqa
-THEME_TRANSITIONS = map_tbl(tbls["theme_transitions"], **tbl_args)
-NEXT_THEME_SCORES_LATEST = map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
-NEXT_THEME_SCORES = map_tbl(tbls["next_theme_scores"], **tbl_args)
-THEME_SCORING_EVENTS_LATEST = map_tbl(tbls["theme_scoring_events_latest"], **tbl_args)  # noqa
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
+ITEM_THEMES = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
+THEME_TRANSITIONS_LATEST = etl.map_tbl(tbls["theme_transitions_latest"], **tbl_args)  # noqa
+THEME_TRANSITIONS = etl.map_tbl(tbls["theme_transitions"], **tbl_args)
+NEXT_THEME_SCORES_LATEST = etl.map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
+NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
+THEME_SCORING_EVENTS_LATEST = etl.map_tbl(tbls["theme_scoring_events_latest"], **tbl_args)  # noqa
 
 
 ACTIONS_END = jobparser.get_arg('--actions-end') or (date.today() - timedelta(days=1))

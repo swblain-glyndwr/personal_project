@@ -19,11 +19,12 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (assert_pk,
                          delete_from_and_load,
-                         map_tbl,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
 from next_ads.Results import (append_session_overlap_ratio,
                               summarise_sessions)
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 
 jobparser = get_job_parser()
@@ -42,28 +43,29 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
 
-tbl_args_op = {'schema': cfg["schema"][JOB_ENV], 'client': CLIENT}
-RESULTS_TOPLINE_TABLE = map_tbl(tbls["results_topline"], **tbl_args_op)
-RESULTS_AGGREGATED_TABLE = map_tbl(tbls["results_aggregated"], **tbl_args_op)
-RESULTS_AB_TABLE = map_tbl(tbls["results_ab"], **tbl_args_op)
-RESULTS_ADS_TABLE = map_tbl(tbls["results_ads"], **tbl_args_op)
-RESULTS_ADS_LOCATION_TABLE = map_tbl(tbls["results_ads_location"],
+tbl_args_op = {'catalog': config.catalog_write, 'schema': config.schema_write, 'client': CLIENT}
+RESULTS_TOPLINE_TABLE = etl.map_tbl(tbls["results_topline"], **tbl_args_op)
+RESULTS_AGGREGATED_TABLE = etl.map_tbl(tbls["results_aggregated"], **tbl_args_op)
+RESULTS_AB_TABLE = etl.map_tbl(tbls["results_ab"], **tbl_args_op)
+RESULTS_ADS_TABLE = etl.map_tbl(tbls["results_ads"], **tbl_args_op)
+RESULTS_ADS_LOCATION_TABLE = etl.map_tbl(tbls["results_ads_location"],
                                      **tbl_args_op)
-RESULTS_ADS_PAGE_TABLE = map_tbl(tbls["results_ads_page"], **tbl_args_op)
-RESULTS_DIV_PAGE_TABLE = map_tbl(tbls["results_div_page"], **tbl_args_op)
-RESULTS_TDIV_PAGE_TABLE = map_tbl(tbls["results_tdiv_page"], **tbl_args_op)
-RESULTS_ADS_TARGETING_TABLE = map_tbl(tbls["results_ads_targeting"],
+RESULTS_ADS_PAGE_TABLE = etl.map_tbl(tbls["results_ads_page"], **tbl_args_op)
+RESULTS_DIV_PAGE_TABLE = etl.map_tbl(tbls["results_div_page"], **tbl_args_op)
+RESULTS_TDIV_PAGE_TABLE = etl.map_tbl(tbls["results_tdiv_page"], **tbl_args_op)
+RESULTS_ADS_TARGETING_TABLE = etl.map_tbl(tbls["results_ads_targeting"],
                                       **tbl_args_op)
-RESULTS_PAGE_TARGETING_TABLE = map_tbl(tbls["results_page_targeting"],
+RESULTS_PAGE_TARGETING_TABLE = etl.map_tbl(tbls["results_page_targeting"],
                                        **tbl_args_op)
-RESULTS_AD_METADATA_TABLE = map_tbl(tbls["results_ad_metadata"], **tbl_args_op)
-
+RESULTS_AD_METADATA_TABLE = etl.map_tbl(tbls["results_ad_metadata"], **tbl_args_op)
 WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
 FALLOW_TRUE = cfg["fallow_control"]["true_label"]

@@ -4,8 +4,11 @@
 
 default:
   job_env: dev
-  warehouse: marketingdata_dev
-  schema: ds_sandbox
+  client: next_uk
+  catalog_read: marketingdata_prod
+  catalog_write: marketingdata_dev
+  schema_read: warehouse
+  schema_write: ds_sandbox
   az_st_container_name: adsconfigfeeds
   az_tenant_id: "f009f285-5242-433a-9365-daa1edf145c3"
   secret_key_spn_clientid: "Databricks-Spn-MarketingData-ClientId"
@@ -17,23 +20,23 @@ default:
     input_warnings: "https://chat.googleapis.com/v1/spaces/AAAA_rFP3_s/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MhMWyk0iva0jwnyeH5pfkVd5m4SVy306sqj4hDqLAhU"
 
 dev:
-  warehouse: marketingdata_dev
-  schema: ds_sandbox
+  catalog_write: marketingdata_dev
+  schema_write: "@format {env[USER_SCHEMA]}"
   az_st_account: adsstecmdeveun
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Dev-EUW"
 
 # NOTE: we are configuring some of the below for PREPROD on PROD setup
 preprod:
-  warehouse: marketingdata_prod
-  schema: ds_sandbox
+  catalog_write: marketingdata_prod
+  schema_write: ds_sandbox
   az_st_account: adsstecmppeuw
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
 
 prod:
-  warehouse: marketingdata_prod
-  schema: warehouse
+  catalog_write: marketingdata_prod
+  schema_write: warehouse
   az_st_account: adsstecmprodeuw
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"

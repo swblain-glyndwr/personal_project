@@ -60,12 +60,11 @@ if not CLIENT:
     CLIENT = "next_uk"  # Client can be specified for interactive debugging
     logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
-
-# load configuration
-config = config_manager.load_config(JOB_ENV)
 
 LOCATIONS = cfg["locations"]
 VALID_LOCATIONS = list(LOCATIONS.keys())
@@ -82,7 +81,7 @@ PLACEMENTS_SHEET = cfg["placements_sheet"]
 PLX_URLS_SHEET = cfg["plx_urls_sheet"]
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f"Write schema set to {SCHEMA}")
 
 # Map write schema to parameterised write table names

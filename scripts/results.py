@@ -20,12 +20,13 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (assert_pk,
                          build_spark_schema,
-                         map_tbl,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
 from next_ads.Results import (check_for_missing_dates,
                               patch_missing_dates,
                               validate_assignments_match_pf)
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 
 jobparser = get_job_parser()
@@ -44,6 +45,8 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
@@ -56,20 +59,20 @@ if HISTORY_CELLS_DATE:
         f'Use of fixed customer cells from {HISTORY_CELLS_DATE} requested')
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"]["prod"]
+SCHEMA = config.schema_read
 logger.info(f'Read schema set to {SCHEMA} (always read from prod for results)')
 
 # Map write schema to parameterised read table names
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-FIXED_CELLS_LATEST_TABLE = map_tbl(tbls["customer_cells_fixed_latest"],
+tbl_args = {'catalog': config.catalog_read, 'schema': SCHEMA, 'client': CLIENT}
+FIXED_CELLS_LATEST_TABLE = etl.map_tbl(tbls["customer_cells_fixed_latest"],
                                    **tbl_args)
-FIXED_CELLS_HISTORY_TABLE = map_tbl(tbls["customer_cells_fixed_history"],
+FIXED_CELLS_HISTORY_TABLE = etl.map_tbl(tbls["customer_cells_fixed_history"],
                                     **tbl_args)
-ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
-TRANSIENT_CELLS_TABLE = map_tbl(tbls["customer_cells_transient"],
+ASSIGNMENTS_TABLE = etl.map_tbl(tbls["assignments"], **tbl_args)
+TRANSIENT_CELLS_TABLE = etl.map_tbl(tbls["customer_cells_transient"],
                                 **tbl_args)
-CONTROL_SHEET_TABLE = map_tbl(tbls["control_sheet"], **tbl_args)
-MULTIPAGE_LOCATIONS_TABLE = map_tbl(tbls["multipage_locations"], **tbl_args)
+CONTROL_SHEET_TABLE = etl.map_tbl(tbls["control_sheet"], **tbl_args)
+MULTIPAGE_LOCATIONS_TABLE = etl.map_tbl(tbls["multipage_locations"], **tbl_args)
 
 # Get read tables
 RPID_WITH_ACCOUNTS = cfg["tables"]["read"]["rpid_with_accounts"]

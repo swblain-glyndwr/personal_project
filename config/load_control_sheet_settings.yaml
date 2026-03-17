@@ -65,15 +65,6 @@ default:
     sheet: "PLX aditional PLPs"
     read_schema:
       - ["URL", "string", "null"]
-  tables_write:
-    control_sheet_raw: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_control_sheet_raw"
-    control_sheet_raw_latest: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_control_sheet_raw_latest"
-    control_sheet_plp_raw: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_control_sheet_plp_raw"
-    control_sheet_plp_raw_latest: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_control_sheet_plp_raw_latest"
-    control_sheet: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_control_sheet"
-    control_sheet_latest: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_control_sheet_latest"
-    multipage_locations: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_multipage_locations"
-    multipage_locations_latest: "@format {this.warehouse}.{this.schema}.{this.client}_nextads_multipage_locations_latest"
   locations:
     HN1:
       pf_col: HN_slot_1
@@ -426,36 +417,12 @@ default:
         - col: ShoppingBagTest1
           op: eq
           val: Basic
-        - col: AdHocABTest7
-          op: eq
-          val: A
-        then:
-          col: AdSuppressed
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        - col: AdHocABTest7
-          op: eq
-          val: B
         then:
           col: UniqueAdIDBasic
       - when:
         - col: ShoppingBagTest1
           op: eq
           val: Best
-        - col: AdHocABTest7
-          op: eq
-          val: A
-        then:
-          col: AdSuppressed
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        - col: AdHocABTest7
-          op: eq
-          val: B
         then:
           col: UniqueAdIDBest
     PL1:
@@ -1084,22 +1051,6 @@ default:
           col: UniqueAdIDBest
     PL40:
       pf_col: PL_slot_40
-      basic_within: AlgoDivision
-      map:
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Basic
-        then:
-          col: UniqueAdIDBasic
-      - when:
-        - col: ShoppingBagTest1
-          op: eq
-          val: Best
-        then:
-          col: UniqueAdIDBest
-    PL61:
-      pf_col: PL_slot_61
       basic_within: AlgoDivision
       map:
       - when:

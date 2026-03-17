@@ -19,9 +19,11 @@ from pyspark.sql import Window
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import truncate_and_load, delete_from_and_load, map_tbl
+from dsutils.etl import truncate_and_load, delete_from_and_load
 from dsutils.etl import post_to_webhook
 from next_ads.Assignment import get_ad_feedback_scores, greedy_assignment
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 
 jobparser = get_job_parser()
@@ -40,6 +42,8 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
@@ -51,27 +55,28 @@ MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
 INCREMENTAL_LOOKBACK = cfg['incrementality']['incremental_lookback']
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
 # Read tables
-NEXT_THEME_SCORES_LATEST = map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
-CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
-CUSTOMER_CELLS_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
+NEXT_THEME_SCORES_LATEST = etl.map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
+CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
+CUSTOMER_CELLS_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
 
 # Write tables
-THEME_SCORE_COMPONENTS_LATEST = map_tbl(tbls["theme_score_components_latest"], **tbl_args)  # noqa
-THEME_SCORE_COMPONENTS = map_tbl(tbls["theme_score_components"], **tbl_args)  # noqa
-PRERANKED_ADS_FROM_THEMES_LATEST = map_tbl(tbls["preranked_ads_from_themes_latest"], **tbl_args)  # noqa
+THEME_SCORE_COMPONENTS_LATEST = etl.map_tbl(tbls["theme_score_components_latest"], **tbl_args)  # noqa
+THEME_SCORE_COMPONENTS = etl.map_tbl(tbls["theme_score_components"], **tbl_args)  # noqa
+PRERANKED_ADS_FROM_THEMES_LATEST = etl.map_tbl(tbls["preranked_ads_from_themes_latest"], **tbl_args)  # noqa
 
 WEBHOOK_URL = cfg['webhooks']['DS Warnings']
 
 # Force read from prod results tables for ad feedback scores
-AD_RESULTS = map_tbl(
+AD_RESULTS = etl.map_tbl(
     cfg["tables"]["write"]["results_ads"],
-    schema=cfg["schema"]["prod"],
+    catalog='marketingdata_prod',
+    schema='warehouse',
     client=CLIENT
 )
 
@@ -242,6 +247,7 @@ df_score_components = (
         ((F.col('ProbAggRebased') - F.lit(min_score)) / F.lit(score_range))
         + F.col('GreedyScore')
     )
+    .fillna(0, subset=['RelevanceScore'])
     .join(df_theme2ad.withColumnRenamed('Themes', 'NextTheme'),
           on='NextTheme', how='inner')
     .withColumn('Score',

@@ -19,12 +19,13 @@ from pyspark.sql import Window
 from next_ads.Attributes import parse_ad_attributes
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import (map_tbl,
-                         delete_from_and_load,
+from dsutils.etl import (delete_from_and_load,
                          truncate_and_load,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
 from dsutils import gcp
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 
 jobparser = get_job_parser()
@@ -44,6 +45,8 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
@@ -61,16 +64,16 @@ THEME_MAPPING_SHEET = cfg['theme_mapping']['sheet']
 THEME_MAPPING_READ_SCHEMA = cfg['theme_mapping']['read_schema']
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
 # Map write schema to parameterised table names
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-THEME_MAPPING = map_tbl(tbls["theme_mapping"], **tbl_args)
-THEME_MAPPING_LATEST = map_tbl(tbls["theme_mapping_latest"], **tbl_args)
-ITEM_ATTRIBUTES_LATEST = map_tbl(tbls["item_attributes_latest"], **tbl_args)
-ITEM_THEMES_LATEST = map_tbl(tbls["item_themes_latest"], **tbl_args)
-ITEM_THEMES = map_tbl(tbls["item_themes"], **tbl_args)
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
+THEME_MAPPING = etl.map_tbl(tbls["theme_mapping"], **tbl_args)
+THEME_MAPPING_LATEST = etl.map_tbl(tbls["theme_mapping_latest"], **tbl_args)
+ITEM_ATTRIBUTES_LATEST = etl.map_tbl(tbls["item_attributes_latest"], **tbl_args)
+ITEM_THEMES_LATEST = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
+ITEM_THEMES = etl.map_tbl(tbls["item_themes"], **tbl_args)
 
 WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 

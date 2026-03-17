@@ -19,9 +19,10 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (assert_pk,
                          get_table_pk_cols,
-                         map_tbl,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 
 jobparser = get_job_parser()
@@ -40,6 +41,8 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
@@ -49,14 +52,14 @@ LOCATIONS = cfg["locations"]
 PRODUCT_CATALOG_TABLE = cfg["tables"]["read"]["product_catalog"]
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
-logger.info(f'Table schema for QA set to: {SCHEMA}')
+SCHEMA = config.schema_write
+logger.info(f'Write schema set to {SCHEMA}')
 
 # Map write schema to parameterised write table names
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
-CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
-ITEM_THEMES_TABLE_LATEST = map_tbl(tbls["item_themes_latest"], **tbl_args)
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
+ASSIGNMENTS_TABLE_LATEST = etl.map_tbl(tbls["assignments_latest"], **tbl_args)
+CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
+ITEM_THEMES_TABLE_LATEST = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
 
 FALLOW_TRUE = cfg["fallow_control"]["true_label"]
 FIXED_CELLS = cfg["fixed_cells"]
@@ -247,7 +250,7 @@ logger.info('Checking Primary Key validity of latest process tables')
 for tbl in tbls:
     if not tbl.endswith('_latest'):
         continue
-    tbl_mapped = map_tbl(tbls[tbl], **tbl_args)
+    tbl_mapped = etl.map_tbl(tbls[tbl], **tbl_args)
     if not spark.catalog.tableExists(tbl_mapped):
         logger.info(
             f"  ↳ Table {tbl_mapped} does not exist, skipping PK check.")

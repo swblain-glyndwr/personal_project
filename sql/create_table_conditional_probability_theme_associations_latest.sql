@@ -1,4 +1,4 @@
-CREATE TABLE marketingdata_prod.{schema}.{client}_nextads_conditional_probability_theme_associations_latest (
+CREATE TABLE {catalog}.{schema}.{client}_nextads_conditional_probability_theme_associations_latest (
   theme1 STRING,
   theme2 STRING,
   freq12 DOUBLE,

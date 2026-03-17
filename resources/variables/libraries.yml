@@ -3,6 +3,10 @@ variables:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl
       - requirements: ../../requirements.txt
+  shared_libraries_0_1_12:
+    default:
+      - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.12-py3-none-any.whl
+      - requirements: ../../requirements.txt
   shared_libraries_wheel_only:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.8-py3-none-any.whl

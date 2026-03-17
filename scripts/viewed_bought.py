@@ -19,7 +19,9 @@ from pyspark.sql import Window
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import truncate_and_load, map_tbl
+from dsutils.etl import truncate_and_load
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 import math
 
@@ -40,6 +42,8 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
@@ -47,16 +51,17 @@ with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
 PRODUCT_CATALOG = cfg['tables']['read']['product_catalog']
 BASKETS = cfg['tables']['read']['baskets']
 BQ_SESSIONS = cfg['tables']['read']['bq_sessions']
+BQ_SESSIONS_APP = cfg["tables"]["read"]['bq_sessions_app']
 BQ_VIEWS = cfg['tables']['read']['bq_views']
 BQ_VIEWS_APP = cfg['tables']['read']['bq_views_app']
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
 # Map write schema to parameterised write table names
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-VB_TABLE_LATEST = map_tbl(tbls["viewed_bought_latest"], **tbl_args)
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
+VB_TABLE_LATEST = etl.map_tbl(tbls["viewed_bought_latest"], **tbl_args)
 
 vb_config = cfg["real_time_unknown"]["viewed_bought"]
 
@@ -115,7 +120,7 @@ rpid_lookup = (
     spark.table(BQ_SESSIONS)
     .select('UniqueVisitID', 'AccountNumber_RPID', 'date')
     .unionByName(
-        spark.table('warehouse.bq_sessions_next_uk_app')
+        spark.table(BQ_SESSIONS_APP)
         .select('UniqueVisitID', 'AccountNumber_RPID', 'date'),
         allowMissingColumns=True
     )

@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_item_themes (
+create table {catalog}.{schema}.{client}_nextads_item_themes (
     pid string not null,
     theme string not null,
     theme_rank int not null,

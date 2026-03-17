@@ -1,9 +1,7 @@
 resources:
   jobs:
     mktg_next_uk_nextads_cicd: # TODO temp name to avoid clash with existing job
-      name: mktg_next_uk_nextads_cicd # TODO change back to {{job.name}}
-      run_as:
-        service_principal_name: ${var.run_as_SPN_name}
+      name: mktg_next_uk_nextads_cicd
       queue:
         enabled: true
       job_clusters: ${var.job_clusters_config}
@@ -34,8 +32,10 @@ resources:
               - ${var.job_parameter_environment_name}
               - --refresh_control_date
               - "2026-01-08"
+              # - --sample_mode
+              # - "True"
           job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-          libraries: ${var.shared_libraries_wheel_only}
+          libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 7200
         - task_key: combine_customer_cells
@@ -49,7 +49,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-          libraries: ${var.shared_libraries_wheel_only}
+          libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 3600
         - task_key: load_control_sheet
@@ -79,7 +79,7 @@ resources:
               - --refresh_attributes_date
               - "2026-01-08"
           job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
-          libraries: ${var.shared_libraries_wheel_only}
+          libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 7200
         - task_key: parse_theme_mapping
@@ -126,7 +126,7 @@ resources:
               - ${var.job_parameter_environment_name}
               - --apply-ad-feedback
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
-          libraries: ${var.shared_libraries_wheel_only}
+          libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 10800
         - task_key: truncate_assignments_latest
@@ -140,7 +140,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-          libraries: ${var.shared_libraries_wheel_only}
+          libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 3600
         - task_key: build_page_primary
@@ -162,7 +162,7 @@ resources:
                   - --location
                   - "{{input}}"
               job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
-              libraries: ${var.shared_libraries_wheel_only}
+              libraries: ${var.shared_libraries}
               max_retries: 2
               min_retry_interval_millis: 5000
               timeout_seconds: 10800
@@ -186,7 +186,7 @@ resources:
                   - --inherit_basic_from
                   - "{{input.inherit_basic_from}}"
               job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
-              libraries: ${var.shared_libraries_wheel_only}
+              libraries: ${var.shared_libraries}
               max_retries: 2
               min_retry_interval_millis: 5000
               timeout_seconds: 10800
@@ -213,17 +213,6 @@ resources:
               libraries: ${var.shared_libraries}
               max_retries: 2
               timeout_seconds: 1800
-        # - task_key: nextads_plp_gs_combiner
-        #   depends_on:
-        #     - task_key: nextads_plp_gs
-        #   spark_python_task:
-        #     python_file: ../../scripts/plp_gs_combiner.py
-        #     parameters:
-        #       - --job_env
-        #       - ${var.job_parameter_environment_name}
-        #   job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-        #   libraries: ${var.shared_libraries}
-        #   timeout_seconds: 600
         - task_key: QA
           depends_on:
             - task_key: nextads_plp_gs
@@ -235,7 +224,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
-          libraries: ${var.shared_libraries_wheel_only}
+          libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 3600
         - task_key: viewed_bought
@@ -247,6 +236,6 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
-          libraries: ${var.shared_libraries_wheel_only_0_1_12}
+          libraries: ${var.shared_libraries_0_1_12}
           max_retries: 2
           timeout_seconds: 10800

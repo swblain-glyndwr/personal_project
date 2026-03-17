@@ -15,8 +15,9 @@ finally:
 import json
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import map_tbl
 from dsutils.argparser import get_job_parser
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 
 
 jobparser = get_job_parser()
@@ -35,22 +36,24 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
 
 BQ_OPTIONS = cfg['big_query']
 RESULTS_EXPORTS = list(BQ_OPTIONS['tables'].keys())
 
 if JOB_ENV == 'prod':
     for results_export in RESULTS_EXPORTS:
-        results_table = map_tbl(tbls[results_export], **tbl_args)
+        results_table = etl.map_tbl(tbls[results_export], **tbl_args)
         logger.info(f'Exporting {results_export} to Big Query')
         df_export = spark.table(results_table)
 
@@ -61,7 +64,7 @@ if JOB_ENV == 'prod':
             .option('temporaryGcsBucket', BQ_OPTIONS['temporaryGcsBucket'])
             .option('parentProject', BQ_OPTIONS['parentProject'])
             .option('table',
-                    map_tbl(BQ_OPTIONS['tables'][results_export], **tbl_args))
+                    etl.map_tbl(BQ_OPTIONS['tables'][results_export], **tbl_args))
             .save()
         )
 

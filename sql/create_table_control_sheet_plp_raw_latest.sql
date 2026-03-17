@@ -1,4 +1,4 @@
-CREATE TABLE marketingdata_prod.{schema}.{client}_nextads_control_sheet_plp_raw_latest (
+CREATE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_plp_raw_latest (
   Location STRING NOT NULL,
   Page STRING,
   Screen STRING,

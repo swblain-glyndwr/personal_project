@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_customer_cells_transient (
+create table {catalog}.{schema}.{client}_nextads_customer_cells_transient (
     AccountNumber string not null,
     Cell string not null,
     CellValue string not null,

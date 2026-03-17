@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_results_ad_metadata (
+create table {catalog}.{schema}.{client}_nextads_results_ad_metadata (
     SessionDate date not null,
     UniqueAdID string not null,
     PotNumber string,

@@ -11,8 +11,14 @@ class TestLoadConfigIntegration:
 
         # Basic assertions that config is loaded
         assert config is not None
-        assert hasattr(config, "warehouse")
-        assert hasattr(config, "schema")
+        assert config.schema_read is not None
+        assert config.catalog_read is not None
+        assert config.catalog_write is not None
+        assert config.schema_write is not None
+
+        assert config.az_st_account is not None
+        assert config.az_st_account_url is not None
+        assert config.dbutils_secret_scope is not None
 
     @pytest.mark.config_integration
     def test_load_config_prod(self, config_prod):
@@ -20,8 +26,10 @@ class TestLoadConfigIntegration:
         config = config_prod
 
         assert config is not None
-        assert config.warehouse is not None
-        assert config.schema is not None
+        assert config.schema_read is not None
+        assert config.catalog_read is not None
+        assert config.catalog_write is not None
+        assert config.schema_write is not None
 
         assert config.az_st_account is not None
         assert config.az_st_account_url is not None
@@ -36,5 +44,5 @@ class TestLoadConfigIntegration:
         assert config.task_plp_gs_per_client is not None
         assert config.task_plp_gs_combiner is not None
 
-        assert config.task_plp_gs_combiner.output_table_name_latest is not None
-        assert config.task_plp_gs_combiner.az_output_abfss_path is not None
+        assert config.tables_write.nextads_plp_gs is not None
+        assert config.tables_write.nextads_plp_gs_latest is not None

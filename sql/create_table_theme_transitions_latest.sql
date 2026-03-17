@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_theme_transitions_latest (
+create table {catalog}.{schema}.{client}_nextads_theme_transitions_latest (
     theme string not null,
     next_theme string not null,
     transition_freq decimal(12,2) not null,

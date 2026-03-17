@@ -16,6 +16,7 @@ _base_cluster_config: &base_cluster
   spark_env_vars:
     CURRENT_ENV: ${var.environment_name}
     GOOGLE_CLOUD_PROJECT: big-query-156009
+    USER_SCHEMA: ${var.user_schema}
   enable_elastic_disk: true
   workload_type:
     clients:
@@ -80,14 +81,6 @@ variables:
           <<: *base_cluster_photon
           node_type_id: Standard_D32ads_v5
           driver_node_type_id: Standard_D32ads_v5
-          autoscale:
-            min_workers: 4
-            max_workers: 4
-      - job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
-        new_cluster:
-          <<: *base_cluster_standard
-          node_type_id: Standard_D16ads_v5
-          driver_node_type_id: Standard_D4ads_v5
           autoscale:
             min_workers: 4
             max_workers: 4

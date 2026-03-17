@@ -23,7 +23,7 @@ next-ads/
 ├── config/
 │   ├── settings.yaml          # Base configuration
 │   ├── settings.local.yaml    # Local overrides (git-ignored)
-│   └── .env                   # Environment variables
+│   └── .env.local             # Local environment variables overrides (git-ignored)
 └── ...
 ```
 
@@ -47,6 +47,13 @@ prod:
   schema: warehouse
 ```
 
+**`config/.env.local`**
+
+Local environment variable overrides for configurations.
+```env
+USER_SCHEMA=first_lastname
+```
+
 ### 4. Load Configuration in Your Code
 
 **`next_ads/config/config_manager.py`**
@@ -55,7 +62,7 @@ prod:
 from next_ads.utils import config_manager
 JOB_ENV = "dev"
 config = config_manager.load_config(JOB_ENV)
-WAREHOUSE = config.warehouse
+WAREHOUSE = config.catalog_read
 ```
 
 ---

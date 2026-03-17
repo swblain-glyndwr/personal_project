@@ -1,4 +1,4 @@
-CREATE TABLE marketingdata_prod.{schema}.{client}_nextads_control_sheet_raw_latest (
+CREATE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_raw_latest (
   UniqueAdID STRING NOT NULL,
   UniqueAdIDPremium STRING,
   CMSPageID STRING,

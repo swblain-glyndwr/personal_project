@@ -2,11 +2,11 @@ import pytest
 from pathlib import Path
 import json
 from dsutils.dbc import configure_spark
-from dsutils.etl import map_tbl
+from next_ads.utils import etl
 
 
 root_dir = Path(__file__).parent.parent.parent
-clients = [f.name.split('.')[0] for f in root_dir.glob('config/*.json')]
+clients = [f.name.split('.')[0] for f in root_dir.glob('config/next_uk.json')]
 
 
 @pytest.mark.parametrize('client', clients)
@@ -31,15 +31,10 @@ def test_write_tables_exist(client):
         cfg = json.load(f)
 
     write_tables = cfg["tables"]["write"]
-    dev_schema = cfg["schema"]["dev"]
     prod_schema = cfg["schema"]["prod"]
+    prod_catalog = "marketingdata_prod"
 
     for k, v in write_tables.items():
-        v_mapped = map_tbl(v, dev_schema, client)
-        msg = f'Read-write table does not exist in dev: {k}({v_mapped})'
-        assert spark.catalog.tableExists(v_mapped), msg
-
-    for k, v in write_tables.items():
-        v_mapped = map_tbl(v, prod_schema, client)
-        msg = f'Read-write table does not exist in prod: {k}({v})'
+        v_mapped = etl.map_tbl(v, schema=prod_schema, client=client, catalog=prod_catalog)
+        msg = f'Read-write table does not exist in prod: {k}({v_mapped})'
         assert spark.catalog.tableExists(v_mapped), msg

@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_item_attributes_latest (
+create table {catalog}.{schema}.{client}_nextads_item_attributes_latest (
     pid string not null,
     attribute string not null,
     value string not null,

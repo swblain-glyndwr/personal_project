@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS marketingdata_prod.{schema}.{client}_nextads_viewed_bought_latest (
+CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_viewed_bought_latest (
     itemno1 STRING NOT NULL,
     itemno2 STRING NOT NULL,
     freq12 BIGINT NOT NULL,

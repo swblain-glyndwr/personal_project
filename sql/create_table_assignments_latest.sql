@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_assignments_latest (
+create table {catalog}.{schema}.{client}_nextads_assignments_latest (
     AccountNumber string not null,
     Location string not null,
     UniqueAdIDBasic string,

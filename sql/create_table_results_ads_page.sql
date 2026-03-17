@@ -1,4 +1,4 @@
-create table marketingdata_prod.{schema}.{client}_nextads_results_ads_page (
+create table {catalog}.{schema}.{client}_nextads_results_ads_page (
     SessionDate date not null,
     Device string not null,
     OS string not null,

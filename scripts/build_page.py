@@ -21,10 +21,11 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (build_spark_schema,
                          chain_when_thens,
-                         map_tbl,
                          delete_from_and_load,
                          post_to_webhook)
 from dsutils.argparser import get_job_parser
+from next_ads.utils import config_manager
+from next_ads.utils import etl
 import datetime
 
 
@@ -44,6 +45,8 @@ if not CLIENT:
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
+# load configuration
+config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
@@ -75,22 +78,22 @@ INC_ADS_SUFFIX = cfg['incrementality']['incremental_ads_suffix']
 
 
 tbls = cfg["tables"]["write"]
-SCHEMA = cfg["schema"][JOB_ENV]
+SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
 
 # Map write schema to parameterised write table names
-tbl_args = {'schema': SCHEMA, 'client': CLIENT}
-CONTROL_SHEET_LATEST = map_tbl(tbls["control_sheet_latest"], **tbl_args)
-TARGETING_SCORES_TABLE = map_tbl(tbls["targeting_scores_latest"], **tbl_args)
-ASSIGNMENTS_TABLE = map_tbl(tbls["assignments"], **tbl_args)
-ASSIGNMENTS_TABLE_LATEST = map_tbl(tbls["assignments_latest"], **tbl_args)
-CELLS_TABLE_LATEST = map_tbl(tbls["customer_cells_latest"], **tbl_args)
-PRERANKED_THEMES_TABLE = map_tbl(tbls["preranked_ads_from_themes_latest"],
+tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
+CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
+TARGETING_SCORES_TABLE = etl.map_tbl(tbls["targeting_scores_latest"], **tbl_args)
+ASSIGNMENTS_TABLE = etl.map_tbl(tbls["assignments"], **tbl_args)
+ASSIGNMENTS_TABLE_LATEST = etl.map_tbl(tbls["assignments_latest"], **tbl_args)
+CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
+PRERANKED_THEMES_TABLE = etl.map_tbl(tbls["preranked_ads_from_themes_latest"],
                                  **tbl_args)
 
 # Read results data from prod schema dataset
-tbl_args_results = tbl_args | {'schema': cfg['schema']['prod']}
-AD_RESULTS_TABLE = map_tbl(tbls['results_ads'], **tbl_args_results)
+tbl_args_results = {'catalog': config.catalog_read, 'schema': config.schema_read, 'client': CLIENT}
+AD_RESULTS_TABLE = etl.map_tbl(tbls['results_ads'], **tbl_args_results)
 
 FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 

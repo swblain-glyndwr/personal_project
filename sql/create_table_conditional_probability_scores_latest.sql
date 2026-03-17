@@ -1,4 +1,4 @@
-CREATE TABLE marketingdata_prod.{schema}.{client}_nextads_conditional_probability_scores_latest (
+CREATE TABLE {catalog}.{schema}.{client}_nextads_conditional_probability_scores_latest (
   account_number STRING NOT NULL,
   recommended_theme STRING NOT NULL,
   score_freq DOUBLE,
