@@ -198,8 +198,7 @@
     },
     
     "transient_cells": {
-        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
-        "Audiences": []
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
     },
 
     "locations": {
