@@ -33,6 +33,7 @@ CLIENT = jobparser.get_arg('--client')
 LOG_LEVEL = jobparser.get_arg('--log_level')
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
+ALGO = jobparser.get_arg('--algo') or 'champion'
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
 
@@ -60,16 +61,35 @@ logger.info(f'Write schema set to {SCHEMA}')
 
 tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
 # Read tables
-NEXT_THEME_SCORES_LATEST = etl.map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
 CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
 CUSTOMER_CELLS_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
 
-# Write tables
-THEME_SCORE_COMPONENTS_LATEST = etl.map_tbl(tbls["theme_score_components_latest"], **tbl_args)  # noqa
-THEME_SCORE_COMPONENTS = etl.map_tbl(tbls["theme_score_components"], **tbl_args)  # noqa
-PRERANKED_ADS_FROM_THEMES_LATEST = etl.map_tbl(tbls["preranked_ads_from_themes_latest"], **tbl_args)  # noqa
-
+if ALGO == 'challenger':
+    logger.info('Running script as Challenger')
+    # read
+    NEXT_THEME_SCORES_LATEST = cfg['tables']['read']["hackathon_assignments"]
+    # write
+    THEME_SCORE_COMPONENTS_LATEST = cfg['tables']['write']["theme_score_components_hackathon_latest"]
+    THEME_SCORE_COMPONENTS = cfg['tables']['write']["theme_score_components_hackathon"]
+    PRERANKED_ADS_FROM_THEMES_LATEST = cfg['tables']['write']['preranked_ads_from_themes_hackathon_latest']
+else:
+    logger.info('Running script as default (Champion)')
+    # read
+    NEXT_THEME_SCORES_LATEST = map_tbl(
+        tbls["next_theme_scores_latest"],
+        **tbl_args)
+    # write
+    THEME_SCORE_COMPONENTS_LATEST = map_tbl(
+        tbls["theme_score_components_latest"],
+        **tbl_args)
+    THEME_SCORE_COMPONENTS = map_tbl(
+        tbls["theme_score_components"],
+        **tbl_args)
+    PRERANKED_ADS_FROM_THEMES_LATEST = map_tbl(
+        tbls["preranked_ads_from_themes_latest"],
+        **tbl_args)
+    
 WEBHOOK_URL = cfg['webhooks']['DS Warnings']
 
 # Force read from prod results tables for ad feedback scores
@@ -248,8 +268,9 @@ df_score_components = (
         + F.col('GreedyScore')
     )
     .fillna(0, subset=['RelevanceScore'])
-    .join(df_theme2ad.withColumnRenamed('Themes', 'NextTheme'),
-          on='NextTheme', how='inner')
+    .join(df_theme2ad,
+          on=df_theme2ad['Themes'] == df_theme_scores['NextTheme'],
+          how='inner')
     .withColumn('Score',
                 F.col('RelevanceScore') * F.col('IncrementalScore'))
     .select('AccountNumber',
