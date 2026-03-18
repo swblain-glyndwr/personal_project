@@ -29,6 +29,9 @@ variables:
   job_cluster_policy_id:
     description: policy id for job clusters
     default: 00076A5E6270EA99
+  job_cluster_policy_id_fixed:
+    description: policy id for fixed job clusters
+    default: 00094FE740FAEA3D
   run_as_SPN_name:
     description: the name of the service principal identity that will deploy the bundle
     default: 7ecc733a-4b66-4783-b984-985333d55c38
@@ -79,6 +82,7 @@ targets:
       mktgdata_catalog: marketingdata_dev
       environment_name: dev
       job_cluster_policy_id: 00076A5E6270EA99
+      job_cluster_policy_id_fixed: 00094FE740FAEA3D
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
 
@@ -153,6 +157,7 @@ targets:
       mktgdata_catalog: marketingdata_prod
       environment_name: prod
       job_cluster_policy_id: 0019C79D3B6399F0
+      job_cluster_policy_id_fixed: 0007D38BE4B60771
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: preprod
 
@@ -188,6 +193,7 @@ targets:
       mktgdata_catalog: marketingdata_prod
       environment_name: prod
       job_cluster_policy_id: 0019C79D3B6399F0
+      job_cluster_policy_id_fixed: 0007D38BE4B60771
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
       notification_emails:

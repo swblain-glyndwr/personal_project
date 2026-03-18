@@ -95,6 +95,7 @@ df_ad_metadata_non_loc = (
     .format('parquet')
     .load(f'{TMP_RESULTS_LOCATION}/df_ad_metadata_non_loc')
 )
+df_ad_metadata_non_loc = df_ad_metadata_non_loc.drop('AudienceOnly')
 df_ad_metadata_non_loc.cache()
 
 logger.info('Reading: df_ad_metadata')
@@ -103,6 +104,10 @@ df_ad_metadata = (
     .read
     .format('parquet')
     .load(f'{TMP_RESULTS_LOCATION}/df_ad_metadata')
+)
+df_ad_metadata = (
+    df_ad_metadata
+    .drop('Page', 'Screen', 'PageGroup')
 )
 df_ad_metadata.cache()
 
