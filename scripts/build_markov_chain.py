@@ -94,12 +94,12 @@ NEXT_THEME_SCORES_LATEST = etl.map_tbl(
     tbls["next_theme_scores_latest"], **tbl_args
 )  # noqa
 NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
-THEME_SCORING_EVENTS_LATEST = map_tbl(
+THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
     tbls["theme_scoring_events_latest"], **tbl_args
 )  # noqa
 
 ACTIONS_END = jobparser.get_arg("--actions-end") or (
-    date.today() - timedelta(days=1)
+    date.today() - timedelta(days=1))
 
 if isinstance(ACTIONS_END, str):
     ACTIONS_END = date.fromisoformat(ACTIONS_END)
