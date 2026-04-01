@@ -31,7 +31,7 @@ resources:
               - ${var.job_parameter_environment_name}
           job_cluster_key: next_ads_job_cluster_E4ds_v5_4
           libraries: ${var.shared_libraries}
-          timeout_seconds: 7200
+          timeout_seconds: 10800
         - task_key: results_2
           depends_on:
               - task_key: results_1
