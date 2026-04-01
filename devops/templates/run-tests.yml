@@ -37,6 +37,8 @@ jobs:
       - script: |
           python -m pip install --upgrade pip poetry==2.2.1
           poetry --version
+          # configuration doesn't require username so use anything as username
+          poetry config http-basic.MarketingDataFeed anything $(System.AccessToken)
           poetry install
         displayName: 'Install Poetry and dependencies'
 

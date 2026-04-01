@@ -15,7 +15,7 @@ ipykernel = "6.29.5"
 databricks-connect = "15.4.2"
 gspread = "6.1.2"
 pytest = ">=8.3.3"
-dsutils = {path = "wheels/dsutils-0.1.11-py3-none-any.whl"}
+dsutils = { version = "0.1.13", source = "MarketingDataFeed" }
 pandera = "^0.27.1"
 azure-identity = "1.25.1"
 azure-storage-blob = "12.28.0"
@@ -33,6 +33,11 @@ build-backend = "poetry.core.masonry.api"
 plotly = "^6.3.1"
 networkx = "^3.5"
 ruff = "^0.14.9"
+
+[[tool.poetry.source]]
+name = "MarketingDataFeed"
+url = "https://pkgs.dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_packaging/MarketingDataFeed/pypi/simple/"
+priority = "supplemental"
 
 [tool.ruff]
 line-length = 79

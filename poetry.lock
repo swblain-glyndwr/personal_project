@@ -785,13 +785,14 @@ files = [
 
 [[package]]
 name = "dsutils"
-version = "0.1.11"
-description = "Utility functions for Data Scientists"
+version = "0.1.13"
+description = "Nextads dsutils - common libraries used by nextads"
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
 files = [
-    {file = "dsutils-0.1.11-py3-none-any.whl", hash = "sha256:d96585556373cece77985df58115b573d6064e7902b218393fe800f775af8c5f"},
+    {file = "dsutils-0.1.13-py3-none-any.whl", hash = "sha256:c6fdaaa6f8763916b3cec0e30c39fb85e648bfc8a26086c2fdc60d2f3c001a08"},
+    {file = "dsutils-0.1.13.tar.gz", hash = "sha256:6ec73e53b0867357a2bef99c9cdcc14b041fa46c08ce47363a202fa22c9b7a3f"},
 ]
 
 [package.dependencies]
@@ -803,8 +804,9 @@ pytest = ">=8.3.3"
 pyyaml = ">=6.0.0"
 
 [package.source]
-type = "file"
-url = "wheels/dsutils-0.1.11-py3-none-any.whl"
+type = "legacy"
+url = "https://pkgs.dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_packaging/MarketingDataFeed/pypi/simple"
+reference = "MarketingDataFeed"
 
 [[package]]
 name = "dynaconf"
@@ -3170,4 +3172,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11"
-content-hash = "85e6df5efec77e60ef28788df427e80c99a23bbec206333912c8c0391bdcf769"
+content-hash = "6d6ef01e51f7e05b405f21fa44552f324fa38c3ac3e36d68b46e65c67910f05a"

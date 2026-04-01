@@ -26,6 +26,11 @@ python --version  # Should be 3.11.x
 # Verify Poetry
 poetry --version
 
+# Setup auth to Azure DevOps Feed
+export AZURE_DEVOPS_USERNAME=name@next.co.uk
+export AZURE_DEVOPS_PAT=your_DEVOPS_PAT_token
+poetry config http-basic.MarketingDataFeed $AZURE_DEVOPS_USERNAME $AZURE_DEVOPS_PAT
+
 # Verify Databricks CLI
 databricks --version
 
