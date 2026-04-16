@@ -90,8 +90,8 @@ ASSIGNMENTS_TABLE_LATEST = etl.map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 PRERANKED_THEMES_TABLE = etl.map_tbl(tbls["preranked_ads_from_themes_latest"],
                                  **tbl_args)
-PRERANKED_THEMES_TABLE_HACK = etl.map_tbl(tbls["preranked_ads_from_themes_hackathon_latest"],
-                                 **tbl_args)
+# PRERANKED_THEMES_TABLE_HACK = etl.map_tbl(tbls["preranked_ads_from_themes_hackathon_latest"],
+#                                  **tbl_args)
 
 # Read results data from prod schema dataset
 tbl_args_results = {'catalog': config.catalog_read, 'schema': config.schema_read, 'client': CLIENT}
@@ -327,14 +327,7 @@ else:
     )
     df_assigned_best.cache()
 
-    df_assigned_best_challenger = assign_preranked_ads(
-        df_ads=df_ads_tgt_best,
-        preranked_ads_table=PRERANKED_THEMES_TABLE_HACK,
-        location=LOCATION,
-        df_cust=df_cells.select("AccountNumber"),
-        **best_kwargs
-    )
-    df_assigned_best_challenger.cache()
+    df_assigned_best_challenger = df_assigned_best
 
     logger.info("Determining Ad to show based on assignments and fixed cells")
     df_assignments = (

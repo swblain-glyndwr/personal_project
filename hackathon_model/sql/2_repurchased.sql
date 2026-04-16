@@ -1,25 +1,28 @@
-WITH purchase_history as (
-  SELECT
-    *, --TODO: if someone has bought the same theme e.g. twice on the same date, what is the value of prev_order_date? still the previous date
-    LAG(order_date) over(partition by account_number, theme_clean ORDER BY order_date) as prev_order_date
-  FROM {catalog}.{table_prefix}_baskets_themes
-  WHERE reference_date = date"{reference_date}"
-),
-repurchase_gaps as (
-  SELECT
-    *,
-    date_diff(order_date, prev_order_date) as days_between_purchases
-  FROM purchase_history
-  WHERE prev_order_date is not null
-    AND date_diff(order_date, prev_order_date) > 60
-),
-customer_theme_median as (
+WITH purchase_history AS (
   SELECT
     account_number,
     theme_clean,
-    percentile_approx(days_between_purchases, 0.5) as customer_median_days,
-    count(*) as num_gaps,
-    ARRAY_AGG(DISTINCT days_between_purchases) AS days_between_purchases_array
+    reference_date,
+    order_date,
+    LAG(order_date) OVER(PARTITION BY account_number, theme_clean ORDER BY order_date) AS prev_order_date
+  FROM {catalog}.{table_prefix}_baskets_themes
+  WHERE reference_date = date"{reference_date}"
+),
+repurchase_gaps AS (
+  SELECT
+    account_number,
+    theme_clean,
+    datediff(order_date, prev_order_date) AS days_between_purchases
+  FROM purchase_history
+  WHERE prev_order_date IS NOT NULL
+    AND datediff(order_date, prev_order_date) > 60
+),
+customer_theme_median AS (
+  SELECT
+    account_number,
+    theme_clean,
+    percentile_approx(days_between_purchases, 0.5) AS customer_median_days,
+    count(*) AS num_gaps
   FROM repurchase_gaps
   GROUP BY account_number, theme_clean
   HAVING num_gaps = 1
@@ -27,10 +30,10 @@ customer_theme_median as (
 theme_stats AS (
   SELECT
     theme_clean,
-    PERCENTILE_APPROX(customer_median_days, 0.5)*1.2 AS median_repurchase_days,
+    PERCENTILE_APPROX(customer_median_days, 0.5) * 1.2 AS median_repurchase_days,
     COUNT(DISTINCT account_number) AS customers_with_repurchases,
-    PERCENTILE_APPROX(customer_median_days, 0.25)*1.2 AS p25_repurchase_days,
-    PERCENTILE_APPROX(customer_median_days, 0.75)*1.2 AS p75_repurchase_days,
+    PERCENTILE_APPROX(customer_median_days, 0.25) * 1.2 AS p25_repurchase_days,
+    PERCENTILE_APPROX(customer_median_days, 0.75) * 1.2 AS p75_repurchase_days,
     AVG(customer_median_days) AS mean_repurchase_days,
     STDDEV(customer_median_days) AS stddev_repurchase_days
   FROM customer_theme_median
@@ -43,12 +46,11 @@ customer_last_purchase AS (
     MAX(order_date) AS last_order_date,
     COUNT(*) AS total_purchases_in_theme_clean,
     MIN(order_date) AS first_order_date
-  FROM {catalog}.{table_prefix}_baskets_themes
-  WHERE reference_date = date"{reference_date}"
+  FROM purchase_history
   GROUP BY account_number, theme_clean
 )
 SELECT
-  date"{reference_date}" as reference_date,
+  date"{reference_date}" AS reference_date,
   clp.account_number,
   clp.theme_clean,
   clp.last_order_date,
@@ -74,7 +76,7 @@ SELECT
     WHEN DATEDIFF(date"{reference_date}", clp.last_order_date) < ts.median_repurchase_days THEN 'approaching'
     WHEN DATEDIFF(date"{reference_date}", clp.last_order_date) < ts.p75_repurchase_days THEN 'due'
     ELSE 'overdue'
-  END AS repurchase_stage, 
-  current_date() as rundate
+  END AS repurchase_stage,
+  current_date() AS rundate
 FROM customer_last_purchase clp
 LEFT JOIN theme_stats ts ON clp.theme_clean = ts.theme_clean

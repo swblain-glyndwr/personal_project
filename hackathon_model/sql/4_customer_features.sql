@@ -11,12 +11,39 @@ with mult_accounts as(
     PafPostTownCode, 
     app_web, 
     GmaName, 
-    seasons_site
+    seasons_site,
+    itemno
     from marketingdata_prod.digital_marketing.mktg_uk_basket
   where 
-  orderdate between date"{start_date}" and date"{end_date}"
+  orderdate between date_add(date"{reference_date}", -365) and date"{end_date}"
   group by all
   order by email_hash, account_number, sites
+),
+
+null_themes as (
+  select distinct a.*, b.theme
+  from mult_accounts a
+  left join warehouse.next_uk_nextads_item_themes_latest b
+  on a.itemno = b.pid 
+  where b.theme is not null
+),
+
+filtered_accounts as (
+  select distinct 
+    account_number,
+    email_hash,
+    sites,
+    orderdate,
+    gender_customer,
+    Age,
+    PostcodeArea_GB, 
+    PostcodeArea, 
+    PafPostTownCode, 
+    app_web, 
+    GmaName, 
+    seasons_site
+  from null_themes
+  group by all 
 ),
 
 customer_flags as(
@@ -31,7 +58,7 @@ customer_flags as(
     case when sites = 'Childsplay' then 1 else 0 end as childsplay_cust,
     case when sites = 'Made' then 1 else 0 end as made_cust,
     case when sites = 'Aubin' then 1 else 0 end as aubin_cust
-  from mult_accounts
+  from filtered_accounts
   group by all 
 ),
 
@@ -43,7 +70,7 @@ grouped_emails as (
 
 tp_customers as(
   select distinct a.account_number, b.*
-  from mult_accounts a
+  from filtered_accounts a
   left join grouped_emails b 
   on a.email_hash = b.email_hash 
   group by all

@@ -1,12 +1,25 @@
-with baskets_product as (
+with base as (
+  select distinct account_number,itemno,theme,s740orderstakenvalue, order_date, date"{reference_date}" as reference_date
+  from warehouse.baskets_uk_3y
+  inner join(
+    select distinct pid, theme from warehouse.next_uk_nextads_item_themes_latest
+  )
+  on pid = itemno
+  where order_date >= date_add(date"{reference_date}", -365)
+  -- and theme is not null
+),
+base_filtered as (
+  select distinct account_number, itemno, s740orderstakenvalue, order_date from base
+),
+ baskets_product as (
   select 
     a.account_number, a.s740orderstakenvalue, a.itemno ,
     b.department 
   -- from warehouse.baskets_uk_3y a
-  FROM {catalog}.{table_prefix}_baskets a
+  FROM base_filtered a--{catalog}.{table_prefix}_baskets a
   left join warehouse.product_catalog_history b
   on itemno = pid
-  WHERE order_date between date"{start_date}" and date"{end_date}"
+  WHERE order_date <= date"{end_date}"
   group by all
 ),
 

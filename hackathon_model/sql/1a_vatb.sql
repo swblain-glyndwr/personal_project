@@ -1,8 +1,5 @@
---TODO: maybe 2_ instead of 1a?
--- General TODO: add in rundate datestamp (similar to bq) - does this get added anyway when saved to db?
-  -- / rename "rundate" param to reference_date for consistency
 with pairs_raw as (
-  SELECT DISTINCT
+  SELECT
     reference_date,
     account_number,
     date,
@@ -44,8 +41,7 @@ pair_count as (
     reference_date,
     theme_clean1,
     theme_clean2,
-    count(distinct account_number) as freq12,
-    sum(exp(-0.0231 * (datediff(date"{reference_date}", date)))) as freq12_decayed
+    count(distinct account_number) as freq12
   FROM pairs_raw
   GROUP BY 1,2,3
 ),
@@ -80,7 +76,7 @@ SELECT
   ROUND(support2,8) as support2,
   ROUND(support12/(support1*support2),3) as lift,
   ROUND((support12/(support1*support2)) * POWER(support2, 0.25), 4) as lift_adjusted,
-  ROUND(cosine_similarity,3) as CS, 
+  ROUND(cosine_similarity,3) as CS,
   current_date() as rundate
 FROM stats_raw
 WHERE freq12 >= 3

@@ -6,8 +6,7 @@ WITH
       CAST(date AS DATE) as event_date,
       timestamp,
       type as platform, -- 'web' or 'app'
-      'view' as event_type,
-      itemnumber
+      'view' as event_type
     FROM {catalog}.{table_prefix}_views
     WHERE date between date"{start_date}" and date"{end_date}"
     
@@ -18,21 +17,20 @@ WITH
       CAST(date AS DATE) as event_date,
       timestamp,
       type as platform,
-      'atb' as event_type,
-      itemnumber
+      'atb' as event_type
     FROM {catalog}.{table_prefix}_atbs
     WHERE date between date"{start_date}" and date"{end_date}"
   ),
 
   -- 2. Aggregate Theme Activity (using Layer 1 for cleaner mapped data)
   theme_activity AS (
-    SELECT distinct
+    SELECT
       account_number,
       theme_clean
     FROM {catalog}.{table_prefix}_views_themes
     WHERE reference_date = date"{reference_date}"
     UNION ALL
-    SELECT distinct
+    SELECT
       account_number,
       theme_clean
     FROM {catalog}.{table_prefix}_atbs_themes

@@ -67,7 +67,7 @@ WITH
   customer_segments AS (
     SELECT *
     FROM {catalog}.{table_prefix}_customer_segments
-    -- WHERE reference_date = date"{reference_date}"
+    WHERE reference_date = date"{reference_date}"
   ),
   popularity_metrics AS (
     SELECT *
@@ -97,8 +97,8 @@ SELECT
   -- Algo Baskets_top10 1
   -- COALESCE(t3.theme_clean2_baskets_freq12, 0) AS algo_baskets1__freq12_top10,
   -- COALESCE(t3.theme_clean2_baskets_lift, 0.0) AS algo_baskets1__lift_top10,
-  -- COALESCE(t3.theme_clean2_baskets_cs, 0.0) AS algo_baskets1__cs_top10,
-  COALESCE(t3.freq12_norm, 0.0) AS algo_baskets1__freq12_norm_top10,
+  COALESCE(t3.theme_clean2_baskets_cs, 0.0) AS algo_baskets1__cs_top10,
+  -- COALESCE(t3.freq12_norm, 0.0) AS algo_baskets1__freq12_norm_top10,
   -- CASE WHEN t3.account_number IS NOT NULL THEN 1 ELSE 0 END AS algo_baskets1__retrieved_top10,
 
   -- Algo Baskets_top10 5
@@ -110,16 +110,16 @@ SELECT
 
   -- Algo Views_top10 1
   -- COALESCE(t5.theme_clean2_views_freq12, 0) AS algo_views1__freq12_top10,
-  COALESCE(t5.theme_clean2_views_lift, 0.0) AS algo_views1__lift_top10,
+  -- COALESCE(t5.theme_clean2_views_lift, 0.0) AS algo_views1__lift_top10,
   -- COALESCE(t5.theme_clean2_views_cs, 0.0) AS algo_views1__cs_top10,
-  COALESCE(t5.freq12_norm, 0.0) AS algo_views1__freq12_norm_top10,
+  -- COALESCE(t5.freq12_norm, 0.0) AS algo_views1__freq12_norm_top10,
   -- CASE WHEN t5.account_number IS NOT NULL THEN 1 ELSE 0 END AS algo_views1__retrieved_top10,
 
   -- Algo Views_top10 5
   -- COALESCE(t6.theme_clean2_views_freq12, 0) AS algo_views5__freq12_top10,
   COALESCE(t6.theme_clean2_views_lift, 0.0) AS algo_views5__lift_top10,
-  -- COALESCE(t6.theme_clean2_views_cs, 0.0) AS algo_views5__cs_top10,
-  COALESCE(t6.freq12_norm, 0.0) AS algo_views5__freq12_norm_top10,
+  COALESCE(t6.theme_clean2_views_cs, 0.0) AS algo_views5__cs_top10,
+  -- COALESCE(t6.freq12_norm, 0.0) AS algo_views5__freq12_norm_top10,
   -- CASE WHEN t6.account_number IS NOT NULL THEN 1 ELSE 0 END AS algo_views5__retrieved_top10,
 
   -- Views behavior
@@ -143,7 +143,7 @@ SELECT
   -- Baskets Behavior
   -- COALESCE(t8.recency28, 0) AS baskets_behavior__recency28,
   -- COALESCE(t8.recency7, 0) AS baskets_behavior__recency7,
-  COALESCE(t8.recency, 9999) AS baskets_behavior__recency,
+  -- COALESCE(t8.recency, 9999) AS baskets_behavior__recency,
   COALESCE(t8.frequency, 0) AS baskets_behavior__frequency,
   COALESCE(t8.recency_rank, 999999) AS baskets_behavior__recency_rank,
   -- CASE WHEN t8.account_number IS NOT NULL THEN 1 ELSE 0 END AS baskets_behavior__retrieved,
@@ -167,12 +167,12 @@ SELECT
 
   -- Advanced User Features
   -- COALESCE(t11.user_total_interactions, 0) AS user_total_interactions,
-  -- COALESCE(t11.user_total_views, 0) AS user_total_views,
-  -- COALESCE(t11.user_view_to_atb_rate, 0.0) AS user_view_to_atb_rate,
+  COALESCE(t11.user_total_views, 0) AS user_total_views,
+  COALESCE(t11.user_view_to_atb_rate, 0.0) AS user_view_to_atb_rate,
   -- COALESCE(t11.user_app_ratio, 0.0) AS user_app_ratio,
   -- COALESCE(t11.user_platform_segment, 'unknown') AS user_platform_segment,
   -- COALESCE(t11.user_velocity_score, 0.0) AS user_velocity_score,
-  COALESCE(t11.user_theme_breadth, 0) AS user_theme_breadth,
+  -- COALESCE(t11.user_theme_breadth, 0) AS user_theme_breadth,
   -- COALESCE(t11.user_weekend_ratio, 0.0) AS user_weekend_ratio,
   -- COALESCE(t11.user_median_hour, 12) AS user_median_hour,
 
@@ -195,7 +195,7 @@ SELECT
   -- COALESCE(t12.PostcodeArea, 'unknown') AS PostcodeArea,
   -- COALESCE(t12.PafPostTownCode, 'unknown') AS PafPostTownCode,
   -- COALESCE(t12.app_web, 'unknown') AS app_web,
-  -- COALESCE(t12.GmaName, 'unknown') AS GmaName,
+  COALESCE(t12.GmaName, 'unknown') AS GmaName,
   COALESCE(t13.Familyconfidence_score, 0.0) AS Familyconfidence_score,
   COALESCE(t13.Coupleconfidence_score, 0.0) AS Coupleconfidence_score,
   COALESCE(t13.Womenswearconfidence_score, 0.0) AS Womenswearconfidence_score,
@@ -206,11 +206,11 @@ SELECT
   -- COALESCE(t13.spend_bucket, 0) AS spend_bucket,
 
   -- Popularity Metrics
-  -- COALESCE(t14.views_ly_7,0) as views_ly_7,
-  -- COALESCE(t14.views_ly_30,0) as views_ly_30,
-  -- COALESCE(t14.baskets_ly_7,0) as baskets_ly_7,
-  -- COALESCE(t14.baskets_ly_7,0) as baskets_ly_30,
-  -- COALESCE(t14.trending_7x30,0) as trending_7x30,
+  COALESCE(t14.views_ly_7,0) as views_ly_7,
+  COALESCE(t14.views_ly_30,0) as views_ly_30,
+  COALESCE(t14.baskets_ly_7,0) as baskets_ly_7,
+  COALESCE(t14.baskets_ly_30,0) as baskets_ly_30,
+  COALESCE(t14.trending_7x30,0) as trending_7x30,
 
 
   -- Target label
@@ -233,9 +233,9 @@ LEFT JOIN baskets_behavior t8 USING (account_number, reference_date, theme_clean
 LEFT JOIN views_behavior t9 USING (account_number, reference_date, theme_clean)
 LEFT JOIN repurchased t10 USING (account_number, reference_date, theme_clean)
 LEFT JOIN advanced_features t11 USING (account_number, reference_date)
--- LEFT JOIN customer_features t12 USING(account_number, reference_date)
+LEFT JOIN customer_features t12 USING(account_number, reference_date)
 LEFT JOIN customer_segments t13 USING(account_number, reference_date)
--- LEFT JOIN popularity_metrics t14 USING(theme_clean, reference_date)
+LEFT JOIN popularity_metrics t14 USING(theme_clean, reference_date)
 LEFT JOIN baskets_target target USING (account_number, reference_date, theme_clean)
 group by all
 

@@ -1,5 +1,5 @@
 -- with baskets_themes as (
-  select
+  select /*+ BROADCAST(tm) */
     date"{reference_date}" as reference_date,
     account_number,
     theme,
