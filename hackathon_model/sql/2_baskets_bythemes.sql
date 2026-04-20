@@ -20,7 +20,7 @@ SELECT
   recency7,
   datediff(reference_date, date_max) as recency,
   frequency,
-  row_number() OVER(PARTITION BY reference_date, account_number ORDER BY date_max DESC, s740orderstakenvalue_max DESC, theme_clean ASC) as recency_rank,
+  row_number() OVER(PARTITION BY reference_date, account_number ORDER BY date_max DESC, round(s740orderstakenvalue_max, 2) DESC, theme_clean ASC) as recency_rank,
   current_date() as rundate
 FROM base
 QUALIFY recency_rank <= 15
