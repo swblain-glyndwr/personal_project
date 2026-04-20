@@ -16,7 +16,6 @@ _base_cluster_shared: &base_cluster_shared
     CURRENT_ENV: ${var.environment_name}
     GOOGLE_CLOUD_PROJECT: big-query-156009
     USER_SCHEMA: ${var.user_schema}
-    DATABRICKS_PIP_EXTRA_INDEX_URL: "{{secrets/nextads/DATABRICKS-PIP-EXTRA-INDEX-URL-MarketingDataFeed}}" # TODO: replace with correct secret from key vault scope
   enable_elastic_disk: true
   workload_type:
     clients:

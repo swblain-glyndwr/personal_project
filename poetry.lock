@@ -792,7 +792,6 @@ python-versions = ">=3.11"
 groups = ["main"]
 files = [
     {file = "dsutils-0.1.13-py3-none-any.whl", hash = "sha256:c6fdaaa6f8763916b3cec0e30c39fb85e648bfc8a26086c2fdc60d2f3c001a08"},
-    {file = "dsutils-0.1.13.tar.gz", hash = "sha256:6ec73e53b0867357a2bef99c9cdcc14b041fa46c08ce47363a202fa22c9b7a3f"},
 ]
 
 [package.dependencies]
@@ -804,9 +803,8 @@ pytest = ">=8.3.3"
 pyyaml = ">=6.0.0"
 
 [package.source]
-type = "legacy"
-url = "https://pkgs.dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_packaging/MarketingDataFeed/pypi/simple"
-reference = "MarketingDataFeed"
+type = "file"
+url = "wheels/dsutils-0.1.13-py3-none-any.whl"
 
 [[package]]
 name = "dynaconf"
@@ -3172,4 +3170,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11"
-content-hash = "6d6ef01e51f7e05b405f21fa44552f324fa38c3ac3e36d68b46e65c67910f05a"
+content-hash = "8c3e754fd5646114cc365787581a1e986bfc61e19ece046cd276587a2026765d"

@@ -46,7 +46,7 @@ dbutils = get_dbutils()
 # load configuration
 config_dev = config_manager.load_config("dev")
 spn_client_id = dbutils.secrets.get(
-    scope=config_dev.secret_key_spn_secret,
+    scope=config_dev.dbutils_secret_scope,
     key=config_dev.secret_key_spn_clientid,
 )
 

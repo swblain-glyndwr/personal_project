@@ -11,7 +11,7 @@ if [ -f '~/.databrickscfg' ]; then
 fi
 
 echo "Install databricks cli"
-curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/refs/tags/v0.281.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/refs/tags/v0.281.1/install.sh | sh
 
 echo "Databricks CLI version:"
 databricks --version
