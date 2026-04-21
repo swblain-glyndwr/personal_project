@@ -29,8 +29,8 @@ SELECT distinct
   recency7,
   date_diff(reference_date, base.date) as recency,
   frequency,
-  IF( row_number() over(partition by reference_date, account_number ORDER BY base.date desc, frequency desc) = 1, 1, 0) AS most_recent,
-  row_number() over(partition by reference_date, account_number ORDER BY base.date desc, timestamp desc, frequency desc) as recency_rank, 
+  IF( row_number() over(partition by reference_date, account_number ORDER BY base.date DESC, timestamp DESC, frequency DESC, theme_clean ASC) = 1, 1, 0) AS most_recent,
+  row_number() over(partition by reference_date, account_number ORDER BY base.date DESC, timestamp DESC, frequency DESC, theme_clean ASC) as recency_rank,
   current_date() as rundate
 FROM base
 QUALIFY recency_rank <= 30
