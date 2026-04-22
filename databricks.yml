@@ -10,6 +10,7 @@ include:
   - resources/variables/clusters.yml
   - resources/variables/libraries.yml
   - resources/jobs/mktg_next_uk_nextads_results.yml
+  - resources/jobs/mktg_next_uk_nextads_realtime_results.yml
   - resources/jobs/table_size_monitoring.yml
 
 sync:
