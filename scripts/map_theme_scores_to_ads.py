@@ -76,8 +76,7 @@ if ALGO == 'challenger':
 else:
     logger.info('Running script as default (Champion)')
     # read
-    NEXT_THEME_SCORES_LATEST = etl.map_tbl(tbls["next_theme_scores_latest"],
-                                           **tbl_args)
+    NEXT_THEME_SCORES_LATEST = cfg['tables']['read']["hackathon_assignments"]
     # write
     THEME_SCORE_COMPONENTS_LATEST = etl.map_tbl(
         tbls["theme_score_components_latest"],
