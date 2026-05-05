@@ -93,7 +93,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
               - --refresh_themes_date
-              - "2026-04-30"
+              - "2026-05-05"
           job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
           libraries: ${var.shared_libraries}
           max_retries: 2
@@ -109,7 +109,7 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
               - --refresh_model_date
-              - "2026-04-30"
+              - "2026-05-05"
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
           libraries: ${var.shared_libraries}
           max_retries: 2
