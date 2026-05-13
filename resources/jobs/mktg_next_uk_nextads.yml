@@ -125,6 +125,24 @@ resources:
               - --job_env
               - ${var.job_parameter_environment_name}
               - --apply-ad-feedback
+              - --top-ads-per-location
+              - "100"
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+          libraries: ${var.shared_libraries}
+          max_retries: 2
+          timeout_seconds: 10800
+        - task_key: map_theme_scores_to_ads_v2
+          depends_on:
+            - task_key: map_theme_scores_to_ads
+          spark_python_task:
+            python_file: ../../scripts/map_theme_scores_to_ads_v2.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --top-ads-per-page-family
+              - "100"
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
           libraries: ${var.shared_libraries}
           max_retries: 2

@@ -1710,6 +1710,7 @@
             "theme_score_components_hackathon_latest": "{catalog}.ds_sandbox.{client}_nextads_theme_score_components_hackathon_latest",
             "theme_scoring_events_latest": "{catalog}.{schema}.{client}_nextads_theme_scoring_events_latest",
             "preranked_ads_from_themes_latest": "{catalog}.{schema}.{client}_nextads_preranked_ads_from_themes_latest",
+            "preranked_ads_from_themes_v2_latest": "{catalog}.{schema}.{client}_nextads_preranked_ads_from_themes_v2_latest",
             "preranked_ads_from_themes_hackathon_latest": "{catalog}.ds_sandbox.{client}_nextads_preranked_ads_from_themes_hackathon_latest",
             "results_topline": "{catalog}.{schema}.{client}_nextads_results_topline",
             "results_aggregated": "{catalog}.{schema}.{client}_nextads_results_aggregated",
