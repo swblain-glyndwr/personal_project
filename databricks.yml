@@ -188,6 +188,8 @@ targets:
       user_name: edward_taylor@next.co.uk
     - level: CAN_MANAGE
       user_name: thomas_lynch@next.co.uk
+    - level: CAN_MANAGE
+      user_name: claire_wilsonbarnes@next.co.uk
     run_as:
       service_principal_name: ${var.run_as_SPN_name}
     variables:
@@ -213,3 +215,4 @@ targets:
         - dimitrios_liakouras@next.co.uk
         - nitin_surti@next.co.uk
         - sonal_sakaria@next.co.uk
+        - claire_wilsonbarnes@next.co.uk
