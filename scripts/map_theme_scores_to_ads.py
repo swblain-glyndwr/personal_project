@@ -51,7 +51,8 @@ with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
 
 APPLY_AD_FEEDBACK = jobparser.has_arg('--apply-ad-feedback')
 AD_FEEDBACK_WEIGHT = jobparser.get_arg('--ad-feedback-weight') or 0.05
-TOP_ADS_PER_LOCATION = jobparser.get_arg('--top-ads-per-location') or 20
+TOP_ADS_PER_LOCATION = int(jobparser.get_arg('--top-ads-per-location') or 20)
+assert TOP_ADS_PER_LOCATION > 0, 'top-ads-per-location must be greater than zero'
 MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
 INCREMENTAL_LOOKBACK = cfg['incrementality']['incremental_lookback']
 

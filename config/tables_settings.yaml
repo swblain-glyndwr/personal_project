@@ -55,6 +55,7 @@ default:
     theme_scoring_events_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_scoring_events_latest"
     preranked_ads_from_themes_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_latest"
     preranked_ads_from_themes_hackathon_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_hackathon_latest"
+    preranked_ads_from_themes_v2_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_v2_latest"
     results_topline: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_topline"
     results_aggregated: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_aggregated"
     results_ab: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_ab"
