@@ -162,6 +162,29 @@ resources:
           libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 10800
+        - task_key: build_page_v2
+          depends_on:
+            - task_key: combine_customer_cells
+            - task_key: map_theme_scores_to_ads
+          for_each_task:
+            inputs: '["HomePage", "ShoppingBag", "OrderComplete", "ProductListingPage", "ForYouPage"]'
+            concurrency: 10
+            task:
+              task_key: build_page_v2_iteration
+              spark_python_task:
+                python_file: ../../scripts/build_page_v2.py
+                parameters:
+                  - --client
+                  - "next_uk"
+                  - --job_env
+                  - ${var.job_parameter_environment_name}
+                  - --page_type
+                  - "{{input}}"
+              job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+              libraries: ${var.shared_libraries}
+              max_retries: 2
+              min_retry_interval_millis: 5000
+              timeout_seconds: 10800
         - task_key: build_page_primary
           depends_on:
             - task_key: combine_customer_cells
@@ -211,7 +234,6 @@ resources:
               timeout_seconds: 10800
         - task_key: nextads_plp_gs
           depends_on:
-            - task_key: build_page_primary
             - task_key: build_page_secondary
           run_if: ALL_DONE
           for_each_task:

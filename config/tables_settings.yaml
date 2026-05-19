@@ -37,6 +37,8 @@ default:
     targeting_scores_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_targeting_scores_latest"
     assignments: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_assignments"
     assignments_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_assignments_latest"
+    assignments_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_assignments_v2"
+    assignments_v2_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_assignments_v2_latest"
     attribute_set: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_attribute_set"
     attribute_set_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_attribute_set_latest"
     item_attributes_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_item_attributes_latest"

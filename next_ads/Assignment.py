@@ -13,6 +13,92 @@ from dsutils.timing import timer
 logger = get_logger(__name__)
 
 
+def assign_random_ads_v2(
+        df_ads: DataFrame,
+        df_cust_grp: DataFrame,
+        grp_col: str = 'AlgoDivision',
+        n_ads: int = 20,
+        seed: int = 42) -> DataFrame:
+    """
+    Assigns N random ads per customer from their preferred group
+    (e.g. AlgoDivision), ensuring uniform ad coverage across all customers.
+
+    Uses a cyclic rotation approach:
+      1. Ads are assigned a stable slot number (1..K) within each group.
+      2. Each customer is assigned a random integer offset (0..K-1).
+      3. The customer's N ads are the K slots starting at their offset
+         (wrapping cyclically). This guarantees every ad is served to
+         approximately the same number of customers.
+
+    This avoids any per-customer cross-join or AccountNumber-partitioned
+    window function: the only join is customers × within-group ads
+    (~12M × ~29 rows per division), which Spark handles efficiently.
+
+    Arguments:
+        df_ads - PySpark dataframe with cols ("UniqueAdID", grp_col)
+        df_cust_grp - PySpark dataframe with cols ("AccountNumber", grp_col)
+                      where grp_col is the customer's preferred group
+        grp_col - column representing the grouping (e.g. "AlgoDivision")
+        n_ads - number of ads to return per customer (default 20)
+        seed - random seed for reproducibility
+
+    Returns:
+        DataFrame with columns: AccountNumber, UniqueAdID, Rank
+    """
+    logger.info(
+        f'Assigning {n_ads} random ads per customer within group: {grp_col} '
+        f'using cyclic rotation (seed={seed})'
+    )
+
+    # 1. Assign a randomised slot number to each ad within its group.
+    #    Ordering by rand() rather than UniqueAdID ensures slot assignments
+    #    are not influenced by the source table row order or ad ID ordering.
+    df_ads_slotted = (
+        df_ads.select('UniqueAdID', grp_col)
+        .withColumn(
+            'AdSlot',
+            F.row_number().over(
+                Window.partitionBy(grp_col).orderBy(F.rand(seed=seed))
+            )
+        )
+    )
+
+    # Count of ads per group (small collect — one row per division)
+    df_ad_counts = (
+        df_ads_slotted
+        .groupBy(grp_col)
+        .agg(F.max('AdSlot').alias('nAds'))
+    )
+
+    # 2. Assign each customer a unique random offset in [0, nAds-1]
+    df_cust_offset = (
+        df_cust_grp.select('AccountNumber', grp_col)
+        .join(df_ad_counts, on=grp_col, how='inner')
+        .withColumn(
+            'Offset',
+            (F.rand(seed=seed) * F.col('nAds')).cast('int')
+        )
+    )
+
+    # 3. Join each customer to all ads in their group (~29 ads per customer)
+    #    Compute each ad's cyclic rank relative to this customer's offset:
+    #      Rank = ((AdSlot - 1 - Offset + nAds) % nAds) + 1
+    #    Then keep only the top n_ads ranks.
+    df_result = (
+        df_cust_offset
+        .join(df_ads_slotted, on=grp_col, how='inner')
+        .withColumn(
+            'Rank',
+            ((F.col('AdSlot') - 1 - F.col('Offset') + F.col('nAds'))
+             % F.col('nAds')) + 1
+        )
+        .where(F.col('Rank') <= n_ads)
+        .select('AccountNumber', 'UniqueAdID', 'Rank')
+    )
+
+    return df_result
+
+
 def assign_random_ads(
         df_ads: DataFrame,
         df_cust_grp: DataFrame,
@@ -679,6 +765,61 @@ def get_ad_feedback_scores(
     assert_pk(df_ad_results_scaled_stand, pk_cols=[ad_id_col])
 
     return df_ad_results_scaled_stand.select(ad_id_col, 'AdFeedbackScore')
+
+
+def assign_preranked_ads_v2(
+        df_ads: DataFrame,
+        preranked_ads_table: str,
+        page_type: str,
+        df_cust: DataFrame = None,
+        n_ads: int = 20,
+) -> DataFrame:
+    """
+    Assigns pre-ranked ads to customers for a given PageType.
+
+    Reads the preranked ads table (schema: AccountNumber, UniqueAdID, Score,
+    Rank, PageType), filters to the specified PageType, then inner-joins to
+    df_ads to restrict to currently eligible ads. Assumes dense rank is used in
+    preranked_ads to handle ties.
+
+    The PageType filter is required even though df_ads is already scoped to a
+    single page type, because the same UniqueAdID can appear in the preranked
+    table for multiple page types (with different ranks). Filtering only on
+    UniqueAdID would produce duplicate AccountNumber/UniqueAdID pairs and fail
+    the PK assertion.
+
+    Arguments:
+        df_ads - DataFrame with column: UniqueAdID (eligible ads for this
+                 PageType, already filtered from the control sheet)
+        preranked_ads_table - Name of table containing preranked ads
+        page_type - PageType to filter on (e.g. "ShoppingBag")
+        df_cust - Optional customer filter (DataFrame with col: AccountNumber)
+        n_ads - Maximum number of ranked ads to return per customer (default 20)
+
+    Returns:
+        DataFrame with columns: AccountNumber, UniqueAdID, Rank
+    """
+    logger.info(
+        f'Assigning preranked ads for PageType: {page_type} '
+        f'using scores from {preranked_ads_table}'
+    )
+
+    df_adscores = (
+        get_spark()
+        .table(preranked_ads_table)
+        .where(F.col('PageType') == page_type)
+        .select('AccountNumber', 'UniqueAdID', 'Rank')
+        .join(df_ads.select('UniqueAdID'), on='UniqueAdID', how='inner')
+        .where(F.col('Rank') <= n_ads)
+    )
+
+    if df_cust is not None:
+        logger.debug('Filtering customers for assignment')
+        df_adscores = df_adscores.join(df_cust, on='AccountNumber', how='inner')
+
+    assert_pk(df_adscores, ['AccountNumber', 'UniqueAdID'])
+
+    return df_adscores.select('AccountNumber', 'UniqueAdID', 'Rank')
 
 
 def assign_preranked_ads(

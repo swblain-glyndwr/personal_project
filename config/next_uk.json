@@ -201,6 +201,85 @@
         "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
     },
 
+    "page_types": {
+        "HomePage": {
+            "basic_within": "AlgoDivision",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "ShoppingBag": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "OrderComplete": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "ProductListingPage": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "ForYouPage": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        }
+    },
+
     "locations": {
         "HN1": {
             "pf_col": "HN_slot_1",
@@ -1692,7 +1771,9 @@
             "customer_cells_latest": "{catalog}.{schema}.{client}_nextads_customer_cells_latest",
             "targeting_scores_latest": "{catalog}.{schema}.{client}_nextads_targeting_scores_latest",
             "assignments": "{catalog}.{schema}.{client}_nextads_assignments",
+            "assignments_v2": "{catalog}.{schema}.{client}_nextads_assignments_v2",
             "assignments_latest": "{catalog}.{schema}.{client}_nextads_assignments_latest",
+            "assignments_v2_latest": "{catalog}.{schema}.{client}_nextads_assignments_v2_latest",
             "attribute_set": "{catalog}.{schema}.{client}_nextads_attribute_set",
             "attribute_set_latest": "{catalog}.{schema}.{client}_nextads_attribute_set_latest",
             "item_attributes_latest": "{catalog}.{schema}.{client}_nextads_item_attributes_latest",
