@@ -10,7 +10,8 @@ logger = get_logger(__name__)
 def append_targeting_criteria(
         df: DataFrame,
         col_models: str = "Models",
-        col_model_combination: str = "ModelCombination") -> DataFrame:
+        col_model_combination: str = "ModelCombination",
+        targeting: bool = True) -> DataFrame:
     """
     Combines col_models (model refs) and col_model_combination (operator
     e.g. "and", "or") to yeild TargetingCriteria column in standardised format.
@@ -18,14 +19,15 @@ def append_targeting_criteria(
     Returns:
         Dataframe with addidional TargetingCriteria column
     """
-    logger.debug('Appending standardised concatenation TargetingCriteria')
-    df = (
-        df
-        .withColumn(
-            "TargetingCriteria",
-            F.concat(col_model_combination, F.lit("|"), col_models)
+    if targeting:
+        logger.debug('Appending standardised concatenation TargetingCriteria')
+        df = (
+            df
+            .withColumn(
+                "TargetingCriteria",
+                F.concat(col_model_combination, F.lit("|"), col_models)
             )
-    )
+        )
 
     return df
 
@@ -145,7 +147,7 @@ def aggregate_model_scores(
         model_score_table,
         models=model_subset,
         melt_scores=True
-        )
+    )
 
     # Join scores to entity using model as a key
     df_scores_pre_agg = df_scores.join(df, on="Model")

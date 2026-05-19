@@ -23,6 +23,14 @@ This guide walks new developers through setting up the required tables for the p
 
     # OR use full init
     bash setup_dev_tables.sh
+
+    # Tip - the dev tables setup requires a correctly configured environment. It runs commands against python, if your python in shell is not your virtual environment interpreter, it won't work. But you can use poetry to run it and that will ensure the script is running correctly in your virtual env:
+
+    poetry run setup_dev_tables.sh
+
+    # ORRRR.... use the python version, then you will likely not have any env issues as your venv should be active and you can optionally run it in the python debugger
+
+    poetry run setup_dev_tables.py
     ```
 
 ### Next Steps

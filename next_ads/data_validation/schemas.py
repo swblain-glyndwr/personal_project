@@ -52,6 +52,46 @@ class ControlSheetInputModel(DataFrameModel):
         coerce = True  # Attempt type coercion
 
 
+class ControlSheetInputModelv2(DataFrameModel):
+    """Input schema for Google Sheets control sheet data v2"""
+
+    _CMSPageID_PATTERN = r"^c[0-9]+(_[a-zA-Z]+[0-9]+)*$"
+    _MASID_TOKEN_PATTERN = (
+        r"^[A-Z]{4}$"  # Not a hard constraint - Exactly 4 uppercase letters
+    )
+
+    UniqueAdID: StringType = pa.Field(
+        nullable=False,
+        description="Unique ad identifier",
+        unique_spark={"check": True},
+    )
+
+    Status: StringType = pa.Field(
+        nullable=True,
+        # Status is not used so no need to enforce strict check
+        isin_spark={
+            "allowed_values": ["active", "inactive", "Active", "Inactive"]
+        },
+    )
+    CMSPageID: StringType = pa.Field(
+        nullable=False,
+        str_matches_spark={"pattern": _CMSPageID_PATTERN},
+        unique_spark={"check": True},
+    )
+    MASIDToken: StringType = pa.Field(
+        nullable=False,
+        str_matches_spark={"pattern": _MASID_TOKEN_PATTERN},
+        unique_spark={"check": True},
+    )
+
+    class Config:
+        """ControlSheetInputModelv2 config"""
+
+        name = "control_sheet_input_v2"
+        strict = False  # In line with previous version
+        coerce = True  # Attempt type coercion
+
+
 class ControlSheetPlacementsInputModel(DataFrameModel):
     """Input schema for Google Sheets control sheet Placements data"""
 
@@ -86,6 +126,23 @@ class ControlSheetPLXInputModel(DataFrameModel):
         coerce = True
 
 
+class ControlSheetExclusionsInputModel(DataFrameModel):
+    """Input schema for Google Sheets control sheet Exclusions data"""
+
+    PageType: StringType = pa.Field(
+        nullable=False,
+    )
+    Page: StringType = pa.Field(nullable=False)
+    Exclude_Campaign: StringType = pa.Field(nullable=False)
+
+    class Config:
+        """ControlSheetExclusionsInputModel config"""
+
+        name = "control_sheet_exclusions_input"
+        strict = False
+        coerce = True
+
+
 class GlobalSolutionOutputModel(DataFrameModel):
     """Output schema for processed control sheet data"""
 
@@ -103,7 +160,7 @@ class GlobalSolutionOutputModel(DataFrameModel):
     _URL_PATH_PATTERN = (
         r"^/"  # Must start with /
         # Path: URL-safe chars, optional trailing /
-        r"[A-Za-z0-9._~!$&'()*+,;=:@%/\-]*" 
+        r"[A-Za-z0-9._~!$&'()*+,;=:@%/\-]*"
         # Query: optional ?key=value&key2=value2
         r"(\?[A-Za-z0-9._~!$&'()*+,;=:@%/\-]*)?"
         # Fragment: optional #anchor
