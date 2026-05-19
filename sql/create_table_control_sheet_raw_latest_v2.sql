@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_raw_latest_v2 (
+CREATE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_raw_latest_v2 (
   UniqueAdID STRING NOT NULL,
   UniqueAdIDPremium STRING,
   CMSPageID STRING,

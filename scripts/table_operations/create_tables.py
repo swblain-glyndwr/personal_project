@@ -194,7 +194,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False):
         if DROP_TABLES and JOB_ENV.lower() == "dev":
             logger.info(f"Dropping table {table} as --droptables is 'True'")
             logger.info(f"Running drop table if exists {table}")
-            # spark.sql(f"drop table if exists {table}")
+            spark.sql(f"drop table if exists {table}")
 
         logger.info(f"Checking existence of table {table}")
         if spark.catalog.tableExists(table):

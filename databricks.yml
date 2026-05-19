@@ -69,14 +69,14 @@ targets:
       host: https://adb-6694370232251359.19.azuredatabricks.net/
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     permissions:
-    - level: CAN_MANAGE
-      group_name: AzUsers-DBK-MarketingData-Contributor-Dev
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
-    - level: CAN_MANAGE
-      service_principal_name: ${var.run_as_SPN_name}
-    - level: CAN_RUN
-      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
+      - level: CAN_MANAGE
+        group_name: AzUsers-DBK-MarketingData-Contributor-Dev
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
+      - level: CAN_MANAGE
+        service_principal_name: ${var.run_as_SPN_name}
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
     run_as:
       user_name: ${workspace.current_user.userName}
     variables:
@@ -90,22 +90,21 @@ targets:
   # deployed with cicd SPN but with user schema derived from last git commit author to avoid collision of user schemas in dev when multiple developers are deploying
   DEV:
     mode: development
-    default: true
     presets:
-      name_prefix: '[${bundle.target} ${workspace.current_user.short_name} as ${var.git_last_commit_user_name}] '
+      name_prefix: "[${bundle.target} ${workspace.current_user.short_name} as ${var.git_last_commit_user_name}] "
       trigger_pause_status: PAUSED
     workspace:
       host: https://adb-6694370232251359.19.azuredatabricks.net/
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/${var.git_last_commit_user_name}
     permissions:
-    - level: CAN_MANAGE
-      group_name: AzUsers-DBK-MarketingData-Contributor-Dev
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
-    - level: CAN_MANAGE
-      service_principal_name: ${var.run_as_SPN_name}
-    - level: CAN_RUN
-      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
+      - level: CAN_MANAGE
+        group_name: AzUsers-DBK-MarketingData-Contributor-Dev
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
+      - level: CAN_MANAGE
+        service_principal_name: ${var.run_as_SPN_name}
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
     run_as:
       service_principal_name: ${var.run_as_SPN_name}
     variables:
@@ -116,7 +115,7 @@ targets:
       job_parameter_environment_name: dev
       # override user schema to last git commit author for dev environment, this is because for DEV deployment the SP would be the user and we want to avoid collision of user schemas in dev when multiple developers are deploying.
       user_schema: ${var.git_last_commit_user_name}
-      
+
   # PREPROD:
   #   # intended to deploy as in prod simulating prod, in prod mode etc.
   #   mode: production
@@ -140,18 +139,18 @@ targets:
       host: https://adb-6188831950334199.19.azuredatabricks.net/
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     permissions:
-    - level: CAN_MANAGE
-      service_principal_name: ${var.run_as_SPN_name}
-    - level: CAN_RUN      
-      group_name: AzUsers-DBK-MarketingData-Contributor-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Prod
-    - level: CAN_VIEW
-      group_name: AzUsers-DBK-MarketingData-Viewer-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
-    - level: CAN_MANAGE
-      group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
+      - level: CAN_MANAGE
+        service_principal_name: ${var.run_as_SPN_name}
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-Contributor-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Prod
+      - level: CAN_VIEW
+        group_name: AzUsers-DBK-MarketingData-Viewer-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-WorkspaceContributor-Prod
+      - level: CAN_MANAGE
+        group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Prod
     run_as:
       service_principal_name: ${var.run_as_SPN_name}
     variables:

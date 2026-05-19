@@ -33,11 +33,7 @@ build-backend = "poetry.core.masonry.api"
 plotly = "^6.3.1"
 networkx = "^3.5"
 ruff = "^0.14.9"
-
-[[tool.poetry.source]]
-name = "MarketingDataFeed"
-url = "https://pkgs.dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_packaging/MarketingDataFeed/pypi/simple/"
-priority = "supplemental"
+sqlfluff = {extras = ["jinja"], version = "^4.2.1"}
 
 [tool.ruff]
 line-length = 79
@@ -102,6 +98,28 @@ docstring-code-format = true
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"
+
+[tool.sqlfluff.core]
+dialect = "databricks"
+templater = "jinja"
+exclude_rules = ["LT05"]
+
+[tool.sqlfluff.layout.type.comma]
+line_position = "trailing"
+
+[tool.sqlfluff.rules.capitalisation.keywords]
+capitalisation_policy = "upper"
+
+[tool.sqlfluff.rules.capitalisation.functions]
+capitalisation_policy = "upper"
+
+[tool.sqlfluff.rules.capitalisation.identifiers]
+extended_capitalisation_policy  = "pascal"
+
+[tool.sqlfluff.templater.jinja.context]
+catalog = "marketingdata_dev"
+schema = "ds_sandbox"
+client = "next_uk"
 
 [tool.pytest.ini_options]
 markers = [
