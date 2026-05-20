@@ -3,6 +3,7 @@ create table {catalog}.{schema}.{client}_nextads_preranked_ads_from_themes_lates
     UniqueAdID string not null,
     Location string not null,
     Score string not null,
+    TriggerScore float,
     Rank int not null,
     rundate date not null,
   constraint pk_{client}_nextads_preranked_ads_from_themes_latest primary key (

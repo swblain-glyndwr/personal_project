@@ -156,7 +156,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-              - --top-ads-per-page-family
+              - --top-ads-per-page-type
               - "100"
           job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
           libraries: ${var.shared_libraries}
@@ -165,7 +165,7 @@ resources:
         - task_key: build_page_v2
           depends_on:
             - task_key: combine_customer_cells
-            - task_key: map_theme_scores_to_ads
+            - task_key: map_theme_scores_to_ads_v2
           for_each_task:
             inputs: '["HomePage", "ShoppingBag", "OrderComplete", "ProductListingPage", "ForYouPage"]'
             concurrency: 10

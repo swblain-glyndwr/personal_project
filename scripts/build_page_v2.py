@@ -65,14 +65,14 @@ logger.info(f'Write schema set to {SCHEMA}')
 
 # Map write schema to parameterised write table names
 tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
-# this needs to be changed to production v2 version of the table before merging
-CONTROL_SHEET_LATEST = "marketingdata_prod.ds_sandbox.next_uk_nextads_control_sheet_latest_v2_DUMMY"
+CONTROL_SHEET_LATEST = config.tables_write.control_sheet_latest_v2
 ASSIGNMENTS_TABLE_V2 = etl.map_tbl(tbls["assignments_v2"], **tbl_args)
 ASSIGNMENTS_TABLE_V2_LATEST = etl.map_tbl(tbls["assignments_v2_latest"],
                                           **tbl_args)
 CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
-# this needs to be changed to production v2 version of the table before merging
-PRERANKED_THEMES_TABLE = "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_from_themes_latest_v2_DUMMY"
+PRERANKED_THEMES_TABLE = etl.map_tbl(
+    tbls["preranked_ads_from_themes_v2_latest"],
+    **tbl_args)
 
 # Read results data from prod schema dataset
 tbl_args_results = {'catalog': config.catalog_read, 'schema': config.schema_read, 'client': CLIENT}
@@ -189,13 +189,15 @@ df_assignments = (
         df_assigned_basic
         .select("AccountNumber",
                 F.col("UniqueAdID").alias("UniqueAdIDBasic"),
-                "Rank"),
+                "Rank")
+        .withColumn("TriggerScoreBasic", F.lit(None).cast("float")),
         on=["AccountNumber", "Rank"],
         how="left")
     .join(
         df_assigned_best
         .select("AccountNumber",
                 F.col("UniqueAdID").alias("UniqueAdIDBest"),
+                F.col("TriggerScore").alias("TriggerScoreBest"),
                 "Rank"),
         on=["AccountNumber", "Rank"],
         how="left")
@@ -203,6 +205,7 @@ df_assignments = (
         df_assigned_best_challenger
         .select("AccountNumber",
                 F.col("UniqueAdID").alias("UniqueAdIDBestChallenger"),
+                F.col("TriggerScore").alias("TriggerScoreBestChallenger"),
                 "Rank"),
         on=["AccountNumber", "Rank"],
         how="left")
@@ -282,6 +285,30 @@ df_ad_assigned = (
         )
 )
 
+df_ad_assigned = (
+    df_ad_assigned
+    .withColumn(
+        'TriggerScore',
+        F.when(
+            F.col('Treatment').isin('Best', 'BestPrem'),
+            F.col('TriggerScoreBest')
+        ).when(
+            F.col('Treatment').isin('BestChallenger', 'BestChallengerPrem'),
+            F.col('TriggerScoreBestChallenger')
+        ).otherwise(F.lit(None).cast('float'))
+    )
+    .withColumn(
+        'TriggerScore',
+        F.when(
+            F.col('UniqueAdIDAssigned').isin(
+                'NoAd',
+                'NoAdFound',
+                'AdSuppressed'),
+            F.lit(None).cast('float')
+        ).otherwise(F.col('TriggerScore'))
+    )
+)
+
 
 # Check and warn if null Treatments exist
 n_null_treatment = (
@@ -329,7 +356,8 @@ df_ad_assigned = (
         "UniqueAdIDBestChallenger",
         "Treatment",
         "UniqueAdIDMeasurement",
-        "UniqueAdIDAssigned")
+        "UniqueAdIDAssigned",
+        "TriggerScore")
 )
 
 logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE_V2}")

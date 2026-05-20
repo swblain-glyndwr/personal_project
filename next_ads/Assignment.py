@@ -778,9 +778,9 @@ def assign_preranked_ads_v2(
     Assigns pre-ranked ads to customers for a given PageType.
 
     Reads the preranked ads table (schema: AccountNumber, UniqueAdID, Score,
-    Rank, PageType), filters to the specified PageType, then inner-joins to
-    df_ads to restrict to currently eligible ads. Assumes dense rank is used in
-    preranked_ads to handle ties.
+    TriggerScore, Rank, PageType), filters to the specified PageType, then
+    inner-joins to df_ads to restrict to currently eligible ads. Assumes dense
+    rank is used in preranked_ads to handle ties.
 
     The PageType filter is required even though df_ads is already scoped to a
     single page type, because the same UniqueAdID can appear in the preranked
@@ -797,7 +797,7 @@ def assign_preranked_ads_v2(
         n_ads - Maximum number of ranked ads to return per customer (default 20)
 
     Returns:
-        DataFrame with columns: AccountNumber, UniqueAdID, Rank
+        DataFrame with columns: AccountNumber, UniqueAdID, Rank, TriggerScore
     """
     logger.info(
         f'Assigning preranked ads for PageType: {page_type} '
@@ -808,7 +808,7 @@ def assign_preranked_ads_v2(
         get_spark()
         .table(preranked_ads_table)
         .where(F.col('PageType') == page_type)
-        .select('AccountNumber', 'UniqueAdID', 'Rank')
+        .select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')
         .join(df_ads.select('UniqueAdID'), on='UniqueAdID', how='inner')
         .where(F.col('Rank') <= n_ads)
     )
@@ -819,7 +819,11 @@ def assign_preranked_ads_v2(
 
     assert_pk(df_adscores, ['AccountNumber', 'UniqueAdID'])
 
-    return df_adscores.select('AccountNumber', 'UniqueAdID', 'Rank')
+    return df_adscores.select(
+        'AccountNumber',
+        'UniqueAdID',
+        'Rank',
+        'TriggerScore')
 
 
 def assign_preranked_ads(

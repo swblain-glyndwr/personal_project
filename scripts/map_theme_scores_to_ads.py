@@ -276,6 +276,7 @@ df_score_components = (
             F.col('NextTheme').alias('Theme'),
             'UniqueAdID',
             'AdVariant',
+            F.col('ProbAggRebased').alias('TriggerScore'),
             'RelevanceScore',
             'IncrementalScore',
             'Score')
@@ -283,7 +284,9 @@ df_score_components = (
 df_score_components.cache()
 df_score_components.count()
 
-df_score_components_for_write = df_score_components.drop('AdVariant')
+df_score_components_for_write = df_score_components.drop(
+    'AdVariant',
+    'TriggerScore')
 
 logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS_LATEST}')
 truncate_and_load(
@@ -408,7 +411,7 @@ df_adset_scores = (
         )
     )
     .where(F.col('AdPerThemeRank') == 1)
-    .select('AccountNumber', 'UniqueAdID', 'Score')
+    .select('AccountNumber', 'UniqueAdID', 'Score', 'TriggerScore')
     .join(df_ad2adset, on='UniqueAdID', how='inner')
     .withColumn('TieBreaker', F.rand(seed=17))
     .withColumn(
@@ -427,7 +430,13 @@ logger.info('Mapping ranked ads back to locations')
 df_ad_scores = (
     df_adset_scores
     .join(df_adset2loc, on='AdSetID', how='inner')
-    .select('AccountNumber', 'UniqueAdID', 'Location', 'Score', 'Rank')
+    .select(
+        'AccountNumber',
+        'UniqueAdID',
+        'Location',
+        'Score',
+        'TriggerScore',
+        'Rank')
 )
 
 logger.info('Checking for ads assigned to ineligible locations')

@@ -8,6 +8,7 @@ CREATE TABLE  {catalog}.{schema}.{client}_nextads_assignments_v2_latest (
     Treatment string,
     UniqueAdIDMeasurement string,
     UniqueAdIDAssigned string not null,
+    TriggerScore float,
     rundate date not null,
   constraint pk_{client}_nextads_assignments_v2_latest primary key (
     AccountNumber,

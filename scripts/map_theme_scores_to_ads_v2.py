@@ -28,14 +28,23 @@ from next_ads.utils import etl
 
 PAGE_SLOT_SUFFIX_PATTERN = re.compile(r"_slot_[^_]+$", flags=re.IGNORECASE)
 LOCATION_SUFFIX_PATTERN = re.compile(r"\d+$")
+PAGE_PREFIX_TO_PAGE_TYPE = {
+    "HN": "HomePage",
+    "SB": "ShoppingBag",
+    "OC": "OrderComplete",
+    "PL": "ProductListingPage",
+    "FY": "ForYouPage",
+}
 
 
-def derive_page_family(location: str, location_cfg: dict) -> str:
-    """Derive the V2 page family from pf_col, falling back to Location."""
+def derive_page_type(location: str, location_cfg: dict) -> str | None:
+    """Derive the V2 PageType from pf_col, falling back to Location."""
     pf_col = location_cfg.get("pf_col")
     if pf_col:
-        return PAGE_SLOT_SUFFIX_PATTERN.sub("", pf_col).upper()
-    return LOCATION_SUFFIX_PATTERN.sub("", location).upper()
+        page_prefix = PAGE_SLOT_SUFFIX_PATTERN.sub("", pf_col).upper()
+    else:
+        page_prefix = LOCATION_SUFFIX_PATTERN.sub("", location).upper()
+    return PAGE_PREFIX_TO_PAGE_TYPE.get(page_prefix)
 
 
 jobparser = get_job_parser()
@@ -54,10 +63,10 @@ if not CLIENT:
     CLIENT = 'next_uk'
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
-top_ads_arg = jobparser.get_arg('--top-ads-per-page-family')
-TOP_ADS_PER_PAGE_FAMILY = int(top_ads_arg or 100)
-assert TOP_ADS_PER_PAGE_FAMILY > 0, \
-    'top-ads-per-page-family must be greater than zero'
+top_ads_arg = jobparser.get_arg('--top-ads-per-page-type')
+TOP_ADS_PER_PAGE_TYPE = int(top_ads_arg or 100)
+assert TOP_ADS_PER_PAGE_TYPE > 0, \
+    'top-ads-per-page-type must be greater than zero'
 
 # load configuration
 config = config_manager.load_config(JOB_ENV)
@@ -79,52 +88,51 @@ PRERANKED_ADS_FROM_THEMES_V2_LATEST = etl.map_tbl(
     **tbl_args
 )
 
-logger.info('Building Location to PageFamily mapping from client config')
-location_page_family_rows = [
-    (location, derive_page_family(location, location_cfg))
-    for location, location_cfg in cfg["locations"].items()
-]
-assert location_page_family_rows, 'No locations found in client config'
+logger.info('Building Location to PageType mapping from client config')
+location_page_type_rows = []
+skipped_locations = []
+for location, location_cfg in cfg["locations"].items():
+    page_type = derive_page_type(location, location_cfg)
+    if page_type:
+        location_page_type_rows.append((location, page_type))
+    else:
+        skipped_locations.append(location)
 
-df_location_page_family = spark.createDataFrame(
-    location_page_family_rows,
-    schema='Location string, PageFamily string'
+assert location_page_type_rows, 'No V2 PageType locations found in client config'
+
+if skipped_locations:
+    logger.info(
+        'Skipping locations outside the V2 PageType build: '
+        + ', '.join(sorted(skipped_locations)))
+
+df_location_page_type = spark.createDataFrame(
+    location_page_type_rows,
+    schema='Location string, PageType string'
 )
 
 logger.info(f'Reading slot-level ranked ads from '
             f'{PRERANKED_ADS_FROM_THEMES_LATEST}')
 df_preranked = (
     spark.table(PRERANKED_ADS_FROM_THEMES_LATEST)
-    .select('AccountNumber', 'UniqueAdID', 'Location', 'Score', 'Rank')
+    .select(
+        'AccountNumber',
+        'UniqueAdID',
+        'Location',
+        'Score',
+        'TriggerScore',
+        'Rank')
 )
 
-logger.info('Mapping slot-level Location to V2 PageFamily')
-df_ranked_with_page_family = (
+logger.info('Mapping slot-level Location to V2 PageType')
+df_ranked_with_page_type = (
     df_preranked
-    .join(F.broadcast(df_location_page_family), on='Location', how='left')
+    .join(F.broadcast(df_location_page_type), on='Location', how='inner')
 )
 
-df_unmapped_locations = (
-    df_ranked_with_page_family
-    .where(F.col('PageFamily').isNull())
-    .select('Location')
-    .distinct()
-)
-n_unmapped_locations = df_unmapped_locations.count()
-if n_unmapped_locations > 0:
-    unmapped_locations = [
-        row['Location']
-        for row in df_unmapped_locations.orderBy('Location').collect()
-    ]
-    raise ValueError(
-        'Unable to derive PageFamily for Location(s): '
-        + ', '.join(unmapped_locations)
-    )
-
-logger.info('Deduplicating ads within each AccountNumber and PageFamily')
+logger.info('Deduplicating ads within each AccountNumber and PageType')
 w_dedupe = (
     Window
-    .partitionBy('AccountNumber', 'PageFamily', 'UniqueAdID')
+    .partitionBy('AccountNumber', 'PageType', 'UniqueAdID')
     .orderBy(
         F.col('Score').desc(),
         F.col('Rank').asc(),
@@ -132,17 +140,17 @@ w_dedupe = (
     )
 )
 df_deduped = (
-    df_ranked_with_page_family
+    df_ranked_with_page_type
     .withColumn('DedupRank', F.row_number().over(w_dedupe))
     .where(F.col('DedupRank') == 1)
     .drop('DedupRank')
     .withColumnRenamed('Rank', 'SlotRank')
 )
 
-logger.info(f'Re-ranking top {TOP_ADS_PER_PAGE_FAMILY} ads per PageFamily')
-w_page_family_rank = (
+logger.info(f'Re-ranking top {TOP_ADS_PER_PAGE_TYPE} ads per PageType')
+w_page_type_rank = (
     Window
-    .partitionBy('AccountNumber', 'PageFamily')
+    .partitionBy('AccountNumber', 'PageType')
     .orderBy(
         F.col('Score').desc(),
         F.col('SlotRank').asc(),
@@ -151,22 +159,28 @@ w_page_family_rank = (
 )
 df_v2_ranked = (
     df_deduped
-    .withColumn('Rank', F.row_number().over(w_page_family_rank))
-    .where(F.col('Rank') <= TOP_ADS_PER_PAGE_FAMILY)
-    .select('AccountNumber', 'UniqueAdID', 'PageFamily', 'Score', 'Rank')
+    .withColumn('Rank', F.row_number().over(w_page_type_rank))
+    .where(F.col('Rank') <= TOP_ADS_PER_PAGE_TYPE)
+    .select(
+        'AccountNumber',
+        'UniqueAdID',
+        'PageType',
+        'Score',
+        'TriggerScore',
+        'Rank')
 )
 
-logger.info('Persisting V2 page-family ranks before write')
+logger.info('Persisting V2 PageType ranks before write')
 df_v2_ranked = df_v2_ranked.persist()
 row_count = df_v2_ranked.count()
-logger.info(f'Materialized {row_count:,} V2 page-family ranked rows')
+logger.info(f'Materialized {row_count:,} V2 PageType ranked rows')
 
-logger.info(f'Loading V2 page-family ranked ads to '
+logger.info(f'Loading V2 PageType ranked ads to '
             f'{PRERANKED_ADS_FROM_THEMES_V2_LATEST}')
 truncate_and_load(
     df_v2_ranked,
     PRERANKED_ADS_FROM_THEMES_V2_LATEST,
-    pk_cols=['AccountNumber', 'PageFamily', 'UniqueAdID']
+    pk_cols=['AccountNumber', 'PageType', 'UniqueAdID']
 )
 
 df_v2_ranked.show()
