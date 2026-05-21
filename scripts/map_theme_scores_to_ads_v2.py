@@ -29,11 +29,11 @@ from next_ads.utils import etl
 PAGE_SLOT_SUFFIX_PATTERN = re.compile(r"_slot_[^_]+$", flags=re.IGNORECASE)
 LOCATION_SUFFIX_PATTERN = re.compile(r"\d+$")
 PAGE_PREFIX_TO_PAGE_TYPE = {
-    "HN": "HomePage",
-    "SB": "ShoppingBag",
-    "OC": "OrderComplete",
-    "PL": "ProductListingPage",
-    "FY": "ForYouPage",
+    "HN": "HN1",
+    "SB": "sb",
+    "OC": "oc",
+    "PL": "plp",
+    "FY": "for_you",
 }
 
 

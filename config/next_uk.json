@@ -202,7 +202,7 @@
     },
 
     "page_types": {
-        "HomePage": {
+        "HN1": {
             "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
@@ -218,7 +218,7 @@
                 }
             ]
         },
-        "ShoppingBag": {
+        "sb": {
             "basic_within": "AlgoDivision",
             "map": [
                 {
@@ -233,7 +233,7 @@
                 }
             ]
         },
-        "OrderComplete": {
+        "oc": {
             "basic_within": "AlgoDivision",
             "map": [
                 {
@@ -248,7 +248,7 @@
                 }
             ]
         },
-        "ProductListingPage": {
+        "plp": {
             "basic_within": "AlgoDivision",
             "map": [
                 {
@@ -263,7 +263,7 @@
                 }
             ]
         },
-        "ForYouPage": {
+        "for_you": {
             "basic_within": "AlgoDivision",
             "map": [
                 {

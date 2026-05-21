@@ -10,8 +10,7 @@ logger = get_logger(__name__)
 def append_targeting_criteria(
         df: DataFrame,
         col_models: str = "Models",
-        col_model_combination: str = "ModelCombination",
-        targeting: bool = True) -> DataFrame:
+        col_model_combination: str = "ModelCombination") -> DataFrame:
     """
     Combines col_models (model refs) and col_model_combination (operator
     e.g. "and", "or") to yeild TargetingCriteria column in standardised format.
@@ -19,15 +18,14 @@ def append_targeting_criteria(
     Returns:
         Dataframe with addidional TargetingCriteria column
     """
-    if targeting:
-        logger.debug('Appending standardised concatenation TargetingCriteria')
-        df = (
-            df
-            .withColumn(
-                "TargetingCriteria",
-                F.concat(col_model_combination, F.lit("|"), col_models)
+    logger.debug('Appending standardised concatenation TargetingCriteria')
+    df = (
+        df
+        .withColumn(
+            "TargetingCriteria",
+            F.concat(col_model_combination, F.lit("|"), col_models)
             )
-        )
+    )
 
     return df
 

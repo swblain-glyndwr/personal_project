@@ -8,7 +8,7 @@ def main(sample):
     """Main function to set up dev tables."""
     print("Creating tables...")
     create_tables.main(
-        JOB_ENV="DEV", CLIENT="next_uk", LOG_LEVEL="INFO", DROP_TABLES=True
+        JOB_ENV="DEV", CLIENT="next_uk", LOG_LEVEL="INFO", DROP_TABLES=False
     )
 
     if sample:

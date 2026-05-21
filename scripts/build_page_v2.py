@@ -53,7 +53,7 @@ PAGE_TYPE = jobparser.get_arg('--page_type')
 if not PAGE_TYPE:
     assert JOB_ENV.lower() == 'dev', \
         f'page_type must be specified when running in {JOB_ENV}'
-    PAGE_TYPE = 'ShoppingBag'  # Page type can be specified for interactive debugging
+    PAGE_TYPE = 'sb'  # Page type can be specified for interactive debugging
     logger.warning(f'page_type not specified (defaulting to {PAGE_TYPE})')
 
 PAGE_TYPES = cfg["page_types"]

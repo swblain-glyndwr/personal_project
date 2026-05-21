@@ -81,9 +81,6 @@ resources:
           min_retry_interval_millis: 300000
           timeout_seconds: 3600
         - task_key: parse_attributes
-          depends_on:
-            - task_key: load_control_sheet
-            - task_key: load_control_sheet_v2
           spark_python_task:
             python_file: ../../scripts/parse_attributes.py
             parameters:
@@ -132,6 +129,7 @@ resources:
         - task_key: map_theme_scores_to_ads
           depends_on:
             - task_key: score_lightweight
+            - task_key: load_control_sheet
           spark_python_task:
             python_file: ../../scripts/map_theme_scores_to_ads.py
             parameters:
@@ -148,6 +146,7 @@ resources:
           timeout_seconds: 10800
         - task_key: map_theme_scores_to_ads_v2
           depends_on:
+            - task_key: score_lightweight
             - task_key: map_theme_scores_to_ads
           spark_python_task:
             python_file: ../../scripts/map_theme_scores_to_ads_v2.py
@@ -166,8 +165,9 @@ resources:
           depends_on:
             - task_key: combine_customer_cells
             - task_key: map_theme_scores_to_ads_v2
+            - task_key: load_control_sheet_v2
           for_each_task:
-            inputs: '["HomePage", "ShoppingBag", "OrderComplete", "ProductListingPage", "ForYouPage"]'
+            inputs: '["HN1", "sb", "oc", "plp", "for_you"]'
             concurrency: 10
             task:
               task_key: build_page_v2_iteration

@@ -792,7 +792,7 @@ def assign_preranked_ads_v2(
         df_ads - DataFrame with column: UniqueAdID (eligible ads for this
                  PageType, already filtered from the control sheet)
         preranked_ads_table - Name of table containing preranked ads
-        page_type - PageType to filter on (e.g. "ShoppingBag")
+        page_type - PageType to filter on (e.g. "sb")
         df_cust - Optional customer filter (DataFrame with col: AccountNumber)
         n_ads - Maximum number of ranked ads to return per customer (default 20)
 

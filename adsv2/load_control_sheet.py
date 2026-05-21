@@ -24,8 +24,8 @@ finally:
 
 import json
 import pyspark.sql.functions as F
-from databricks.connect import DatabricksSession
 from datetime import date, timedelta
+
 # from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (
@@ -43,19 +43,23 @@ from next_ads.data_validation import schemas
 
 
 def check_primary_key(df, logger, JOB_ENV, WEBHOOK_URL):
-
     logger.info("Checking input Primary Key")
 
-    assert_pk(df, ["UniqueAdID", "Location"])
+    assert_pk(df, ["UniqueAdID", "PageType"])
 
     df_dup_masids = (
-        df.groupBy("AlgoDivision", "Location", "MASIDToken")
+        df.groupBy("AlgoDivision", "PageType", "MASIDToken")
         .agg(F.countDistinct("UniqueAdID").alias("AdsPerMASID"))
         .where(F.col("AdsPerMASID") > 1)
     )
     if df_dup_masids.count() >= 1:
         dup_masid_list = list(
-            set([row[0] for row in (df_dup_masids.select("MASIDToken").collect())])
+            set(
+                [
+                    row[0]
+                    for row in (df_dup_masids.select("MASIDToken").collect())
+                ]
+            )
         )
 
         warn_dup_masid = (
@@ -73,8 +77,7 @@ def check_primary_key(df, logger, JOB_ENV, WEBHOOK_URL):
             warn_dup_masid.append(res_conflict)
 
             df_dups_m = (
-                df.where(F.col("MASIDToken") ==
-                         m).select("UniqueAdID")
+                df.where(F.col("MASIDToken") == m).select("UniqueAdID")
             ).collect()
 
             clashing_ids = list(set([row[0] for row in df_dups_m]))
@@ -91,8 +94,7 @@ def check_primary_key(df, logger, JOB_ENV, WEBHOOK_URL):
                     logger.warning(drop_ad)
                     warn_dup_masid.append(drop_ad)
 
-                    df = df.where(
-                        F.col("UniqueAdID") != id_del)
+                    df = df.where(F.col("UniqueAdID") != id_del)
             except IndexError as e:
                 logger.error(f"Error resolving MASID conflict: {e}")
                 logger.warning(f"Unable to resolve conflict for suffix: {m}")
@@ -110,13 +112,13 @@ def check_primary_key(df, logger, JOB_ENV, WEBHOOK_URL):
     return df
 
 
-def report_invalid_dates(df_ctrl_raw, date_fmt, date_regex, logger, JOB_ENV, WEBHOOK_URL):
-
-    df_ctrl_valid_date_fmt = (df_ctrl_raw
-                              .where(
-                                  (F.col("StartDate").rlike(date_regex)) & (
-                                      F.col("EndDate").rlike(date_regex))
-                              ))
+def report_invalid_dates(
+    df_ctrl_raw, date_fmt, date_regex, logger, JOB_ENV, WEBHOOK_URL
+):
+    df_ctrl_valid_date_fmt = df_ctrl_raw.where(
+        (F.col("StartDate").rlike(date_regex))
+        & (F.col("EndDate").rlike(date_regex))
+    )
 
     df_ctrl_not_empty = df_ctrl_raw.where(F.col("UniqueAdID") != "")
 
@@ -145,7 +147,6 @@ def report_invalid_dates(df_ctrl_raw, date_fmt, date_regex, logger, JOB_ENV, WEB
 
 
 def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
-
     if LOG_LEVEL:
         configure_logging(log_level=LOG_LEVEL)
     else:
@@ -167,7 +168,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     config = config_manager.load_config(JOB_ENV)
     logger.info(f"Configuring run for client: {CLIENT}")
 
-    VALID_LOCATIONS = ["plp", "for_you", "oc", "sb", "as", "HN1"]
+    VALID_PAGE_TYPES = ["plp", "for_you", "oc", "sb", "as", "HN1"]
 
     CONTROL_SHEET = config.control_sheet_v2
     EXCLUSIONS_SHEET = config.exclusions_sheet
@@ -236,7 +237,8 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     )
 
     logger.info(
-        f"Writing Control Sheet to {config.tables_write.control_sheet_raw_latest_v2}")
+        f"Writing Control Sheet to {config.tables_write.control_sheet_raw_latest_v2}"
+    )
     truncate_and_load(
         df=df_ctrl_raw_filtered,
         table=config.tables_write.control_sheet_raw_latest_v2,
@@ -266,9 +268,9 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     # Data Validation
     # NOTE: soft validation (no assert)
     logger.info("Validating Control Sheet data schema")
-    df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "").filter(
-        df_ctrl_raw.CMSPageID != ""
-    )
+    df_ctrl_raw_filtered = df_ctrl_raw.filter(
+        df_ctrl_raw.UniqueAdID != ""
+    ).filter(df_ctrl_raw.CMSPageID != "")
 
     df_ctrl_raw_filtered = schemas.ControlSheetInputModelv2.validate(
         df_ctrl_raw_filtered, lazy=True
@@ -299,7 +301,8 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     # REPORT INVALID DATES
     ################################################################################
     df_ctrl_valid_date_fmt = report_invalid_dates(
-        df_ctrl_raw, DATE_FMT, DATE_REGEX, logger, JOB_ENV, WEBHOOK_URL)
+        df_ctrl_raw, DATE_FMT, DATE_REGEX, logger, JOB_ENV, WEBHOOK_URL
+    )
 
     logger.info("Getting active status of ads based on StartDate and EndDate")
 
@@ -312,10 +315,11 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         .where(F.col("StartDate") <= date_tomorrow)
         .where(F.col("EndDate") >= date_tomorrow)
         .withColumn(  # Legacy coercion of item codes to upper case and replace("-","")
-            "Items", F.regexp_replace(F.upper(F.col("Items")), "-", ""))
+            "Items", F.regexp_replace(F.upper(F.col("Items")), "-", "")
+        )
         .withColumn(
-            "AudienceOnlyInt", F.when(
-                F.col("AudienceOnly") == "TRUE", 1).otherwise(0)
+            "AudienceOnlyInt",
+            F.when(F.col("AudienceOnly") == "TRUE", 1).otherwise(0),
         )
         .drop("AudienceOnly")
         .withColumnRenamed("AudienceOnlyInt", "AudienceOnly")
@@ -324,13 +328,13 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger.info(f"Active Ads: {df_ctrl_active.count():,}")
 
     ################################################################################
-    # Active Ad-Locations
+    # Active Ad-PageTypes
     ################################################################################
     df_id_loc = (
         df_ctrl_active.unpivot(
             ids="UniqueAdID",
-            values=VALID_LOCATIONS,  # type: ignore - we can pass a list of string here
-            variableColumnName="Location",
+            values=VALID_PAGE_TYPES,  # type: ignore - we can pass a list of string here
+            variableColumnName="PageType",
             valueColumnName="Requested",
         )
         .where(F.col("Requested") == "TRUE")
@@ -338,84 +342,104 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         .drop("Requested")
     )
 
-    active_locs = set([row[0]
-                      for row in df_id_loc.select("Location").collect()])
-    logger.info(
-        f"Active Locations: {len(active_locs):,} {sorted(active_locs)}")
+    active_locs = set(
+        [row[0] for row in df_id_loc.select("PageType").collect()]
+    )
+    logger.info(f"Active PageType: {len(active_locs):,} {sorted(active_locs)}")
 
-    logger.info(f"Active Ad-Locations: {df_id_loc.count():,}")
+    logger.info(f"Active Ad-PageTypes: {df_id_loc.count():,}")
 
     ################################################################################
     # Join in Ad attributes
     # ################################################################################
 
     df_ad_attributes = (
-        df_ctrl_active.drop(
-            *VALID_LOCATIONS).drop_duplicates().replace("", None)
+        df_ctrl_active.drop(*VALID_PAGE_TYPES)
+        .drop_duplicates()
+        .replace("", None)
     )
 
     df_processed = df_id_loc.join(
-        df_ad_attributes, on="UniqueAdID", how="left")
+        df_ad_attributes, on="UniqueAdID", how="left"
+    )
+
+    # these aren't populated in the control sheet anymore, but are needed for downstream targeting criteria construction, 
+    # so we add them in as nulls here
+    df_processed = (
+    df_processed
+    .withColumn("ModelCombination", F.lit(None))
+    .withColumn("Models", F.lit(None))
+)
+
 
     ################################################################################
     # Final steps
     ################################################################################
 
-    df_processed = append_targeting_criteria(df_processed, targeting=False)
+    df_processed = append_targeting_criteria(df_processed)
 
-    # Ensure UniqueAdIDPremium is only present on locations in sibling ad
-    logger.info("Constraining Premium Ads to Only Show on Sibling Locations")
+    # Ensure UniqueAdIDPremium is only present on PageTypes in sibling ad
+    logger.info("Constraining Premium Ads to Only Show on Sibling PageTypes")
 
-    location_lookup_df = (
+    page_type_lookup_df = (
         df_processed.groupBy("UniqueAdID")
-        .agg(F.collect_set("Location").alias("ValidLocations"))
+        .agg(F.collect_set("PageType").alias("ValidPageTypes"))
         .withColumnRenamed("UniqueAdID", "LookupAdID")
     )
 
-    df_processed = (df_processed.join(
-        location_lookup_df,
-        df_processed["UniqueAdIDPremium"] == location_lookup_df["LookupAdID"],
-        "left",
-    ).withColumn(
-        "UniqueAdIDPremium",
-        F.when(
-            (F.col("UniqueAdIDPremium").isNotNull())
-            & (
-                F.col("ValidLocations").isNull()
-                | ~F.array_contains(F.col("ValidLocations"), F.col("Location"))
-            ),
-            F.lit(None),
-        ).otherwise(F.col("UniqueAdIDPremium")),
-    )).drop("LookupAdID", "ValidLocations")
+    df_processed = (
+        df_processed.join(
+            page_type_lookup_df,
+            df_processed["UniqueAdIDPremium"]
+            == page_type_lookup_df["LookupAdID"],
+            "left",
+        ).withColumn(
+            "UniqueAdIDPremium",
+            F.when(
+                (F.col("UniqueAdIDPremium").isNotNull())
+                & (
+                    F.col("ValidPageTypes").isNull()
+                    | ~F.array_contains(
+                        F.col("ValidPageTypes"), F.col("PageType")
+                    )
+                ),
+                F.lit(None),
+            ).otherwise(F.col("UniqueAdIDPremium")),
+        )
+    ).drop("LookupAdID", "ValidPageTypes")
 
     logger.info("Cleaning theme strings (lowercase, strip whitespace)")
 
     df_valid_ad_ids = df_processed.select(
-        F.col("UniqueAdID").alias("valid_id")).distinct()
+        F.col("UniqueAdID").alias("valid_id")
+    ).distinct()
 
-    df_processed = (df_processed.withColumn(
-        "Themes",
-        F.when(F.col("Themes").isNotNull(), F.trim(F.lower(F.col("Themes")))).otherwise(
-            F.col("Themes")
-        ),
-    )
+    df_processed = (
+        df_processed.withColumn(
+            "Themes",
+            F.when(
+                F.col("Themes").isNotNull(), F.trim(F.lower(F.col("Themes")))
+            ).otherwise(F.col("Themes")),
+        )
         .join(
-        df_valid_ad_ids, F.col("UniqueAdIDPremium") == F.col(
-            "valid_id"), "left_outer"
-    )
+            df_valid_ad_ids,
+            F.col("UniqueAdIDPremium") == F.col("valid_id"),
+            "left_outer",
+        )
         .withColumn(
-        "UniqueAdIDPremium",
-        F.when(F.col("valid_id").isNull(), F.lit(None)).otherwise(
-            F.col("UniqueAdIDPremium")
-        ),
-    )
+            "UniqueAdIDPremium",
+            F.when(F.col("valid_id").isNull(), F.lit(None)).otherwise(
+                F.col("UniqueAdIDPremium")
+            ),
+        )
     )
 
     ################################################################################
     # Checking input Primary Key
     ################################################################################
     df_processed = check_primary_key(
-        df_processed, logger, JOB_ENV, WEBHOOK_URL)
+        df_processed, logger, JOB_ENV, WEBHOOK_URL
+    )
 
     ################################################################################
     # SECTION 6: FINAL DATA LOADING
@@ -428,8 +452,9 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     elif set(target_cols).issubset(set(df_processed.columns)):
         logger.warning("Target table cols are subset of Control Sheet cols")
         extra_cols = set(df_processed.columns).difference(set(target_cols))
-        logger.warning("Dropping superfluous columns: %s",
-                       ", ".join(extra_cols))
+        logger.warning(
+            "Dropping superfluous columns: %s", ", ".join(extra_cols)
+        )
         df_processed = df_processed.drop(*list(extra_cols))
     else:
         raise Exception("Target table cols not a subset of Control Sheet cols")
@@ -438,7 +463,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     delete_from_and_load(
         df_processed.select(*target_cols),
         TARGET_TABLE,
-        pk_cols=["UniqueAdID", "Location"],
+        pk_cols=["UniqueAdID", "PageType"],
         del_where={"rundate": "current_date()"},
     )
 
@@ -446,7 +471,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     truncate_and_load(
         df_processed.select(*target_cols),
         TARGET_TABLE_LATEST,
-        pk_cols=["UniqueAdID", "Location"],
+        pk_cols=["UniqueAdID", "PageType"],
     )
 
     ################################################################################
@@ -456,7 +481,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger.info("Run complete")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     jobparser = get_job_parser()
     jobparser._parse_args()
     JOB_ENV = jobparser.get_arg("--job_env")

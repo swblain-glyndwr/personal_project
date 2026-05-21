@@ -9,13 +9,14 @@ create table {catalog}.{schema}.{client}_nextads_control_sheet_v2 (
   TradeDivision STRING,
   Brand STRING,
   MASIDToken STRING,
-  Location STRING NOT NULL,
+  PageType STRING NOT NULL,
   Segment STRING,
   AdDriver STRING,
   TemplateName STRING,
   StartDate DATE,
   EndDate DATE,
   AudienceOnly INT,
+  TargetingCriteria STRING,
   URL STRING,
   Items STRING,
   Tags STRING,
@@ -24,7 +25,7 @@ create table {catalog}.{schema}.{client}_nextads_control_sheet_v2 (
   rundate DATE NOT NULL,
   constraint pk_{client}_nextads_control_sheet_v2 primary key (
     UniqueAdID,
-    Location,
+    PageType,
     rundate)
 )
 partitioned by (rundate)
