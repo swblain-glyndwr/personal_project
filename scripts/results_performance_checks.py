@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 try:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
 except NameError:
@@ -13,11 +14,15 @@ finally:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import json
+import datetime
 from datetime import date, timedelta
 from pyspark.sql import functions as F
+from pyspark.sql import Window
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import post_to_webhook
+from dsutils.etl import (post_to_webhook,
+                         delete_from_and_load,
+                         truncate_and_load)
 from dsutils.argparser import get_job_parser
 from next_ads.Results import check_control_ratio
 from next_ads.utils import config_manager
@@ -56,7 +61,8 @@ CONTROL_CHECK_START = (
     date.today() - timedelta(days=cfg["results_prm"]["lookback_days"]))
 ctrl_pc = cfg['fallow_control']['proportion']
 CONTROL_RATIO = (ctrl_pc/(1-ctrl_pc))*100
-INCREMENTAL_VALUE_THRESHOLD = cfg['incrementality']['incremental_value_threshold']
+INCREMENTAL_VALUE_THRESHOLD = cfg['incrementality'
+                                  ]['incremental_value_threshold']
 
 tbls = cfg["tables"]["write"]
 SCHEMA = config.schema_write
@@ -66,8 +72,8 @@ logger.info(f'Write schema set to {SCHEMA}')
 tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
 CONTROL_SHEET_LATEST = etl.map_tbl(tbls['control_sheet_latest'], **tbl_args)
 AD_RESULTS = etl.map_tbl(tbls['results_ads'], **tbl_args)
-
-MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
+UNDERPERFORMING_ADS = etl.map_tbl(tbls['results_underperforming_ads'],
+                                  **tbl_args)
 
 WEBHOOK_URL = cfg['webhooks']['Results Warnings']
 WEBHOOK_URL_DS = cfg['webhooks']['DS Warnings']
@@ -75,15 +81,24 @@ WEBHOOK_URL_DS = cfg['webhooks']['DS Warnings']
 df_ads_active = (
     spark
     .table(CONTROL_SHEET_LATEST)
-    .select('UniqueAdID', 'Location')
+    .select('UniqueAdID', 'Location', 'rundate')
     .distinct()
 )
 
-df_ad_results = (
-    spark.table(AD_RESULTS)
-        .where(F.col('SessionDate') >= CHECK_SESSIONS_FROM)
+# Check 1: Identify underperforming ads and write out to table.
+AUTO_TRADING_SWITCH = cfg['incrementality']['auto_trading_switch']
+INCREMENTAL_LOOKBACK = cfg["incrementality"]["incremental_lookback"]
+CHECK_SESSIONS_FROM = (datetime.date.today() -
+                       datetime.timedelta(days=INCREMENTAL_LOOKBACK+1))
+C_SESSIONS = cfg["incrementality"]["min_c_session"]
+
+df_incremental = (
+        spark.table(AD_RESULTS)
+        .where((F.col('SessionDate') >= CHECK_SESSIONS_FROM))
         .groupBy('UniqueAdID')
         .agg(
+            F.min('SessionDate').alias('min_session_date'),
+            F.max('SessionDate').alias('max_session_date'),
             F.sum('ApportionedRevenue').alias('ApportionedRevenue'),
             F.sum('Sessions').alias('Sessions'),
             F.sum('C_ApportionedRevenue').alias('C_ApportionedRevenue'),
@@ -118,85 +133,75 @@ df_ad_results = (
                 F.col('IncARPS') / F.col('C_ARPS'))
             .otherwise(F.lit(None))
         )
-)
-
-df_ad_results_underperf = (
-    df_ad_results
-    .filter(
-        (F.col('EstContribution') < INCREMENTAL_VALUE_THRESHOLD)
-        & (F.col('EstContribution') < 0)
-        & (F.col('C_Sessions') >= MIN_C_SESSIONS)
-        )
     )
-
-underperf_ads_col = (
-    df_ad_results_underperf
-    .join(df_ads_active.select('UniqueAdID'),
-          on='UniqueAdID', how='inner')
-    .orderBy('IncARPSAdj')
-    .select('UniqueAdID')
-    .distinct()
-    .collect()
+df_ads_removed = (
+    df_incremental
+    .where((F.col('C_Sessions') >= C_SESSIONS) &
+           (F.col('EstContribution') <= INCREMENTAL_VALUE_THRESHOLD))
 )
 
-underperf_ads = [x[0] for x in underperf_ads_col]
+# Inferences
+total_ads = df_incremental.select('UniqueAdID').distinct().count()
+removed_ads = df_ads_removed.select('UniqueAdID').distinct().count()
 
-df_underperf_ads_loc = (
-    df_ads_active.orderBy('UniqueAdID', 'Location')
-    .filter(F.col('UniqueAdID')
-            .isin(underperf_ads))
-    .groupBy("UniqueAdID")
-    .agg(F.collect_list("Location").alias("Location_List"))
-)
+logger.info(f'Total Ads: {total_ads:,}')
+logger.info(f'Removed Ads: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)')
 
-df_underperf_ads_loc_metric = (
-    df_ad_results_underperf
-    .select("UniqueAdID", "IncARPSAdj", "Sessions", "ARPS", "EstContribution")
-    .filter(F.col('UniqueAdID').isin(underperf_ads))
-    .join(
-        df_underperf_ads_loc, on='UniqueAdID', how='inner'
-    )
-    .withColumn("IncARPSAdj", F.round(F.col("IncARPSAdj"), 2))
-    .withColumn("ARPS", F.round(F.col("ARPS"), 2))
-    .withColumn("EstContribution", F.round(F.col("EstContribution"), 2))
-)
+total_sessions = df_incremental.agg(F.sum('Sessions')).collect()[0][0] or 0
+ads_removed_sessions = df_ads_removed.agg(F.sum('Sessions')).collect()[0][0] or 0
+impact_pct = round((ads_removed_sessions / total_sessions) * 100, 2) if total_sessions else None
 
-output = [row.asDict() for row in df_underperf_ads_loc_metric.collect()]
+logger.info(f'Total Ads Sessions: {total_sessions:,}')
+logger.info(f'Potential impact on Sessions: {ads_removed_sessions:,} ({impact_pct:.2f}%)')
+
+output = [row.asDict() for row in df_ads_removed.collect()]
 
 output_str = '\n'.join(
-    f"Ad: {row['UniqueAdID']}\n  Locations: {row['Location_List']}\n"
+    f"Ad: {row['UniqueAdID']}\n"
     f"  IncARPSAdj: {row['IncARPSAdj']}\n  Sessions: {row['Sessions']}\n"
     f"  ARPS: {row['ARPS']}\n"
     f"  EstContribution: {row['EstContribution']}\n"
     for row in output
 )
 
-if len(underperf_ads) > 0:
+auto_trading_status = 'AutoTrading ON' if AUTO_TRADING_SWITCH else 'AutoTrading OFF'
+
+if removed_ads > 0:
+    suppression_note = (
+        'Ads removed from best targeting.'
+        if AUTO_TRADING_SWITCH
+        else 'Ads identified but NOT removed from best targeting (AutoTrading is OFF).'
+    )
     msg = (
-        'Underperforming Ads\n'
-        f'(look-back to {CHECK_SESSIONS_FROM}; '
-        f'min {MIN_C_SESSIONS:,} control sessions)\n\n'
-        f'Ads with Active Location & Metrics:\n\n'
+        f'{auto_trading_status}: {suppression_note}\n'
+        f'- Num ads flagged: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)\n'
+        f'- Min {C_SESSIONS:,} control sessions\n\n'
         f'{output_str}\n\n'
-        'Check full results in dashboard'
+        'Check full results in dashboard.'
     )
     logger.warning(msg)
 
-    if JOB_ENV == 'prod':
-        post_to_webhook(WEBHOOK_URL, msg)
+    # if JOB_ENV == 'prod':
+    #     post_to_webhook(WEBHOOK_URL, msg)
 else:
     msg = (
-            'No underperforming ads found\n' +
-            f'(look-back to {CHECK_SESSIONS_FROM}; ' +
-            f'min {MIN_C_SESSIONS:,} control sessions)'
-        )
+        f'{auto_trading_status}: No underperforming ads found\n'
+        f'(look-back to {CHECK_SESSIONS_FROM}; '
+        f'min {C_SESSIONS:,} control sessions)'
+    )
     logger.warning(msg)
 
-    if JOB_ENV == 'prod':
-        post_to_webhook(WEBHOOK_URL, msg)
+    # if JOB_ENV == 'prod':
+    #     post_to_webhook(WEBHOOK_URL, msg)
+
+logger.info(f"Loading assignments to {UNDERPERFORMING_ADS}")
+delete_from_and_load(df_ads_removed,
+                     UNDERPERFORMING_ADS,
+                     pk_cols=["UniqueAdID"],
+                     del_where={"rundate": "current_date()"})
 
 
-# Check that control ratio is within tolerance for various splits
+# Check 2: check that control ratio is within tolerance for various splits
 for ref in CONTROL_CHECK_TABLES:
     tbl = etl.map_tbl(cfg["tables"]["write"][ref], **tbl_args)
     df_ctrl_check = (

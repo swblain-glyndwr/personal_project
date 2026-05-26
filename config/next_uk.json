@@ -3013,6 +3013,7 @@
             "results_page_targeting": "{catalog}.{schema}.{client}_nextads_results_page_targeting",
             "results_ad_metadata": "{catalog}.{schema}.{client}_nextads_results_ad_metadata",
             "results_ads_top_by_location": "{catalog}.{schema}.{client}_nextads_results_ads_top_by_location",
+            "results_underperforming_ads": "{catalog}.{schema}.{client}_nextads_results_underperforming_ads",
             "conditional_probability_scores": "{catalog}.{schema}.{client}_nextads_conditional_probability_scores",
             "conditional_probability_scores_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_scores_latest",
             "conditional_probability_item_themes_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_item_themes_latest",
@@ -3123,8 +3124,10 @@
 
     "incrementality": {
         "incrementality_ads_suppression_switch": false,
+        "auto_trading_switch": true,
         "incremental_lookback": 14,
         "incremental_value_threshold": -20000,
+        "min_c_session": 15000,
         "ads_switch_label": "NegativeIncAdRemoved",
         "locations": ["SB1","SB2"],
         "treatments": ["Best"],

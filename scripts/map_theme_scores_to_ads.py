@@ -55,6 +55,7 @@ TOP_ADS_PER_LOCATION = int(jobparser.get_arg('--top-ads-per-location') or 20)
 assert TOP_ADS_PER_LOCATION > 0, 'top-ads-per-location must be greater than zero'
 MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
 INCREMENTAL_LOOKBACK = cfg['incrementality']['incremental_lookback']
+AUTO_TRADING_SWITCH = cfg['incrementality']['auto_trading_switch']
 
 tbls = cfg["tables"]["write"]
 SCHEMA = config.schema_write
@@ -65,6 +66,8 @@ tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
 CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
 CUSTOMER_CELLS_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
+UNDERPERFORMING_ADS = etl.map_tbl(tbls['results_underperforming_ads'],
+                                  **tbl_args)
 
 if ALGO == 'challenger':
     logger.info('Running script as Challenger')
@@ -102,10 +105,31 @@ AD_RESULTS = etl.map_tbl(
 spark = configure_spark()
 
 logger.info(f'Getting theme to ad mappings from {CONTROL_SHEET_LATEST}')
-# Below will need changing back for live
+
+# AutoTrading/ remove underperforming ads from best targeting
+# based on recent performance checks.
+df_ads = (
+    spark.table(CONTROL_SHEET_LATEST)
+)
+
+
+if AUTO_TRADING_SWITCH:
+    count_df_ads = df_ads.select('UniqueAdID').distinct().count()
+
+    df_ads = (
+        df_ads
+        .join(spark.table(UNDERPERFORMING_ADS),
+              on=['UniqueAdID', 'rundate'],
+              how='left_anti')
+        .cache()
+    )
+
+    count_df_ads_pruned = df_ads.select('UniqueAdID').distinct().count()
+
+    logger.info(f'AutoTrading: removed {count_df_ads - count_df_ads_pruned:,} underperforming ads.')
+
 df_theme2ad = (
-    spark
-    .table(CONTROL_SHEET_LATEST)
+    df_ads
     .where(F.col('AudienceOnly') != 1)
     .select('Themes', 'UniqueAdID', 'AdVariant')
     .where(F.col('Themes').isNotNull())
