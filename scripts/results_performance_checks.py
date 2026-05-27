@@ -181,8 +181,8 @@ if removed_ads > 0:
     )
     logger.warning(msg)
 
-    # if JOB_ENV == 'prod':
-    #     post_to_webhook(WEBHOOK_URL, msg)
+    if JOB_ENV == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg)
 else:
     msg = (
         f'{auto_trading_status}: No underperforming ads found\n'
@@ -191,8 +191,8 @@ else:
     )
     logger.warning(msg)
 
-    # if JOB_ENV == 'prod':
-    #     post_to_webhook(WEBHOOK_URL, msg)
+    if JOB_ENV == 'prod':
+        post_to_webhook(WEBHOOK_URL, msg)
 
 logger.info(f"Loading assignments to {UNDERPERFORMING_ADS}")
 delete_from_and_load(df_ads_removed,
