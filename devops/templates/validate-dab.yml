@@ -1,0 +1,40 @@
+parameters:
+  - name: target
+    type: string
+    default: 'DEV_INTEGRATION'
+  - name: AzureBuildAgentPool
+    type: string
+  - name: azureSubscription
+    type: string
+  - name: KeyVaultName
+    type: string
+
+jobs:
+  - job: ValidateDatabricksBundle
+    displayName: 'Validate Databricks Bundle'
+    pool:
+      name: '${{ parameters.AzureBuildAgentPool }}'
+      vmImage: ubuntu-latest
+    steps:
+      - task: AzureKeyVault@2
+        inputs:
+          azureSubscription: ${{ parameters.azureSubscription }}
+          KeyVaultName: ${{ parameters.KeyVaultName }}
+          SecretsFilter: "Databricks-Spn-MarketingData-ClientId,Databricks-Spn-MarketingData-SecretValue"
+          RunAsPreJob: true
+        displayName: 'Fetch secrets from Key Vault'
+
+      - script: |
+          bash devops/scripts/install_databricks_cli.sh
+        displayName: 'Install Databricks CLI'
+        env:
+          DATABRICKS_HOST: $(DATABRICKS_HOST)
+          DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
+          DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
+
+      - script: |
+          echo "Validating bundle for target ${{ parameters.target }}..."
+          unset DATABRICKS_CLUSTER_ID
+          databricks bundle validate -t ${{ parameters.target }}
+          databricks bundle plan -t ${{ parameters.target }}
+        displayName: 'Validate and plan bundle'

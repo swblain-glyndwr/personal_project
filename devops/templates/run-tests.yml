@@ -21,12 +21,15 @@ parameters:
     displayName: 'Test type to run'
   - name: databricksClusterId
     type: string
+  - name: continueOnError
+    type: boolean
+    default: true
 
 jobs:
   - job: RunTests
     displayName: 'Run ${{ parameters.testType }} Tests with Poetry'
     pool:
-      name: '${{parameters.AzureBuildAgentPool}}'
+      name: '${{ parameters.AzureBuildAgentPool }}'
       vmImage: ubuntu-latest
     steps:
       - task: UsePythonVersion@0
@@ -66,7 +69,6 @@ jobs:
       - bash: |
           export DATABRICKS_CLUSTER_ID="${{ parameters.databricksClusterId }}"
           echo "Running ${{ parameters.testType }} tests on Databricks cluster $DATABRICKS_CLUSTER_ID for target ${{ parameters.target }}..."
-          # Determine test path based on parameter
           if [ "${{ parameters.testType }}" = "unit" ]; then
             TEST_PATH="tests/unit/"
             echo "Running UNIT tests from: $TEST_PATH"
@@ -77,12 +79,11 @@ jobs:
             TEST_PATH="tests/"
             echo "Running ALL tests from: $TEST_PATH"
           fi
-          
-          # Run pytest with selected path
+
           poetry run pytest $TEST_PATH -v --junitxml=junit/test-results.xml
         name: run_tests
         displayName: Run Python ${{ parameters.testType }} Tests
-        continueOnError: true
+        continueOnError: ${{ parameters.continueOnError }}
         env:
           DATABRICKS_HOST: $(DATABRICKS_HOST)
           DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
@@ -98,7 +99,11 @@ jobs:
 
       - script: |
           echo "Linting Python code..."
-          poetry run ruff check || echo "⚠️  Formatting issues"
+          if [ "${{ parameters.continueOnError }}" = "true" ]; then
+            poetry run ruff check || echo "WARNING: Formatting or linting issues"
+          else
+            poetry run ruff check
+          fi
         displayName: 'Lint code'
         condition: |
           and(
@@ -108,7 +113,7 @@ jobs:
               eq('${{ parameters.testType }}', 'all')
             )
           )
-        continueOnError: true
+        continueOnError: ${{ parameters.continueOnError }}
 
       # - task: PublishCodeCoverageResults@1
       #   condition: succeededOrFailed()

@@ -95,6 +95,15 @@ Run the job manually in Databricks UI and verify successful completion.
 
 ### **Phase 4: Commit and Push to Feature Branch**
 
+Create feature branches from `develop`, not `main`.
+
+```bash
+git fetch origin
+git switch develop
+git pull
+git switch -c feature/<work-item-id>-<short-description>
+```
+
 Now that code is tested and working in DEV in a developer feature branch, the final code can be committed to Git.
 
 ---
@@ -128,25 +137,40 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | **Integration Tests** | Runs integration tests in PROD |
 | **Deploy DEV** | Deploys to DEV workspace, tags jobs with git info |
 | **(Optional) Destroy DEV** | Deletes DEV DABs (helps with DAB development) |
-| **Deploy PREPROD to PROD** | Deploys dev version of job to PROD |
-| **Deploy PROD** | Run this only on main branch |
+| **Deploy PREPROD to PROD** | Deploys the selected branch using the PREPROD route |
+| **Deploy PROD** | Run only from an approved production tag on `main` |
 
 ---
+
+> NOTE: The existing deployment pipeline is still manually controlled during the first branch-control rollout. Select the intended branch or tag explicitly and do not use it as an automatic promotion route until the branch-conditioned deployment pipeline has been implemented.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 
-Once you're satisfied with results, create a PR to merge to main.
+Once you're satisfied with results, create a PR to merge the feature branch into `develop`.
 
-Deploy to PREPROD job and run the job to validate the output of your work.
+```text
+feature/* -> develop
+```
+
+The PR should link the work item, include validation evidence, and call out any schema, Databricks job, config, downstream output or production risk.
+
+Do not raise day-to-day feature work directly into `main`.
 
 ---
 
-### **Step 7: What Happens After Merge**
+### **Step 7: Release Validation and Production**
 
-When PR is merged to `main`:
+When an agreed set of integrated changes is ready, create a release branch from `develop`:
 
-1. **Pipeline triggers** for `main` branch
-2. **CI stage** runs (unit tests, linting)
-3. **Deploy DEV** stage runs
-4. **Deploy PREPROD** stage runs automatically
-5. **Deploy PROD** stage runs automatically
+```text
+develop -> release/*
+```
+
+Deploy the release branch using the PREPROD route and validate the output before approving production. In the current setup, PREPROD runs in the PROD Databricks workspace using `job_env=preprod`, but writes validation outputs to `marketingdata_prod.ds_sandbox`, not `marketingdata_prod.warehouse`.
+
+Once approved:
+
+1. Merge `release/*` into `main` by pull request.
+2. Create a production tag on `main`.
+3. Deploy PROD from the tagged commit.
+4. Record the production tag and release evidence.

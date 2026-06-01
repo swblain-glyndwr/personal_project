@@ -1,0 +1,42 @@
+# Azure DevOps validation pipeline for branch policies.
+# This pipeline validates code and Databricks Asset Bundle configuration only.
+# It does not deploy Databricks resources.
+
+name: mktg-next-ads-validation-$(Build.SourceVersion)-$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - develop
+      - main
+      - release/*
+      - hotfix/*
+
+pr: none # Azure Repos PR validation is configured with branch policies.
+
+variables:
+  - template: devops/variables/common.yml
+
+stages:
+  - stage: Validate
+    displayName: 'Validate code and bundle'
+    variables:
+      - group: Development
+    jobs:
+      - template: devops/templates/run-tests.yml
+        parameters:
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+          testType: 'unit'
+          target: 'DEV_INTEGRATION'
+          databricksClusterId: $(DATABRICKS_CLUSTER_ID_15_4)
+          continueOnError: false
+
+      - template: devops/templates/validate-dab.yml
+        parameters:
+          target: 'DEV_INTEGRATION'
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)

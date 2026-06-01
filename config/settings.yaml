@@ -26,7 +26,7 @@ dev:
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Dev-EUW"
 
-# NOTE: we are configuring some of the below for PREPROD on PROD setup
+# PREPROD runs in the PROD Databricks workspace but writes validation output to ds_sandbox, not warehouse.
 preprod:
   catalog_write: marketingdata_prod
   schema_write: ds_sandbox
