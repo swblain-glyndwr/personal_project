@@ -2942,6 +2942,10 @@
         "preprod": "ds_sandbox",
         "prod": "warehouse"
     },
+
+    "sql_files":{
+        "account_department_scores": "next_uk_nextads_account_department_scores.sql"
+    },
     
     "tables": {
         "read": {

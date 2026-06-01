@@ -5,7 +5,7 @@ from pyspark.sql import functions as F
 from collections.abc import Callable
 from dsutils.dbc import get_spark
 from dsutils.logtools import get_logger
-from dsutils.etl import assert_pk, build_spark_schema
+from dsutils.etl import assert_pk, build_spark_schema, post_to_webhook
 from dsutils.columnscalers import subtract_mean
 from dsutils.timing import timer
 
@@ -992,7 +992,7 @@ def melt_transient_cells(df: DataFrame) -> DataFrame:
     return df_melted
 
 
-def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
+def get_algo_divisions(sql_file: str, TRANSIENT_CELLS_TABLE_LATEST: str, WEBHOOK_URL_DS: str, JOB_ENV: str) -> DataFrame:
     """
     Returns AlgoDivison for all customers from the provided model scores table.
     The AlgoDivision returned is the Division for which the account has the
@@ -1006,9 +1006,12 @@ def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
     """
     logger.debug(
         'Assigning customers to their preferred division (AlgoDivision)')
+    with open(sql_file, 'r') as f:
+        sql_query = f.read()
+
     division_scores = (
         get_spark()
-        .table(model_scores_latest_table)
+        .sql(sql_query)
         .drop('rundate')
         .withColumnRenamed('account_number', 'AccountNumber')
         .select(
@@ -1026,8 +1029,12 @@ def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
     w_acc_scaled_score_desc = (
         Window
         .partitionBy("AccountNumber")
-        .orderBy(F.desc(F.col("ScoreScaled")))
+        .orderBy(
+            F.desc(F.col("ScoreScaled")),
+            (F.col("AlgoDivision") == "Womens").cast("int").desc(), 
+            F.col("AlgoDivision").asc()
         )
+    )
 
     division_assignments = (
         division_scores
@@ -1040,15 +1047,109 @@ def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
         .withColumn('ScoreScaled',
                     subtract_mean(F.col('score'),
                                   partition_by=['AlgoDivision']))
-        .withColumn('Rank', F.rank().over(w_acc_scaled_score_desc))
+        .withColumn('Rank', F.row_number().over(w_acc_scaled_score_desc))
         .where(F.col('Rank') == 1)
         .select('AccountNumber', 'AlgoDivision')
     )
 
     assert_pk(division_assignments, ['AccountNumber', 'AlgoDivision'])
 
-    return division_assignments
+    # testing division_assignments coverage
+    df_transient_cells = (
+        get_spark()
+        .table(TRANSIENT_CELLS_TABLE_LATEST)
+        .filter(F.col('Cell') == 'AlgoDivision')
+        .select('AccountNumber','CellValue')
+        .distinct()
+    )
 
+    missing_accounts = (
+        df_transient_cells
+        .join(division_assignments, on='AccountNumber', how='left_anti')
+    )
+    missing_accounts_percentage = 100.0 * missing_accounts.count() / df_transient_cells.count() if df_transient_cells.count() > 0 else 0
+    missing_accounts_percentage = round(missing_accounts_percentage, 4)
+    if missing_accounts_percentage > 5:
+        msg = (
+            'MISSING ACCOUNT_NUMBERS\n'
+            'The drop in account numbers from AlgoDivision\n'
+            f'table exceeds the threshold. There is a {missing_accounts_percentage}% drop\n'
+            f'Acceptance threshold is 5%'
+        )
+        if JOB_ENV == 'prod':
+            post_to_webhook(WEBHOOK_URL_DS, msg)
+    else:
+        msg = (
+            f'There is a {missing_accounts_percentage}% drop in account numbers from AlgoDivision\n'
+            f'table. Acceptance threshold is 5'
+        )
+    logger.warning(msg)
+
+    # testing diivision_assignments department distribution
+    grand_total_window = Window.rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+    historical_distribution = (
+        df_transient_cells
+        .filter(F.col('Cell') == 'AlgoDivision')
+        .groupby('cellvalue')
+        .agg(
+            F.count_distinct('AccountNumber').alias('count')
+        )
+        .withColumn('pct_of_accounts',
+                    F.round(
+                    (100.0 * F.col("count")) / F.sum("count").over(grand_total_window), 
+                    2
+                )
+            )
+        .orderBy(F.col('count').desc())
+    )
+    
+    current_distribution = (
+        division_assignments
+        .groupby('AlgoDivision')
+        .agg(
+            F.count_distinct('AccountNumber').alias('count_new')
+        )
+        .withColumn('pct_of_accounts_new',
+                    F.round(
+                    (100.0 * F.col("count_new")) / F.sum("count_new").over(grand_total_window), 
+                    2
+                )
+            )
+        .orderBy(F.col('count_new').desc())
+    )
+    
+    df_dist_joined = (
+        historical_distribution
+        .join(
+            current_distribution,
+            (historical_distribution.cellvalue == current_distribution.AlgoDivision),
+            how='outer'
+        )
+        .withColumn(
+            'pct_diff',
+            F.col('pct_of_accounts_new') - F.col('pct_of_accounts')
+        )
+    )
+    
+    # Log if any pct_diff is above 5
+    diffs_above_5 = (
+        df_dist_joined
+        .where(F.abs(F.col('pct_diff')) > 5)
+        .select('cellvalue', 'pct_diff')
+        .collect()
+    )
+
+    if diffs_above_5:
+        msg = (
+            'CHANGE IN ALGODIVISION DISTRIBUTION\n'
+            'The distribution of AlgoDivision has changed by more than 5%\n'
+            f'Divisions with pct_diff above 5: {str([(row["cellvalue"], row["pct_diff"]) for row in diffs_above_5])}'
+        )
+        logger.warning(msg)
+        if JOB_ENV == 'prod':
+            post_to_webhook(WEBHOOK_URL_DS, msg)
+
+    return division_assignments
 
 @timer
 def greedy_assignment(
