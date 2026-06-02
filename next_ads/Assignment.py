@@ -606,6 +606,49 @@ def assign_best_ads_rec(
 
     return df_return
 
+def assign_nextgenads(
+        df_ads: DataFrame,
+        customer_to_cluster_table: str,
+        df_cust: DataFrame = None,
+        return_ranks: list = [1]
+        ) -> DataFrame:
+    """
+    Assigns NextGenAds to customers based on cluster assignments.
+
+    Arguments:
+        df_ads - Dataframe with columns: UniqueAdID, AudienceOnly, ClusterID.
+        Caller is responsible for filtering to the relevant location before
+        passing.
+        customer_to_cluster_table - Name of table containing AccountNumber,
+        assigned_cluster_id, assignment_rank
+        df_cust - Filter customers (Dataframe with col: AccountNumber)
+        return_ranks - Assignment ranks to return (e.g. [1] for top cluster)
+    """
+    df_cluster2ad = (
+        df_ads
+        .select(
+                F.col("ClusterID").cast("int").alias("assigned_cluster_id"),
+                F.col("UniqueAdID")
+            )
+        .distinct()
+    )
+    # Cluster assignment per customer filtered to requested ranks,
+    # joined to UniqueAdID
+    df_assigned_nextgenads = (
+        get_spark()
+        .table(customer_to_cluster_table)
+        .join(df_cust,
+              on="AccountNumber",
+              how="inner")
+        .where(F.col("assignment_rank").isin(return_ranks))
+        .select("AccountNumber", "assigned_cluster_id")
+        .join(df_cluster2ad, on="assigned_cluster_id", how="inner")
+        .select("AccountNumber", "UniqueAdID")
+        .distinct()
+    )
+
+    return df_assigned_nextgenads
+
 
 def assign_best_ads_with_constraints_rec(
         df_ads: DataFrame,

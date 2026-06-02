@@ -68,7 +68,7 @@
         "AdHocABTest1": {
             "cells": [
                 {
-                    "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 0.5}],
+                    "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 0.1}],
                     "then": {"lit": "A"}
                 },
                 {
@@ -2840,18 +2840,16 @@
         "FY20": {
             "pf_col": "FY_slot_20",
             "basic_within": "AlgoDivision",
-            "inherit_ads_from": "FY1",
-            "best_kwargs": {"return_ranks": [20], "inherit_rank_from_location": "FY1"},
             "map": [
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDNextGenAds"}
                 },
                 {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
-                    "then": {"col": "UniqueAdIDBest"}
+                    "then": {"col": "UniqueAdIDNextGenAds"}
                 }
             ]
         }
@@ -2914,7 +2912,8 @@
             ["Tags", "string", "null"],
             ["TargetingAttributes", "string", "null"],
             ["Themes", "string", "null"],
-            ["AdVariant", "string", "null"]
+            ["AdVariant", "string", "null"],
+            ["ClusterID", "string", "null"]
         ]
     },
 
@@ -2968,7 +2967,8 @@
             "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
             "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest",
             "hackathon_assignments":"marketingdata_prod.ds_sandbox.next_uk_next_ads_hackathon_model_latest",
-            "fathers_day_audience":"marketingdata_prod.ds_sandbox.nextads_fd_2026"
+            "fathers_day_audience":"marketingdata_prod.ds_sandbox.nextads_fd_2026",
+            "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest"
         },
         "write": {
             "ad_items": "{catalog}.{schema}.{client}_nextads_ad_items",

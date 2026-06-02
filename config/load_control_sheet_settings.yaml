@@ -52,6 +52,7 @@ default:
       - ["TargetingAttributes", "string", "null"]
       - ["Themes", "string", "null"]
       - ["AdVariant", "string", "null"]
+      - ["ClusterID", "string", "null"]
   placements_sheet:
     url: "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0"
     sheet: "Placements"

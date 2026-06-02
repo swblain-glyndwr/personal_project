@@ -16,7 +16,8 @@ import json
 from pyspark.sql import functions as F
 from pyspark.sql import Window
 from next_ads.Assignment import (assign_preranked_ads, assign_random_ads,
-                                 assign_random_ads_with_exclusions)
+                                 assign_random_ads_with_exclusions,
+                                 assign_nextgenads)
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (build_spark_schema,
@@ -90,8 +91,7 @@ ASSIGNMENTS_TABLE_LATEST = etl.map_tbl(tbls["assignments_latest"], **tbl_args)
 CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 PRERANKED_THEMES_TABLE = etl.map_tbl(tbls["preranked_ads_from_themes_latest"],
                                  **tbl_args)
-# PRERANKED_THEMES_TABLE_HACK = etl.map_tbl(tbls["preranked_ads_from_themes_hackathon_latest"],
-#                                  **tbl_args)
+NEXTGENADS_ASSIGNMENTS_TABLE = cfg["tables"]["read"]["nextgenads_assignments_latest"]
 
 # Read results data from prod schema dataset
 tbl_args_results = {'catalog': config.catalog_read, 'schema': config.schema_read, 'client': CLIENT}
@@ -125,7 +125,8 @@ df_ads = (
         "TargetingCriteria",
         "AudienceOnly",
         "Tags",
-        "Themes")
+        "Themes",
+        "ClusterID")
 )
 
 if INCREMENTALITY_ADS_SUPPRESSION_SWITCH:
@@ -193,6 +194,12 @@ df_ads_tgt_best = (
     .where(F.col('Themes') != '')
 )
 
+df_ads_tgt_nextgenads = (
+    df_ads
+    .filter(F.col("ClusterID").isNotNull()
+            & F.col("Themes").isNull())
+)
+
 # Drop unneeded columns following processing dataframe
 ads_required_cols = ['UniqueAdID',
                      'UniqueAdIDPremium',
@@ -203,7 +210,7 @@ df_ads = df_ads.select(ads_required_cols)
 df_ads_tgt = df_ads_tgt.select(ads_required_cols)
 df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
 
-if df_ads_tgt.count() == 0:
+if df_ads_tgt.count() == 0 and df_ads_tgt_nextgenads.count() == 0:
 
     no_ads_msg = f"No ads found for Location: {LOCATION}"
     logger.warning(no_ads_msg)
@@ -224,110 +231,138 @@ else:
 
     logger.info("Assigning Ads with Basic Targeting")
 
-    if "basic_within" in LOCATIONS[LOCATION]:
+    if df_ads_tgt.count() == 0:
+        logger.info("No non-AudienceOnly ads - skipping basic/best")
+        df_assigned_basic = spark.createDataFrame(
+            [], schema="AccountNumber STRING, UniqueAdID STRING")
+        df_assigned_best = spark.createDataFrame(
+            [], schema="AccountNumber STRING, UniqueAdID STRING")
+        df_assigned_best_challenger = df_assigned_best
         basic_within = LOCATIONS[LOCATION]["basic_within"]
-    else:
-        basic_default_warn_msg = (
-            f'`basic_within` not specified in config for {LOCATION}' +
-            ' - defaulting to "global"'
-            )
-        logger.warning(basic_default_warn_msg)
-        basic_within = "global"
-
-    # 'global' is a dummy column name used within the assign_random_ads
-    # function when there are no grouping columns. This was done to minimise
-    # refactoring the required, but a more generalisable assign_random_ads
-    # function would be beneficial to remove this restriction
-    if 'global' in df_ads_tgt.columns:
-        protected_colname_msg = (
-            'Protected column name "global" was found in df_ads_tgt'
-        )
-        raise Exception(protected_colname_msg)
-    if 'global' in df_cells.columns:
-        protected_colname_msg = (
-            'Protected column name "global" was found in df_cells'
-        )
-        raise Exception(protected_colname_msg)
-
-    # Check if we need to exclude ads from a previous location assignment
-    inherit_location_key = "inherit_basic_from"
-    if INHERIT_BASIC_FROM or inherit_location_key in LOCATIONS[LOCATION]:
-        inherit_location = (
-            INHERIT_BASIC_FROM or
-            LOCATIONS[LOCATION].get(inherit_location_key)
-        )
-        logger.info(
-            f"Inheriting basic assignments from {inherit_location} - "
-            "excluding already-assigned ads"
-        )
-
-        # Get assignments from the inherited location
-        df_inherited_assignments = (
-            spark
-            .table(ASSIGNMENTS_TABLE_LATEST)
-            .where(F.col("Location") == inherit_location)
-            .where(F.col("UniqueAdIDBasic").isNotNull())
-            .select(
-                "AccountNumber",
-                F.col("UniqueAdIDBasic").alias("ExcludedAdID")
-            )
-        )
-
-        # Join to cells to get excluded ads per customer
-        df_cells_with_exclusions = (
-            df_cells
-            .join(df_inherited_assignments, on="AccountNumber", how="left")
-        )
-
-        # Assign random ads excluding the already-assigned ones
-        if basic_within == 'global':
-            df_assigned_basic = assign_random_ads_with_exclusions(
-                df_ads_tgt.select("UniqueAdID"),
-                df_cells_with_exclusions.select(
-                    "AccountNumber", "ExcludedAdID"
-                )
-            )
-        else:
-            df_assigned_basic = assign_random_ads_with_exclusions(
-                df_ads_tgt.select("UniqueAdID", basic_within),
-                df_cells_with_exclusions.select(
-                    "AccountNumber", basic_within, "ExcludedAdID"
-                ),
-                grp_col=basic_within
-            )
-    else:
-        # Original logic for locations without basic inheritance
-        if basic_within == 'global':
-            df_assigned_basic = assign_random_ads(
-                df_ads_tgt.select("UniqueAdID"),
-                df_cells.select("AccountNumber"),
-                )
-        else:
-            df_assigned_basic = assign_random_ads(
-                df_ads_tgt.select("UniqueAdID", basic_within),
-                df_cells.select("AccountNumber", basic_within),
-                grp_col=basic_within
-                )
-
-    df_assigned_basic.cache()
-
-    logger.info("Assigning Ads with Best Targeting")
-
-    if "best_kwargs" in LOCATIONS[LOCATION]:
-        best_kwargs = LOCATIONS[LOCATION]["best_kwargs"]
-    else:
         best_kwargs = {'return_ranks': [1]}
+    else:
+        if "basic_within" in LOCATIONS[LOCATION]:
+            basic_within = LOCATIONS[LOCATION]["basic_within"]
+        else:
+            basic_default_warn_msg = (
+                f'`basic_within` not specified in config for {LOCATION}' +
+                ' - defaulting to "global"'
+                )
+            logger.warning(basic_default_warn_msg)
+            basic_within = "global"
 
-    df_assigned_best = assign_preranked_ads(
-        df_ads=df_ads_tgt_best,
-        preranked_ads_table=PRERANKED_THEMES_TABLE,
-        location=LOCATION,
-        df_cust=df_cells.select("AccountNumber"),
-        **best_kwargs
+        # 'global' is a dummy column name used within the assign_random_ads
+        # function when there are no grouping columns. This was done to minimise
+        # refactoring the required, but a more generalisable assign_random_ads
+        # function would be beneficial to remove this restriction
+        if 'global' in df_ads_tgt.columns:
+            protected_colname_msg = (
+                'Protected column name "global" was found in df_ads_tgt'
+            )
+            raise Exception(protected_colname_msg)
+        if 'global' in df_cells.columns:
+            protected_colname_msg = (
+                'Protected column name "global" was found in df_cells'
+            )
+            raise Exception(protected_colname_msg)
+
+        # Check if we need to exclude ads from a previous location assignment
+        inherit_location_key = "inherit_basic_from"
+        if INHERIT_BASIC_FROM or inherit_location_key in LOCATIONS[LOCATION]:
+            inherit_location = (
+                INHERIT_BASIC_FROM or
+                LOCATIONS[LOCATION].get(inherit_location_key)
+            )
+            logger.info(
+                f"Inheriting basic assignments from {inherit_location} - "
+                "excluding already-assigned ads"
+            )
+
+            # Get assignments from the inherited location
+            df_inherited_assignments = (
+                spark
+                .table(ASSIGNMENTS_TABLE_LATEST)
+                .where(F.col("Location") == inherit_location)
+                .where(F.col("UniqueAdIDBasic").isNotNull())
+                .select(
+                    "AccountNumber",
+                    F.col("UniqueAdIDBasic").alias("ExcludedAdID")
+                )
+            )
+
+            # Join to cells to get excluded ads per customer
+            df_cells_with_exclusions = (
+                df_cells
+                .join(df_inherited_assignments, on="AccountNumber", how="left")
+            )
+
+            # Assign random ads excluding the already-assigned ones
+            if basic_within == 'global':
+                df_assigned_basic = assign_random_ads_with_exclusions(
+                    df_ads_tgt.select("UniqueAdID"),
+                    df_cells_with_exclusions.select(
+                        "AccountNumber", "ExcludedAdID"
+                    )
+                )
+            else:
+                df_assigned_basic = assign_random_ads_with_exclusions(
+                    df_ads_tgt.select("UniqueAdID", basic_within),
+                    df_cells_with_exclusions.select(
+                        "AccountNumber", basic_within, "ExcludedAdID"
+                    ),
+                    grp_col=basic_within
+                )
+        else:
+            # Original logic for locations without basic inheritance
+            if basic_within == 'global':
+                df_assigned_basic = assign_random_ads(
+                    df_ads_tgt.select("UniqueAdID"),
+                    df_cells.select("AccountNumber"),
+                    )
+            else:
+                df_assigned_basic = assign_random_ads(
+                    df_ads_tgt.select("UniqueAdID", basic_within),
+                    df_cells.select("AccountNumber", basic_within),
+                    grp_col=basic_within
+                    )
+
+        df_assigned_basic.cache()
+
+        logger.info("Assigning Ads with Best Targeting")
+
+        if "best_kwargs" in LOCATIONS[LOCATION]:
+            best_kwargs = LOCATIONS[LOCATION]["best_kwargs"]
+        else:
+            best_kwargs = {'return_ranks': [1]}
+
+        df_assigned_best = assign_preranked_ads(
+            df_ads=df_ads_tgt_best,
+            preranked_ads_table=PRERANKED_THEMES_TABLE,
+            location=LOCATION,
+            df_cust=df_cells.select("AccountNumber"),
+            **best_kwargs
+        )
+        df_assigned_best.cache()
+
+        df_assigned_best_challenger = df_assigned_best
+
+    USE_NEXTGENADS = any(
+        step.get("then", {}).get("col") == "UniqueAdIDNextGenAds"
+        for step in CELL_MAP.get("map", [])
     )
-    df_assigned_best.cache()
-
-    df_assigned_best_challenger = df_assigned_best
+    if USE_NEXTGENADS:
+        logger.info(f"NextGenAds enabled for {LOCATION} - assigning cluster ads")
+        df_assigned_nextgenads = assign_nextgenads(
+            df_ads=df_ads_tgt_nextgenads,
+            customer_to_cluster_table=NEXTGENADS_ASSIGNMENTS_TABLE,
+            df_cust=df_cells.select("AccountNumber"),
+            return_ranks=best_kwargs["return_ranks"]
+        )
+    else:
+        logger.info(f"NextGenAds not referenced in {LOCATION} map - skipping")
+        df_assigned_nextgenads = spark.createDataFrame(
+            [], schema="AccountNumber STRING, UniqueAdID STRING")
+    df_assigned_nextgenads.cache()
 
     logger.info("Determining Ad to show based on assignments and fixed cells")
     df_assignments = (
@@ -352,6 +387,13 @@ else:
                 df_assigned_best_challenger
                 .select("AccountNumber", "UniqueAdID")
                 .withColumnRenamed("UniqueAdID", "UniqueAdIDBestChallenger")
+            ),
+            on="AccountNumber", how="left")
+        .join(
+            (
+                df_assigned_nextgenads
+                .select("AccountNumber", "UniqueAdID")
+                .withColumnRenamed("UniqueAdID", "UniqueAdIDNextGenAds")
             ),
             on="AccountNumber", how="left")
         )
@@ -391,15 +433,17 @@ else:
     df_ad_treatments = (
         df_assignments
         .drop('AdSuppressed',
-              'UniqueAdIDBasic'
-              'UniqueAdIDBest'
-              'UniqueAdIDBestChallenger')
+                'UniqueAdIDBasic'
+                'UniqueAdIDBest'
+                'UniqueAdIDBestChallenger',
+                'UniqueAdIDNextGenAds')
         .withColumns(
             {
                 'AdSuppressed': F.lit('AdSuppressed'),
                 'UniqueAdIDBasic': F.lit('Basic'),
                 'UniqueAdIDBest': F.lit('Best'),
-                'UniqueAdIDBestChallenger': F.lit('BestChallenger')
+                'UniqueAdIDBestChallenger': F.lit('BestChallenger'),
+                'UniqueAdIDNextGenAds': F.lit('NextGenAds')
             }
         )
         .withColumn('Treatment', chain_when_thens(CELL_MAP['map']))
@@ -537,6 +581,7 @@ else:
                 "UniqueAdIDBasic",
                 "UniqueAdIDBest",
                 "UniqueAdIDBestChallenger",
+                "UniqueAdIDNextGenAds",
                 "Treatment",
                 "UniqueAdIDMeasurement",
                 "UniqueAdIDAssigned",
@@ -553,6 +598,7 @@ else:
                 "UniqueAdIDBasic",
                 "UniqueAdIDBest",
                 "UniqueAdIDBestChallenger",
+                "UniqueAdIDNextGenAds",
                 "Treatment",
                 "UniqueAdIDMeasurement",
                 "UniqueAdIDAssigned",
