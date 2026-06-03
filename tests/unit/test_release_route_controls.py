@@ -43,6 +43,25 @@ def test_dev_integration_target_uses_dev_workspace_and_schema():
     assert target["presets"]["trigger_pause_status"] == "PAUSED"
 
 
+def test_deployment_pipeline_has_develop_only_dev_integration_route():
+    config = load_yaml("azure-pipelines.yml")
+    stages = {stage["stage"]: stage for stage in config["stages"]}
+
+    deploy_stage = stages["DeployDEVIntegration"]
+    destroy_stage = stages["DestroyDEVIntegration"]
+
+    assert "refs/heads/develop" in deploy_stage["condition"]
+    assert "refs/heads/develop" in destroy_stage["condition"]
+
+    deploy_job = deploy_stage["jobs"][0]["parameters"]
+    destroy_job = destroy_stage["jobs"][0]["parameters"]
+
+    assert deploy_job["target"] == "DEV_INTEGRATION"
+    assert deploy_job["AzureBuildAgentPool"] == "$(agentpool_dev)"
+    assert deploy_job["azureSubscription"] == "$(serviceConnectionName_dev)"
+    assert destroy_job["target"] == "DEV_INTEGRATION"
+
+
 def test_preprod_and_prod_output_routes_are_separate():
     bundle = load_yaml("databricks.yml")
     settings = load_yaml("config/settings.yaml")

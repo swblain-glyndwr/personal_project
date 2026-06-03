@@ -122,7 +122,7 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 
 3. Important: Select your feature/your-feature-name branch from the dropdown.
 
-4. (Optional) Select specific stages in the pipeline you want to run, e.g. Deploy to DEV or Deploy to PREPROD.
+4. (Optional) Select specific stages in the pipeline you want to run. For feature branch testing select `Deploy to DEV`; for merged `develop` integration testing select `Deploy DEV Integration`.
 
 5. Click Run Pipeline.
 
@@ -136,6 +136,7 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | **CI** | Runs unit tests, linting, validation |
 | **Integration Tests** | Runs integration tests in PROD |
 | **Deploy DEV** | Deploys to DEV workspace, tags jobs with git info |
+| **Deploy DEV Integration** | Deploys `develop` to the shared `DEV_INTEGRATION` target |
 | **(Optional) Destroy DEV** | Deletes DEV DABs (helps with DAB development) |
 | **Deploy PREPROD to PROD** | Deploys the selected branch using the PREPROD route |
 | **Deploy PROD** | Run only from an approved production tag on `main` |
@@ -143,6 +144,12 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 ---
 
 > NOTE: The existing deployment pipeline is still manually controlled during the first branch-control rollout. Select the intended branch or tag explicitly and do not use it as an automatic promotion route until the branch-conditioned deployment pipeline has been implemented.
+
+#### DEV Integration Smoke Check
+
+After feature PRs have merged to `develop`, run the deployment pipeline from `develop` and select `Deploy DEV Integration`. This deploys the `DEV_INTEGRATION` target to the DEV Databricks workspace and writes through `USER_SCHEMA=nextads_integration`.
+
+For smoke evidence, run `load_control_sheet`, and run `load_control_sheet_v2` when v2 control sheet changes are in scope. Confirm the output tables are created or updated in `marketingdata_dev.nextads_integration` and that no PREPROD or PROD outputs have changed.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 

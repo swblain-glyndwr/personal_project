@@ -39,7 +39,7 @@ The branch route controls code promotion. The deployment target controls where t
 
 | Stage | Branch source | Deployment purpose | Output expectation |
 | --- | --- | --- | --- |
-| Development or integration validation | `develop` | Check combined changes before creating a release candidate | Must not write to production `warehouse` outputs |
+| Development or integration validation | `develop` | Check combined changes before creating a release candidate | Write to `marketingdata_dev.nextads_integration`, not production outputs |
 | Formal preproduction validation | `release/*` | Validate the release candidate before approval | Write validation outputs to `marketingdata_prod.ds_sandbox`, not `warehouse` |
 | Production | Tagged commit on `main` | Run approved production code | Write approved production outputs to `marketingdata_prod.warehouse` |
 
@@ -49,6 +49,23 @@ For the current setup, PREPROD is schema-based: PREPROD runs in the production D
 validation output != production output
 ds_sandbox        != warehouse
 ```
+
+## DEV Integration Route
+
+`DEV_INTEGRATION` is the shared development integration target for code that has already merged to `develop`.
+
+```text
+develop -> DEV_INTEGRATION -> marketingdata_dev.nextads_integration
+```
+
+Use this route to check whether approved team changes work together before creating a release branch. The deployment pipeline stage is intended to run from `develop`; ordinary feature branches should continue to use the developer-specific `DEV` target for isolated testing.
+
+The smoke workflow for this route is:
+
+1. Deploy `DEV_INTEGRATION` from `develop`.
+2. Run `load_control_sheet`, and run `load_control_sheet_v2` when the v2 control sheet path is in scope.
+3. Confirm the created or updated control sheet tables are in `marketingdata_dev.nextads_integration`.
+4. Confirm no `marketingdata_prod.ds_sandbox` or `marketingdata_prod.warehouse` outputs changed.
 
 ## Feature Route
 

@@ -80,6 +80,41 @@ stages:
           azureSubscription: $(serviceConnectionName_dev)
           KeyVaultName: $(strKeyVaultName)
 
+  - stage: DestroyDEVIntegration
+    displayName: 'Destroy DEV Integration'
+    dependsOn:
+      - CI
+      - IntegrationTests
+    condition: and(succeeded(), eq('${{ parameters.destroyBundle }}', 'true'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    variables:
+    - group: Development
+    jobs:
+      - template: devops/templates/destroy-dab.yml
+        parameters:
+          target: 'DEV_INTEGRATION'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+
+  - stage: DeployDEVIntegration
+    displayName: 'Deploy DEV Integration'
+    dependsOn:
+      - CI
+      - IntegrationTests
+      - DestroyDEVIntegration
+    condition: and(not(failed()), not(canceled()), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    variables:
+    - group: Development
+    jobs:
+      - template: devops/templates/deploy-dab.yml
+        parameters:
+          target: 'DEV_INTEGRATION'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+
   - stage: DestroyPREPROD
     displayName: 'Destroy PREPROD'
     condition: eq('${{ parameters.destroyBundle }}', 'true')
