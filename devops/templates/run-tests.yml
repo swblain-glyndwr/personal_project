@@ -32,6 +32,9 @@ jobs:
       name: '${{ parameters.AzureBuildAgentPool }}'
       vmImage: ubuntu-latest
     steps:
+      - checkout: self
+        fetchDepth: 0
+
       - task: UsePythonVersion@0
         inputs:
           versionSpec: ${{ parameters.pythonVersion }}
