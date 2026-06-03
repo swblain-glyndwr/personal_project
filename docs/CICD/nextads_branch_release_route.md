@@ -82,11 +82,37 @@ If a merged change alters DEV integration table definitions, rerun the setup sta
 
 1. Create `release/*` from `develop` when an agreed set of integrated changes is ready.
 2. Deploy the release branch using the PREPROD route.
-3. Validate that expected jobs, outputs, payloads or files are produced in `ds_sandbox`.
-4. Fix release defects on `release/*` and carry those fixes back to `develop`.
-5. Merge the approved release into `main`.
-6. Create a production tag on `main`.
-7. Deploy production from that tag and record the deployed tag with the release evidence.
+3. Run the PREPROD table setup stage so required validation tables exist in `marketingdata_prod.ds_sandbox`.
+4. Validate that expected jobs, outputs, payloads or files are produced in `ds_sandbox`.
+5. Fix release defects on `release/*` and carry those fixes back to `develop`.
+6. Merge the approved release into `main`.
+7. Create a production tag on `main`.
+8. Deploy production from that tag and record the deployed tag with the release evidence.
+
+### PREPROD Release Validation
+
+The CI/CD pipeline should be run from the `release/*` branch for PREPROD validation. Select `Continuous Integration`, `Deploy PREPROD`, and `Initialize PREPROD Tables`. Do not select PROD stages during PREPROD validation.
+
+The PREPROD setup job is intentionally non-destructive. It creates missing configured write tables in `marketingdata_prod.ds_sandbox` and does not drop or recreate existing tables. If a release needs destructive table migration, record that as a release migration activity outside this routine setup path.
+
+### Azure DevOps Setup
+
+Configure branch policy for `release/*`, or for each release branch immediately after creation if folder policy is not available:
+
+- pull request required;
+- minimum one reviewer;
+- approval reset when new changes are pushed;
+- linked work item required;
+- validation build required;
+- direct pushes restricted to approved administrators only, if the project policy model requires an exception group.
+
+The CI/CD pipeline must be allowed to use the Production library, production service connection and production agent pool. The validation pipeline should remain attached to PR policy for `develop`, `release/*`, `main` and `hotfix/*`.
+
+### Databricks Setup
+
+In the PROD Databricks workspace, confirm `marketingdata_prod.ds_sandbox` exists. The pipeline service principal must be able to deploy bundles, create and run jobs, create missing tables in `marketingdata_prod.ds_sandbox`, and read the required production-side input tables.
+
+PREPROD validation must not require routine write access to `marketingdata_prod.warehouse`. PREPROD jobs run with `job_env=preprod` and should write validation outputs to `marketingdata_prod.ds_sandbox`.
 
 ## Hotfix Route
 
@@ -115,7 +141,10 @@ Each release should record:
 - release scope: work items, defects or pull requests included;
 - release branch used for validation;
 - PREPROD deployment target or parameter and run result;
+- PREPROD table setup result;
 - validation output location, normally `marketingdata_prod.ds_sandbox`;
+- smoke job links and output confirmation;
+- confirmation that PROD stages were not run during PREPROD validation;
 - production approval;
 - production tag deployed;
 - production deployment result and post-release check;

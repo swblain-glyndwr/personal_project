@@ -70,7 +70,7 @@ poetry run pytest tests/unit/test_specific_file.py -v
 
 Deploy your code as job to DEV environment before committing to Git. Create a developer specific feature job for light testing.
 
-Optionally, deploy to PREPROD to run full scale job mirrorring PROD version.
+Do not use PREPROD for ordinary feature branch testing. PREPROD is the Release Owner route for an agreed `release/*` candidate.
 
 ```bash
 # Step 1: Source environment variables
@@ -134,16 +134,17 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | Stage | What It Does |
 |-------|---|
 | **CI** | Runs unit tests, linting, validation |
-| **Integration Tests** | Runs integration tests in PROD |
+| **Integration Tests** | Runs integration tests using the configured production-side route |
 | **Deploy DEV** | Deploys to DEV workspace, tags jobs with git info |
 | **Deploy DEV Integration** | Deploys `develop` to the shared `DEV_INTEGRATION` target |
 | **(Optional) Destroy DEV** | Deletes DEV DABs (helps with DAB development) |
-| **Deploy PREPROD to PROD** | Deploys the selected branch using the PREPROD route |
-| **Deploy PROD** | Run only from an approved production tag on `main` |
+| **Deploy PREPROD** | Deploys only from `release/*` using the PREPROD route |
+| **Initialize PREPROD Tables** | Creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
+| **Deploy PROD** | Runs only from an approved production tag on `main` |
 
 ---
 
-> NOTE: The existing deployment pipeline is still manually controlled during the first branch-control rollout. Select the intended branch or tag explicitly and do not use it as an automatic promotion route until the branch-conditioned deployment pipeline has been implemented.
+> NOTE: The deployment pipeline is still manually queued. Select the intended branch or tag explicitly; branch conditions prevent PREPROD from running outside `release/*` and PROD from running outside tags.
 
 #### DEV Integration Smoke Check
 
@@ -177,9 +178,17 @@ develop -> release/*
 
 Deploy the release branch using the PREPROD route and validate the output before approving production. In the current setup, PREPROD runs in the PROD Databricks workspace using `job_env=preprod`, but writes validation outputs to `marketingdata_prod.ds_sandbox`, not `marketingdata_prod.warehouse`.
 
+The Release Owner runs the pipeline from the `release/*` branch and selects `Continuous Integration`, `Deploy PREPROD`, and `Initialize PREPROD Tables`. The table setup stage is non-destructive: it creates missing configured write tables only.
+
+Before the first PREPROD run for a release, confirm the Azure DevOps pipeline can use the Production library, production service connection and production agent pool. In the PROD Databricks workspace, confirm the pipeline service principal can deploy bundles, create and run jobs, create missing tables in `marketingdata_prod.ds_sandbox`, and read required production-side inputs.
+
+Record the release branch, pipeline run, PREPROD deploy result, PREPROD table setup result, smoke job links, and output location in the release evidence. PREPROD evidence should confirm outputs are in `marketingdata_prod.ds_sandbox` and that PROD stages were not run.
+
 Once approved:
 
 1. Merge `release/*` into `main` by pull request.
 2. Create a production tag on `main`.
 3. Deploy PROD from the tagged commit.
 4. Record the production tag and release evidence.
+
+Hotfixes follow a separate urgent route: create `hotfix/*` from `main`, validate by PR back into `main`, tag `main` for PROD deployment, then merge the hotfix back into `develop` and any active `release/*`.

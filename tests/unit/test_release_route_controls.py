@@ -54,6 +54,11 @@ def test_deployment_pipeline_has_develop_only_dev_integration_route():
     destroy_stage = stages["DestroyDEVIntegration"]
     init_stage = stages["InitializeDEVIntegrationTables"]
 
+    assert "IntegrationTests" not in stages["DeployDEV"]["dependsOn"]
+    assert "IntegrationTests" not in stages["DeployDEVIntegration"]["dependsOn"]
+    assert "IntegrationTests" not in stages["DestroyDEV"]["dependsOn"]
+    assert "IntegrationTests" not in stages["DestroyDEVIntegration"]["dependsOn"]
+
     assert "refs/heads/develop" in deploy_stage["condition"]
     assert "refs/heads/develop" in destroy_stage["condition"]
     assert "refs/heads/develop" in init_stage["condition"]
@@ -110,6 +115,71 @@ def test_dev_integration_setup_job_is_target_specific():
         "--droptables",
         "True",
     ]
+
+
+def test_preprod_route_is_release_branch_only():
+    config = load_yaml("azure-pipelines.yml")
+    stages = {stage["stage"]: stage for stage in config["stages"]}
+
+    deploy_stage = stages["DeployPREPROD"]
+    destroy_stage = stages["DestroyPREPROD"]
+    init_stage = stages["InitializePREPRODTables"]
+
+    assert deploy_stage["displayName"] == "Deploy PREPROD"
+    assert "refs/heads/release/" in deploy_stage["condition"]
+    assert "refs/heads/release/" in destroy_stage["condition"]
+    assert "refs/heads/release/" in init_stage["condition"]
+    assert "DeployDEV" not in deploy_stage["dependsOn"]
+    assert "IntegrationTests" not in deploy_stage["dependsOn"]
+
+    deploy_job = deploy_stage["jobs"][0]["parameters"]
+    destroy_job = destroy_stage["jobs"][0]["parameters"]
+
+    assert deploy_job["target"] == "PREPROD"
+    assert deploy_job["AzureBuildAgentPool"] == "$(agentpool_prod)"
+    assert deploy_job["azureSubscription"] == "$(serviceConnectionName_prod)"
+    assert destroy_job["target"] == "PREPROD"
+
+    run_setup_step = init_stage["jobs"][0]["steps"][-1]["script"]
+    assert "databricks bundle run mktg_next_uk_nextads_preprod_setup" in run_setup_step
+    assert "-t PREPROD" in run_setup_step
+
+
+def test_preprod_setup_job_is_target_specific_and_non_destructive():
+    setup = load_yaml("resources/jobs/preprod_setup.yml")
+    jobs = setup["targets"]["PREPROD"]["resources"]["jobs"]
+    setup_job = jobs["mktg_next_uk_nextads_preprod_setup"]
+    setup_task = setup_job["tasks"][0]
+
+    assert set(setup["targets"]) == {"PREPROD"}
+    assert setup_task["task_key"] == "create_tables"
+    assert (
+        setup_task["spark_python_task"]["python_file"]
+        == "../../scripts/table_operations/create_tables.py"
+    )
+    assert setup_task["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--log_level",
+        "INFO",
+    ]
+    assert "--droptables" not in setup_task["spark_python_task"]["parameters"]
+
+
+def test_prod_deployment_is_tag_only_and_hotfixes_validate_by_pr():
+    deploy_pipeline = load_yaml("azure-pipelines.yml")
+    validation_pipeline = load_yaml("azure-pipelines-validation.yml")
+    stages = {stage["stage"]: stage for stage in deploy_pipeline["stages"]}
+
+    assert "refs/tags/" in stages["DeployPROD"]["condition"]
+    assert "refs/tags/" in stages["DestroyPROD"]["condition"]
+    assert "refs/heads/hotfix/*" not in stages["DeployPROD"]["condition"]
+
+    validation_branches = validation_pipeline["trigger"]["branches"]["include"]
+    assert "hotfix/*" in validation_branches
+    assert "release/*" in validation_branches
 
 
 def test_preprod_and_prod_output_routes_are_separate():

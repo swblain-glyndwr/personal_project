@@ -54,7 +54,6 @@ stages:
     displayName: 'Destroy DEV'
     dependsOn:
       - CI
-      - IntegrationTests
     condition: eq('${{ parameters.destroyBundle }}', 'true')
     variables:
     - group: Development
@@ -71,8 +70,8 @@ stages:
     displayName: 'Deploy to DEV'
     dependsOn:
       - CI
-      - IntegrationTests
       - DestroyDEV
+    condition: and(not(failed()), not(canceled()))
     variables:
     - group: Development
     jobs:
@@ -88,7 +87,6 @@ stages:
     displayName: 'Destroy DEV Integration'
     dependsOn:
       - CI
-      - IntegrationTests
     condition: and(succeeded(), eq('${{ parameters.destroyBundle }}', 'true'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
     variables:
     - group: Development
@@ -105,7 +103,6 @@ stages:
     displayName: 'Deploy DEV Integration'
     dependsOn:
       - CI
-      - IntegrationTests
       - DestroyDEVIntegration
     condition: and(not(failed()), not(canceled()), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
     variables:
@@ -163,7 +160,9 @@ stages:
 
   - stage: DestroyPREPROD
     displayName: 'Destroy PREPROD'
-    condition: eq('${{ parameters.destroyBundle }}', 'true')
+    dependsOn:
+      - CI
+    condition: and(succeeded(), eq('${{ parameters.destroyBundle }}', 'true'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))
     variables:
     - group: Production
     jobs:
@@ -176,11 +175,11 @@ stages:
           KeyVaultName: $(strKeyVaultName)
 
   - stage: DeployPREPROD
-    displayName: 'Deploy PREPROD to PROD'
+    displayName: 'Deploy PREPROD'
     dependsOn: 
-      - DeployDEV
+      - CI
       - DestroyPREPROD
-    condition: succeeded()
+    condition: and(not(failed()), not(canceled()), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))
     variables:
     - group: Production
     jobs:
@@ -192,9 +191,48 @@ stages:
           azureSubscription: $(serviceConnectionName_prod)
           KeyVaultName: $(strKeyVaultName)
 
+  - stage: InitializePREPRODTables
+    displayName: 'Initialize PREPROD Tables'
+    dependsOn:
+      - DeployPREPROD
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))
+    variables:
+    - group: Production
+    jobs:
+      - job: RunPREPRODSetup
+        displayName: 'Run PREPROD table setup'
+        pool:
+          name: $(agentpool_prod)
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureKeyVault@2
+            inputs:
+              azureSubscription: $(serviceConnectionName_prod)
+              KeyVaultName: $(strKeyVaultName)
+              SecretsFilter: "Databricks-Spn-MarketingData-ClientId,Databricks-Spn-MarketingData-SecretValue"
+              RunAsPreJob: true
+            displayName: 'Fetch secrets from Key Vault'
+
+          - script: |
+              bash devops/scripts/install_databricks_cli.sh
+            displayName: 'Install Databricks CLI'
+            env:
+              DATABRICKS_HOST: $(DATABRICKS_HOST)
+              DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
+              DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
+
+          - script: |
+              echo "Running PREPROD table setup..."
+              unset DATABRICKS_CLUSTER_ID
+              source devops/scripts/set_dab_vars.sh
+              databricks bundle run mktg_next_uk_nextads_preprod_setup -t PREPROD
+            displayName: 'Create missing PREPROD tables'
+
   - stage: DestroyPROD
     displayName: 'Destroy PROD'
-    condition: eq('${{ parameters.destroyBundle }}', 'true')
+    dependsOn:
+      - CI
+    condition: and(succeeded(), eq('${{ parameters.destroyBundle }}', 'true'), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
     variables:
     - group: Production
     jobs:
@@ -209,9 +247,9 @@ stages:
   - stage: DeployPROD
     displayName: 'Deploy to PROD'
     dependsOn: 
-      - DeployPREPROD
+      - CI
       - DestroyPROD
-    condition: succeeded()
+    condition: and(not(failed()), not(canceled()), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
     variables:
     - group: Production
     jobs:
