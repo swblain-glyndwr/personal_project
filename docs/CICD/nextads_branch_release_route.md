@@ -63,9 +63,12 @@ Use this route to check whether approved team changes work together before creat
 The smoke workflow for this route is:
 
 1. Deploy `DEV_INTEGRATION` from `develop`.
-2. Run `load_control_sheet`, and run `load_control_sheet_v2` when the v2 control sheet path is in scope.
-3. Confirm the created or updated control sheet tables are in `marketingdata_dev.nextads_integration`.
-4. Confirm no `marketingdata_prod.ds_sandbox` or `marketingdata_prod.warehouse` outputs changed.
+2. Run the DEV integration table setup job to create any missing shared DEV tables.
+3. Run `load_control_sheet`, and run `load_control_sheet_v2` when the v2 control sheet path is in scope.
+4. Confirm the created or updated control sheet tables are in `marketingdata_dev.nextads_integration`.
+5. Confirm no `marketingdata_prod.ds_sandbox` or `marketingdata_prod.warehouse` outputs changed.
+
+If a merged change alters DEV integration table definitions, rerun the setup stage with `Recreate DEV integration tables` enabled. This drops and recreates configured write tables in `marketingdata_dev.nextads_integration` only; do not use it as a routine smoke step because it clears shared DEV integration outputs.
 
 ## Feature Route
 

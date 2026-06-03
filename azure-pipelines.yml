@@ -10,6 +10,10 @@ parameters:
     type: boolean
     default: "false"
     displayName: 'Delete DAB resources'
+  - name: recreateDevIntegrationTables
+    type: boolean
+    default: "false"
+    displayName: 'Recreate DEV integration tables'
 
 variables:
   - template: devops/variables/common.yml
@@ -114,6 +118,48 @@ stages:
           AzureBuildAgentPool: $(agentpool_dev)
           azureSubscription: $(serviceConnectionName_dev)
           KeyVaultName: $(strKeyVaultName)
+
+  - stage: InitializeDEVIntegrationTables
+    displayName: 'Initialize DEV Integration Tables'
+    dependsOn:
+      - DeployDEVIntegration
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    variables:
+    - group: Development
+    jobs:
+      - job: RunDEVIntegrationSetup
+        displayName: 'Run DEV integration table setup'
+        pool:
+          name: $(agentpool_dev)
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureKeyVault@2
+            inputs:
+              azureSubscription: $(serviceConnectionName_dev)
+              KeyVaultName: $(strKeyVaultName)
+              SecretsFilter: "Databricks-Spn-MarketingData-ClientId,Databricks-Spn-MarketingData-SecretValue"
+              RunAsPreJob: true
+            displayName: 'Fetch secrets from Key Vault'
+
+          - script: |
+              bash devops/scripts/install_databricks_cli.sh
+            displayName: 'Install Databricks CLI'
+            env:
+              DATABRICKS_HOST: $(DATABRICKS_HOST)
+              DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
+              DATABRICKS_CLIENT_SECRET: $(Databricks-Spn-MarketingData-SecretValue)
+
+          - script: |
+              echo "Running DEV integration table setup..."
+              unset DATABRICKS_CLUSTER_ID
+              source devops/scripts/set_dab_vars.sh
+              if [ '${{ parameters.recreateDevIntegrationTables }}' = 'true' ]; then
+                echo "Recreating DEV integration tables before setup..."
+                databricks bundle run mktg_next_uk_nextads_dev_integration_migrate -t DEV_INTEGRATION
+              else
+                databricks bundle run mktg_next_uk_nextads_dev_integration_setup -t DEV_INTEGRATION
+              fi
+            displayName: 'Create missing DEV integration tables'
 
   - stage: DestroyPREPROD
     displayName: 'Destroy PREPROD'

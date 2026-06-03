@@ -147,7 +147,9 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 
 #### DEV Integration Smoke Check
 
-After feature PRs have merged to `develop`, run the deployment pipeline from `develop` and select `Deploy DEV Integration`. This deploys the `DEV_INTEGRATION` target to the DEV Databricks workspace and writes through `USER_SCHEMA=nextads_integration`.
+After feature PRs have merged to `develop`, run the deployment pipeline from `develop` and select `Deploy DEV Integration` and `Initialize DEV Integration Tables`. This deploys the `DEV_INTEGRATION` target to the DEV Databricks workspace, creates any missing shared DEV tables, and writes through `USER_SCHEMA=nextads_integration`.
+
+Leave `Recreate DEV integration tables` unticked for normal runs. Tick it only when a merged change intentionally changes table definitions and the shared DEV integration tables need to be dropped and recreated.
 
 For smoke evidence, run `load_control_sheet`, and run `load_control_sheet_v2` when v2 control sheet changes are in scope. Confirm the output tables are created or updated in `marketingdata_dev.nextads_integration` and that no PREPROD or PROD outputs have changed.
 

@@ -47,11 +47,16 @@ def test_deployment_pipeline_has_develop_only_dev_integration_route():
     config = load_yaml("azure-pipelines.yml")
     stages = {stage["stage"]: stage for stage in config["stages"]}
 
+    parameter_names = {parameter["name"] for parameter in config["parameters"]}
+    assert "recreateDevIntegrationTables" in parameter_names
+
     deploy_stage = stages["DeployDEVIntegration"]
     destroy_stage = stages["DestroyDEVIntegration"]
+    init_stage = stages["InitializeDEVIntegrationTables"]
 
     assert "refs/heads/develop" in deploy_stage["condition"]
     assert "refs/heads/develop" in destroy_stage["condition"]
+    assert "refs/heads/develop" in init_stage["condition"]
 
     deploy_job = deploy_stage["jobs"][0]["parameters"]
     destroy_job = destroy_stage["jobs"][0]["parameters"]
@@ -60,6 +65,51 @@ def test_deployment_pipeline_has_develop_only_dev_integration_route():
     assert deploy_job["AzureBuildAgentPool"] == "$(agentpool_dev)"
     assert deploy_job["azureSubscription"] == "$(serviceConnectionName_dev)"
     assert destroy_job["target"] == "DEV_INTEGRATION"
+
+    run_setup_step = init_stage["jobs"][0]["steps"][-1]["script"]
+    assert (
+        "databricks bundle run mktg_next_uk_nextads_dev_integration_setup"
+        in run_setup_step
+    )
+    assert (
+        "databricks bundle run mktg_next_uk_nextads_dev_integration_migrate"
+        in run_setup_step
+    )
+
+
+def test_dev_integration_setup_job_is_target_specific():
+    setup = load_yaml("resources/jobs/dev_integration_setup.yml")
+    jobs = setup["targets"]["DEV_INTEGRATION"]["resources"]["jobs"]
+    setup_job = jobs["mktg_next_uk_nextads_dev_integration_setup"]
+    migrate_job = jobs["mktg_next_uk_nextads_dev_integration_migrate"]
+    setup_task = setup_job["tasks"][0]
+    migrate_task = migrate_job["tasks"][0]
+
+    assert set(setup["targets"]) == {"DEV_INTEGRATION"}
+    assert setup_task["task_key"] == "create_tables"
+    assert (
+        setup_task["spark_python_task"]["python_file"]
+        == "../../scripts/table_operations/create_tables.py"
+    )
+    assert setup_task["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--log_level",
+        "INFO",
+    ]
+    assert migrate_task["task_key"] == "recreate_tables"
+    assert migrate_task["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--log_level",
+        "INFO",
+        "--droptables",
+        "True",
+    ]
 
 
 def test_preprod_and_prod_output_routes_are_separate():
