@@ -102,7 +102,28 @@ jobs:
           if [ "${{ parameters.continueOnError }}" = "true" ]; then
             poetry run ruff check || echo "WARNING: Formatting or linting issues"
           else
-            poetry run ruff check
+            if [ -n "${SYSTEM_PULLREQUEST_TARGETBRANCH:-}" ]; then
+              TARGET_BRANCH="${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
+              git fetch origin "$TARGET_BRANCH" --depth=1
+              mapfile -t CHANGED_PYTHON_FILES < <(
+                git diff --name-only --diff-filter=ACMR "origin/$TARGET_BRANCH"...HEAD -- "*.py"
+              )
+            elif git rev-parse HEAD~1 >/dev/null 2>&1; then
+              mapfile -t CHANGED_PYTHON_FILES < <(
+                git diff --name-only --diff-filter=ACMR HEAD~1 HEAD -- "*.py"
+              )
+            else
+              mapfile -t CHANGED_PYTHON_FILES < <(git ls-files "*.py")
+            fi
+
+            if [ "${#CHANGED_PYTHON_FILES[@]}" -eq 0 ]; then
+              echo "No changed Python files to lint."
+              exit 0
+            fi
+
+            printf 'Changed Python files to lint:\n'
+            printf '%s\n' "${CHANGED_PYTHON_FILES[@]}"
+            poetry run ruff check "${CHANGED_PYTHON_FILES[@]}"
           fi
         displayName: 'Lint code'
         condition: |

@@ -16,6 +16,9 @@ pr: none # Azure Repos PR validation is configured with branch policies.
 
 variables:
   - template: devops/variables/common.yml
+  # DE-managed DEV validation cluster for PR checks.
+  - name: DATABRICKS_VALIDATION_CLUSTER_ID
+    value: '0601-153604-54oxsrsi'
 
 stages:
   - stage: Validate
@@ -31,7 +34,7 @@ stages:
           KeyVaultName: $(strKeyVaultName)
           testType: 'unit'
           target: 'DEV_INTEGRATION'
-          databricksClusterId: $(DATABRICKS_CLUSTER_ID_15_4)
+          databricksClusterId: $(DATABRICKS_VALIDATION_CLUSTER_ID)
           continueOnError: false
 
       - template: devops/templates/validate-dab.yml
