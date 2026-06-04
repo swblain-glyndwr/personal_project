@@ -142,6 +142,8 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | **Smoke PREPROD Dependencies** | Runs a metadata-only PREPROD dependency check without reading rows or altering tables |
 | **Initialize PREPROD Tables** | Optional setup stage that creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
 | **Deploy PROD** | Runs only from an approved production tag on `main` |
+| **Initialize PREPROD Tables** | Creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
+| **Deploy PROD** | Runs only from an approved `nextads-vYYYY.MM.DD.N` production tag on `main` |
 
 ---
 
@@ -190,8 +192,13 @@ Record the release branch, pipeline run, PREPROD deploy result, metadata-only PR
 Once approved:
 
 1. Merge `release/*` into `main` by pull request.
-2. Create a production tag on `main`.
-3. Deploy PROD from the tagged commit.
-4. Record the production tag and release evidence.
+2. Create a production tag on the approved `main` commit using `nextads-vYYYY.MM.DD.N`, for example `nextads-v2026.06.04.1`.
+3. Manually run `mktg-next-ads-ci-cd` from that tag.
+4. Select `Continuous Integration` and `Deploy to PROD` only.
+5. Record the validated `release/*` branch, PREPROD evidence, main PR, production tag, PROD pipeline run and included work items in the release evidence.
 
-Hotfixes follow a separate urgent route: create `hotfix/*` from `main`, validate by PR back into `main`, tag `main` for PROD deployment, then merge the hotfix back into `develop` and any active `release/*`.
+Do not create production tags from `develop`, `release/*`, `hotfix/*` or feature branches. The production tag identifies the exact approved `main` version deployed to `marketingdata_prod.warehouse`.
+
+Before promoting to production, configure the `main` branch policy with required PR review, linked work item, approval reset, and required build validation using `mktg-next-ads-validation` with display name `NextAds main validation`. Production tag creation should be restricted to Release Owners or approved administrators.
+
+Hotfixes follow a separate urgent route: create `hotfix/*` from `main`, validate by PR back into `main`, tag the resulting `main` commit using `nextads-vYYYY.MM.DD.N`, manually deploy PROD from that tag, then merge or cherry-pick the hotfix back into `develop` and any active `release/*`.

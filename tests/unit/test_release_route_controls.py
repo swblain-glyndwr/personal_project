@@ -216,14 +216,50 @@ def test_prod_deployment_is_tag_only_and_hotfixes_validate_by_pr():
     deploy_pipeline = load_yaml("azure-pipelines.yml")
     validation_pipeline = load_yaml("azure-pipelines-validation.yml")
     stages = {stage["stage"]: stage for stage in deploy_pipeline["stages"]}
+    deploy_condition = stages["DeployPROD"]["condition"]
+    destroy_condition = stages["DestroyPROD"]["condition"]
 
-    assert "refs/tags/" in stages["DeployPROD"]["condition"]
-    assert "refs/tags/" in stages["DestroyPROD"]["condition"]
-    assert "refs/heads/hotfix/*" not in stages["DeployPROD"]["condition"]
+    assert "refs/tags/" in deploy_condition
+    assert "refs/tags/" in destroy_condition
+
+    branch_refs_not_allowed_for_prod = [
+        "refs/heads/develop",
+        "refs/heads/main",
+        "refs/heads/release/",
+        "refs/heads/hotfix/",
+        "refs/heads/hotfix/*",
+    ]
+    for branch_ref in branch_refs_not_allowed_for_prod:
+        assert branch_ref not in deploy_condition
+        assert branch_ref not in destroy_condition
 
     validation_branches = validation_pipeline["trigger"]["branches"]["include"]
+    assert "main" in validation_branches
     assert "hotfix/*" in validation_branches
     assert "release/*" in validation_branches
+
+
+def test_production_release_documentation_defines_tagged_route_and_evidence():
+    release_route_doc = (
+        PROJECT_ROOT / "docs/CICD/nextads_branch_release_route.md"
+    ).read_text()
+    workflow_doc = (PROJECT_ROOT / "docs/developer_workflow_guide.md").read_text()
+    docs = f"{release_route_doc}\n{workflow_doc}"
+
+    required_release_controls = [
+        "nextads-vYYYY.MM.DD.N",
+        "manual PROD pipeline run",
+        "mktg-next-ads-ci-cd",
+        "mktg-next-ads-validation",
+        "NextAds main validation",
+        "main PR",
+        "production tag",
+        "PROD pipeline run",
+        "validated `release/*` branch",
+        "Do not create production tags from `develop`, `release/*`, `hotfix/*`",
+    ]
+    for required_text in required_release_controls:
+        assert required_text in docs
 
 
 def test_preprod_and_prod_output_routes_are_separate():

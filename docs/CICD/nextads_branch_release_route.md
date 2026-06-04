@@ -1,7 +1,7 @@
 # NextAds Branch and Release Route
 
 Status: Proposed working agreement  
-Related work item: User Story 5111663 / 5111799  
+Related work item: User Story 5111663 / 5111799 / 5111813  
 Release owner: Stephen Blain
 
 ## Purpose
@@ -28,7 +28,7 @@ feature/* -> develop -> release/* -> main -> tag -> PROD
 | `feature/*` | Isolate one coherent change or user story | No production deployment |
 | `develop` | Combine completed features for integrated testing | DEV integration validation only |
 | `release/*` | Hold a controlled release candidate | PREPROD validation |
-| `main` | Represent the approved production baseline | Production only through a tag |
+| `main` | Represent the approved production baseline | Production only through a `nextads-vYYYY.MM.DD.N` tag |
 | `hotfix/*` | Correct an urgent production issue | Validate, merge to `main`, tag, then merge back |
 
 Direct feature development into `main` is not part of this route.
@@ -86,7 +86,7 @@ If a merged change alters DEV integration table definitions, rerun the setup sta
 4. Validate that expected jobs, outputs, payloads or files are produced in `ds_sandbox`.
 5. Fix release defects on `release/*` and carry those fixes back to `develop`.
 6. Merge the approved release into `main`.
-7. Create a production tag on `main`.
+7. Create a production tag on the approved `main` commit.
 8. Deploy production from that tag and record the deployed tag with the release evidence.
 
 ### PREPROD Release Validation
@@ -96,6 +96,26 @@ The CI/CD pipeline should be run from the `release/*` branch for PREPROD validat
 The PREPROD dependency smoke job is metadata-only by default. It validates package/config resolution, `job_env=preprod`, the `marketingdata_prod.ds_sandbox` output route, required schemas and configured read table metadata without reading rows or altering tables.
 
 The PREPROD table setup job is intentionally non-destructive, but it still changes metadata by creating missing configured write tables in `marketingdata_prod.ds_sandbox`. Use `Initialize PREPROD Tables` only when setting up the route or after an agreed schema/table change. If a release needs destructive table migration, record that as a release migration activity outside this routine setup path.
+
+### Tagged Production Release
+
+Production deployment is a separate tagged release step. The CI/CD pipeline remains manually queued (`trigger: none`), and the Release Owner must select the production tag under pipeline version before starting a manual PROD pipeline run.
+
+Use production tags in this format:
+
+```text
+nextads-vYYYY.MM.DD.N
+```
+
+Example:
+
+```text
+nextads-v2026.06.04.1
+```
+
+Increment `.N` when more than one production release is made on the same date. Tags must point to commits already merged to `main`. Do not create production tags from `develop`, `release/*`, `hotfix/*` or feature branches.
+
+For a production release run, select `Continuous Integration` and `Deploy to PROD` only. Do not select DEV, DEV Integration, PREPROD or destructive stages. PROD deployment stages are guarded by tag conditions in `azure-pipelines.yml`; untagged `main` is not the production deployment route.
 
 ### Azure DevOps Setup
 
@@ -110,6 +130,19 @@ Configure branch policy for `release/*`, or for each release branch immediately 
 
 The CI/CD pipeline must be allowed to use the Production library, production service connection and production agent pool. The validation pipeline should remain attached to PR policy for `develop`, `release/*`, `main` and `hotfix/*`.
 
+Configure `main` branch policy before production promotion:
+
+- pull request required;
+- minimum one reviewer;
+- approval reset when new changes are pushed;
+- linked work item required;
+- comment resolution required where the team wants comments to block;
+- required build validation using `mktg-next-ads-validation`;
+- build expiration immediately when `main` is updated;
+- display name `NextAds main validation`.
+
+Restrict production tag creation to Release Owners or approved administrators. Normal contributors should not be able to create, force-update or delete production tags.
+
 ### Databricks Setup
 
 In the PROD Databricks workspace, confirm `marketingdata_prod.ds_sandbox` exists. The pipeline service principal must be able to deploy bundles, create and run jobs, create missing tables in `marketingdata_prod.ds_sandbox`, and read the required production-side input tables.
@@ -119,12 +152,21 @@ PREPROD validation must not require routine write access to `marketingdata_prod.
 ## Hotfix Route
 
 ```text
-main -> hotfix/* -> validation -> main -> tag -> PROD
+main -> hotfix/* -> validation -> main -> nextads-vYYYY.MM.DD.N -> PROD
                              \-> develop
                              \-> active release/* where relevant
 ```
 
 A hotfix is for an urgent correction to code already in production. It should be the smallest safe change required, validated through a non-production output route wherever possible, then merged back into `develop` and any active `release/*` branch that would otherwise reintroduce the issue.
+
+Hotfix production deployment uses the same tag convention as normal releases:
+
+1. Create `hotfix/*` from `main`.
+2. Raise a PR back into `main` and wait for validation.
+3. Tag the resulting `main` commit using `nextads-vYYYY.MM.DD.N`.
+4. Manually run `mktg-next-ads-ci-cd` from the tag and select `Continuous Integration` and `Deploy to PROD`.
+5. Record the hotfix branch, main PR, production tag and PROD pipeline run in release evidence.
+6. PR or cherry-pick the hotfix back into `develop` and any active `release/*`.
 
 ## Pull Request and Branch Policy
 
@@ -141,23 +183,24 @@ A hotfix is for an urgent correction to code already in production. It should be
 Each release should record:
 
 - release scope: work items, defects or pull requests included;
-- release branch used for validation;
+- validated `release/*` branch used for PREPROD;
 - PREPROD deployment target or parameter and run result;
 - PREPROD dependency smoke result;
 - PREPROD table setup result, if run;
 - validation output location, normally `marketingdata_prod.ds_sandbox`;
 - smoke job links and output confirmation;
 - confirmation that PROD stages were not run during PREPROD validation;
+- main PR used to approve the release;
 - production approval;
-- production tag deployed;
+- production tag deployed, using `nextads-vYYYY.MM.DD.N`;
 - production deployment result and post-release check;
+- PROD pipeline run link;
 - issues, rollback or follow-up required.
 
 ## Decisions for Later Rollout
 
 The first rollout creates branch control plus validation. The later deployment-routing rollout should decide:
 
-- final release tag naming convention;
 - exact branch-conditioned deployment triggers;
 - whether branch-isolated PREPROD is added for exceptional risky changes;
 - operational rollback steps for Databricks jobs and data outputs.
