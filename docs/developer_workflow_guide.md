@@ -139,7 +139,8 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | **Deploy DEV Integration** | Deploys `develop` to the shared `DEV_INTEGRATION` target |
 | **(Optional) Destroy DEV** | Deletes DEV DABs (helps with DAB development) |
 | **Deploy PREPROD** | Deploys only from `release/*` using the PREPROD route |
-| **Initialize PREPROD Tables** | Creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
+| **Smoke PREPROD Dependencies** | Runs a metadata-only PREPROD dependency check without reading rows or altering tables |
+| **Initialize PREPROD Tables** | Optional setup stage that creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
 | **Deploy PROD** | Runs only from an approved production tag on `main` |
 
 ---
@@ -178,11 +179,13 @@ develop -> release/*
 
 Deploy the release branch using the PREPROD route and validate the output before approving production. In the current setup, PREPROD runs in the PROD Databricks workspace using `job_env=preprod`, but writes validation outputs to `marketingdata_prod.ds_sandbox`, not `marketingdata_prod.warehouse`.
 
-The Release Owner runs the pipeline from the `release/*` branch and selects `Continuous Integration`, `Deploy PREPROD`, and `Initialize PREPROD Tables`. The table setup stage is non-destructive: it creates missing configured write tables only.
+The Release Owner runs the pipeline from the `release/*` branch and selects `Continuous Integration`, `Deploy PREPROD`, and `Smoke PREPROD Dependencies`. This smoke check is metadata-only by default and does not read rows, create, delete, append, overwrite or otherwise alter tables.
+
+Use `Initialize PREPROD Tables` only when the release owner has agreed that missing PREPROD validation tables should be created. The table setup stage is non-destructive, but it still changes metadata by creating missing configured write tables.
 
 Before the first PREPROD run for a release, confirm the Azure DevOps pipeline can use the Production library, production service connection and production agent pool. In the PROD Databricks workspace, confirm the pipeline service principal can deploy bundles, create and run jobs, create missing tables in `marketingdata_prod.ds_sandbox`, and read required production-side inputs.
 
-Record the release branch, pipeline run, PREPROD deploy result, PREPROD table setup result, smoke job links, and output location in the release evidence. PREPROD evidence should confirm outputs are in `marketingdata_prod.ds_sandbox` and that PROD stages were not run.
+Record the release branch, pipeline run, PREPROD deploy result, metadata-only PREPROD dependency smoke result, and output route in the release evidence. PREPROD evidence should confirm the configured output route is `marketingdata_prod.ds_sandbox`, that no PREPROD tables were altered by the smoke check, and that PROD stages were not run.
 
 Once approved:
 

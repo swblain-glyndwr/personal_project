@@ -14,6 +14,7 @@ include:
   - resources/jobs/table_size_monitoring.yml
   - resources/jobs/dev_integration_setup.yml
   - resources/jobs/preprod_setup.yml
+  - resources/jobs/preprod_dependency_smoke.yml
 
 sync:
   exclude:

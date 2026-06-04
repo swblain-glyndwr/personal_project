@@ -82,7 +82,7 @@ If a merged change alters DEV integration table definitions, rerun the setup sta
 
 1. Create `release/*` from `develop` when an agreed set of integrated changes is ready.
 2. Deploy the release branch using the PREPROD route.
-3. Run the PREPROD table setup stage so required validation tables exist in `marketingdata_prod.ds_sandbox`.
+3. Run the metadata-only PREPROD dependency smoke check.
 4. Validate that expected jobs, outputs, payloads or files are produced in `ds_sandbox`.
 5. Fix release defects on `release/*` and carry those fixes back to `develop`.
 6. Merge the approved release into `main`.
@@ -91,9 +91,11 @@ If a merged change alters DEV integration table definitions, rerun the setup sta
 
 ### PREPROD Release Validation
 
-The CI/CD pipeline should be run from the `release/*` branch for PREPROD validation. Select `Continuous Integration`, `Deploy PREPROD`, and `Initialize PREPROD Tables`. Do not select PROD stages during PREPROD validation.
+The CI/CD pipeline should be run from the `release/*` branch for PREPROD validation. Select `Continuous Integration`, `Deploy PREPROD`, and `Smoke PREPROD Dependencies`. Do not select PROD stages during PREPROD validation.
 
-The PREPROD setup job is intentionally non-destructive. It creates missing configured write tables in `marketingdata_prod.ds_sandbox` and does not drop or recreate existing tables. If a release needs destructive table migration, record that as a release migration activity outside this routine setup path.
+The PREPROD dependency smoke job is metadata-only by default. It validates package/config resolution, `job_env=preprod`, the `marketingdata_prod.ds_sandbox` output route, required schemas and configured read table metadata without reading rows or altering tables.
+
+The PREPROD table setup job is intentionally non-destructive, but it still changes metadata by creating missing configured write tables in `marketingdata_prod.ds_sandbox`. Use `Initialize PREPROD Tables` only when setting up the route or after an agreed schema/table change. If a release needs destructive table migration, record that as a release migration activity outside this routine setup path.
 
 ### Azure DevOps Setup
 
@@ -141,7 +143,8 @@ Each release should record:
 - release scope: work items, defects or pull requests included;
 - release branch used for validation;
 - PREPROD deployment target or parameter and run result;
-- PREPROD table setup result;
+- PREPROD dependency smoke result;
+- PREPROD table setup result, if run;
 - validation output location, normally `marketingdata_prod.ds_sandbox`;
 - smoke job links and output confirmation;
 - confirmation that PROD stages were not run during PREPROD validation;

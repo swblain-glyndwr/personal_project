@@ -124,13 +124,16 @@ def test_preprod_route_is_release_branch_only():
     deploy_stage = stages["DeployPREPROD"]
     destroy_stage = stages["DestroyPREPROD"]
     init_stage = stages["InitializePREPRODTables"]
+    smoke_stage = stages["SmokePREPRODDependencies"]
 
     assert deploy_stage["displayName"] == "Deploy PREPROD"
     assert "refs/heads/release/" in deploy_stage["condition"]
     assert "refs/heads/release/" in destroy_stage["condition"]
     assert "refs/heads/release/" in init_stage["condition"]
+    assert "refs/heads/release/" in smoke_stage["condition"]
     assert "DeployDEV" not in deploy_stage["dependsOn"]
     assert "IntegrationTests" not in deploy_stage["dependsOn"]
+    assert smoke_stage["dependsOn"] == ["DeployPREPROD"]
 
     deploy_job = deploy_stage["jobs"][0]["parameters"]
     destroy_job = destroy_stage["jobs"][0]["parameters"]
@@ -143,6 +146,10 @@ def test_preprod_route_is_release_branch_only():
     run_setup_step = init_stage["jobs"][0]["steps"][-1]["script"]
     assert "databricks bundle run mktg_next_uk_nextads_preprod_setup" in run_setup_step
     assert "-t PREPROD" in run_setup_step
+
+    run_smoke_step = smoke_stage["jobs"][0]["steps"][-1]["script"]
+    assert "databricks bundle run mktg_next_uk_nextads_preprod_dependency_smoke" in run_smoke_step
+    assert "-t PREPROD" in run_smoke_step
 
 
 def test_preprod_setup_job_is_target_specific_and_non_destructive():
@@ -166,6 +173,43 @@ def test_preprod_setup_job_is_target_specific_and_non_destructive():
         "INFO",
     ]
     assert "--droptables" not in setup_task["spark_python_task"]["parameters"]
+
+
+def test_preprod_dependency_smoke_job_is_metadata_only_and_target_specific():
+    setup = load_yaml("resources/jobs/preprod_dependency_smoke.yml")
+    jobs = setup["targets"]["PREPROD"]["resources"]["jobs"]
+    smoke_job = jobs["mktg_next_uk_nextads_preprod_dependency_smoke"]
+    smoke_task = smoke_job["tasks"][0]
+
+    assert set(setup["targets"]) == {"PREPROD"}
+    assert smoke_task["task_key"] == "dependency_smoke"
+    assert (
+        smoke_task["spark_python_task"]["python_file"]
+        == "../../scripts/smoke/preprod_dependency_smoke.py"
+    )
+    assert smoke_task["spark_python_task"]["parameters"] == [
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--sample_read_count",
+        "0",
+        "--log_level",
+        "INFO",
+    ]
+
+    script = (PROJECT_ROOT / "scripts/smoke/preprod_dependency_smoke.py").read_text()
+    banned_write_operations = [
+        "saveAsTable",
+        "write.",
+        "DELETE FROM",
+        "INSERT INTO",
+        "DROP TABLE",
+        "TRUNCATE TABLE",
+        "CREATE TABLE",
+    ]
+    for operation in banned_write_operations:
+        assert operation not in script
+
+    assert "Skipping sample reads; metadata-only smoke requested" in script
 
 
 def test_prod_deployment_is_tag_only_and_hotfixes_validate_by_pr():
