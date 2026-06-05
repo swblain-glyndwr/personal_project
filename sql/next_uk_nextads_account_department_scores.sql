@@ -43,8 +43,8 @@ views_app as(
     SELECT
         AccountNumber_RPID,
         ProductSKU AS itemnumber
-    FROM marketingdata_prod.marketingdata_prod.warehouse.bq_views_next_uk_app
-    INNER JOIN marketingdata_prod.marketingdata_prod.warehouse.bq_sessions_next_uk_app USING (UniqueVisitID, DATE)
+    FROM marketingdata_prod.warehouse.bq_views_next_uk_app
+    INNER JOIN marketingdata_prod.warehouse.bq_sessions_next_uk_app USING (UniqueVisitID, DATE)
     WHERE date between date_add(current_date, -60) and current_date
         AND ProductSKU is not null
         AND AccountNumber_RPID is not null
