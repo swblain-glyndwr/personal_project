@@ -4,6 +4,7 @@ create table {catalog}.{schema}.{client}_nextads_assignments (
     UniqueAdIDBasic string,
     UniqueAdIDBest string,
     UniqueAdIDBestChallenger string,
+    UniqueAdIDNextGenAds string,
     Treatment string,
     UniqueAdIDMeasurement string,
     UniqueAdIDAssigned string not null,

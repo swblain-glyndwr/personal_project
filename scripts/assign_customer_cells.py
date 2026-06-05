@@ -19,7 +19,6 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (assert_pk,
                          create_table_from_df, delete_from_and_load,
-                         map_tbl,
                          chain_when_thens, truncate_and_load)
 from dsutils.argparser import get_job_parser
 from next_ads.Assignment import (assign_predetermined_audience,
@@ -76,6 +75,10 @@ TABLES_READ = cfg["tables"]["read"]
 SVOC = TABLES_READ["svoc_cust"]
 RPID_WITH_ACCOUNTS = TABLES_READ["rpid_with_accounts"]
 MODEL_SCORES_LATEST = TABLES_READ["model_scores_latest"]
+
+SQL_FILES = cfg['sql_files']
+ACCOUNT_DEPARTMENT_SCORE_SQL = str(PROJECT_ROOT / "sql" / SQL_FILES['account_department_scores'])
+WEBHOOK_URL_DS = cfg['webhooks']['DS Warnings']
 
 FALLOW_PC = cfg["fallow_control"]["proportion"]
 FALLOW_SEED = cfg["fallow_control"]["seed"]
@@ -337,7 +340,7 @@ if transient_cells:
     transient_cell_dfs = []
     if "AlgoDivision" in TRANSIENT_CELLS:
         logger.info("Assigning AlgoDivision")
-        df_divs = get_algo_divisions(MODEL_SCORES_LATEST)
+        df_divs = get_algo_divisions(ACCOUNT_DEPARTMENT_SCORE_SQL, TRANSIENT_CELLS_TABLE_LATEST, WEBHOOK_URL_DS, JOB_ENV)
         transient_cell_dfs.append(df_divs)
 
     if "Audiences" in TRANSIENT_CELLS:
@@ -357,7 +360,6 @@ if transient_cells:
             df_cells_transient = df_cells_transient.unionByName(df_tc_long)
 
     df_cells_transient.cache()
-
     delete_from_and_load(df_cells_transient,
                          TRANSIENT_CELLS_TABLE,
                          pk_cols=["AccountNumber", "Cell"],

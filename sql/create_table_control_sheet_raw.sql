@@ -45,6 +45,7 @@ CREATE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_raw (
   TargetingAttributes STRING,
   Themes STRING,
   AdVariant STRING,
+  ClusterID STRING,
   HN1 STRING,
   SB1 STRING,
   OC1 STRING,

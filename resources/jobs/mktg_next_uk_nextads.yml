@@ -34,7 +34,7 @@ resources:
               - "2026-01-08"
               # - --sample_mode
               # - "True"
-          job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
           libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 7200
@@ -48,7 +48,7 @@ resources:
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
           libraries: ${var.shared_libraries}
           max_retries: 2
           timeout_seconds: 3600
