@@ -1,4 +1,4 @@
-"""Compatibility imports for the moved data validation package."""
+"""Data validation contracts and Spark custom checks."""
 
 from next_ads.data.validation import custom_checks, schemas
 

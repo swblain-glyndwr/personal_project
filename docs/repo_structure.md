@@ -40,6 +40,8 @@ src/
 ## Current Transition Rules
 
 - `src/next_ads` is the future home for reusable production package code.
+- Low-risk reusable code can move into `src/next_ads` before Databricks job
+  entry points move, as long as old imports keep working.
 - Existing Databricks job entry points remain in `scripts/` for now.
 - Existing Databricks job definitions remain in `resources/jobs/` for now.
 - The current `config/` folder is not renamed in this first slice.
