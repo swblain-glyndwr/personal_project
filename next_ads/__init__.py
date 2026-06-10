@@ -6,10 +6,6 @@ the active import root, while future subpackages can be added under
 ``src/next_ads`` and imported as ``next_ads.<area>``.
 """
 
-from pathlib import Path
+from next_ads._src_compat import extend_src_package_path
 
-_SRC_PACKAGE = Path(__file__).resolve().parents[1] / "src" / "next_ads"
-if _SRC_PACKAGE.is_dir():
-    _src_package_path = str(_SRC_PACKAGE)
-    if _src_package_path not in __path__:
-        __path__.append(_src_package_path)
+extend_src_package_path(__path__, __name__)

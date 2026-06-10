@@ -71,3 +71,23 @@ def test_pytest_uses_checkout_and_src_import_paths():
 
     assert "." in pythonpath
     assert "src" in pythonpath
+
+
+def test_transition_subpackages_search_matching_src_packages():
+    package_names = [
+        "common",
+        "control",
+        "data",
+        "decisioning",
+        "delivery",
+        "ranking",
+        "realtime",
+        "reporting",
+        "retrieval",
+    ]
+
+    for package_name in package_names:
+        module = importlib.import_module(f"next_ads.{package_name}")
+        expected_path = PROJECT_ROOT / "src" / "next_ads" / package_name
+
+        assert str(expected_path) in module.__path__
