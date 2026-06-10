@@ -1,5 +1,5 @@
 import pytest
-from adsv2.load_control_sheet import check_primary_key
+from scripts.load_control_sheet_v2 import check_primary_key
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
@@ -12,7 +12,6 @@ def spark():
 
 @pytest.fixture
 def logger():
-
     configure_logging(log_level="DEBUG")
     logger = get_logger(__name__)
     return logger
@@ -50,7 +49,9 @@ def test_check_primary_key_no_duplicates(sample_data_no_duplicates, logger):
     assert result_df.collect() == df.collect()
 
 
-def test_check_primary_key_with_duplicates(sample_data_with_duplicates, logger):
+def test_check_primary_key_with_duplicates(
+    sample_data_with_duplicates, logger
+):
     df = sample_data_with_duplicates
     result_df = check_primary_key(df, logger, "dev", "dummy_url")
 

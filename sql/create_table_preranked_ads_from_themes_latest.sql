@@ -2,7 +2,7 @@ create table {catalog}.{schema}.{client}_nextads_preranked_ads_from_themes_lates
     AccountNumber string not null,
     UniqueAdID string not null,
     Location string not null,
-    Score string not null,
+    Score float not null,
     TriggerScore float,
     Rank int not null,
     rundate date not null,

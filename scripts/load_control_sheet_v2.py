@@ -168,7 +168,13 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     config = config_manager.load_config(JOB_ENV)
     logger.info(f"Configuring run for client: {CLIENT}")
 
-    VALID_PAGE_TYPES = ["plp", "for_you", "oc", "sb", "as", "HN1"]
+    VALID_PAGE_TYPES = [
+        "ProductListingPage",
+        "ForYouPage",
+        "CheckoutPage",
+        "ShoppingBagPage",
+        "HomePage",
+    ]
 
     CONTROL_SHEET = config.control_sheet_v2
     EXCLUSIONS_SHEET = config.exclusions_sheet
@@ -363,14 +369,11 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         df_ad_attributes, on="UniqueAdID", how="left"
     )
 
-    # these aren't populated in the control sheet anymore, but are needed for downstream targeting criteria construction, 
+    # these aren't populated in the control sheet anymore, but are needed for downstream targeting criteria construction,
     # so we add them in as nulls here
-    df_processed = (
-    df_processed
-    .withColumn("ModelCombination", F.lit(None))
-    .withColumn("Models", F.lit(None))
-)
-
+    df_processed = df_processed.withColumn(
+        "ModelCombination", F.lit(None)
+    ).withColumn("Models", F.lit(None))
 
     ################################################################################
     # Final steps

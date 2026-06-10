@@ -99,3 +99,13 @@ default:
     nextads_plp_gs_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_plp_gs_latest"
     # operational tables
     nextads_table_sizes: "@format {this.catalog_write}.{this.schema_write}.nextads_table_sizes"
+    nextads_payload_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload_latest"
+    nextads_payload: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload"
+    results_underperforming_ads: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_underperforming_ads"
+    # v2 tables
+    control_sheet_raw_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_raw_v2"
+    control_sheet_raw_latest_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_raw_latest_v2"
+    control_sheet_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_v2"
+    control_sheet_latest_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_latest_v2"
+    exclusions_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions_latest"
+    exclusions: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions"

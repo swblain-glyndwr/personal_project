@@ -3344,6 +3344,8 @@
             "targeting_scores_latest": "marketingdata_prod.{schema}.{client}_nextads_targeting_scores_latest",
             "assignments": "marketingdata_prod.{schema}.{client}_nextads_assignments",
             "assignments_latest": "marketingdata_prod.{schema}.{client}_nextads_assignments_latest",
+            "nextads_payload": "marketingdata_prod.{schema}.{client}_nextads_payload",
+            "nextads_payload_latest": "marketingdata_prod.{schema}.{client}_nextads_payload_latest",
             "attribute_set": "marketingdata_prod.{schema}.{client}_nextads_attribute_set",
             "attribute_set_latest": "marketingdata_prod.{schema}.{client}_nextads_attribute_set_latest",
             "item_attributes_latest": "marketingdata_prod.{schema}.{client}_nextads_item_attributes_latest",

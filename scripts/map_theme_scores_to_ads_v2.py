@@ -29,11 +29,11 @@ from next_ads.utils import etl
 PAGE_SLOT_SUFFIX_PATTERN = re.compile(r"_slot_[^_]+$", flags=re.IGNORECASE)
 LOCATION_SUFFIX_PATTERN = re.compile(r"\d+$")
 PAGE_PREFIX_TO_PAGE_TYPE = {
-    "HN": "HN1",
-    "SB": "sb",
-    "OC": "oc",
-    "PL": "plp",
-    "FY": "for_you",
+    "HN": "HomePage",
+    "SB": "ShoppingBagPage",
+    "OC": "CheckoutPage",
+    "PL": "ProductListingPage",
+    "FY": "ForYouPage",
 }
 
 
@@ -114,11 +114,11 @@ logger.info(f'Reading slot-level ranked ads from '
             f'{PRERANKED_ADS_FROM_THEMES_LATEST}')
 df_preranked = (
     spark.table(PRERANKED_ADS_FROM_THEMES_LATEST)
-    .select(
+    .selectExpr(
         'AccountNumber',
         'UniqueAdID',
         'Location',
-        'Score',
+        'Score::float as Score',
         'TriggerScore',
         'Rank')
 )
