@@ -1,4 +1,5 @@
 import importlib
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -62,3 +63,11 @@ def test_repo_structure_documentation_describes_transition_rules():
     assert (
         "Decision-affecting logic should move only in follow-up stories" in doc
     )
+
+
+def test_pytest_uses_checkout_and_src_import_paths():
+    pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text())
+    pythonpath = pyproject["tool"]["pytest"]["ini_options"]["pythonpath"]
+
+    assert "." in pythonpath
+    assert "src" in pythonpath

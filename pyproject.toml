@@ -123,6 +123,7 @@ schema = "ds_sandbox"
 client = "next_uk"
 
 [tool.pytest.ini_options]
+pythonpath = [".", "src"]
 markers = [
     "abfs_integration: marks tests as ABFS integration tests (deselect with '-m \"not abfs_integration\"')",
     "config_integration: marks tests as config_manager integration tests (deselect with '-m \"not config_integration\"')",
