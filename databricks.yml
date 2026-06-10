@@ -8,6 +8,7 @@ bundle:
 include:
   - resources/jobs/mktg_next_uk_nextads.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity.yml
+  - resources/jobs/mktg_next_uk_nextads_qa.yml
   - resources/variables/clusters.yml
   - resources/variables/libraries.yml
   - resources/jobs/mktg_next_uk_nextads_results.yml
@@ -60,6 +61,9 @@ variables:
     default: ${workspace.current_user.userName}
   notification_emails:
     description: Email addresses for job failure notifications
+    default: []
+  qa_notification_emails:
+    description: Internal email addresses for QA-only job failure notifications
     default: []
 
 targets:
@@ -249,3 +253,8 @@ targets:
         - nitin_surti@next.co.uk
         - sonal_sakaria@next.co.uk
         - claire_wilsonbarnes@next.co.uk
+      qa_notification_emails:
+        - adrienne_lowe@next.co.uk
+        - hadi_miah@next.co.uk
+        - stephen_blain@next.co.uk
+        - edward_taylor@next.co.uk

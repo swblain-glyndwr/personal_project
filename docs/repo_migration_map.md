@@ -120,6 +120,20 @@ behaviour, dependency installation, and Databricks bundle packaging.
 
 ## Current Main Job Entrypoint Map
 
+## Target Databricks Job Shape
+
+The Databricks job structure should move toward clear operational boundaries
+while preserving existing output contracts during the restructure.
+
+| Target job | Intended role | Current migration position |
+|---|---|---|
+| `mktg_next_uk_nextads` | Core production generation: cells, control inputs, theme scoring, ad mapping, and page assignment. | Keep as the main generation job. Remove non-core concerns only in controlled slices. |
+| `mktg_next_uk_nextads_qa` | Post-generation checks and controlled cleanup after main assignment output exists. | Introduced as a separate job submitted asynchronously after the main generation tasks so QA failure is visible internally without failing the main generation job. |
+| `mktg_next_uk_nextads_results` | Reporting and results aggregation. | Already separate; keep separate. |
+| `mktg_next_uk_nextads_realtime_results` | Realtime measurement outputs. | Already separate; keep separate. |
+| `mktg_next_uk_nextads_features` | Future feature materialisation, including jobs such as `viewed_bought` and later Feature Store-style outputs. | Future slice after feature/model contracts are clearer. |
+| `mktg_next_uk_nextads_delivery` | Future delivery/export outputs such as PLP Google Sheet, Bloomreach, Cosmos, and BigQuery-facing contracts. | Future slice after v1/v2 delivery contracts are clearer. |
+
 | Current path | Current task/role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
 | `scripts/load_control_sheet.py` | `load_control_sheet` task; reads control sheet and writes control-sheet raw/latest outputs. | `jobs/nextads_main/load_control_sheet.py` | Production | High | After package/config migration. | DEV Integration run, PREPROD smoke/full validation. | Writes critical control data. |
@@ -131,7 +145,7 @@ behaviour, dependency installation, and Databricks bundle packaging.
 | `scripts/map_theme_scores_to_ads.py` | `map_theme_scores_to_ads` task; maps scores to ads. | `jobs/nextads_main/map_theme_scores_to_ads.py` | Production | High | After ranking/decisioning package moves. | Representative ranking output comparison. | Uses legacy Theme Affinity assignments when configured through current `hackathon_assignments` config. |
 | `scripts/build_page.py` | `build_page_primary` and `build_page_secondary` tasks. | `jobs/nextads_main/build_page.py` | Production | High | After decisioning package move. | Page output comparison. | Final assignment output-affecting. |
 | `scripts/plp_gs.py` | `nextads_plp_gs` task. | `jobs/nextads_main/plp_gs.py` | Production | Medium | After control/delivery target decided. | PLP GS tests and run evidence. | External/sheet integration. |
-| `scripts/qa.py` | `QA` task. | `jobs/nextads_main/qa.py` | Production | Medium | After package imports stable. | QA task run evidence. | Validation logic. |
+| `scripts/qa.py` | `QA` task, now run from the separate `mktg_next_uk_nextads_qa` job. | `jobs/nextads_main/qa.py` | Production | Medium | After package imports stable. | QA task run evidence and DAB validate. | Validation/guardrail logic; QA has its own run history and notification route without controlling the main generation job result. The main job submits QA asynchronously after generation tasks complete. |
 | `scripts/viewed_bought.py` | `viewed_bought` task. | `jobs/nextads_main/viewed_bought.py` | Production | Medium | After retrieval/ranking map agreed. | Viewed-bought output sanity. | May feed realtime/recommendation logic. |
 | `scripts/build_page_v2.py` | Alternative/v2 page build entrypoint. | `jobs/nextads_v2/build_page.py` if part of the v2 route; reusable output logic to `src/next_ads/delivery/adsv2/`. | Operational-transition | High | Confirm v2 route ownership and output contract before moving. | Import checks, v1/v2 output comparison, DEV Integration run, PREPROD validation if retained. | Not in active main DAB job today, but v2 output changes are production-transition work rather than experiment. |
 | `scripts/map_theme_scores_to_ads_v2.py` | Alternative/v2 score mapping. | `jobs/nextads_v2/map_theme_scores_to_ads.py` if part of the v2 route; reusable ranking/mapping logic to `src/next_ads/ranking/adsv2/` or `src/next_ads/decisioning/adsv2/` depending on final role. | Operational-transition | High | Confirm v2 route ownership and output contract before moving. | Output checks, ranking comparison, DEV Integration run, PREPROD validation if retained. | Not in active main DAB job today, but score mapping can alter final outputs. |
@@ -178,6 +192,7 @@ behaviour, dependency installation, and Databricks bundle packaging.
 |---|---|---|---|---|---|---|---|
 | `databricks.yml` | Root bundle manifest and target definitions. | `databricks.yml` | Deployment | Medium | Keep at repo root unless team agrees otherwise. | DAB validate all relevant targets. | Root location is expected by normal DAB workflows. |
 | `resources/jobs/mktg_next_uk_nextads.yml` | Main NextAds Databricks job definition. | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Production | High | After job entrypoints move. | DAB validate, DEV Integration deploy, PREPROD deploy. | Active main job. |
+| `resources/jobs/mktg_next_uk_nextads_qa.yml` | Separate QA job definition submitted asynchronously after the main output is expected to exist. | `pipelines/databricks/jobs/mktg_next_uk_nextads_qa.yml` | Production | Medium | Keep separate from the main job while operational job boundaries are introduced. | DAB validate and QA task run evidence. | QA failure should be handled by the internal team without failing the main generation job or notifying the broader main-job audience. |
 | `resources/jobs/mktg_next_uk_nextads_results.yml` | Results job definition. | `pipelines/databricks/jobs/mktg_next_uk_nextads_results.yml` | Production | Medium | With results job move. | DAB validate and results job run/smoke. | Active results route. |
 | `resources/jobs/mktg_next_uk_nextads_realtime_results.yml` | Realtime results job definition. | `pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml` | Production | High | With realtime move. | DAB validate and realtime smoke. | Active realtime route. |
 | `resources/jobs/table_size_monitoring.yml` | Table size monitoring job. | `pipelines/databricks/jobs/table_size_monitoring.yml` | Production | Medium | With table operation move. | DAB validate and job smoke. | Monitoring/support route. |
