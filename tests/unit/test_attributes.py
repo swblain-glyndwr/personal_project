@@ -1,13 +1,22 @@
 from pyspark.testing import assertDataFrameEqual
 import pytest
+from next_ads.control.attributes import (
+    collect_attribute_set as new_collect_attribute_set,
+)
+from next_ads.control.attributes import parse_ad_attributes as new_parse_ad_attributes
+from next_ads.Attributes import collect_attribute_set
 from next_ads.Attributes import parse_ad_attributes
 from dsutils.dbc import configure_spark
 from dsutils.etl import build_spark_schema
 
 
+def test_old_and_new_attribute_import_paths_match():
+    assert parse_ad_attributes is new_parse_ad_attributes
+    assert collect_attribute_set is new_collect_attribute_set
+
+
 def test_parse_ad_attributes_basic():
     """Test basic functionality with default parameters."""
-
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
@@ -39,7 +48,6 @@ def test_parse_ad_attributes_basic():
 
 def test_parse_ad_attributes_custom_columns():
     """Test with custom column names."""
-
     schema = build_spark_schema([
             ["CustomAdID", "string", "null"],
             ["CustomAttributes", "string", "null"]])
@@ -70,7 +78,6 @@ def test_parse_ad_attributes_custom_columns():
 
 def test_parse_ad_attributes_custom_delimiters():
     """Test with custom delimiters."""
-
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
@@ -101,8 +108,8 @@ def test_parse_ad_attributes_custom_delimiters():
 
 def test_parse_ad_attributes_same_delimeters():
     """Test where `split_delimeter` and `key_value_delimeter`
-    are the same."""
-
+    are the same.
+    """
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
@@ -122,7 +129,6 @@ def test_parse_ad_attributes_same_delimeters():
 
 def test_parse_ad_attributes_empty_string():
     """Test with empty attribute string (should be filtered out by default)"""
-
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
@@ -140,7 +146,6 @@ def test_parse_ad_attributes_empty_string():
 
 def test_parse_ad_attributes_null_values():
     """Test with null attribute values."""
-
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
@@ -170,7 +175,6 @@ def test_parse_ad_attributes_null_values():
 
 def test_parse_ad_attributes_malformed_pairs():
     """Test with malformed key-value pairs."""
-
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
@@ -200,7 +204,6 @@ def test_parse_ad_attributes_malformed_pairs():
 
 def test_parse_ad_attributes_single_attribute():
     """Test with single attribute-value pair."""
-
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
@@ -229,7 +232,6 @@ def test_parse_ad_attributes_whitespace_handling():
     Expected behavior is to trim surrounding whitespace of
     both `attribute` and `value`.
     """
-
     schema = build_spark_schema([
             ["UniqueAdID", "string", "null"],
             ["TargetingAttributes", "string", "null"]])
