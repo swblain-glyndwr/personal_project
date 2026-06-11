@@ -241,6 +241,10 @@ df_cells = (
         'ChampionChallenger',
         F.when(F.col('specialaccountindicator') == 'S',
                'Challenger').otherwise(F.col('ChampionChallenger'))
+    ).withColumn(
+        'PageTypeIsolation',
+        F.when(F.col('specialaccountindicator') == 'S',
+               'AllPages').otherwise(F.col('PageTypeIsolation'))
     )
 )
 

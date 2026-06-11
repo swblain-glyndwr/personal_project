@@ -98,6 +98,15 @@ AD_RESULTS_TABLE = etl.map_tbl(tbls['results_ads'], **tbl_args_results)
 
 FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 
+_pt_isolation_cfg = cfg["page_type_isolation"]
+PAGE_TYPE_ISOLATION_ENABLED = _pt_isolation_cfg["enabled"]
+PAGE_TYPE_ALLOWED_GROUPS = (
+    [grp for grp, locs in _pt_isolation_cfg["page_type_map"].items()
+     if LOCATION in locs]
+    + ["AllPages"]
+    if PAGE_TYPE_ISOLATION_ENABLED else []
+)
+
 WEBHOOK_URL = cfg["webhooks"]["DS Warnings"]
 
 try:
@@ -470,6 +479,29 @@ else:
                 ).otherwise(F.col('Treatment'))
             )
     )
+
+    # --- Page-type isolation suppression ---
+    # Customers in a page-type isolation bucket (e.g. HP_Only) should only
+    # receive ads on locations that belong to their assigned page type.
+    # For any other location we overwrite UniqueAdIDAssigned with 'NoAd'.
+    if PAGE_TYPE_ISOLATION_ENABLED:
+        logger.info(
+            f"Page-type isolation enabled. "
+            f"Allowed groups for {LOCATION}: {PAGE_TYPE_ALLOWED_GROUPS}"
+        )
+        df_ad_assigned = (
+            df_ad_assigned
+            .withColumn(
+                "UniqueAdIDAssigned",
+                F.when(
+                    # Suppress if this customer's isolation cell is set AND
+                    # their group is not in the permitted list for this location
+                    F.col("PageTypeIsolation").isNotNull()
+                    & ~F.col("PageTypeIsolation").isin(PAGE_TYPE_ALLOWED_GROUPS),
+                    F.lit("NoAd")
+                ).otherwise(F.col("UniqueAdIDAssigned"))
+            )
+        )
 
     df_ad_masid = (
         df_ads
