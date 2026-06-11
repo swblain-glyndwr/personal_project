@@ -707,13 +707,6 @@
             "map": [
                 {
                     "when": [
-                        {"col": "AdHocABTest1", "op": "eq", "val": "A"},
-                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
-                    ],
-                    "then": {"col": "UniqueAdIDNextGenAds"}
-                },
-                {
-                    "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
                     ],
                     "then": {"col": "UniqueAdIDBasic"}
@@ -2871,6 +2864,7 @@
                 }
             ]
         }
+
     },
 
     "gcp": {

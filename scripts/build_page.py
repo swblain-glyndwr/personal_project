@@ -216,6 +216,15 @@ if df_ads_tgt.count() == 0 and df_ads_tgt_nextgenads.count() == 0:
 
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, no_ads_msg)
+
+    logger.info(
+        f"Clearing stale assignments for {LOCATION} from "
+        f"{ASSIGNMENTS_TABLE_LATEST}"
+    )
+    spark.sql(f"""
+        delete from {ASSIGNMENTS_TABLE_LATEST}
+        where Location = '{LOCATION}'
+    """)
     logger.info("Skipping assignment")
 
 else:
