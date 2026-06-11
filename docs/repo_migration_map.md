@@ -13,9 +13,9 @@ locations.
 ```text
 next-ads/
   src/          # reusable production package code
-  pipelines/    # Databricks/process-flow definitions
+  pipelines/    # Databricks bundle, DLT, and Lakeflow definitions
   jobs/         # Databricks Python entrypoints
-  configs/      # settings and policies
+  configs/      # settings, policies, and future feature-layer config
   sql/          # table/view/reporting SQL
   experiments/  # exploration and operational-transition model work
   docs/         # team and AI context
@@ -29,7 +29,8 @@ The target production package is:
 src/
   next_ads/
     common/       # shared utilities used across the repo
-    data/         # data contracts, features, labels and datasets
+    features/     # reusable feature definitions, grains, keys, and checks
+    data/         # source access, data contracts, labels, and datasets
     control/      # control sheet, ad metadata and eligibility
     retrieval/    # creates the pool of ads that could be considered
     ranking/      # scores or orders candidate ads
@@ -63,14 +64,19 @@ src/
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
 | `src/` | New target package root introduced for reusable production code. | `src/` | Production | Low | Keep as the target home; expand package contents through controlled stories. | Import tests, package discovery tests, Ruff on changed Python. | This is already the destination, not a legacy folder to migrate away from. |
+| `src/next_ads/features/` | Target home for reusable feature definitions, grains, keys, contracts, and quality checks. | `src/next_ads/features/` | Operational-transition | Low | Keep as first-class feature-layer home. | Import tests and package discovery tests. | Provides a package home for feature logic without changing current jobs or outputs. |
 | `next_ads/` | Existing importable package with reusable production logic. | `src/next_ads/` | Production | High | Move module-by-module with compatibility wrappers. | Old and new imports, unit tests, output comparison for decisioning/ranking. | Do not big-bang move. |
 | `scripts/` | Current Databricks Python job entrypoints and operational utilities. | `jobs/` | Production | High | After package imports are stable. | Job-path tests, DAB validate, DEV Integration deploy, PREPROD smoke. | Current jobs point here directly. |
+| `jobs/features/` | Target home for feature-materialisation Databricks entrypoints. | `jobs/features/` | Operational-transition | Low | Keep as first-class target folder; populate when feature contracts are agreed. | Path/import checks until real jobs move. | Current jobs remain unchanged until entrypoint moves are agreed. |
+| `jobs/model/` | Target home for model training/scoring entrypoints. | `jobs/model/` | Operational-transition | Low | Keep as target folder; populate only when model lifecycle is agreed. | Path/import checks until real jobs move. | Theme Affinity and pCTR should separate feature generation from model and scoring steps. |
+| `jobs/nextads_main/` | Target home for current v1 production job entrypoints. | `jobs/nextads_main/` | Production | Low | Keep as target folder; move scripts only after package dependencies are stable. | Path/import checks until real jobs move. | Current jobs remain in `scripts/` until moved in separate slices. |
+| `jobs/nextads_v2/` | Target home for Ads v2 production-transition job entrypoints. | `jobs/nextads_v2/` | Operational-transition | Low | Keep as target folder; move v2 only after active PRs and contracts are accounted for. | Path/import checks until real jobs move. | Ads v2 is active work, not an experiment. |
 | `resources/jobs/` | Databricks Asset Bundle job definitions. | `pipelines/databricks/jobs/` | Deployment | Medium | With DAB include-path update. | DAB validate for DEV Integration, PREPROD, PROD. | Keep `databricks.yml` at root unless agreed otherwise. |
 | `resources/variables/` | Databricks cluster/library variables. | `pipelines/databricks/variables/` | Deployment | Medium | With DAB include-path update. | DAB validate. | Move with resources/jobs or immediately after. |
 | `config/` | Current Dynaconf and JSON/table settings. | `configs/` | Production | Medium | After config loader supports target path. | Config manager tests, table config tests, DAB validate. | Use compatibility fallback during transition. |
 | `sql/` | Production table/view/reporting SQL. | `sql/` | Production | Medium | Stay as canonical SQL folder; add grouping docs. | Table setup tests, DAB validate, table creation smoke where relevant. | Do not move unless grouping is agreed. |
-| `response_model/` | pCTR/response model feature and model scripts. | `experiments/pctr/` initially, then `src/next_ads/ranking/` and `jobs/model/pctr/` where productised. | Operational-transition | High | Item-by-item after ownership and route agreed. | Model/table contract checks, Databricks run evidence. | Contains model-building code that may become operational. |
-| `hackathon_model/` | Legacy Theme Affinity model work with currently used outputs. It scores/ranks account-to-theme affinity from behaviour, repurchase, popularity, and theme interaction features. | `experiments/theme_affinity/` for retained notebooks/assets, then `src/next_ads/ranking/theme_affinity/`, `src/next_ads/data/theme_affinity/`, `src/next_ads/delivery/theme_affinity/`, and `jobs/model/theme_affinity/` as the MLflow route matures. | Operational-transition | High | Only after current output consumers and contracts are documented. | Model output contract check, MLflow load/run evidence, Databricks run link. | Do not preserve "hackathon" as the target domain name. Current legacy outputs are used and must remain compatible during the move. |
+| `response_model/` | pCTR/response model feature and model scripts. | `experiments/pctr/` initially, then `src/next_ads/features/pctr/`, `src/next_ads/ranking/pctr/`, and `jobs/model/pctr/` where productised. | Operational-transition | High | Item-by-item after ownership and route agreed. | Feature/model/table contract checks, Databricks run evidence. | Contains model-building code that may become operational. |
+| `hackathon_model/` | Legacy Theme Affinity model work with currently used outputs. It scores/ranks account-to-theme affinity from behaviour, repurchase, popularity, and theme interaction features. | `experiments/theme_affinity/` for retained notebooks/assets, then `src/next_ads/features/theme_affinity/`, `src/next_ads/ranking/theme_affinity/`, `src/next_ads/delivery/theme_affinity/`, and `jobs/model/theme_affinity/` as the MLflow route matures. | Operational-transition | High | Only after current output consumers and contracts are documented. | Model output contract check, MLflow load/run evidence, Databricks run link. | Do not preserve "hackathon" as the target domain name. Current legacy outputs are used and must remain compatible during the move. |
 | `real_time/` | Real-time adjustment work and config. | `src/next_ads/realtime/` plus `jobs/realtime/` | Operational-transition | High | After current realtime route is documented. | Realtime output/contract checks, DAB validate if job-backed. | Split reusable logic from entrypoints/config. |
 | `adsv2/` | NextAds v2 control/output-contract work. This is a parallel-run route for a fundamental change in how NextAds outputs interact with downstream systems, not an experiment. | `jobs/nextads_v2/` for Databricks entrypoints, `src/next_ads/control/adsv2/` for reusable control-sheet parsing/loading logic, `src/next_ads/delivery/adsv2/` for v2 output shaping, and `configs/adsv2/` for v2-specific settings. | Operational-transition | High | After v2 output contracts and downstream consumers are documented. | Config tests, output contract checks, DEV Integration run, PREPROD validation before production adoption. | Keep isolated from the current v1 production path until the parallel-run output comparison is accepted. |
 | `QA/` | QA notebooks and exploratory checks. | `experiments/qa/` or `docs/qa/` | Experiment | Low | When experiments folder is introduced. | None beyond docs/file move review. | Notebook SQL may not lint as Python. |
@@ -104,6 +110,7 @@ behaviour, dependency installation, and Databricks bundle packaging.
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
 | `next_ads/__init__.py` | Existing package init; now also transitional bridge to `src/next_ads`. | `src/next_ads/__init__.py` eventually. | Production | Low | Retire bridge last. | Old and new import tests. | Keep until all callers move. |
+| `src/next_ads/features/__init__.py` | Feature-layer package marker. | `src/next_ads/features/__init__.py` | Operational-transition | Low | Keep as target package home. | Import test. | This prepares for feature store work without implementing feature store behaviour. |
 | `next_ads/Assignment.py` | Assignment, greedy allocation, preranked ads, NextGenAds, algorithm division logic. | `src/next_ads/decisioning/assignment.py` | Production | High | After output equivalence harness exists. | Unit tests plus representative assignment output comparison. | Decision-affecting. Move late. |
 | `next_ads/Attributes.py` | Compatibility wrapper for attribute parsing and theme/control attribute helpers. | `src/next_ads/control/attributes.py` | Production | Medium | Moved; keep wrapper until legacy imports are retired. | Attribute unit tests and old/new import compatibility. | Affects input/control interpretation. |
 | `next_ads/Scoring.py` | Model score retrieval and aggregation. | `src/next_ads/ranking/scoring.py` | Production | High | After ranking output comparison exists. | Unit tests plus representative score output comparison. | Ranking-affecting. |
@@ -347,19 +354,26 @@ parallel-run evidence.
 1. Create `src/next_ads` skeleton and compatibility bridge.
 2. Add this migration map and agree risk/status labels.
 3. Move pure package utilities with wrappers.
-4. Move data validation schemas/checks.
-5. Move config loader with compatibility support for `config/` and `configs/`.
-6. Move control sheet and attribute parsing logic.
-7. Move reporting/plotting helpers.
-8. Move ranking/scoring logic with output comparison.
-9. Move decisioning/assignment logic with output comparison.
+4. Add first-class feature-layer skeleton.
+5. Move data validation schemas/checks.
+6. Move config loader with compatibility support for `config/` and `configs/`.
+7. Move control sheet and attribute parsing logic.
+8. Confirm Ads v2 route and contracts before moving v2 files.
+9. Move retrieval and data prep code before decisioning or job entrypoints.
 10. Move legacy Theme Affinity notebooks/assets from `hackathon_model/` into `experiments/theme_affinity/` with operational-transition label and output contract.
-11. Productise Theme Affinity MLflow pieces into `src/next_ads/ranking/theme_affinity/`, `src/next_ads/data/theme_affinity/`, `src/next_ads/delivery/theme_affinity/`, and `jobs/model/theme_affinity/`.
-12. Move pCTR/response model pieces item by item.
-13. Move Databricks entrypoints from `scripts/` to `jobs/`.
-14. Move DAB resources to `pipelines/databricks/`.
-15. Move Azure DevOps support files only after pipeline path updates are ready.
-16. Retire old wrappers and old paths after no references remain.
+11. Split Theme Affinity into feature generation, MLflow model loading/scoring, ranking output, and delivery compatibility.
+12. Identify Theme Affinity feature outputs for future reuse.
+13. Move pCTR/response model pieces only after ownership and route are confirmed, separating feature builders from training/scoring.
+14. Move ranking/scoring logic with output comparison.
+15. Move decisioning/assignment logic with output comparison.
+16. Move delivery/export logic after v1/v2 contracts are clear.
+17. Move SQL/table operations without renaming live table contracts.
+18. Move Databricks entrypoints from `scripts/` to `jobs/`.
+19. Move DAB, DLT, and Lakeflow resources to `pipelines/databricks/`.
+20. Move tests as corresponding production modules move.
+21. Bring analyst reporting into the repo after core structure is stable.
+22. Move Azure DevOps support files only after pipeline path updates are ready.
+23. Retire old wrappers and old paths after no references remain.
 
 ## High-Risk Items Requiring Separate Stories
 

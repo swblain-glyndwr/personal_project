@@ -1,7 +1,7 @@
 # NextAds Repo Structure
 
-Related work item: 5111786  
-Release route: `docs/CICD/nextads_branch_release_route.md`  
+Related work item: 5111786
+Release route: `docs/CICD/nextads_branch_release_route.md`
 Detailed migration map: `docs/repo_migration_map.md` once the 5111778
 migration-map PR has landed
 
@@ -38,10 +38,10 @@ logic unless a later story promotes it.
 ```text
 next-ads/
   src/           # reusable production package code
-  pipelines/     # process-flow definitions, if introduced
-  jobs/          # Databricks job entry points
-  configs/       # settings, policies and environment config
-  sql/           # table, view and reporting SQL
+  pipelines/     # Databricks bundle, DLT, Lakeflow, and process-flow definitions
+  jobs/          # Databricks entry points, grouped by route
+  configs/       # settings, policies, environment config, and future feature-layer config
+  sql/           # table, view, and reporting SQL
   experiments/   # safe exploration, notebooks and reference work
   docs/          # team, release and AI-assistant context
   tests/         # confidence checks
@@ -74,8 +74,9 @@ Reusable production code should move toward:
 src/
   next_ads/
     common/       # shared utilities used across the repo
-    data/         # data contracts, features, labels and datasets
-    control/      # control sheet, ad metadata and eligibility
+    features/     # reusable feature definitions, grains, keys, and checks
+    data/         # source access, data contracts, labels, and datasets
+    control/      # control sheet, ad metadata, and eligibility
     retrieval/    # creates the pool of ads that could be considered
     ranking/      # scores or orders candidate ads
     decisioning/  # applies rules and selects final ads
@@ -246,6 +247,8 @@ and should not become a second source of truth.
   equivalence checks.
 - Databricks job entry-point changes should be handled separately from package
   structure foundation work.
+- `src/next_ads/features` is the target home for reusable feature definitions,
+  grains, keys, and checks.
 - Release-control changes should follow the route in
   `docs/CICD/nextads_branch_release_route.md`.
 
