@@ -1,6 +1,8 @@
 import os
 import pytest
 from unittest.mock import patch
+from next_ads.common import config_manager as new_config_manager
+from next_ads.common.config_manager import load_config as new_load_config
 from next_ads.utils.config_manager import load_config
 
 
@@ -28,8 +30,34 @@ def clean_env():
 @pytest.fixture
 def mock_dotenv(monkeypatch):
     """Mock load_dotenv to prevent loading actual .env.local file during tests."""
-    with patch("next_ads.utils.config_manager.load_dotenv"):
+    with patch("next_ads.common.config_manager.load_dotenv"):
         yield
+
+
+def test_old_and_new_config_import_paths_match():
+    assert load_config is new_load_config
+
+
+def test_config_paths_prefer_current_config_folder():
+    settings_files = new_config_manager._settings_files()
+
+    assert "config/settings.yaml" in settings_files
+    assert "config/load_control_sheet_v2_settings.yaml" in settings_files
+    assert "config/tables_settings.yaml" in settings_files
+    assert "adsv2/load_control_sheet_v2_settings.yaml" not in settings_files
+    assert "adsv2/tables_settings.yaml" not in settings_files
+
+
+def test_config_paths_fall_back_to_configs_folder(monkeypatch, tmp_path):
+    monkeypatch.setattr(new_config_manager, "PROJECT_ROOT", tmp_path)
+
+    settings_files = new_config_manager._settings_files()
+
+    assert "configs/settings.yaml" in settings_files
+    assert "configs/tables_settings.yaml" in settings_files
+    assert "configs/adsv2/load_control_sheet_v2_settings.yaml" in settings_files
+    assert "configs/adsv2/tables_settings.yaml" not in settings_files
+    assert "configs/adsv2/load_control_sheet_settings.yaml" not in settings_files
 
 
 class TestLoadConfigSchemaWrite:
@@ -44,7 +72,7 @@ class TestLoadConfigSchemaWrite:
         os.environ["USER_SCHEMA"] = test_user
 
         # Act
-        config = load_config("dev")
+        load_config("dev")
 
         # Assert
         assert os.environ["USER_SCHEMA"] == test_user, (
