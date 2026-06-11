@@ -43,6 +43,23 @@ def test_dev_integration_target_uses_dev_workspace_and_schema():
     assert target["presets"]["trigger_pause_status"] == "PAUSED"
 
 
+def test_bundle_sync_explicitly_includes_transitional_package_roots():
+    bundle = load_yaml("databricks.yml")
+    sync_includes = bundle["sync"]["include"]
+
+    assert "next_ads/**" in sync_includes
+    assert "next_ads/data/**" in sync_includes
+    assert "src/next_ads/**" in sync_includes
+    assert "src/next_ads/data/**" in sync_includes
+
+
+def test_gitignore_does_not_exclude_package_data_directories():
+    gitignore = (PROJECT_ROOT / ".gitignore").read_text().splitlines()
+
+    assert "/data/*" in gitignore
+    assert "data/*" not in gitignore
+
+
 def test_deployment_pipeline_has_develop_only_dev_integration_route():
     config = load_yaml("azure-pipelines.yml")
     stages = {stage["stage"]: stage for stage in config["stages"]}
