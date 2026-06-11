@@ -194,6 +194,16 @@
                 }
             ],
             "seed": 411
+        },
+        "PageTypeIsolation": {
+            "cells": [
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.05}], "then": {"lit": "HP_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.10}], "then": {"lit": "PLP_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.15}], "then": {"lit": "SB_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.20}], "then": {"lit": "OC_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 1.00}], "then": {"lit": "AllPages"}}
+            ],
+            "seed": 501
         }
     },
     
@@ -3143,5 +3153,18 @@
         "treatments": ["Best"],
         "masid_test_token": "Z",
         "incremental_ads_suffix": "_r2"
+    },
+
+    "page_type_isolation": {
+        "enabled": true,
+        "page_type_map": {
+            "HP_Only": ["PH3", "PH4", "PH5"],
+            "PLP_Only": ["PLX", "PL1", "PL2", "PL3", "PL4", "PL5", "PL6", "PL7", "PL8", "PL9", "PL10", 
+                "PL11", "PL12", "PL13", "PL14", "PL15", "PL16", "PL17", "PL18", "PL19", "PL20", 
+                "PL21", "PL22", "PL23", "PL24", "PL25", "PL26", "PL27", "PL28", "PL29", "PL30", 
+                "PL31", "PL32", "PL33", "PL34", "PL35", "PL36", "PL37", "PL38", "PL39", "PL40"],
+            "SB_Only": ["SB1", "SB2"],
+            "OC_Only": ["OC1", "OC2"]
+        }
     }
 }

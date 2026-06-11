@@ -19,9 +19,8 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (assert_pk,
                          create_table_from_df, delete_from_and_load,
-                         map_tbl,
                          chain_when_thens, truncate_and_load,
-                         post_to_webhook)
+                         )
 from dsutils.argparser import get_job_parser
 from next_ads.Assignment import (assign_predetermined_audience,
                                  get_algo_divisions,
@@ -243,6 +242,10 @@ df_cells = (
         'ChampionChallenger',
         F.when(F.col('specialaccountindicator') == 'S',
                'Challenger').otherwise(F.col('ChampionChallenger'))
+    ).withColumn(
+        'PageTypeIsolation',
+        F.when(F.col('specialaccountindicator') == 'S',
+               'AllPages').otherwise(F.col('PageTypeIsolation'))
     )
 )
 

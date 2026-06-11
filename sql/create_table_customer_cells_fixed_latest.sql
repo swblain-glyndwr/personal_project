@@ -15,6 +15,7 @@ create table {catalog}.{schema}.{client}_nextads_customer_cells_fixed_latest (
     AdHocABTest8 string not null,
     AdHocABTest9 string not null,
     ChampionChallenger string not null,
+    PageTypeIsolation string not null,
     specialaccountindicator string,
     rundate date not null,
   constraint pk_{client}_nextads_customer_cells_fixed_latest primary key (
