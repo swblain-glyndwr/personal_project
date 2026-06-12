@@ -28,12 +28,10 @@ from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.utils import config_manager
 from next_ads.utils import etl
-from databricks.connect import DatabricksSession
 
 
 def extract_table_paths(obj, parent_key=""):
-    """
-    Recursively extract all table paths from a potentially nested structure.
+    """Recursively extract all table paths from a potentially nested structure.
 
     Args:
         obj: A dict, string, or other value that may contain table path definitions
@@ -60,13 +58,72 @@ def extract_table_paths(obj, parent_key=""):
     return tables
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False):
+def extract_create_table_columns(create_table_sql: str) -> list[tuple[str, str]]:
+    """Extract simple column definitions from a CREATE TABLE statement."""
+    columns = []
+    in_column_block = False
+
+    for raw_line in create_table_sql.splitlines():
+        line = raw_line.strip().rstrip(",")
+        if not line or line.startswith("--"):
+            continue
+
+        upper_line = line.upper()
+        if not in_column_block:
+            if upper_line.startswith("CREATE TABLE"):
+                in_column_block = True
+            continue
+
+        if (
+            upper_line.startswith("CONSTRAINT")
+            or upper_line.startswith("PRIMARY KEY")
+            or upper_line.startswith("USING ")
+            or upper_line.startswith("PARTITIONED ")
+            or upper_line.startswith("TBLPROPERTIES")
+            or upper_line.startswith(")")
+        ):
+            break
+
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+
+        columns.append((parts[0].strip("`"), parts[1]))
+
+    return columns
+
+
+def build_add_missing_columns_query(
+    table: str,
+    expected_columns: list[tuple[str, str]],
+    actual_columns: list[str],
+) -> str | None:
+    """Build an additive ALTER TABLE statement for columns absent from target."""
+    actual_column_set = set(actual_columns)
+    missing_columns = [
+        (name, data_type)
+        for name, data_type in expected_columns
+        if name not in actual_column_set
+    ]
+
+    if not missing_columns:
+        return None
+
+    columns_sql = ", ".join(
+        f"`{name}` {data_type}" for name, data_type in missing_columns
+    )
+    return f"ALTER TABLE {table} ADD COLUMNS ({columns_sql})"
+
+
+def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
     configure_logging(
         log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
 
     logger.info(f"Running in job environment: {JOB_ENV}")
+    if ALTER_TABLES and JOB_ENV.lower() != "dev":
+        raise ValueError("--altertables is only supported for dev table setup")
 
     if not CLIENT:
         assert JOB_ENV.lower() == "dev", (
@@ -197,13 +254,31 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False):
             spark.sql(f"drop table if exists {table}")
 
         logger.info(f"Checking existence of table {table}")
-        if spark.catalog.tableExists(table):
-            logger.debug(f"Table {table} already exists - skipping")
-            continue
-
         # replace . with "_" for nested dynaconf table refs
         with open(PROJECT_ROOT / f"sql/create_table_{table_ref.replace('.', '_')}.sql") as f:
             query = etl.map_tbl("".join(f.readlines()), **tbl_args)
+
+        if spark.catalog.tableExists(table):
+            if not ALTER_TABLES:
+                logger.debug(f"Table {table} already exists - skipping")
+                continue
+
+            logger.info(f"Checking {table} for missing columns")
+            expected_columns = extract_create_table_columns(query)
+            actual_columns = spark.table(table).columns
+            alter_query = build_add_missing_columns_query(
+                table,
+                expected_columns,
+                actual_columns,
+            )
+            if not alter_query:
+                logger.info(f"Table {table} already has all expected columns")
+                continue
+
+            logger.info(f"Adding missing columns to {table}")
+            logger.info(f"Running: {alter_query}")
+            spark.sql(alter_query)
+            continue
 
         logger.info(f"Creating {table_ref} table as: {table}")
         logger.info(f"Running: {query}")
@@ -219,4 +294,5 @@ if __name__ == "__main__":
     CLIENT = jobparser.get_arg("--client")
     LOG_LEVEL = jobparser.get_arg("--log_level")
     DROP_TABLES = jobparser.get_typed_arg("--droptables", bool)
-    main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES)
+    ALTER_TABLES = jobparser.get_typed_arg("--altertables", bool)
+    main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES, ALTER_TABLES)

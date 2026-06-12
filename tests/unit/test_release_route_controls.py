@@ -94,6 +94,10 @@ def test_deployment_pipeline_has_develop_only_dev_integration_route():
         in run_setup_step
     )
     assert (
+        "databricks bundle run mktg_next_uk_nextads_dev_integration_alter"
+        in run_setup_step
+    )
+    assert (
         "databricks bundle run mktg_next_uk_nextads_dev_integration_migrate"
         in run_setup_step
     )
@@ -104,8 +108,10 @@ def test_dev_integration_setup_job_is_target_specific():
     jobs = setup["targets"]["DEV_INTEGRATION"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_dev_integration_setup"]
     migrate_job = jobs["mktg_next_uk_nextads_dev_integration_migrate"]
+    alter_job = jobs["mktg_next_uk_nextads_dev_integration_alter"]
     setup_task = setup_job["tasks"][0]
     migrate_task = migrate_job["tasks"][0]
+    alter_task = alter_job["tasks"][0]
 
     assert set(setup["targets"]) == {"DEV_INTEGRATION"}
     assert setup_task["task_key"] == "create_tables"
@@ -130,6 +136,17 @@ def test_dev_integration_setup_job_is_target_specific():
         "--log_level",
         "INFO",
         "--droptables",
+        "True",
+    ]
+    assert alter_task["task_key"] == "alter_tables"
+    assert alter_task["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--log_level",
+        "INFO",
+        "--altertables",
         "True",
     ]
 
