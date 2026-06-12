@@ -2,7 +2,7 @@
 with baskets as (
   select 
     distinct account_number,itemno,order_date
-  from warehouse.baskets_uk_3y
+  from marketingdata_prod.warehouse.baskets_uk_3y
   where order_date between date_add(current_date, -730) and current_date
 ),
 
@@ -21,7 +21,7 @@ baskets_product as (
         else b.department
     end as department
   FROM baskets a 
-  left join (select distinct pid, department, gender from warehouse.product_catalog_history) b
+  left join (select distinct pid, department, gender from marketingdata_prod.warehouse.product_catalog_history) b
   on itemno = pid
   group by all
 ),
@@ -30,8 +30,8 @@ views_site as(
     SELECT
         AccountNumber_RPID,
         ProductSKU AS itemnumber
-    FROM warehouse.bq_views_next_uk
-    INNER JOIN warehouse.bq_sessions_next_uk USING (UniqueVisitID, DATE)
+    FROM marketingdata_prod.warehouse.bq_views_next_uk
+    INNER JOIN marketingdata_prod.warehouse.bq_sessions_next_uk USING (UniqueVisitID, DATE)
     WHERE date between date_add(current_date, -60) and current_date
         AND EventType regexp "pdp_view"
         AND ProductSKU is not null
@@ -43,8 +43,8 @@ views_app as(
     SELECT
         AccountNumber_RPID,
         ProductSKU AS itemnumber
-    FROM warehouse.bq_views_next_uk_app
-    INNER JOIN warehouse.bq_sessions_next_uk_app USING (UniqueVisitID, DATE)
+    FROM marketingdata_prod.warehouse.bq_views_next_uk_app
+    INNER JOIN marketingdata_prod.warehouse.bq_sessions_next_uk_app USING (UniqueVisitID, DATE)
     WHERE date between date_add(current_date, -60) and current_date
         AND ProductSKU is not null
         AND AccountNumber_RPID is not null
@@ -73,7 +73,7 @@ views_product as (
             else b.department
         end as department
     FROM views a 
-    left join (select distinct pid, department, gender from warehouse.product_catalog_history) b
+    left join (select distinct pid, department, gender from marketingdata_prod.warehouse.product_catalog_history) b
     on itemnumber = pid
     group by all
 ),

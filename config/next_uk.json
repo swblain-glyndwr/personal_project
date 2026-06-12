@@ -3104,7 +3104,7 @@
     },
 
     "attributes": {
-        "active": ["gender", "department", "category", "brand", "use", "style", "pattern", "fit", "room", "activity","material", "collaboration"],
+        "active": ["gender", "department", "category", "brand", "use", "style", "pattern", "fit", "room", "activity","material", "collaboration","neckline"],
         "lookback_days": 365,
         "frequency_cutoff_pc": 0.0,
         "pc_cutoff_col": "pc_orders_total",
