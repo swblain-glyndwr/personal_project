@@ -176,6 +176,87 @@ def build_control_sheet_read_schema(
     return schema
 
 
+def align_control_sheet_to_read_schema(
+    df_control_sheet: DataFrame,
+    read_schema: Sequence[Sequence[str]],
+) -> TargetColumnAlignment:
+    """Keep the configured positional sheet columns and drop surplus headers."""
+    expected_columns = [column[0] for column in read_schema]
+    actual_columns = list(df_control_sheet.columns)
+
+    if len(actual_columns) < len(expected_columns):
+        missing_count = len(expected_columns) - len(actual_columns)
+        raise ValueError(
+            "Control Sheet has fewer columns than the configured read schema "
+            f"({len(actual_columns)} found, {len(expected_columns)} expected; "
+            f"{missing_count} missing)."
+        )
+
+    if len(actual_columns) == len(expected_columns):
+        return TargetColumnAlignment(df=df_control_sheet, extra_columns=[])
+
+    temp_columns = [
+        f"__control_sheet_column_{index}" for index in range(len(actual_columns))
+    ]
+    df_with_unique_columns = df_control_sheet.toDF(*temp_columns)
+    df_aligned = df_with_unique_columns.select(
+        *[
+            F.col(temp_columns[index]).alias(column_name)
+            for index, column_name in enumerate(expected_columns)
+        ]
+    )
+
+    return TargetColumnAlignment(
+        df=df_aligned,
+        extra_columns=actual_columns[len(expected_columns) :],
+    )
+
+
+def assert_append_rundate_target_schema(
+    *,
+    table_name: str,
+    df_columns: Sequence[str],
+    target_columns: Sequence[str],
+) -> None:
+    """Validate target table columns for dsutils append-rundate loaders."""
+    expected_columns = [*df_columns, "rundate"]
+    actual_columns = list(target_columns)
+
+    if actual_columns == expected_columns:
+        return
+
+    missing_columns = [
+        column for column in expected_columns if column not in actual_columns
+    ]
+    extra_columns = [
+        column for column in actual_columns if column not in expected_columns
+    ]
+    first_order_mismatch = next(
+        (
+            f"position {index}: expected {expected}, found {actual}"
+            for index, (expected, actual) in enumerate(
+                zip(expected_columns, actual_columns)
+            )
+            if expected != actual
+        ),
+        None,
+    )
+
+    details = [
+        f"Target table {table_name} does not match the DataFrame load schema.",
+        "delete_from_and_load/truncate_and_load insert by position and append "
+        "`current_date() as rundate`, so table columns must match exactly.",
+    ]
+    if missing_columns:
+        details.append(f"Missing target columns: {', '.join(missing_columns)}.")
+    if extra_columns:
+        details.append(f"Unexpected target columns: {', '.join(extra_columns)}.")
+    if first_order_mismatch:
+        details.append(f"First order mismatch: {first_order_mismatch}.")
+
+    raise ValueError(" ".join(details))
+
+
 def resolve_control_sheet_output_tables(config) -> ControlSheetOutputTables:
     """Resolve environment-specific control sheet output tables."""
     tables_write = config.tables_write

@@ -1,11 +1,15 @@
+import json
 from datetime import date
+from pathlib import Path
 
 import pytest
 from pyspark.sql import SparkSession
 
 from next_ads.control.load_control_sheet import (
+    align_control_sheet_to_read_schema,
     align_control_sheet_to_target_columns,
     apply_inherited_location_columns,
+    assert_append_rundate_target_schema,
     build_control_sheet_run_context,
     build_control_sheet_read_schema,
     build_processed_control_sheet,
@@ -25,6 +29,9 @@ from next_ads.control.load_control_sheet import (
 from next_ads.utils.config_manager import load_config
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
 @pytest.fixture
 def local_spark():
     try:
@@ -40,6 +47,18 @@ def local_spark():
 
 def _sorted_rows(df, *cols):
     return sorted(tuple(row[col] for col in cols) for row in df.collect())
+
+
+def _create_table_sql_columns(path: Path) -> list[str]:
+    columns = []
+    for line in path.read_text().splitlines()[1:]:
+        stripped = line.strip()
+        if stripped.startswith("CONSTRAINT"):
+            break
+        if not stripped:
+            continue
+        columns.append(stripped.split()[0].strip("`,"))
+    return columns
 
 
 def test_resolve_control_sheet_locations_preserves_order_and_inheritance():
@@ -80,6 +99,92 @@ def test_build_control_sheet_read_schema_adds_read_locations_without_mutating_ba
         ["CMSPageID", "string", "null"],
         ["SB1", "string", "null"],
     ]
+
+
+def test_next_uk_raw_table_sql_matches_effective_read_schema():
+    client_config = json.loads((PROJECT_ROOT / "config/next_uk.json").read_text())
+    location_config = resolve_control_sheet_locations(client_config["locations"])
+    read_schema = build_control_sheet_read_schema(
+        client_config["control_sheet"]["read_schema"],
+        location_config.read_locations,
+    )
+    expected_columns = [column[0] for column in read_schema] + ["rundate"]
+
+    assert "ClusterID" in expected_columns
+    assert "FY20" in expected_columns
+    assert "Segment" in expected_columns
+    assert "AdDriver" in expected_columns
+    assert "TemplateName" in expected_columns
+
+    for sql_file in [
+        PROJECT_ROOT / "sql/create_table_control_sheet_raw.sql",
+        PROJECT_ROOT / "sql/create_table_control_sheet_raw_latest.sql",
+    ]:
+        assert _create_table_sql_columns(sql_file) == expected_columns
+
+
+def test_align_control_sheet_to_read_schema_drops_surplus_sheet_columns(local_spark):
+    spark = local_spark
+    df_control_sheet = spark.createDataFrame(
+        [("ad1", "Next", "GB", "TRUE", "FALSE", "2026-06-12", "home")],
+        [
+            "UniqueAdID",
+            "Realm",
+            "Territory",
+            "PL1",
+            "PL1",
+            "rundate",
+            "Page",
+        ],
+    )
+
+    aligned = align_control_sheet_to_read_schema(
+        df_control_sheet,
+        [
+            ["UniqueAdID", "string", "null"],
+            ["Realm", "string", "null"],
+            ["Territory", "string", "null"],
+            ["PL1", "string", "null"],
+        ],
+    )
+
+    assert aligned.extra_columns == ["PL1", "rundate", "Page"]
+    assert aligned.df.columns == ["UniqueAdID", "Realm", "Territory", "PL1"]
+    assert _sorted_rows(aligned.df, "UniqueAdID", "Realm", "Territory", "PL1") == [
+        ("ad1", "Next", "GB", "TRUE"),
+    ]
+
+
+def test_align_control_sheet_to_read_schema_rejects_missing_columns(local_spark):
+    spark = local_spark
+    df_control_sheet = spark.createDataFrame(
+        [("ad1", "Next")],
+        ["UniqueAdID", "Realm"],
+    )
+
+    with pytest.raises(ValueError, match="fewer columns"):
+        align_control_sheet_to_read_schema(
+            df_control_sheet,
+            [
+                ["UniqueAdID", "string", "null"],
+                ["Realm", "string", "null"],
+                ["Territory", "string", "null"],
+            ],
+        )
+
+
+def test_assert_append_rundate_target_schema_rejects_drifted_target():
+    with pytest.raises(ValueError) as exc_info:
+        assert_append_rundate_target_schema(
+            table_name="marketingdata_dev.nextads_integration.raw",
+            df_columns=["UniqueAdID", "FY1", "FY20"],
+            target_columns=["UniqueAdID", "FY1", "rundate"],
+        )
+
+    message = str(exc_info.value)
+    assert "marketingdata_dev.nextads_integration.raw" in message
+    assert "Missing target columns: FY20" in message
+    assert "First order mismatch: position 2: expected FY20, found rundate" in message
 
 
 def test_control_sheet_output_route_uses_personal_dev_outputs(monkeypatch):

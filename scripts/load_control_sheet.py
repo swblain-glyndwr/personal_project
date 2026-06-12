@@ -33,6 +33,8 @@ from dsutils.etl import (
 from dsutils.argparser import get_job_parser
 import dsutils.gcp as gcp
 from next_ads.control.load_control_sheet import (
+    align_control_sheet_to_read_schema,
+    assert_append_rundate_target_schema,
     build_control_sheet_run_context,
     build_multipage_locations,
     process_control_sheet,
@@ -102,6 +104,16 @@ df_ctrl_raw = gcp.spark_df_from_sheets(
     gcp_key=cfg["gcp"]["key"],
     schema=run_context.control_sheet_read_schema,
 )
+control_sheet_read_alignment = align_control_sheet_to_read_schema(
+    df_ctrl_raw,
+    run_context.control_sheet_read_schema,
+)
+df_ctrl_raw = control_sheet_read_alignment.df
+if control_sheet_read_alignment.extra_columns:
+    logger.warning(
+        "Dropping Control Sheet columns outside configured read schema: %s",
+        ", ".join(control_sheet_read_alignment.extra_columns),
+    )
 
 logger.info("Reading Placements Sheet from Google Sheets")
 
@@ -133,6 +145,11 @@ except Exception as e:
 
 df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
 
+assert_append_rundate_target_schema(
+    table_name=output_tables.control_sheet_raw,
+    df_columns=df_ctrl_raw_filtered.columns,
+    target_columns=spark.table(output_tables.control_sheet_raw).columns,
+)
 delete_from_and_load(
     df=df_ctrl_raw_filtered,
     table=output_tables.control_sheet_raw,
@@ -141,6 +158,11 @@ delete_from_and_load(
 )
 
 logger.info(f"Writing Control Sheet to {output_tables.control_sheet_raw_latest}")
+assert_append_rundate_target_schema(
+    table_name=output_tables.control_sheet_raw_latest,
+    df_columns=df_ctrl_raw_filtered.columns,
+    target_columns=spark.table(output_tables.control_sheet_raw_latest).columns,
+)
 truncate_and_load(
     df=df_ctrl_raw_filtered,
     table=output_tables.control_sheet_raw_latest,

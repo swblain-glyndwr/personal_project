@@ -102,6 +102,7 @@ CREATE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_raw_latest (
   PL39 STRING,
   PL40 STRING,
   FY1 STRING,
+  FY20 STRING,
   rundate DATE,
   CONSTRAINT `pk_{client}_nextads_control_sheet_raw_latest` PRIMARY KEY (`Realm`, `Territory`, `UniqueAdID`))
 USING delta
