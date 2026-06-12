@@ -58,39 +58,94 @@ def extract_table_paths(obj, parent_key=""):
     return tables
 
 
+def _extract_outer_column_block(create_table_sql: str) -> str:
+    """Return the text inside the CREATE TABLE column-list parentheses."""
+    start = create_table_sql.find("(")
+    if start == -1:
+        return ""
+
+    depth = 0
+    for index, char in enumerate(create_table_sql[start:], start=start):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return create_table_sql[start + 1 : index]
+
+    return ""
+
+
+def _split_top_level_column_definitions(column_block: str) -> list[str]:
+    """Split column definitions without splitting inside STRUCT/ARRAY types."""
+    definitions = []
+    current = []
+    angle_depth = 0
+    paren_depth = 0
+
+    for char in column_block:
+        if char == "<":
+            angle_depth += 1
+        elif char == ">" and angle_depth > 0:
+            angle_depth -= 1
+        elif char == "(":
+            paren_depth += 1
+        elif char == ")" and paren_depth > 0:
+            paren_depth -= 1
+
+        if char == "," and angle_depth == 0 and paren_depth == 0:
+            definition = "".join(current).strip()
+            if definition:
+                definitions.append(definition)
+            current = []
+            continue
+
+        current.append(char)
+
+    definition = "".join(current).strip()
+    if definition:
+        definitions.append(definition)
+
+    return definitions
+
+
 def extract_create_table_columns(create_table_sql: str) -> list[tuple[str, str]]:
-    """Extract simple column definitions from a CREATE TABLE statement."""
+    """Extract top-level column definitions from a CREATE TABLE statement."""
     columns = []
-    in_column_block = False
+    column_block = _extract_outer_column_block(create_table_sql)
 
-    for raw_line in create_table_sql.splitlines():
-        line = raw_line.strip().rstrip(",")
-        if not line or line.startswith("--"):
-            continue
-
+    for definition in _split_top_level_column_definitions(column_block):
+        line = " ".join(definition.split())
         upper_line = line.upper()
-        if not in_column_block:
-            if upper_line.startswith("CREATE TABLE"):
-                in_column_block = True
+        if upper_line.startswith(("CONSTRAINT", "PRIMARY KEY")):
             continue
 
-        if (
-            upper_line.startswith("CONSTRAINT")
-            or upper_line.startswith("PRIMARY KEY")
-            or upper_line.startswith("USING ")
-            or upper_line.startswith("PARTITIONED ")
-            or upper_line.startswith("TBLPROPERTIES")
-            or upper_line.startswith(")")
-        ):
-            break
-
-        parts = line.split()
+        parts = line.split(maxsplit=1)
         if len(parts) < 2:
             continue
 
         columns.append((parts[0].strip("`"), parts[1]))
 
     return columns
+
+
+def can_auto_add_column(data_type: str) -> bool:
+    """Return whether a column definition is safe for additive auto-alter."""
+    upper_data_type = data_type.upper()
+    return "<" not in data_type and "NOT NULL" not in upper_data_type
+
+
+def get_unsupported_missing_columns(
+    expected_columns: list[tuple[str, str]],
+    actual_columns: list[str],
+) -> list[str]:
+    """Return missing columns that should not be auto-added."""
+    actual_column_set = set(actual_columns)
+    return [
+        name
+        for name, data_type in expected_columns
+        if name not in actual_column_set and not can_auto_add_column(data_type)
+    ]
 
 
 def build_add_missing_columns_query(
@@ -104,6 +159,7 @@ def build_add_missing_columns_query(
         (name, data_type)
         for name, data_type in expected_columns
         if name not in actual_column_set
+        and can_auto_add_column(data_type)
     ]
 
     if not missing_columns:
@@ -266,18 +322,37 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
             logger.info(f"Checking {table} for missing columns")
             expected_columns = extract_create_table_columns(query)
             actual_columns = spark.table(table).columns
+            unsupported_missing_columns = get_unsupported_missing_columns(
+                expected_columns,
+                actual_columns,
+            )
             alter_query = build_add_missing_columns_query(
                 table,
                 expected_columns,
                 actual_columns,
             )
             if not alter_query:
-                logger.info(f"Table {table} already has all expected columns")
+                if unsupported_missing_columns:
+                    logger.warning(
+                        "Table %s is missing columns that cannot be "
+                        "auto-added safely: %s",
+                        table,
+                        ", ".join(unsupported_missing_columns),
+                    )
+                else:
+                    logger.info(f"Table {table} already has all expected columns")
                 continue
 
             logger.info(f"Adding missing columns to {table}")
             logger.info(f"Running: {alter_query}")
             spark.sql(alter_query)
+            if unsupported_missing_columns:
+                logger.warning(
+                    "Table %s is still missing columns that cannot be "
+                    "auto-added safely: %s",
+                    table,
+                    ", ".join(unsupported_missing_columns),
+                )
             continue
 
         logger.info(f"Creating {table_ref} table as: {table}")
