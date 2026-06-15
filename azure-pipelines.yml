@@ -155,8 +155,9 @@ stages:
                 databricks bundle run mktg_next_uk_nextads_dev_integration_migrate -t DEV_INTEGRATION
               else
                 databricks bundle run mktg_next_uk_nextads_dev_integration_setup -t DEV_INTEGRATION
+                databricks bundle run mktg_next_uk_nextads_dev_integration_alter -t DEV_INTEGRATION
               fi
-            displayName: 'Create missing DEV integration tables'
+            displayName: 'Create or alter DEV integration tables'
 
   - stage: DestroyPREPROD
     displayName: 'Destroy PREPROD'

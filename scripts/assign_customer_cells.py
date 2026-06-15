@@ -19,8 +19,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (assert_pk,
                          create_table_from_df, delete_from_and_load,
-                         chain_when_thens, truncate_and_load,
-                         )
+                         chain_when_thens, truncate_and_load)
 from dsutils.argparser import get_job_parser
 from next_ads.Assignment import (assign_predetermined_audience,
                                  get_algo_divisions,

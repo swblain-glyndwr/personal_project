@@ -136,7 +136,7 @@ mlflow.set_experiment(experiment_path)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Load 
+# MAGIC ## Load
 # MAGIC
 # MAGIC The input table is already at the modelling row grain: one row represents one
 # MAGIC observed Shopping Bag advert exposure for one known account.
@@ -290,12 +290,12 @@ leakage_and_non_feature_cols = {
     "exposure_ts",
     "advert_url",
     "split",
-    "unique_ad_id", 
-    "assigned_unique_ad_id", 
-    "campaign_key", 
-    "assigned_campaign_key", 
-    "placement_id", 
-    "campaign_id", 
+    "unique_ad_id",
+    "assigned_unique_ad_id",
+    "campaign_key",
+    "assigned_campaign_key",
+    "placement_id",
+    "campaign_id",
     "treatment", "fallow_control", "exposure_source", "exposure_confidence", "accountnumberkey",
 }
 

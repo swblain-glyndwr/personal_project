@@ -152,7 +152,7 @@ PREPROD validation must not require routine write access to `marketingdata_prod.
 ## Hotfix Route
 
 ```text
-main -> hotfix/* -> validation -> main -> tag (nextads-vYYYY.MM.DD.N) -> PROD
+main -> hotfix/* -> validation -> main -> nextads-vYYYY.MM.DD.N -> PROD
                              \-> develop
                              \-> active release/* where relevant
 ```

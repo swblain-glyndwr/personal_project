@@ -8,7 +8,6 @@
 
 # COMMAND ----------
 
-from datetime import datetime
 import json
 
 import mlflow

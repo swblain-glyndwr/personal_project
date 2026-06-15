@@ -206,16 +206,27 @@
             "seed": 501
         }
     },
-    
+
     "transient_cells": {
         "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
         "Audiences": [
             ["fathers_day_audience", {"account_col":"AccountNumber", "label_col":"Label"}]
         ]
     },
-
+    "payload_experiment_id": {
+        "experiments": {
+            "Test_Exp_1": "AdHocABTest6",
+            "Test_Exp_2": "AdHocABTest1"
+        },
+        "audience_experiment": {
+            "enabled": true,
+            "name": "fathers_day_audience",
+            "split_col": "Audience",
+            "sample": ["Best"]
+        }
+    },
     "page_types": {
-        "HN1": {
+        "HomePage": {
             "basic_within": "AlgoDivision",
             "constraints": {
                 "targeting_within_division": "AlgoDivision"
@@ -231,7 +242,7 @@
                 }
             ]
         },
-        "sb": {
+        "ShoppingBagPage": {
             "basic_within": "AlgoDivision",
             "map": [
                 {
@@ -246,7 +257,7 @@
                 }
             ]
         },
-        "oc": {
+        "CheckoutPage": {
             "basic_within": "AlgoDivision",
             "map": [
                 {
@@ -261,7 +272,7 @@
                 }
             ]
         },
-        "plp": {
+        "ProductListingPage": {
             "basic_within": "AlgoDivision",
             "map": [
                 {
@@ -276,7 +287,7 @@
                 }
             ]
         },
-        "for_you": {
+        "ForYouPage": {
             "basic_within": "AlgoDivision",
             "map": [
                 {
@@ -2957,16 +2968,15 @@
         "preprod": "ds_sandbox",
         "prod": "warehouse"
     },
-
-    "sql_files":{
+     "sql_files":{
         "account_department_scores": "next_uk_nextads_account_department_scores.sql"
     },
-    
     "tables": {
         "read": {
             "svoc_cust": "marketingdata_prod.warehouse.svoccust_hist",
             "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
             "bq_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
+            "bq_actions": "marketingdata_prod.warehouse.bq_actions_next_uk",
             "bq_sessions_with_accounts": "marketingdata_prod.warehouse.bq_views_sessions_next_uk_with_accounts",
             "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
             "bq_views": "marketingdata_prod.warehouse.bq_views_next_uk",
@@ -3002,6 +3012,8 @@
             "assignments_v2": "{catalog}.{schema}.{client}_nextads_assignments_v2",
             "assignments_latest": "{catalog}.{schema}.{client}_nextads_assignments_latest",
             "assignments_v2_latest": "{catalog}.{schema}.{client}_nextads_assignments_v2_latest",
+            "nextads_payload": "{catalog}.{schema}.{client}_nextads_payload",
+            "nextads_payload_latest": "{catalog}.{schema}.{client}_nextads_payload_latest",
             "attribute_set": "{catalog}.{schema}.{client}_nextads_attribute_set",
             "attribute_set_latest": "{catalog}.{schema}.{client}_nextads_attribute_set_latest",
             "item_attributes_latest": "{catalog}.{schema}.{client}_nextads_item_attributes_latest",
@@ -3049,7 +3061,7 @@
         "DS Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw",
         "Results Warnings": "https://chat.googleapis.com/v1/spaces/AAAARUglEZU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=4SCef6fR-CuhJntPgdGS_lslDsACOjDsrMVTrYxLfnc"
     },
- 
+
     "apis": {
         "search_endpoint": "https://ci-test.next.co.uk/api/search/next/gb/en/v1/item-numbers",
         "search_type": "category"
@@ -3080,7 +3092,7 @@
 
     "results_prm": {
         "default_offset_start": 3,
-        "default_offset_end": 2, 
+        "default_offset_end": 2,
         "valid_assignment_threshold": 0.9,
         "masid_refresh_hour": 4,
         "min_c_sessions": 15000,
@@ -3099,7 +3111,7 @@
     },
 
     "attributes": {
-        "active": ["gender", "department", "category", "brand", "use", "style", "pattern", "fit", "room", "activity","material", "collaboration"],
+        "active": ["gender", "department", "category", "brand", "use", "style", "pattern", "fit", "room", "activity","material", "collaboration","neckline"],
         "lookback_days": 365,
         "frequency_cutoff_pc": 0.0,
         "pc_cutoff_col": "pc_orders_total",
