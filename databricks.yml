@@ -17,6 +17,7 @@ include:
   - resources/jobs/dev_integration_setup.yml
   - resources/jobs/preprod_setup.yml
   - resources/jobs/preprod_dependency_smoke.yml
+  - resources/jobs/prod_table_contract_smoke.yml
 
 sync:
   include:

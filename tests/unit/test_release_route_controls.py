@@ -246,6 +246,46 @@ def test_preprod_dependency_smoke_job_is_metadata_only_and_target_specific():
     assert "Skipping sample reads; metadata-only smoke requested" in script
 
 
+def test_prod_table_contract_smoke_job_is_read_only_and_target_specific():
+    bundle = load_yaml("databricks.yml")
+    setup = load_yaml("resources/jobs/prod_table_contract_smoke.yml")
+    jobs = setup["targets"]["PROD"]["resources"]["jobs"]
+    smoke_job = jobs["mktg_next_uk_nextads_prod_table_contract_smoke"]
+    smoke_task = smoke_job["tasks"][0]
+
+    assert "resources/jobs/prod_table_contract_smoke.yml" in bundle["include"]
+    assert set(setup["targets"]) == {"PROD"}
+    assert smoke_task["task_key"] == "table_contract_smoke"
+    assert (
+        smoke_task["spark_python_task"]["python_file"]
+        == "../../scripts/smoke/prod_table_contract_smoke.py"
+    )
+    assert smoke_task["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--log_level",
+        "INFO",
+    ]
+
+    script = (PROJECT_ROOT / "scripts/smoke/prod_table_contract_smoke.py").read_text()
+    banned_write_operations = [
+        "saveAsTable",
+        "write.",
+        "DELETE FROM",
+        "INSERT INTO",
+        "DROP TABLE",
+        "TRUNCATE TABLE",
+        "CREATE TABLE",
+        "ALTER TABLE",
+    ]
+    for operation in banned_write_operations:
+        assert operation not in script
+
+    assert "PROD table contract smoke passed without altering tables" in script
+
+
 def test_prod_deployment_is_tag_only_and_hotfixes_validate_by_pr():
     deploy_pipeline = load_yaml("azure-pipelines.yml")
     validation_pipeline = load_yaml("azure-pipelines-validation.yml")
