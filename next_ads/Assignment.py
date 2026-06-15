@@ -1277,3 +1277,97 @@ def greedy_assignment(
     result = get_spark().createDataFrame(result_data, schema=output_schema)
 
     return result
+
+def generate_repeat_ad_sessions(SESSIONS,ACTIONS):
+    """Returns DF containing number of times each user has seen the same ad in repeat sessions.
+    Look back over 7 days, and count each time a user has recieved the same ad across multiple sessions.
+    If a user has already seen the ad in more than 3 unique sessions, a downweight score is outputted
+    to force a new ad to be served to the customer
+    Args:
+      SESSIONS (str): Sessions bq table
+      ACTIONS (str): Actions bq table
+
+    Returns:
+        DataFrame with columns `AccountNumber`, `AdSeen`, `sessions_seen_ad_in_last_7_days`, `MultiSessionDownweightScore`
+    """
+    sessions = (
+        get_spark()
+        .table(SESSIONS)
+        .where((F.col("SiteCountry") == "UK") &
+               (F.col("Device").isin("Mobile","Desktop")) &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("AccountNumber_RPID").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            F.col("AccountNumber_RPID").alias("AccountNumber"))
+    )
+    sessions_app = (
+        get_spark()
+        .table(SESSIONS + "_app")
+        .where((F.col("SiteCountry") == "UK") &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("AccountNumber_RPID").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            F.col("AccountNumber_RPID").alias("AccountNumber"))
+    )
+    actions = (
+        get_spark()
+        .table(ACTIONS)
+        .where((F.col("Action") == ("Banner Impression - Next Ads")) &
+               (F.col("PagePath").isin("/shoppingbag","/secure/checkout/complete")) &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("Level2").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            "Level2")
+    )
+    actions_app = (
+        get_spark()
+        .table(ACTIONS + "_app")
+        .where((F.col("Action") == ("Banner Impression - Next Ads")) &
+               (F.col("ScreenName") == "PLP") &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("Level2").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            "Level2")
+    )
+
+    df_web = (actions
+        .join(
+            sessions,
+            on=["UniqueVisitID", "Date"],
+            how="inner")
+    )
+    df_app = (actions_app
+        .join(
+            sessions_app,
+            on=["UniqueVisitID", "Date"],
+            how="inner")
+    )
+
+    df = df_web.union(df_app)
+
+    df = (df
+          .groupby(
+              "AccountNumber",
+              F.col("Level2").alias("AdSeen")
+          )
+          .agg(
+              F.countDistinct(F.col('UniqueVisitID'))
+              .alias('sessions_seen_ad_in_last_7_days')
+              )
+          .withColumn('MultiSessionDownweightScore',
+                      F.when(F.col('sessions_seen_ad_in_last_7_days') == 3, 0.84)
+                      .when(F.col('sessions_seen_ad_in_last_7_days') == 4, 0.8)
+                      .when(F.col('sessions_seen_ad_in_last_7_days') == 5, 0.7)
+                      .when(F.col('sessions_seen_ad_in_last_7_days') >= 6, 0.5)
+                      .otherwise(1)
+          )
+    )
+    return df
