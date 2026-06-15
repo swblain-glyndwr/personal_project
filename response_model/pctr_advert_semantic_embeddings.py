@@ -424,7 +424,8 @@ def cache_with_count(df, label):
 
 def _prepare_executor_env():
     """Prepare executor environment for torch/sentence_transformers import."""
-    import os, sys
+    import os
+    import sys
     os.environ["USER"] = os.environ.get("USER") or "spark"
     os.environ["TORCHINDUCTOR_CACHE_DIR"] = os.environ.get("TORCHINDUCTOR_CACHE_DIR") or "/tmp/torchinductor_cache"
     os.environ["MLFLOW_HTTP_REQUEST_TIMEOUT"] = os.environ.get("MLFLOW_HTTP_REQUEST_TIMEOUT", "900")

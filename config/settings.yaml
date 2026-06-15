@@ -25,6 +25,7 @@ dev:
   az_st_account: adsstecmdeveun
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Dev-EUW"
+  pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktdeveuw.dfs.core.windows.net"
 
 # PREPROD runs in the PROD Databricks workspace but writes validation output to ds_sandbox, not warehouse.
 preprod:
@@ -33,6 +34,7 @@ preprod:
   az_st_account: adsstecmppeuw
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
+  pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
 
 prod:
   catalog_write: marketingdata_prod
@@ -40,3 +42,4 @@ prod:
   az_st_account: adsstecmprodeuw
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
+  pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"

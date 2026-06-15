@@ -21,7 +21,7 @@ from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import truncate_and_load, delete_from_and_load
 from dsutils.etl import post_to_webhook
-from next_ads.Assignment import get_ad_feedback_scores, greedy_assignment
+from next_ads.Assignment import get_ad_feedback_scores, greedy_assignment, generate_repeat_ad_sessions
 from next_ads.utils import config_manager
 from next_ads.utils import etl
 
@@ -68,6 +68,8 @@ CUSTOMER_CELLS_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
 UNDERPERFORMING_ADS = etl.map_tbl(tbls['results_underperforming_ads'],
                                   **tbl_args)
+SESSIONS = cfg['tables']['read']['bq_sessions']
+ACTIONS = cfg['tables']['read']['bq_actions']
 
 if ALGO == 'challenger':
     logger.info('Running script as Challenger')
@@ -91,7 +93,7 @@ else:
     PRERANKED_ADS_FROM_THEMES_LATEST = etl.map_tbl(
         tbls["preranked_ads_from_themes_latest"],
         **tbl_args)
-    
+
 WEBHOOK_URL = cfg['webhooks']['DS Warnings']
 
 # Force read from prod results tables for ad feedback scores
@@ -305,6 +307,60 @@ df_score_components = (
             'IncrementalScore',
             'Score')
 )
+
+logger.info('Getting multi-session ad score')
+multi_session_ad_df = generate_repeat_ad_sessions(SESSIONS,ACTIONS)
+
+logger.info('Joining multi-sessions onto score_components, and downweighting ads seen more than 3 times in 7 days')
+df_score_components = (
+    df_score_components
+    .join(multi_session_ad_df,
+          on='AccountNumber',
+          how = 'left'
+          )
+    .withColumn(
+        'RowID',
+        F.concat_ws('_', F.col('AccountNumber'), F.col('UniqueAdID'))
+    )
+    .withColumn(
+        'StringDistance',
+        F.levenshtein(F.col("AdSeen"), F.col("UniqueAdID"))
+    )
+)
+fm_window = Window.partitionBy("RowID").orderBy(F.col("StringDistance").asc_nulls_last())
+max_distance_threshold = 10
+
+df_score_components = (
+    df_score_components
+    .withColumn(
+        'MatchRank',
+        F.row_number().over(fm_window)
+    )
+    .filter(
+        F.col('MatchRank') == 1
+    )
+    .withColumn(
+        "MultiSessionDownweightScore",
+        F.when(
+            F.col("StringDistance") <= max_distance_threshold,
+            F.col("MultiSessionDownweightScore")
+        )
+        .otherwise(
+            F.lit(1.0)
+        )
+    )
+    .withColumn(
+        "Score",
+        F.col("Score") * F.col("MultiSessionDownweightScore")
+    )
+    .drop(
+        'MatchRank',
+        'StringDistance',
+        'AdSeen',
+        'RowID',
+        'sessions_seen_ad_in_last_7_days'
+    )
+    )
 df_score_components.cache()
 df_score_components.count()
 
@@ -372,9 +428,9 @@ df_adset2loc = (
     .select('AdSetID', F.explode('LocationSet').alias('Location'))
 )
 
-nLocs = df_adset2loc.select('Location').distinct().count()
-nAdSets = df_adsets.count()
-logger.info(f'{nAdSets:,} distinct ad sets found across {nLocs:,} locations')
+n_locs = df_adset2loc.select('Location').distinct().count()
+n_ad_sets = df_adsets.count()
+logger.info(f'{n_ad_sets:,} distinct ad sets found across {n_locs:,} locations')
 
 adsets_rows = df_adsets.collect()
 for row in adsets_rows:

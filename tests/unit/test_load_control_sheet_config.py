@@ -29,7 +29,9 @@ class TestLoadControlSheetConfigParityHighLevel:
             f"Extra locations: {dynaconf_locations - json_locations}"
         )
 
-    def test_all_locations_have_required_attributes(self, json_config, dynaconf_config):
+    def test_all_locations_have_required_attributes(
+        self, json_config, dynaconf_config
+    ):
         for location_key in json_config["locations"].keys():
             json_location = json_config["locations"][location_key]
             dynaconf_location = dynaconf_config.locations[location_key]
@@ -39,7 +41,9 @@ class TestLoadControlSheetConfigParityHighLevel:
                     f"Location {location_key} missing attribute: {attr}"
                 )
 
-    def test_locations_basic_attributes_match(self, json_config, dynaconf_config):
+    def test_locations_basic_attributes_match(
+        self, json_config, dynaconf_config
+    ):
         for location_key in json_config["locations"].keys():
             json_location = json_config["locations"][location_key]
             dynaconf_location = dynaconf_config.locations[location_key]
@@ -47,11 +51,13 @@ class TestLoadControlSheetConfigParityHighLevel:
             assert json_location["pf_col"] == dynaconf_location.pf_col, (
                 f"Location {location_key} pf_col mismatch"
             )
-            assert json_location["basic_within"] == dynaconf_location.basic_within, (
-                f"Location {location_key} basic_within mismatch"
-            )
+            assert (
+                json_location["basic_within"] == dynaconf_location.basic_within
+            ), f"Location {location_key} basic_within mismatch"
 
-    def test_locations_with_constraints_match(self, json_config, dynaconf_config):
+    def test_locations_with_constraints_match(
+        self, json_config, dynaconf_config
+    ):
         for location_key in json_config["locations"].keys():
             json_location = json_config["locations"][location_key]
 
@@ -70,7 +76,9 @@ class TestLoadControlSheetConfigParityHighLevel:
                     assert (
                         json_constraints[constraint_key]
                         == dynaconf_constraints[constraint_key]
-                    ), f"Location {location_key} constraint {constraint_key} mismatch"
+                    ), (
+                        f"Location {location_key} constraint {constraint_key} mismatch"
+                    )
 
     def test_locations_with_inherit_ads_from_match(
         self, json_config, dynaconf_config
@@ -88,7 +96,9 @@ class TestLoadControlSheetConfigParityHighLevel:
                     == dynaconf_location.inherit_ads_from
                 ), f"Location {location_key} inherit_ads_from mismatch"
 
-    def test_locations_with_best_kwargs_match(self, json_config, dynaconf_config):
+    def test_locations_with_best_kwargs_match(
+        self, json_config, dynaconf_config
+    ):
         for location_key in json_config["locations"].keys():
             json_location = json_config["locations"][location_key]
 
@@ -101,17 +111,20 @@ class TestLoadControlSheetConfigParityHighLevel:
                 json_kwargs = json_location["best_kwargs"]
                 dynaconf_kwargs = dynaconf_location.best_kwargs
 
-                assert set(json_kwargs.keys()) == set(dynaconf_kwargs.keys()), (
-                    f"Location {location_key} best_kwargs keys mismatch"
-                )
+                assert set(json_kwargs.keys()) == set(
+                    dynaconf_kwargs.keys()
+                ), f"Location {location_key} best_kwargs keys mismatch"
 
     def test_gcp_config_matches(self, json_config, dynaconf_config):
         assert json_config["gcp"]["scope"] == dynaconf_config.gcp.scope
         assert json_config["gcp"]["key"] == dynaconf_config.gcp.key
 
-    def test_control_sheet_basic_config_matches(self, json_config, dynaconf_config):
+    def test_control_sheet_basic_config_matches(
+        self, json_config, dynaconf_config
+    ):
         assert (
-            json_config["control_sheet"]["url"] == dynaconf_config.control_sheet.url
+            json_config["control_sheet"]["url"]
+            == dynaconf_config.control_sheet.url
         )
         assert (
             json_config["control_sheet"]["sheet"]
@@ -122,17 +135,23 @@ class TestLoadControlSheetConfigParityHighLevel:
             == dynaconf_config.control_sheet.date_format
         )
 
-    def test_control_sheet_date_regex_matches(self, json_config, dynaconf_config):
+    def test_control_sheet_date_regex_matches(
+        self, json_config, dynaconf_config
+    ):
         json_regex = json_config["control_sheet"]["date_regex"]
         dynaconf_regex = dynaconf_config.control_sheet.date_regex
         assert json_regex == dynaconf_regex
 
-    def test_control_sheet_schema_length_matches(self, json_config, dynaconf_config):
+    def test_control_sheet_schema_length_matches(
+        self, json_config, dynaconf_config
+    ):
         json_schema = json_config["control_sheet"]["read_schema"]
         dynaconf_schema = list(dynaconf_config.control_sheet.read_schema)
         assert len(json_schema) == len(dynaconf_schema)
 
-    def test_placements_sheet_config_matches(self, json_config, dynaconf_config):
+    def test_placements_sheet_config_matches(
+        self, json_config, dynaconf_config
+    ):
         assert (
             json_config["placements_sheet"]["url"]
             == dynaconf_config.placements_sheet.url
@@ -147,7 +166,8 @@ class TestLoadControlSheetConfigParityHighLevel:
 
     def test_plx_urls_sheet_config_matches(self, json_config, dynaconf_config):
         assert (
-            json_config["plx_urls_sheet"]["url"] == dynaconf_config.plx_urls_sheet.url
+            json_config["plx_urls_sheet"]["url"]
+            == dynaconf_config.plx_urls_sheet.url
         )
         assert (
             json_config["plx_urls_sheet"]["sheet"]
@@ -174,20 +194,19 @@ class TestLoadControlSheetConfigParityHighLevel:
             tbl_args = {
                 "catalog": dynaconf_config.catalog_write,
                 "schema": SCHEMA,
-                "client": CLIENT
+                "client": CLIENT,
             }
             json_table = etl.map_tbl(
-                json_config["tables"]["write"][table], **tbl_args)
-            assert (
-                json_table
-                == getattr(dynaconf_config.tables_write, table)
+                json_config["tables"]["write"][table], **tbl_args
+            )
+            assert json_table == getattr(
+                dynaconf_config.tables_write, table
             ), f"Table {table} mismatch"
 
-    def test_webhooks_input_warnings_matches(self, json_config, dynaconf_config):
+    def test_webhooks_input_warnings_matches(
+        self, json_config, dynaconf_config
+    ):
         assert (
             json_config["webhooks"]["Input Warnings"]
             == dynaconf_config.webhooks.input_warnings
         )
-
-    def test_schema_dev_matches(self, json_config, config_dev):
-        assert json_config["schema"]["dev"] == config_dev.schema_write

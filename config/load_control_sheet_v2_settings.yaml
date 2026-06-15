@@ -1,7 +1,7 @@
 default:
   client: next_uk
   control_sheet_v2:
-    url: "https://docs.google.com/spreadsheets/d/1UtYh4L22vyxJhSYiD0M1SHb0Vw5eo5RvwqOpR0B4vRI/edit?gid=0#gid=0"
+    url: "https://docs.google.com/spreadsheets/d/1793xIYCIfHw6bIWrYylclBw-5nbs1v687HiMnPyRkmY/edit?gid=0#gid=0"
     sheet: "Control Sheet UK"
     date_format: "dd/MM/yyyy"
     date_regex: "([1-2][0-9]|[0][1-9]|[3][0-1])/([0][1-9]|[1][0-2])/([1-9][0-9][0-9]{2})"
@@ -16,12 +16,11 @@ default:
       - ["TradeDivision", "string", "null"]
       - ["Brand", "string", "null"]
       - ["MASIDToken", "string", "null"]
-      - ["plp", "string", "null"]
-      - ["for_you", "string", "null"]
-      - ["oc", "string", "null"]
-      - ["sb", "string", "null"]
-      - ["as", "string", "null"]
-      - ["HN1", "string", "null"]
+      - ["ProductListingPage", "string", "null"]
+      - ["ForYouPage", "string", "null"]
+      - ["CheckoutPage", "string", "null"]
+      - ["ShoppingBagPage", "string", "null"]
+      - ["HomePage", "string", "null"]
       - ["Segment", "string", "null"]
       - ["AdDriver", "string", "null"]
       - ["TemplateName", "string", "null"]
@@ -35,7 +34,7 @@ default:
       - ["Themes", "string", "null"]
       - ["AdVariant", "string", "null"]
   exclusions_sheet:
-    url: "https://docs.google.com/spreadsheets/d/1UtYh4L22vyxJhSYiD0M1SHb0Vw5eo5RvwqOpR0B4vRI/edit?gid=0#gid=0"
+    url: "https://docs.google.com/spreadsheets/d/1793xIYCIfHw6bIWrYylclBw-5nbs1v687HiMnPyRkmY/edit?gid=0#gid=0"
     sheet: "Exclusions"
     read_schema:
       - ["PageType", "string", "null"]

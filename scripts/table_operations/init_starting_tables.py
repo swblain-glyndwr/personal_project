@@ -24,17 +24,16 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import json
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
-from next_ads.utils import etl
 from next_ads.utils import config_manager
 from dsutils.dbc import configure_spark
 
 
 def main(CLIENT, LOG_LEVEL):
     configure_logging(
-        log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
 
@@ -46,41 +45,31 @@ def main(CLIENT, LOG_LEVEL):
     config_dev = config_manager.load_config("dev")
     config_prod = config_manager.load_config("prod")
     logger.info(f"Configuring run for client: {CLIENT}")
-    with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-        cfg = json.load(f)
 
     sql_scripts = [
+        f"TRUNCATE TABLE {config_dev.tables_write.attribute_set_latest}",
         f"""
         INSERT INTO {config_dev.tables_write.attribute_set_latest}
         SELECT *
         FROM {config_prod.tables_write.attribute_set_latest}
-        WHERE
-        attribute = 'activity'
-        AND value = 'leisure'
         """,
+        f"TRUNCATE TABLE {config_dev.tables_write.item_attributes_latest}",
         f"""
         INSERT INTO {config_dev.tables_write.item_attributes_latest}
         SELECT *
         FROM {config_prod.tables_write.item_attributes_latest}
-        WHERE
-        attribute = 'activity'
-        AND value = 'leisure'
-        LIMIT 10;
         """,
+        f"TRUNCATE TABLE {config_dev.tables_write.theme_mapping_latest}",
         f"""
         INSERT INTO {config_dev.tables_write.theme_mapping_latest}
         SELECT *
         FROM {config_prod.tables_write.theme_mapping_latest}
-        WHERE
-        attribute = 'activity'
-        AND value = 'leisure'
         """,
+        f"TRUNCATE TABLE {config_dev.tables_write.theme_transitions_latest}",
         f"""
         INSERT INTO {config_dev.tables_write.theme_transitions_latest}
         SELECT *
         FROM {config_prod.tables_write.theme_transitions_latest}
-        WHERE
-        theme = 'boys athleisure'
         """,
     ]
 

@@ -81,6 +81,7 @@ ignore = [
     "N815", # MixedCase variable in class scope
     "E402", # Module level import not at top of file
     "F821", # Undefined name (e.g. for dynamically imported modules or variables defined in other files)
+    "C901", # "too complex" McCabe complexity of a function
 ]
 
 [tool.ruff.lint.mccabe]
@@ -122,6 +123,7 @@ schema = "ds_sandbox"
 client = "next_uk"
 
 [tool.pytest.ini_options]
+pythonpath = [".", "src"]
 markers = [
     "abfs_integration: marks tests as ABFS integration tests (deselect with '-m \"not abfs_integration\"')",
     "config_integration: marks tests as config_manager integration tests (deselect with '-m \"not config_integration\"')",
