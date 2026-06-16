@@ -220,7 +220,45 @@ def create_feature_store_tables(
             )
         created_tables.append(table_path)
 
+    create_feature_store_views(
+        spark,
+        catalog=target_catalog,
+        schema=target_schema,
+        dry_run=dry_run,
+    )
     return created_tables
+
+
+def create_feature_store_views(
+    spark,
+    catalog: str | None = None,
+    schema: str | None = None,
+    dry_run: bool = False,
+) -> list[str]:
+    """Create or replace feature-store compatibility views."""
+    registry = load_feature_store_registry()
+    target_catalog = catalog or registry.default_catalog
+    target_schema = schema or registry.default_schema
+    created_views = []
+
+    for view in registry.compatibility_views:
+        view_name = view["name"]
+        view_path = (
+            registry.table_root / f"create_view_{view_name}.sql"
+        )
+        view_sql = view_path.read_text().format(
+            catalog=target_catalog,
+            schema=target_schema,
+        )
+        resolved_view = f"{target_catalog}.{target_schema}.{view_name}"
+        if dry_run:
+            LOGGER.info("Dry run CREATE OR REPLACE VIEW for %s", resolved_view)
+        else:
+            LOGGER.info("Creating feature-store compatibility view: %s", resolved_view)
+            spark.sql(view_sql)
+        created_views.append(resolved_view)
+
+    return created_views
 
 
 def parse_args() -> argparse.Namespace:

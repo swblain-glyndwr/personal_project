@@ -77,6 +77,12 @@ nextads_feature_store_config: &nextads_feature_store_config
             - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
+            - --theme_source_catalog
+            - ${var.mktgdata_catalog}
+            - --theme_source_schema
+            - ds_sandbox
+            - --theme_table_prefix
+            - next_uk_nextAds_predict_prod
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
@@ -113,6 +119,12 @@ nextads_feature_store_config: &nextads_feature_store_config
             - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
+            - --theme_source_catalog
+            - ${var.mktgdata_catalog}
+            - --theme_source_schema
+            - ds_sandbox
+            - --theme_table_prefix
+            - next_uk_nextAds_predict_prod
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
@@ -130,6 +142,12 @@ nextads_feature_store_config: &nextads_feature_store_config
             - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
+            - --theme_source_catalog
+            - ${var.mktgdata_catalog}
+            - --theme_source_schema
+            - ds_sandbox
+            - --theme_table_prefix
+            - next_uk_nextAds_predict_prod
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1

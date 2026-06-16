@@ -30,7 +30,7 @@ The repo-owned executable contract is split across:
 
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
 
-Current `build_*` entrypoints are metadata-only scaffolds: they log the feature tables owned by each source job and then exit. They do not populate rows yet. Row materialisation starts with the migration backlog items after the Databricks Feature Engineering table registration and schema routing have been validated.
+The Theme Affinity/LTR entrypoints now materialise the first populated feature-store slice from existing hackathon/Theme Affinity outputs through the Databricks Feature Engineering client. Account, advert and CWB pCTR jobs remain scaffold/dependency-only until their source contracts are migrated.
 
 ## Feature Catalogue
 
@@ -70,6 +70,8 @@ The feature-store route depends on:
 
 - DEV Feature Engineering Client availability and write permissions.
 - Existing source jobs remaining stable while compatibility views are proven.
+- Existing Theme Affinity outputs being built before the feature-store materialisation job runs for `reference_date=predict`.
+- CWB analytics pCTR source contracts being brought into the branch before pCTR feature tables are populated.
 - Challenger testing before feature-store model inputs affect production ranking.
 - Separate offline diagnostics stories before candidate-similarity work is added to the repo.
 

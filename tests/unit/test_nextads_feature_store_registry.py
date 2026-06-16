@@ -1,9 +1,14 @@
 import ast
 from pathlib import Path
 
+import pytest
 import yaml
 
 from next_ads.features import load_feature_store_registry
+from next_ads.features.materialization import validate_required_columns
+from next_ads.features.theme_affinity import (
+    THEME_AFFINITY_MODEL_FEATURE_COLUMNS,
+)
 from scripts.table_operations.create_feature_store_tables import (
     create_feature_store_tables,
     create_databricks_feature_table,
@@ -35,8 +40,10 @@ class _FakeSpark:
 
     def sql(self, query):
         self.sql_calls.append(query)
-        assert query.startswith("SHOW SCHEMAS")
-        return _FakeSchemaQuery()
+        if query.startswith("SHOW SCHEMAS"):
+            return _FakeSchemaQuery()
+        assert query.startswith("CREATE OR REPLACE VIEW")
+        return None
 
 
 class _FakeFeatureEngineeringClient:
@@ -131,6 +138,21 @@ def test_theme_affinity_model_input_preserves_current_feature_columns():
     columns = _sql_columns("next_uk_nextads_fs_theme_affinity_model_input")
 
     assert set(_theme_affinity_model_features()).issubset(columns)
+    assert set(_theme_affinity_model_features()).issubset(
+        THEME_AFFINITY_MODEL_FEATURE_COLUMNS
+    )
+
+
+def test_feature_store_write_helpers_validate_required_columns():
+    class FakeDataFrame:
+        columns = ["account_number"]
+
+    with pytest.raises(ValueError, match="missing required columns"):
+        validate_required_columns(
+            FakeDataFrame(),
+            ["account_number", "reference_date"],
+            "feature_table",
+        )
 
 
 def test_pctr_model_input_carries_analytics_pctr_compatibility_columns():
@@ -206,6 +228,10 @@ def test_feature_store_setup_uses_databricks_feature_engineering_client():
         "nextads_feature_store"
     )
     assert not any("CREATE TABLE" in query for query in fake_spark.sql_calls)
+    assert any(
+        query.startswith("CREATE OR REPLACE VIEW")
+        for query in fake_spark.sql_calls
+    )
 
 
 def test_feature_engineering_create_table_argument_filter_supports_api_variants():
@@ -329,7 +355,7 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     )
     assert (
         bundle_config["variables"]["feature_store_reference_date"]["default"]
-        == "1970-01-01"
+        == "predict"
     )
     assert (
         bundle_config["variables"]["feature_store_schema"]["default"]
@@ -377,6 +403,24 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         in task["spark_python_task"]["parameters"]
         for task in job["tasks"][1:]
     )
+    pctr_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "build_pctr_affinity_features"
+    )
+    assert "--theme_source_schema" not in pctr_task["spark_python_task"][
+        "parameters"
+    ]
+    for task_key in (
+        "build_theme_affinity_features",
+        "build_model_inputs",
+        "quality_checks",
+    ):
+        task = next(task for task in job["tasks"] if task["task_key"] == task_key)
+        parameters = task["spark_python_task"]["parameters"]
+        assert "--theme_source_catalog" in parameters
+        assert "--theme_source_schema" in parameters
+        assert "--theme_table_prefix" in parameters
     assert all(
         "${var.feature_store_schema}"
         in task["spark_python_task"]["parameters"]

@@ -27,6 +27,13 @@ def parse_common_args() -> argparse.Namespace:
     parser.add_argument("--reference_date", default=None)
     parser.add_argument("--catalog", default=None)
     parser.add_argument("--schema", default=None)
+    parser.add_argument("--theme_source_catalog", default=None)
+    parser.add_argument("--theme_source_schema", default="ds_sandbox")
+    parser.add_argument(
+        "--theme_table_prefix",
+        default="next_uk_nextAds_predict_prod",
+    )
+    parser.add_argument("--replace_reference_date", default="true")
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -62,4 +69,3 @@ def metadata_only_main(source_job: str) -> None:
         source_job,
         len(owned_tables),
     )
-

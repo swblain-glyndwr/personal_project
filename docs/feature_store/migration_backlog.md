@@ -16,11 +16,11 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 | Priority | Migration | Target tables/views | Notes |
 | --- | --- | --- | --- |
 | 1 | Confirm DEV schema, permissions and Feature Engineering Client registration | All setup tables | Run the paused DEV/SANDBOX setup job against `${var.feature_store_schema}` and confirm table registration. |
-| 2 | Populate first customer feature table | `next_uk_nextads_fs_account_profile` | Start with account descriptors and reference-date metadata. Validate key uniqueness and row counts. |
-| 3 | Populate first advert/embedding table | `next_uk_nextads_fs_advert_core_daily` or `next_uk_nextads_fs_product_embeddings_latest` | Choose advert core first for lower risk, or embeddings first if the DEV validation focuses on vector metadata. |
-| 4 | Wire Theme Affinity compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Preserve current `hackathon_model/config.py` feature list while proving output equivalence. |
-| 5 | Migrate Theme Affinity native reads | Theme affinity feature tables and model input | Only after compatibility-view output equivalence is signed off. |
-| 6 | Wire CWB analytics pCTR model input | `next_uk_nextads_fs_pctr_model_input`, `next_uk_nextads_pctr_features_latest` | Replace notebook-local joins with governed model input after DEV smoke and row/key checks. |
+| 2 | Populate Theme Affinity feature-store slice | Theme affinity feature tables, labels and model input | First populated slice; reads existing hackathon outputs and leaves operational outputs unchanged. |
+| 3 | Validate Theme Affinity compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Preserve current `hackathon_model/config.py` feature list while proving output equivalence. |
+| 4 | Populate first customer feature table | `next_uk_nextads_fs_account_profile` | Start with account descriptors and reference-date metadata. Validate key uniqueness and row counts. |
+| 5 | Populate first advert/embedding table | `next_uk_nextads_fs_advert_core_daily` or `next_uk_nextads_fs_product_embeddings_latest` | Choose advert core first for lower risk, or embeddings first if the DEV validation focuses on vector metadata. |
+| 6 | Wire CWB analytics pCTR source contract | `next_uk_nextads_fs_account_advert_affinity_daily`, `next_uk_nextads_fs_pctr_model_input`, `next_uk_nextads_pctr_features_latest` | CWB analytics pCTR remains an external dependency until its source tables/notebooks are migrated into this route. |
 | 7 | Add offline candidate similarity diagnostics | Separate diagnostics table | New follow-up story only; no production model or scoring job reads this output. |
 | 8 | Add labels and backfill training snapshots | `next_uk_nextads_fs_labels_clicks`, `next_uk_nextads_fs_labels_theme_response` | Preserve point-in-time correctness for repeatable training and validation. |
 | 9 | Introduce shared integration schema | `marketingdata_dev.nextads_integration` | Use after feature branch validation, before production promotion. |
