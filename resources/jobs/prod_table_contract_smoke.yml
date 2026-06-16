@@ -15,7 +15,7 @@ nextads_prod_table_contract_smoke_config: &nextads_prod_table_contract_smoke_con
       department: marketing
       project: nextads
     email_notifications:
-      on_failure: ${var.notification_emails}
+      on_failure: ${var.qa_notification_emails}
     notification_settings:
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
