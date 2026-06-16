@@ -78,6 +78,9 @@ variables:
   feature_store_reference_date:
     description: Reference date for opt-in feature-store smoke/materialisation jobs
     default: "1970-01-01"
+  feature_store_schema:
+    description: Schema for opt-in Next Ads Feature Store tables
+    default: ${var.user_schema}
 
 targets:
   SANDBOX:

@@ -273,6 +273,10 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         bundle_config["variables"]["feature_store_reference_date"]["default"]
         == "1970-01-01"
     )
+    assert (
+        bundle_config["variables"]["feature_store_schema"]["default"]
+        == "${var.user_schema}"
+    )
     assert set(job_config["targets"]) == {"SANDBOX", "DEV", "DEV_INTEGRATION"}
 
     job = job_config["nextads_feature_store_config"][
@@ -285,6 +289,11 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         "${var.feature_store_reference_date}"
         in task["spark_python_task"]["parameters"]
         for task in job["tasks"][1:]
+    )
+    assert all(
+        "${var.feature_store_schema}"
+        in task["spark_python_task"]["parameters"]
+        for task in job["tasks"]
     )
     assert all(
         task["spark_python_task"]["python_file"].startswith(

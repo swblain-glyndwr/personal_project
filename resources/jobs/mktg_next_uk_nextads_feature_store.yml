@@ -24,7 +24,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --catalog
             - ${var.mktgdata_catalog}
             - --schema
-            - ${var.user_schema}
+            - ${var.feature_store_schema}
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
@@ -39,7 +39,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --catalog
             - ${var.mktgdata_catalog}
             - --schema
-            - ${var.user_schema}
+            - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
             - --log_level
@@ -56,7 +56,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --catalog
             - ${var.mktgdata_catalog}
             - --schema
-            - ${var.user_schema}
+            - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
             - --log_level
@@ -74,7 +74,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --catalog
             - ${var.mktgdata_catalog}
             - --schema
-            - ${var.user_schema}
+            - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
             - --log_level
@@ -92,7 +92,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --catalog
             - ${var.mktgdata_catalog}
             - --schema
-            - ${var.user_schema}
+            - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
             - --log_level
@@ -110,7 +110,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --catalog
             - ${var.mktgdata_catalog}
             - --schema
-            - ${var.user_schema}
+            - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
             - --log_level
@@ -127,7 +127,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --catalog
             - ${var.mktgdata_catalog}
             - --schema
-            - ${var.user_schema}
+            - ${var.feature_store_schema}
             - --reference_date
             - ${var.feature_store_reference_date}
             - --log_level
