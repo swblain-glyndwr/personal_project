@@ -78,7 +78,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --reference_date
             - ${var.feature_store_reference_date}
             - --theme_source_catalog
-            - ${var.mktgdata_catalog}
+            - ${var.feature_store_theme_source_catalog}
             - --theme_source_schema
             - ds_sandbox
             - --theme_table_prefix
@@ -120,7 +120,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --reference_date
             - ${var.feature_store_reference_date}
             - --theme_source_catalog
-            - ${var.mktgdata_catalog}
+            - ${var.feature_store_theme_source_catalog}
             - --theme_source_schema
             - ds_sandbox
             - --theme_table_prefix
@@ -143,7 +143,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --reference_date
             - ${var.feature_store_reference_date}
             - --theme_source_catalog
-            - ${var.mktgdata_catalog}
+            - ${var.feature_store_theme_source_catalog}
             - --theme_source_schema
             - ds_sandbox
             - --theme_table_prefix

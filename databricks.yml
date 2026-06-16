@@ -81,6 +81,9 @@ variables:
   feature_store_schema:
     description: Schema for opt-in Next Ads Feature Store tables
     default: nextads_feature_store
+  feature_store_theme_source_catalog:
+    description: Catalog for existing Theme Affinity source tables consumed by feature-store materialisation
+    default: marketingdata_prod
 
 targets:
   SANDBOX:

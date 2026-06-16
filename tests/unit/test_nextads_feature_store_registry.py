@@ -377,6 +377,12 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         == "nextads_feature_store"
     )
     assert (
+        bundle_config["variables"]["feature_store_theme_source_catalog"][
+            "default"
+        ]
+        == "marketingdata_prod"
+    )
+    assert (
         bundle_config["targets"]["SANDBOX"]["variables"][
             "feature_store_schema"
         ]
@@ -434,6 +440,10 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         task = next(task for task in job["tasks"] if task["task_key"] == task_key)
         parameters = task["spark_python_task"]["parameters"]
         assert "--theme_source_catalog" in parameters
+        assert (
+            parameters[parameters.index("--theme_source_catalog") + 1]
+            == "${var.feature_store_theme_source_catalog}"
+        )
         assert "--theme_source_schema" in parameters
         assert "--theme_table_prefix" in parameters
     assert all(
