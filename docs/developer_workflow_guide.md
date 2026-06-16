@@ -37,6 +37,26 @@ databricks workspace list /root -t DEV
 databricks workspace list /root -t PROD
 ```
 
+If local Databricks auth has expired, refresh the named CLI profiles used by
+the bundle:
+
+```bash
+databricks auth login --host https://adb-6694370232251359.19.azuredatabricks.net/ -p SANDBOX
+databricks auth login --host https://adb-6694370232251359.19.azuredatabricks.net/ -p DEV
+databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net/ -p PREPROD
+databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net/ -p PROD
+```
+
+`DEV` and `SANDBOX` share the same workspace host, and `PREPROD` and `PROD`
+share the same production host. For bundle commands, pass an explicit profile
+to avoid ambiguous-profile resolution:
+
+```bash
+databricks bundle validate --target DEV --profile DEV
+databricks bundle plan --target DEV --profile DEV
+databricks bundle deploy --target DEV --profile DEV
+```
+
 ---
 
 ## Complete Workflow: Development to Production
@@ -80,13 +100,13 @@ source devops/scripts/set_tags.sh
 poetry export -f requirements.txt --output requirements.txt --without-hashes
 
 # Step 3: Validate bundle
-databricks bundle validate -t DEV
+databricks bundle validate -t DEV --profile DEV
 
 # Step 4: Plan bundle to see changes
-databricks bundle plan -t DEV
+databricks bundle plan -t DEV --profile DEV
 
 # Step 5: Deploy to DEV
-databricks bundle deploy -t DEV
+databricks bundle deploy -t DEV --profile DEV
 ```
 
 Run the job manually in Databricks UI and verify successful completion.
