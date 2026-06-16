@@ -256,6 +256,9 @@ def test_feature_engineering_create_table_argument_filter_supports_api_variants(
 
 def test_feature_store_job_is_development_only_and_unscheduled():
     bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+    libraries_config = yaml.safe_load(
+        (PROJECT_ROOT / "resources" / "variables" / "libraries.yml").read_text()
+    )
     job_config = yaml.safe_load(
         (
             PROJECT_ROOT
@@ -277,6 +280,9 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         bundle_config["variables"]["feature_store_schema"]["default"]
         == "${var.user_schema}"
     )
+    assert libraries_config["variables"]["feature_store_libraries"][
+        "default"
+    ][2]["pypi"]["package"] == "databricks-feature-engineering==0.16.0"
     assert set(job_config["targets"]) == {"SANDBOX", "DEV", "DEV_INTEGRATION"}
 
     job = job_config["nextads_feature_store_config"][
@@ -293,6 +299,10 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     assert all(
         "${var.feature_store_schema}"
         in task["spark_python_task"]["parameters"]
+        for task in job["tasks"]
+    )
+    assert all(
+        task["libraries"] == "${var.feature_store_libraries}"
         for task in job["tasks"]
     )
     assert all(
