@@ -4,10 +4,66 @@ from pathlib import Path
 import yaml
 
 from next_ads.features import load_feature_store_registry
+from scripts.table_operations.create_feature_store_tables import (
+    create_feature_store_tables,
+    create_databricks_feature_table,
+    schema_from_contract,
+)
 from scripts.table_operations.create_tables import extract_create_table_columns
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+class _FakeSchemaQuery:
+    def filter(self, _condition):
+        return self
+
+    def collect(self):
+        return [{"databaseName": "feature_schema"}]
+
+
+class _FakeCatalog:
+    def tableExists(self, _table_path):
+        return False
+
+
+class _FakeSpark:
+    def __init__(self):
+        self.catalog = _FakeCatalog()
+        self.sql_calls = []
+
+    def sql(self, query):
+        self.sql_calls.append(query)
+        assert query.startswith("SHOW SCHEMAS")
+        return _FakeSchemaQuery()
+
+
+class _FakeFeatureEngineeringClient:
+    def __init__(self):
+        self.create_table_calls = []
+
+    def create_table(
+        self,
+        name,
+        primary_keys,
+        schema,
+        description=None,
+        timestamp_keys=None,
+        partition_columns=None,
+        tags=None,
+    ):
+        self.create_table_calls.append(
+            {
+                "name": name,
+                "primary_keys": primary_keys,
+                "schema": schema,
+                "description": description,
+                "timestamp_keys": timestamp_keys,
+                "partition_columns": partition_columns,
+                "tags": tags,
+            }
+        )
 
 
 def _sql_columns(table_name):
@@ -112,6 +168,90 @@ def test_feature_store_views_are_contract_artifacts_not_physical_tables():
             / f"create_view_{view['name']}.sql"
         )
         assert view_path.is_file()
+
+
+def test_feature_store_setup_uses_databricks_feature_engineering_client():
+    fake_spark = _FakeSpark()
+    fake_client = _FakeFeatureEngineeringClient()
+
+    created_tables = create_feature_store_tables(
+        fake_spark,
+        catalog="marketingdata_dev",
+        schema="feature_schema",
+        feature_engineering_client=fake_client,
+    )
+
+    registry = load_feature_store_registry()
+    assert created_tables == [
+        registry.resolved_table_path(
+            table.name,
+            catalog="marketingdata_dev",
+            schema="feature_schema",
+        )
+        for table in registry.physical_tables
+    ]
+    assert len(fake_client.create_table_calls) == len(registry.physical_tables)
+    first_call = fake_client.create_table_calls[0]
+    assert first_call["name"] == (
+        "marketingdata_dev.feature_schema."
+        "next_uk_nextads_fs_account_profile"
+    )
+    assert first_call["primary_keys"] == ["account_number", "reference_date"]
+    assert first_call["timestamp_keys"] == ["reference_date"]
+    assert first_call["partition_columns"] == ["reference_date"]
+    assert first_call["tags"]["nextads_feature_store"] == (
+        "nextads_feature_store"
+    )
+    assert not any("CREATE TABLE" in query for query in fake_spark.sql_calls)
+
+
+def test_feature_engineering_create_table_argument_filter_supports_api_variants():
+    captured = {}
+
+    class ClientWithTimeseriesColumn:
+        def create_table(
+            self,
+            name,
+            primary_keys,
+            schema,
+            timeseries_column=None,
+            tags=None,
+        ):
+            captured.update(
+                {
+                    "name": name,
+                    "primary_keys": primary_keys,
+                    "schema": schema,
+                    "timeseries_column": timeseries_column,
+                    "tags": tags,
+                }
+            )
+
+    schema = schema_from_contract(
+        (
+            PROJECT_ROOT
+            / "sql"
+            / "features"
+            / "nextads"
+            / "create_table_next_uk_nextads_fs_account_profile.sql"
+        ).read_text()
+    )
+
+    create_databricks_feature_table(
+        ClientWithTimeseriesColumn(),
+        name="catalog.schema.table",
+        primary_keys=("account_number", "reference_date"),
+        schema=schema,
+        description="test table",
+        timestamp_key="reference_date",
+        partition_columns=["reference_date"],
+        tags={"owner": "marketing_data"},
+    )
+
+    assert captured["name"] == "catalog.schema.table"
+    assert captured["primary_keys"] == ["account_number", "reference_date"]
+    assert captured["timeseries_column"] == "reference_date"
+    assert captured["tags"] == {"owner": "marketing_data"}
 
 
 def test_feature_store_job_is_development_only_and_unscheduled():
