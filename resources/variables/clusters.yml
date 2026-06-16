@@ -40,6 +40,11 @@ _base_cluster_config_photon: &base_cluster_photon
   <<: *base_cluster
   runtime_engine: PHOTON
 
+_feature_store_ml_cluster_config: &feature_store_ml_cluster
+  <<: *base_cluster
+  spark_version: 17.3.x-cpu-ml-scala2.12
+  runtime_engine: STANDARD
+
 variables:
   job_clusters_config:
     description: Complete job clusters configuration
@@ -79,6 +84,14 @@ variables:
       - job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         new_cluster:
           <<: *base_cluster_standard
+          node_type_id: Standard_D4ads_v5
+          driver_node_type_id: Standard_D4ads_v5
+          autoscale:
+            min_workers: 1
+            max_workers: 1
+      - job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
+        new_cluster:
+          <<: *feature_store_ml_cluster
           node_type_id: Standard_D4ads_v5
           driver_node_type_id: Standard_D4ads_v5
           autoscale:

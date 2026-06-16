@@ -355,6 +355,9 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     libraries_config = yaml.safe_load(
         (PROJECT_ROOT / "resources" / "variables" / "libraries.yml").read_text()
     )
+    clusters_config = yaml.safe_load(
+        (PROJECT_ROOT / "resources" / "variables" / "clusters.yml").read_text()
+    )
     job_config = yaml.safe_load(
         (
             PROJECT_ROOT
@@ -410,7 +413,18 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     )
     assert libraries_config["variables"]["feature_store_libraries"][
         "default"
-    ][2]["pypi"]["package"] == "databricks-feature-engineering==0.15.0"
+    ][2]["pypi"]["package"] == "databricks-feature-engineering==0.12.1"
+    feature_store_cluster = next(
+        cluster
+        for cluster in clusters_config["variables"]["job_clusters_config"]["default"]
+        if cluster["job_cluster_key"]
+        == "next_ads_feature_store_ml_cluster_D4ads_v5_1_1"
+    )
+    assert (
+        feature_store_cluster["new_cluster"]["spark_version"]
+        == "17.3.x-cpu-ml-scala2.12"
+    )
+    assert feature_store_cluster["new_cluster"]["runtime_engine"] == "STANDARD"
     assert set(job_config["targets"]) == {"SANDBOX", "DEV", "DEV_INTEGRATION"}
 
     job = job_config["nextads_feature_store_config"][
@@ -453,6 +467,11 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     )
     assert all(
         task["libraries"] == "${var.feature_store_libraries}"
+        for task in job["tasks"]
+    )
+    assert all(
+        task["job_cluster_key"]
+        == "next_ads_feature_store_ml_cluster_D4ads_v5_1_1"
         for task in job["tasks"]
     )
     assert all(
