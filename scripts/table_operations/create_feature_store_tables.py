@@ -38,7 +38,6 @@ LOGGER = logging.getLogger(__name__)
 
 def ddl_type_to_spark_type(data_type: str):
     """Convert the small repo DDL type subset into Spark SQL types."""
-
     from pyspark.sql import types as T
 
     normalized = data_type.upper().replace(" NOT NULL", "").strip()
@@ -68,7 +67,6 @@ def ddl_type_to_spark_type(data_type: str):
 
 def schema_from_contract(contract_sql: str):
     """Build a Spark StructType from a repo SQL feature-table contract."""
-
     from pyspark.sql import types as T
 
     fields = []
@@ -86,7 +84,6 @@ def schema_from_contract(contract_sql: str):
 
 def validate_schema_exists(spark, catalog: str, schema: str) -> None:
     """Fail fast when the target schema is absent."""
-
     result = (
         spark.sql(f"SHOW SCHEMAS IN {catalog}")
         .filter(f"`databaseName` = '{schema}'")
@@ -98,7 +95,6 @@ def validate_schema_exists(spark, catalog: str, schema: str) -> None:
 
 def create_feature_engineering_client():
     """Create the Databricks Feature Engineering client at runtime."""
-
     try:
         from databricks.feature_engineering import FeatureEngineeringClient
     except ImportError as exc:
@@ -143,7 +139,6 @@ def create_databricks_feature_table(
     feature-store APIs. Inspecting the installed client keeps this compatible
     with the Databricks runtime version used by the bundle.
     """
-
     create_table = feature_engineering_client.create_table
     kwargs = _supported_kwargs(
         create_table,
@@ -175,7 +170,6 @@ def create_feature_store_tables(
     Returns the table paths that were created or would be created in dry-run
     mode. Existing tables are left untouched.
     """
-
     registry = load_feature_store_registry()
     target_catalog = catalog or registry.default_catalog
     target_schema = schema or registry.default_schema

@@ -24,7 +24,7 @@ class _FakeSchemaQuery:
 
 
 class _FakeCatalog:
-    def tableExists(self, _table_path):
+    def tableExists(self, _table_path):  # noqa: N802 - mirrors Spark API
         return False
 
 

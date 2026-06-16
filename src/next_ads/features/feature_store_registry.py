@@ -117,7 +117,6 @@ def load_feature_store_registry(
     path: str | Path = DEFAULT_REGISTRY_PATH,
 ) -> FeatureStoreRegistry:
     """Load and validate the Next Ads feature-store registry."""
-
     registry_path = Path(path)
     raw_registry = yaml.safe_load(registry_path.read_text())
     feature_store = raw_registry["feature_store"]
