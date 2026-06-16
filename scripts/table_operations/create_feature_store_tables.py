@@ -30,6 +30,7 @@ finally:
 
 
 from next_ads.features import load_feature_store_registry
+from next_ads.features.feature_store_registry import normalize_schema_name
 from scripts.table_operations.create_tables import extract_create_table_columns
 
 
@@ -166,7 +167,7 @@ def create_feature_store_tables(
     """
     registry = load_feature_store_registry()
     target_catalog = catalog or registry.default_catalog
-    target_schema = schema or registry.default_schema
+    target_schema = normalize_schema_name(schema or registry.default_schema)
     created_tables = []
     fe_client = feature_engineering_client
 
@@ -238,7 +239,7 @@ def create_feature_store_views(
     """Create or replace feature-store compatibility views."""
     registry = load_feature_store_registry()
     target_catalog = catalog or registry.default_catalog
-    target_schema = schema or registry.default_schema
+    target_schema = normalize_schema_name(schema or registry.default_schema)
     created_views = []
 
     for view in registry.compatibility_views:

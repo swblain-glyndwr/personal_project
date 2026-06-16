@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -24,6 +25,15 @@ REQUIRED_TABLE_FIELDS = {
     "training_safe",
     "consumers",
 }
+
+
+def normalize_schema_name(schema: str) -> str:
+    """Normalise Databricks user/schema identifiers for feature-store paths."""
+    local_part = schema.split("@", maxsplit=1)[0]
+    normalized = re.sub(r"[^a-z0-9]+", "_", local_part.lower()).strip("_")
+    if not normalized:
+        raise ValueError(f"Invalid empty schema after normalisation: {schema}")
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -104,10 +114,11 @@ class FeatureStoreRegistry:
         schema: str | None = None,
     ) -> str:
         self.table_spec(table_name)
+        target_schema = schema or self.default_schema
         return ".".join(
             [
                 catalog or self.default_catalog,
-                schema or self.default_schema,
+                normalize_schema_name(target_schema),
                 table_name,
             ]
         )

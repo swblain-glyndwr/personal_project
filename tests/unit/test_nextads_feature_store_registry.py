@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from next_ads.features import load_feature_store_registry
+from next_ads.features import load_feature_store_registry, normalize_schema_name
 from next_ads.features.materialization import validate_required_columns
 from next_ads.features.theme_affinity import (
     THEME_AFFINITY_MODEL_FEATURE_COLUMNS,
@@ -120,6 +120,21 @@ def test_feature_store_table_names_are_unique_and_have_required_metadata():
         assert table.freshness
         assert table.consumers
         assert "two_tower" not in table.consumers
+
+
+def test_feature_store_schema_names_are_normalized_for_dev_user_paths():
+    registry = load_feature_store_registry()
+
+    assert normalize_schema_name("Stephen_Blain") == "stephen_blain"
+    assert normalize_schema_name("stephen.blain@next.co.uk") == "stephen_blain"
+    assert (
+        registry.resolved_table_path(
+            "next_uk_nextads_fs_account_profile",
+            catalog="marketingdata_dev",
+            schema="Stephen_Blain",
+        )
+        == "marketingdata_dev.stephen_blain.next_uk_nextads_fs_account_profile"
+    )
 
 
 def test_every_physical_feature_store_table_has_sql_contract_with_keys():

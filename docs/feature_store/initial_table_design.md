@@ -14,11 +14,11 @@ The executable contract lives in `configs/features/nextads_feature_store.yaml` a
 | Environment phase | Catalog | Schema |
 | --- | --- | --- |
 | Branch/SANDBOX smoke | `marketingdata_dev` | `${workspace.current_user.short_name}` via `feature_store_schema` |
-| DEV pipeline | `marketingdata_dev` | `${var.git_last_commit_user_name}` via `feature_store_schema` |
+| DEV pipeline | `marketingdata_dev` | Normalised `${var.git_last_commit_user_name}` via `feature_store_schema`, e.g. `Stephen_Blain` becomes `stephen_blain` |
 | DEV integration | `marketingdata_dev` | `nextads_integration` via `feature_store_schema` |
 | Future PREPROD/PROD | `marketingdata_prod` | `nextads_feature_store`, after permission and migration sign-off |
 
-The branch includes `feature_store_schema` as an explicit bundle variable per target so development runs follow the repo pattern and shared environments use governed schemas. The registry fallback is `nextads_feature_store` for manual use, but DAB jobs should always pass the target-specific schema value.
+The branch includes `feature_store_schema` as an explicit bundle variable per target so development runs follow the repo pattern and shared environments use governed schemas. Feature-store paths normalise user schema values to the repo's lower-case Databricks schema convention before validation or writes. The registry fallback is `nextads_feature_store` for manual use, but DAB jobs should always pass the target-specific schema value.
 
 ## Initial Customer Feature Tables
 

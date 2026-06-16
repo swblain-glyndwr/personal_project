@@ -62,7 +62,7 @@ The Theme Affinity/LTR entrypoints now materialise the first populated feature-s
 
 Initial owner is `marketing_data` for all feature tables. Most feature groups are daily refreshes keyed by `reference_date`, `feature_date` or `session_date`; product embeddings are weekly/latest until a source-change-driven refresh is introduced; quality events are per run.
 
-The first development deployments should target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema, and DEV_INTEGRATION uses `nextads_integration`. Future production setup should use `marketingdata_prod.nextads_feature_store` after write permissions and migration ownership are agreed.
+The first development deployments should target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema normalised to the repo's lower-case user schema convention, and DEV_INTEGRATION uses `nextads_integration`. Future production setup should use `marketingdata_prod.nextads_feature_store` after write permissions and migration ownership are agreed.
 
 ## Dependencies
 
