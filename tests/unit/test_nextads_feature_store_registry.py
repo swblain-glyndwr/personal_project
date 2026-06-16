@@ -254,6 +254,58 @@ def test_feature_engineering_create_table_argument_filter_supports_api_variants(
     assert captured["tags"] == {"owner": "marketing_data"}
 
 
+def test_feature_engineering_argument_filter_ignores_extra_variants_for_kwargs_signature():
+    captured = {}
+
+    class ClientWithTimestampKeysAndKwargs:
+        def create_table(
+            self,
+            name,
+            primary_keys,
+            schema,
+            timestamp_keys=None,
+            tags=None,
+            **kwargs,
+        ):
+            captured.update(
+                {
+                    "name": name,
+                    "primary_keys": primary_keys,
+                    "schema": schema,
+                    "timestamp_keys": timestamp_keys,
+                    "tags": tags,
+                    "kwargs": kwargs,
+                }
+            )
+
+    schema = schema_from_contract(
+        (
+            PROJECT_ROOT
+            / "sql"
+            / "features"
+            / "nextads"
+            / "create_table_next_uk_nextads_fs_account_profile.sql"
+        ).read_text()
+    )
+
+    create_databricks_feature_table(
+        ClientWithTimestampKeysAndKwargs(),
+        name="catalog.schema.table",
+        primary_keys=("account_number", "reference_date"),
+        schema=schema,
+        description="test table",
+        timestamp_key="reference_date",
+        partition_columns=["reference_date"],
+        tags={"owner": "marketing_data"},
+    )
+
+    assert captured["name"] == "catalog.schema.table"
+    assert captured["primary_keys"] == ["account_number", "reference_date"]
+    assert captured["timestamp_keys"] == ["reference_date"]
+    assert captured["tags"] == {"owner": "marketing_data"}
+    assert captured["kwargs"] == {}
+
+
 def test_feature_store_job_is_development_only_and_unscheduled():
     bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
     libraries_config = yaml.safe_load(

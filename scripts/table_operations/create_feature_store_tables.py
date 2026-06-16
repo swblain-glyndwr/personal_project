@@ -110,12 +110,6 @@ def create_feature_engineering_client():
 
 def _supported_kwargs(callable_obj, kwargs):
     signature = inspect.signature(callable_obj)
-    if any(
-        parameter.kind == inspect.Parameter.VAR_KEYWORD
-        for parameter in signature.parameters.values()
-    ):
-        return {key: value for key, value in kwargs.items() if value is not None}
-
     return {
         key: value
         for key, value in kwargs.items()
