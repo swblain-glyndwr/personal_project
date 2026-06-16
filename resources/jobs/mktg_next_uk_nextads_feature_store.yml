@@ -1,0 +1,151 @@
+# Offline Next Ads feature-store setup and scaffold job.
+# This is intentionally deployed only to development targets and has no
+# schedule. It must stay opt-in until feature contracts are validated.
+nextads_feature_store_config: &nextads_feature_store_config
+  mktg_next_uk_nextads_feature_store:
+    name: mktg_next_uk_nextads_feature_store
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: feature_store
+    timeout_seconds: 7200
+    tasks:
+      - task_key: create_feature_store_tables
+        spark_python_task:
+          python_file: ../../scripts/table_operations/create_feature_store_tables.py
+          parameters:
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --schema
+            - ${var.user_schema}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 1800
+      - task_key: build_account_features
+        depends_on:
+          - task_key: create_feature_store_tables
+        spark_python_task:
+          python_file: ../../jobs/features/nextads/build_account_features.py
+          parameters:
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --schema
+            - ${var.user_schema}
+            - --reference_date
+            - ${var.feature_store_reference_date}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 900
+      - task_key: build_advert_features
+        depends_on:
+          - task_key: create_feature_store_tables
+        spark_python_task:
+          python_file: ../../jobs/features/nextads/build_advert_features.py
+          parameters:
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --schema
+            - ${var.user_schema}
+            - --reference_date
+            - ${var.feature_store_reference_date}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 900
+      - task_key: build_theme_affinity_features
+        depends_on:
+          - task_key: build_account_features
+          - task_key: build_advert_features
+        spark_python_task:
+          python_file: ../../jobs/features/nextads/build_theme_affinity_features.py
+          parameters:
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --schema
+            - ${var.user_schema}
+            - --reference_date
+            - ${var.feature_store_reference_date}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 900
+      - task_key: build_pctr_affinity_features
+        depends_on:
+          - task_key: build_account_features
+          - task_key: build_advert_features
+        spark_python_task:
+          python_file: ../../jobs/features/nextads/build_pctr_affinity_features.py
+          parameters:
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --schema
+            - ${var.user_schema}
+            - --reference_date
+            - ${var.feature_store_reference_date}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 900
+      - task_key: build_model_inputs
+        depends_on:
+          - task_key: build_theme_affinity_features
+          - task_key: build_pctr_affinity_features
+        spark_python_task:
+          python_file: ../../jobs/features/nextads/build_model_inputs.py
+          parameters:
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --schema
+            - ${var.user_schema}
+            - --reference_date
+            - ${var.feature_store_reference_date}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 900
+      - task_key: quality_checks
+        depends_on:
+          - task_key: build_model_inputs
+        spark_python_task:
+          python_file: ../../jobs/features/nextads/quality_checks.py
+          parameters:
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --schema
+            - ${var.user_schema}
+            - --reference_date
+            - ${var.feature_store_reference_date}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 900
+
+targets:
+  SANDBOX:
+    resources:
+      jobs:
+        <<: *nextads_feature_store_config
+  DEV:
+    resources:
+      jobs:
+        <<: *nextads_feature_store_config
+  DEV_INTEGRATION:
+    resources:
+      jobs:
+        <<: *nextads_feature_store_config

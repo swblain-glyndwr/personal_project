@@ -1,0 +1,212 @@
+feature_store:
+  name: nextads_feature_store
+  description: Offline Next Ads feature store for reusable model features.
+  default_catalog: marketingdata_dev
+  default_schema: ds_sandbox
+  table_root: sql/features/nextads
+  physical_tables:
+    - name: next_uk_nextads_fs_account_profile
+      entity: account
+      grain: one row per account and reference date
+      primary_keys: [account_number, reference_date]
+      timestamp_key: reference_date
+      source_job: build_account_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [theme_affinity, pctr, ltr, two_tower]
+    - name: next_uk_nextads_fs_account_web_activity_90d
+      entity: account
+      grain: one row per account and reference date
+      primary_keys: [account_number, reference_date]
+      timestamp_key: reference_date
+      source_job: build_account_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, ltr, two_tower]
+    - name: next_uk_nextads_fs_item_attributes_latest
+      entity: item
+      grain: one row per item
+      primary_keys: [item_id]
+      source_job: build_advert_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, ltr, two_tower]
+    - name: next_uk_nextads_fs_product_embeddings_latest
+      entity: item
+      grain: one row per item and embedding model
+      primary_keys: [item_id, embedding_model_name, embedding_model_version]
+      source_job: build_advert_features
+      owner: marketing_data
+      freshness: weekly
+      training_safe: true
+      consumers: [pctr, two_tower]
+    - name: next_uk_nextads_fs_advert_core_daily
+      entity: advert
+      grain: one row per advert, location, and feature date
+      primary_keys: [advert_id, location, feature_date]
+      timestamp_key: feature_date
+      source_job: build_advert_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, ltr, two_tower]
+    - name: next_uk_nextads_fs_advert_attribute_profile_daily
+      entity: advert
+      grain: one row per advert and feature date
+      primary_keys: [advert_id, feature_date]
+      timestamp_key: feature_date
+      source_job: build_advert_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, ltr]
+    - name: next_uk_nextads_fs_advert_semantic_profile_daily
+      entity: advert
+      grain: one row per advert, feature date, and embedding model
+      primary_keys: [advert_id, feature_date, embedding_model_name, embedding_model_version]
+      timestamp_key: feature_date
+      source_job: build_advert_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, two_tower]
+    - name: next_uk_nextads_fs_advert_product_profile_daily
+      entity: advert
+      grain: one row per advert and feature date
+      primary_keys: [advert_id, feature_date]
+      timestamp_key: feature_date
+      source_job: build_advert_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, two_tower]
+    - name: next_uk_nextads_fs_seasonal_product_demand_daily
+      entity: product
+      grain: one row per entity, product, and feature date
+      primary_keys: [entity_type, entity_id, item_id, feature_date]
+      timestamp_key: feature_date
+      source_job: build_advert_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, two_tower]
+    - name: next_uk_nextads_fs_account_theme_interactions_daily
+      entity: account_theme
+      grain: one row per account, theme, and reference date
+      primary_keys: [account_number, theme, reference_date]
+      timestamp_key: reference_date
+      source_job: build_theme_affinity_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [theme_affinity, ltr, two_tower]
+    - name: next_uk_nextads_fs_account_theme_affinity_daily
+      entity: account_theme
+      grain: one row per account, theme, and reference date
+      primary_keys: [account_number, theme, reference_date]
+      timestamp_key: reference_date
+      source_job: build_theme_affinity_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [theme_affinity, ltr]
+    - name: next_uk_nextads_fs_theme_popularity_daily
+      entity: theme
+      grain: one row per theme and reference date
+      primary_keys: [theme, reference_date]
+      timestamp_key: reference_date
+      source_job: build_theme_affinity_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [theme_affinity, ltr, two_tower]
+    - name: next_uk_nextads_fs_account_advert_affinity_daily
+      entity: account_advert
+      grain: one row per account, advert, location, and reference date
+      primary_keys: [account_number, advert_id, location, reference_date]
+      timestamp_key: reference_date
+      source_job: build_pctr_affinity_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, ltr]
+    - name: next_uk_nextads_fs_session_context_daily
+      entity: session
+      grain: one row per account, session, and session date
+      primary_keys: [account_number, session_id, session_date]
+      timestamp_key: session_date
+      source_job: build_pctr_affinity_features
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, two_tower]
+    - name: next_uk_nextads_fs_theme_affinity_model_input
+      entity: account_theme
+      grain: one row per account, theme, and reference date
+      primary_keys: [account_number, theme, reference_date]
+      timestamp_key: reference_date
+      source_job: build_model_inputs
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [theme_affinity, ltr]
+    - name: next_uk_nextads_fs_pctr_model_input
+      entity: account_advert
+      grain: one row per account, advert, location, session date, and reference date
+      primary_keys: [account_number, advert_id, location, session_date, reference_date]
+      timestamp_key: reference_date
+      source_job: build_model_inputs
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr]
+    - name: next_uk_nextads_fs_two_tower_training_pairs
+      entity: training_pair
+      grain: one row per anchor, candidate, label, and reference date
+      primary_keys: [anchor_entity_type, anchor_entity_id, candidate_entity_type, candidate_entity_id, label_name, reference_date]
+      timestamp_key: reference_date
+      source_job: build_model_inputs
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [two_tower]
+    - name: next_uk_nextads_fs_labels_clicks
+      entity: label
+      grain: one row per account, advert, location, session date, and label horizon
+      primary_keys: [account_number, advert_id, location, session_date, label_horizon_days]
+      timestamp_key: session_date
+      source_job: build_model_inputs
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [pctr, ltr, two_tower]
+    - name: next_uk_nextads_fs_labels_theme_response
+      entity: label
+      grain: one row per account, theme, reference date, and label name
+      primary_keys: [account_number, theme, reference_date, label_name]
+      timestamp_key: reference_date
+      source_job: build_model_inputs
+      owner: marketing_data
+      freshness: daily
+      training_safe: true
+      consumers: [theme_affinity, ltr]
+    - name: next_uk_nextads_fs_feature_quality_events
+      entity: quality_event
+      grain: one row per feature table, check, and run timestamp
+      primary_keys: [table_name, check_name, run_timestamp]
+      timestamp_key: run_timestamp
+      source_job: quality_checks
+      owner: marketing_data
+      freshness: per_run
+      training_safe: false
+      consumers: [feature_store_ops]
+  compatibility_views:
+    - name: next_uk_nextads_theme_affinity_features_latest
+      source_job: build_model_inputs
+      consumers: [theme_affinity, ltr]
+    - name: next_uk_nextads_pctr_features_latest
+      source_job: build_model_inputs
+      consumers: [pctr]

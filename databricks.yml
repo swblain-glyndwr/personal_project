@@ -18,6 +18,7 @@ include:
   - resources/jobs/preprod_setup.yml
   - resources/jobs/preprod_dependency_smoke.yml
   - resources/jobs/prod_table_contract_smoke.yml
+  - resources/jobs/mktg_next_uk_nextads_feature_store.yml
 
 sync:
   include:
@@ -25,6 +26,9 @@ sync:
     - next_ads/data/**
     - src/next_ads/**
     - src/next_ads/data/**
+    - jobs/features/**
+    - configs/features/**
+    - sql/features/**
   exclude:
     - notebooks/
 
@@ -71,6 +75,9 @@ variables:
   qa_notification_emails:
     description: Internal email addresses for QA-only job failure notifications
     default: []
+  feature_store_reference_date:
+    description: Reference date for opt-in feature-store smoke/materialisation jobs
+    default: "1970-01-01"
 
 targets:
   SANDBOX:
