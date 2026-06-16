@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from functools import reduce
 
-from _registry_job import log_owned_tables, parse_common_args
+from _registry_job import configure_job_logging, log_owned_tables, parse_common_args
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
 from next_ads.features.materialization import (
@@ -69,7 +69,7 @@ def _quality_event(
 
 def main() -> None:
     args = parse_common_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     log_owned_tables("quality_checks", args)
 
     spark = configure_spark()

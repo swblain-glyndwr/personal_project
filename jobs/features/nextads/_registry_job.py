@@ -22,6 +22,13 @@ from next_ads.features import load_feature_store_registry
 LOGGER = logging.getLogger(__name__)
 
 
+def configure_job_logging(log_level: str) -> None:
+    """Configure job logging while keeping dependency internals quiet."""
+    logging.basicConfig(level=getattr(logging, log_level.upper()))
+    logging.getLogger("py4j").setLevel(logging.WARNING)
+    logging.getLogger("py4j.clientserver").setLevel(logging.WARNING)
+
+
 def parse_common_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference_date", default=None)
@@ -39,7 +46,7 @@ def parse_common_args() -> argparse.Namespace:
 
 
 def log_owned_tables(source_job: str, args: argparse.Namespace) -> list[str]:
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     registry = load_feature_store_registry()
     catalog = args.catalog or registry.default_catalog
     schema = args.schema or registry.default_schema

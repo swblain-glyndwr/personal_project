@@ -21,7 +21,8 @@ def create_feature_engineering_client():
             "databricks.feature_engineering is required to write Databricks "
             "feature tables. Run this on a Databricks runtime or install the "
             "Databricks Feature Engineering package in the execution "
-            "environment."
+            "environment. Original import error: "
+            f"{exc}"
         ) from exc
 
     return FeatureEngineeringClient()

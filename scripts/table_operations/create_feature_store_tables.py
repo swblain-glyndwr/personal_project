@@ -37,6 +37,13 @@ from scripts.table_operations.create_tables import extract_create_table_columns
 LOGGER = logging.getLogger(__name__)
 
 
+def configure_job_logging(log_level: str) -> None:
+    """Configure job logging while keeping dependency internals quiet."""
+    logging.basicConfig(level=getattr(logging, log_level.upper()))
+    logging.getLogger("py4j").setLevel(logging.WARNING)
+    logging.getLogger("py4j.clientserver").setLevel(logging.WARNING)
+
+
 def ddl_type_to_spark_type(data_type: str):
     """Convert the small repo DDL type subset into Spark SQL types."""
     from pyspark.sql import types as T
@@ -103,7 +110,8 @@ def create_feature_engineering_client():
             "databricks.feature_engineering is required to create Databricks "
             "feature tables. Run this on a Databricks runtime or install the "
             "Databricks Feature Engineering package in the execution "
-            "environment."
+            "environment. Original import error: "
+            f"{exc}"
         ) from exc
 
     return FeatureEngineeringClient()
@@ -273,7 +281,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
 
     from dsutils.dbc import configure_spark
 

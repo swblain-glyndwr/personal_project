@@ -410,7 +410,7 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     )
     assert libraries_config["variables"]["feature_store_libraries"][
         "default"
-    ][2]["pypi"]["package"] == "databricks-feature-engineering==0.16.0"
+    ][2]["pypi"]["package"] == "databricks-feature-engineering==0.15.0"
     assert set(job_config["targets"]) == {"SANDBOX", "DEV", "DEV_INTEGRATION"}
 
     job = job_config["nextads_feature_store_config"][
