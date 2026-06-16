@@ -16,7 +16,7 @@ The target shape is model-neutral. The feature store is for Next Ads-wide reusab
 | Theme Affinity/hackathon model | Month, basket/view behaviour, recency/frequency, theme retrieval counts, repurchase stage, user totals, theme seasonal demand, simple rules rank | Account, theme, model reference date | `next_uk_nextads_fs_account_theme_affinity_daily`, `next_uk_nextads_fs_theme_affinity_model_input` |
 | Theme interaction SQL | Views, baskets, add-to-bag, repurchase and derived theme interactions | Account, theme, reference date | `next_uk_nextads_fs_account_theme_interactions_daily` |
 | Theme/global popularity SQL | Theme demand, trend, yearly comparison and global popularity signals | Theme, reference date | `next_uk_nextads_fs_theme_popularity_daily` |
-| CWB analytics pCTR | Viewed/purchased advert category affinity, customer-ad impressions, rule-based affinity features | Account, advert, location, reference date | `next_uk_nextads_fs_account_advert_affinity_daily`, `next_uk_nextads_fs_pctr_model_input` |
+| Analytics pCTR | Viewed/purchased advert category affinity, customer-ad impressions, rule-based affinity features | Account, advert, location, reference date | `next_uk_nextads_fs_account_advert_affinity_daily`, `next_uk_nextads_fs_pctr_model_input` |
 | Response-model/pCTR customer behaviour | Account descriptors, lifecycle, order/spend/return history, browse sessions, web recency, add-to-bag and shopping-bag activity | Account, reference date | `next_uk_nextads_fs_account_profile`, `next_uk_nextads_fs_account_web_activity_90d` |
 | Response-model/pCTR advert metadata | Control-sheet advert metadata, placement, creative text, campaign/category/theme/brand fields and linked item counts | Advert, location, feature date | `next_uk_nextads_fs_advert_core_daily` |
 | Response-model/pCTR advert attributes | Rolled-up linked-item attributes, top brand/category/colour/use/style/department/gender and coverage metrics | Advert, feature date | `next_uk_nextads_fs_advert_attribute_profile_daily` |
@@ -44,7 +44,7 @@ The initial feature-store contracts include these requirements in:
 - `next_uk_nextads_fs_advert_product_profile_daily`
 - `next_uk_nextads_fs_seasonal_product_demand_daily`
 - `next_uk_nextads_fs_pctr_model_input`
-- `next_uk_nextads_fs_two_tower_training_pairs`
+
 
 ## Initial Feature-Store Candidates
 
@@ -57,7 +57,7 @@ The first registration/population candidates should be small enough to validate 
 | 3 | `next_uk_nextads_fs_advert_core_daily` | Stable advert/date metadata contract for ad-level models and compatibility views. |
 | 4 | `next_uk_nextads_fs_product_embeddings_latest` | Establishes embedding metadata/version contract for future similarity and two-tower work. |
 | 5 | `next_uk_nextads_fs_account_theme_affinity_daily` | Allows current Theme Affinity/LTR-style model to move behind a compatibility view. |
-| 6 | `next_uk_nextads_fs_pctr_model_input` | Allows CWB analytics pCTR and response-model pCTR work to consume a governed model-ready input. |
+| 6 | `next_uk_nextads_fs_pctr_model_input` | Allows pCTR work to consume a governed model-ready input. |
 
 ## Initial Exclusions
 
@@ -66,7 +66,7 @@ The following stay out of the first feature-store slice:
 - Existing production output tables, including `next_uk_next_ads_hackathon_model_latest`, `next_uk_next_ads_hackathon_model_full`, hackathon prerank/theme score outputs, and current pCTR score outputs.
 - Full online serving store support.
 - A full customer-by-ad cross join for similarity. Similarity is calculated only after candidate rows are created.
-- `pctr_catid_view_basket_affinity_pairs_metrics`, because it appears to be exploratory/commented rather than an active contract.
+
 
 ## Acceptance Criteria Mapping
 

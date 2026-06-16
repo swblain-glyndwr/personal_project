@@ -27,7 +27,7 @@ The branch includes `feature_store_schema` as a bundle variable so the table sch
 | `next_uk_nextads_fs_account_profile` | One row per account and reference date | `account_number`, `reference_date` | `reference_date` | Daily | `marketing_data` |
 | `next_uk_nextads_fs_account_web_activity_90d` | One row per account and reference date | `account_number`, `reference_date` | `reference_date` | Daily | `marketing_data` |
 
-These are the preferred first customer tables to register and populate. They provide reusable account descriptors, account lifecycle fields, recency, browse activity, page views, add-to-bag activity and shopping-bag context needed by pCTR, LTR/theme affinity and future retrieval models.
+These are the preferred first customer tables to register and populate. They provide reusable account descriptors, account lifecycle fields, recency, browse activity, page views, add-to-bag activity and shopping-bag context needed by current models (LTR/theme affinity, pCTR, etc.) and any future models.
 
 ## Initial Advert and Embedding Feature Tables
 
@@ -38,7 +38,7 @@ These are the preferred first customer tables to register and populate. They pro
 | `next_uk_nextads_fs_advert_semantic_profile_daily` | One row per advert, feature date and embedding model/version | `advert_id`, `feature_date`, `embedding_model_name`, `embedding_model_version` | `feature_date` | Daily | `marketing_data` |
 | `next_uk_nextads_fs_product_embeddings_latest` | One row per item and embedding model/version | `item_id`, `embedding_model_name`, `embedding_model_version` | None; latest lookup | Weekly | `marketing_data` |
 
-These tables separate stable advert metadata, rolled-up product attributes, semantic text/image/product embedding features, and reusable product embeddings. That lets pCTR, LTR and two-tower work reuse the same advert-side contracts without copying CWB analytics notebook outputs directly into model jobs.
+These tables separate stable advert metadata, rolled-up product attributes, semantic text/image/product embedding features, and reusable product embeddings. That lets work reuse the same advert-side contracts without copying notebook outputs directly into model jobs.
 
 ## Model Assembly and Labels
 
@@ -46,8 +46,7 @@ These tables separate stable advert metadata, rolled-up product attributes, sema
 | --- | --- | --- | --- | --- |
 | `next_uk_nextads_fs_theme_affinity_model_input` | Account, theme, reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Theme Affinity/LTR |
 | `next_uk_nextads_fs_pctr_model_input` | Account, advert, location, session date, reference date | `account_number`, `advert_id`, `location`, `session_date`, `reference_date` | `reference_date` | pCTR |
-| `next_uk_nextads_fs_two_tower_training_pairs` | Anchor entity, candidate entity, label and reference date | `anchor_entity_type`, `anchor_entity_id`, `candidate_entity_type`, `candidate_entity_id`, `label_name`, `reference_date` | `reference_date` | Two-tower retrieval |
-| `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | pCTR/LTR/two-tower |
+| `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | pCTR/LTR/two-tower etc. |
 | `next_uk_nextads_fs_labels_theme_response` | Account, theme, reference date and label name | `account_number`, `theme`, `reference_date`, `label_name` | `reference_date` | Theme Affinity/LTR |
 
 Model assembly tables are intentionally separated from base feature tables. They can join reusable feature groups into current model-ready shapes while preserving compatibility for existing model consumers.

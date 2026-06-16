@@ -5,7 +5,13 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
 ## Purpose
 
-This document defines how customer-to-ad similarity features should be calculated for ranked candidate pairs using stored vectors. The feature store must support pCTR, LTR/theme affinity and future two-tower retrieval without ever creating a full customer-by-ad cross join.
+This document defines how customer-to-ad similarity features should be calculated for ranked candidate pairs using stored vectors. The feature store must support pCTR, LTR/theme affinity and any future retrieval model without ever creating a full customer-by-ad cross join due to the expense of that.  A full customer-by-ad cross join is usually both expensive and hard to operate.
+
+If you have, for example:
+`5 million customers x 2,000 active ads = 10 billion rows`
+That is before adding locations, dates, sessions, model features, labels, or embeddings. Once you add those, the table becomes very large, slow to refresh, expensive to store, and awkward to quality-check.
+
+For Next Ads, most of those rows are also not useful. The model shouldn't score every customer against every possible advert if the advert is not eligible for that placement, campaign, cell, treatment, stock context, business rule, or current candidate set.
 
 ## Candidate-Pair Grain
 
@@ -29,7 +35,7 @@ session_date
 reference_date
 ```
 
-For two-tower/retrieval training, the generic pair grain is:
+For retrieval training, the generic pair grain is:
 
 ```text
 anchor_entity_type
@@ -50,7 +56,7 @@ The candidate set is produced by existing Next Ads eligibility, theme-to-ad mapp
 | Advert product profile | `next_uk_nextads_fs_advert_product_profile_daily` | `advert_id`, `feature_date`, product vector, product embedding coverage |
 | Product/item embedding lookup | `next_uk_nextads_fs_product_embeddings_latest` | `item_id`, embedding vector, `embedding_model_name`, `embedding_model_version` |
 | Advert semantic profile | `next_uk_nextads_fs_advert_semantic_profile_daily` | `advert_id`, `feature_date`, semantic vector or scalar semantic dims, model metadata |
-| Candidate rows | `next_uk_nextads_fs_pctr_model_input` or `next_uk_nextads_fs_two_tower_training_pairs` | candidate entity keys and reference date |
+| Candidate rows | `next_uk_nextads_fs_pctr_model_input` | candidate entity keys and reference date |
 
 The model/version metadata on both sides must match before cosine similarity is calculated. If model versions differ, the row should either be skipped for that similarity feature or flagged with zero/unknown coverage rather than mixing incompatible vector spaces.
 
@@ -86,7 +92,7 @@ The initial pCTR/model-input output fields should include:
 - `advert_vector_model_version`
 - `similarity_calculated_at`
 
-For future two-tower/retrieval work, the generic pair output can include:
+For future retrieval work, the generic pair output can include:
 
 - `anchor_embedding_model_name`
 - `anchor_embedding_model_version`
