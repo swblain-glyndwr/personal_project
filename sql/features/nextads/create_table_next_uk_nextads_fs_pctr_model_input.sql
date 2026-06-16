@@ -20,9 +20,6 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_pctr_model_inpu
   purchased_latest_advert_catid_affinity DOUBLE,
   customer_advert_impressions_30d BIGINT,
   rules_based_pctr DOUBLE,
-  advert_product_embedding_coverage DOUBLE,
-  customer_product_embedding_coverage DOUBLE,
-  customer_ad_product_cosine_similarity DOUBLE,
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
   CONSTRAINT pk_nextads_fs_pctr_model_input PRIMARY KEY (
@@ -35,4 +32,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_pctr_model_inpu
 )
 USING delta
 PARTITIONED BY (reference_date)
-

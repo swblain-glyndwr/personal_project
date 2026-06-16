@@ -9,7 +9,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 - Register and populate small, reusable feature tables in DEV before wiring model jobs to them.
 - Move consumers through compatibility views first, then native feature-store reads.
 - Keep feature materialisation separate from model training, scoring and assignment jobs.
-- Calculate similarity after candidate creation, not from a full customer-by-ad cross join.
+- Keep candidate similarity out of production model contracts until a separate offline diagnostics story is agreed.
 
 ## Prioritised Backlog
 
@@ -21,7 +21,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 | 4 | Wire Theme Affinity compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Preserve current `hackathon_model/config.py` feature list while proving output equivalence. |
 | 5 | Migrate Theme Affinity native reads | Theme affinity feature tables and model input | Only after compatibility-view output equivalence is signed off. |
 | 6 | Wire CWB analytics pCTR model input | `next_uk_nextads_fs_pctr_model_input`, `next_uk_nextads_pctr_features_latest` | Replace notebook-local joins with governed model input after DEV smoke and row/key checks. |
-| 7 | Add candidate-level similarity features | pCTR model input and two-tower pairs | Use documented candidate-pair route; avoid full cross join. |
+| 7 | Add offline candidate similarity diagnostics | Separate diagnostics table | New follow-up story only; no production model or scoring job reads this output. |
 | 8 | Add labels and backfill training snapshots | `next_uk_nextads_fs_labels_clicks`, `next_uk_nextads_fs_labels_theme_response` | Preserve point-in-time correctness for repeatable training and validation. |
 | 9 | Introduce shared integration schema | `marketingdata_dev.nextads_integration` | Use after feature branch validation, before production promotion. |
 | 10 | Prepare PROD governed schema | `marketingdata_prod.nextads_feature_store` | Requires explicit permission, ownership and release sign-off. |
@@ -39,7 +39,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 | CWB pCTR affinity | Map CWB analytics pCTR affinity features into account-advert and pCTR model-input contracts. | High |
 | Labels | Standardise click/impression and theme response labels with horizons and point-in-time metadata. | Medium |
 | Quality checks | Extend scaffolded checks into row-count, key uniqueness, null-rate and freshness writes to quality events. | High |
-| Two-tower retrieval | Define anchor/candidate generation and negative sampling before populating training pairs. | Later |
+| Candidate similarity diagnostics | Define a bounded offline candidate source and vector dependencies before creating any diagnostics output. | Later |
 
 ## Challenger and Decisioning Dependencies
 
@@ -51,10 +51,10 @@ Before any feature-store-driven model input affects current production decisioni
 2. Prove table registration and schema/key contracts.
 3. Compare compatibility-view outputs with current Theme Affinity and pCTR model inputs.
 4. Run challenger model tests using feature-store inputs.
-5. Agree where pCTR/LTR/two-tower scores join the existing ranking and assignment path.
+5. Agree where any challenger model score would join the existing ranking and assignment path.
 6. Capture an explicit release/rollback path before production writes are enabled.
 
-Future decisioning work must define candidate generation before candidate similarity and two-tower retrieval can become production inputs.
+Candidate similarity is offline diagnostics only until a separate model experiment proves value and receives explicit approval to affect production decisioning.
 
 ## Acceptance Criteria Mapping
 

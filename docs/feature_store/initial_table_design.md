@@ -46,7 +46,7 @@ These tables separate stable advert metadata, rolled-up product attributes, sema
 | --- | --- | --- | --- | --- |
 | `next_uk_nextads_fs_theme_affinity_model_input` | Account, theme, reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Theme Affinity/LTR |
 | `next_uk_nextads_fs_pctr_model_input` | Account, advert, location, session date, reference date | `account_number`, `advert_id`, `location`, `session_date`, `reference_date` | `reference_date` | pCTR |
-| `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | pCTR/LTR/two-tower etc. |
+| `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | pCTR/LTR |
 | `next_uk_nextads_fs_labels_theme_response` | Account, theme, reference date and label name | `account_number`, `theme`, `reference_date`, `label_name` | `reference_date` | Theme Affinity/LTR |
 
 Model assembly tables are intentionally separated from base feature tables. They can join reusable feature groups into current model-ready shapes while preserving compatibility for existing model consumers.

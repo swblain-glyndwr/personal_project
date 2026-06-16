@@ -15,7 +15,7 @@ The implementation is intentionally batch/offline first. It creates governed Dat
 | --- | --- | --- |
 | `reusable_feature_inventory.md` | 5111856 | Existing reusable signals and first migration candidates. |
 | `initial_table_design.md` | 5111861 | Initial customer, advert, embedding, model-input and quality table design. |
-| `candidate_similarity.md` | 5111876 | Candidate-level cosine similarity route without a customer-by-ad cross join. |
+| `candidate_similarity.md` | Follow-up | Offline candidate similarity diagnostics concept; not part of current production model inputs. |
 | `migration_backlog.md` | 5111881 | Prioritised migration backlog and dependencies. |
 
 ## Executable Contracts
@@ -34,24 +34,23 @@ The docs should explain intent and migration order. The registry and SQL contrac
 
 | Feature group | Physical table/view | Entity/grain | Primary consumers |
 | --- | --- | --- | --- |
-| Account profile | `next_uk_nextads_fs_account_profile` | Account/reference date | Theme Affinity, pCTR, LTR, two-tower |
-| Account web activity | `next_uk_nextads_fs_account_web_activity_90d` | Account/reference date | pCTR, LTR, two-tower |
-| Item attributes | `next_uk_nextads_fs_item_attributes_latest` | Item | pCTR, LTR, two-tower |
-| Product embeddings | `next_uk_nextads_fs_product_embeddings_latest` | Item/model version | pCTR, two-tower |
-| Advert core | `next_uk_nextads_fs_advert_core_daily` | Advert/location/feature date | pCTR, LTR, two-tower |
+| Account profile | `next_uk_nextads_fs_account_profile` | Account/reference date | Theme Affinity, pCTR, LTR |
+| Account web activity | `next_uk_nextads_fs_account_web_activity_90d` | Account/reference date | pCTR, LTR |
+| Item attributes | `next_uk_nextads_fs_item_attributes_latest` | Item | pCTR, LTR |
+| Product embeddings | `next_uk_nextads_fs_product_embeddings_latest` | Item/model version | pCTR |
+| Advert core | `next_uk_nextads_fs_advert_core_daily` | Advert/location/feature date | pCTR, LTR |
 | Advert attribute profile | `next_uk_nextads_fs_advert_attribute_profile_daily` | Advert/feature date | pCTR, LTR |
-| Advert semantic profile | `next_uk_nextads_fs_advert_semantic_profile_daily` | Advert/feature date/model version | pCTR, two-tower |
-| Advert product profile | `next_uk_nextads_fs_advert_product_profile_daily` | Advert/feature date | pCTR, two-tower |
-| Seasonal product demand | `next_uk_nextads_fs_seasonal_product_demand_daily` | Entity/product/feature date | pCTR, two-tower |
-| Account theme interactions | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/reference date | Theme Affinity, LTR, two-tower |
+| Advert semantic profile | `next_uk_nextads_fs_advert_semantic_profile_daily` | Advert/feature date/model version | pCTR |
+| Advert product profile | `next_uk_nextads_fs_advert_product_profile_daily` | Advert/feature date | pCTR |
+| Seasonal product demand | `next_uk_nextads_fs_seasonal_product_demand_daily` | Entity/product/feature date | pCTR |
+| Account theme interactions | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/reference date | Theme Affinity, LTR |
 | Account theme affinity | `next_uk_nextads_fs_account_theme_affinity_daily` | Account/theme/reference date | Theme Affinity, LTR |
-| Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | Theme Affinity, LTR, two-tower |
+| Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | Theme Affinity, LTR |
 | Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/location/reference date | pCTR, LTR |
-| Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | pCTR, two-tower |
+| Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | pCTR |
 | Theme model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity, LTR |
 | pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/location/session/reference date | pCTR |
-| Two-tower pairs | `next_uk_nextads_fs_two_tower_training_pairs` | Anchor/candidate/label/reference date | Two-tower |
-| Click labels | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | pCTR, LTR, two-tower |
+| Click labels | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | pCTR, LTR |
 | Theme labels | `next_uk_nextads_fs_labels_theme_response` | Account/theme/reference date/label | Theme Affinity, LTR |
 | Quality events | `next_uk_nextads_fs_feature_quality_events` | Table/check/run timestamp | Feature-store operations |
 | Theme compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Current Theme Affinity model shape | Theme Affinity, LTR |
@@ -70,7 +69,7 @@ The feature-store route depends on:
 - DEV Feature Engineering Client availability and write permissions.
 - Existing source jobs remaining stable while compatibility views are proven.
 - Challenger testing before feature-store model inputs affect production ranking.
-- Future decisioning/retrieval work agreeing candidate generation contracts before two-tower pairs are activated.
+- Separate offline diagnostics stories before candidate-similarity work is added to the repo.
 
 ## Acceptance Criteria Mapping
 

@@ -89,7 +89,7 @@ def test_feature_store_registry_loads_physical_tables_and_views():
     assert registry.name == "nextads_feature_store"
     assert registry.default_catalog == "marketingdata_dev"
     assert registry.default_schema == "ds_sandbox"
-    assert len(registry.physical_tables) == 20
+    assert len(registry.physical_tables) == 19
     assert {
         view["name"] for view in registry.compatibility_views
     } == {
@@ -103,6 +103,7 @@ def test_feature_store_table_names_are_unique_and_have_required_metadata():
     table_names = registry.table_names()
 
     assert len(table_names) == len(set(table_names))
+    assert "next_uk_nextads_fs_two_tower_training_pairs" not in table_names
     for table in registry.physical_tables:
         assert table.entity
         assert table.grain
@@ -111,6 +112,7 @@ def test_feature_store_table_names_are_unique_and_have_required_metadata():
         assert table.owner
         assert table.freshness
         assert table.consumers
+        assert "two_tower" not in table.consumers
 
 
 def test_every_physical_feature_store_table_has_sql_contract_with_keys():
@@ -152,6 +154,7 @@ def test_pctr_model_input_carries_analytics_pctr_compatibility_columns():
         "customer_advert_impressions_30d",
         "rules_based_pctr",
     }.issubset(columns)
+    assert "customer_ad_product_cosine_similarity" not in columns
 
 
 def test_feature_store_views_are_contract_artifacts_not_physical_tables():

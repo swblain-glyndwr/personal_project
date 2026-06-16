@@ -20,8 +20,5 @@ SELECT
   viewed_latest_advert_catid_affinity,
   purchased_latest_advert_catid_affinity,
   customer_advert_impressions_30d,
-  rules_based_pctr,
-  advert_product_embedding_coverage,
-  customer_product_embedding_coverage,
-  customer_ad_product_cosine_similarity
+  rules_based_pctr
 FROM {catalog}.{schema}.next_uk_nextads_fs_pctr_model_input

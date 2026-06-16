@@ -14,7 +14,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [theme_affinity, pctr, ltr, two_tower]
+      consumers: [theme_affinity, pctr, ltr]
     - name: next_uk_nextads_fs_account_web_activity_90d
       entity: account
       grain: one row per account and reference date
@@ -24,7 +24,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, ltr, two_tower]
+      consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_item_attributes_latest
       entity: item
       grain: one row per item
@@ -33,7 +33,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, ltr, two_tower]
+      consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_product_embeddings_latest
       entity: item
       grain: one row per item and embedding model
@@ -42,7 +42,7 @@ feature_store:
       owner: marketing_data
       freshness: weekly
       training_safe: true
-      consumers: [pctr, two_tower]
+      consumers: [pctr]
     - name: next_uk_nextads_fs_advert_core_daily
       entity: advert
       grain: one row per advert, location, and feature date
@@ -52,7 +52,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, ltr, two_tower]
+      consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_advert_attribute_profile_daily
       entity: advert
       grain: one row per advert and feature date
@@ -72,7 +72,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, two_tower]
+      consumers: [pctr]
     - name: next_uk_nextads_fs_advert_product_profile_daily
       entity: advert
       grain: one row per advert and feature date
@@ -82,7 +82,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, two_tower]
+      consumers: [pctr]
     - name: next_uk_nextads_fs_seasonal_product_demand_daily
       entity: product
       grain: one row per entity, product, and feature date
@@ -92,7 +92,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, two_tower]
+      consumers: [pctr]
     - name: next_uk_nextads_fs_account_theme_interactions_daily
       entity: account_theme
       grain: one row per account, theme, and reference date
@@ -102,7 +102,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [theme_affinity, ltr, two_tower]
+      consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_account_theme_affinity_daily
       entity: account_theme
       grain: one row per account, theme, and reference date
@@ -122,7 +122,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [theme_affinity, ltr, two_tower]
+      consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_account_advert_affinity_daily
       entity: account_advert
       grain: one row per account, advert, location, and reference date
@@ -142,7 +142,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, two_tower]
+      consumers: [pctr]
     - name: next_uk_nextads_fs_theme_affinity_model_input
       entity: account_theme
       grain: one row per account, theme, and reference date
@@ -163,16 +163,6 @@ feature_store:
       freshness: daily
       training_safe: true
       consumers: [pctr]
-    - name: next_uk_nextads_fs_two_tower_training_pairs
-      entity: training_pair
-      grain: one row per anchor, candidate, label, and reference date
-      primary_keys: [anchor_entity_type, anchor_entity_id, candidate_entity_type, candidate_entity_id, label_name, reference_date]
-      timestamp_key: reference_date
-      source_job: build_model_inputs
-      owner: marketing_data
-      freshness: daily
-      training_safe: true
-      consumers: [two_tower]
     - name: next_uk_nextads_fs_labels_clicks
       entity: label
       grain: one row per account, advert, location, session date, and label horizon
@@ -182,7 +172,7 @@ feature_store:
       owner: marketing_data
       freshness: daily
       training_safe: true
-      consumers: [pctr, ltr, two_tower]
+      consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_labels_theme_response
       entity: label
       grain: one row per account, theme, reference date, and label name
