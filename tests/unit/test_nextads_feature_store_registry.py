@@ -88,7 +88,7 @@ def test_feature_store_registry_loads_physical_tables_and_views():
 
     assert registry.name == "nextads_feature_store"
     assert registry.default_catalog == "marketingdata_dev"
-    assert registry.default_schema == "ds_sandbox"
+    assert registry.default_schema == "nextads_feature_store"
     assert len(registry.physical_tables) == 19
     assert {
         view["name"] for view in registry.compatibility_views
@@ -333,7 +333,33 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     )
     assert (
         bundle_config["variables"]["feature_store_schema"]["default"]
-        == "${var.user_schema}"
+        == "nextads_feature_store"
+    )
+    assert (
+        bundle_config["targets"]["SANDBOX"]["variables"][
+            "feature_store_schema"
+        ]
+        == "${workspace.current_user.short_name}"
+    )
+    assert (
+        bundle_config["targets"]["DEV"]["variables"]["feature_store_schema"]
+        == "${var.git_last_commit_user_name}"
+    )
+    assert (
+        bundle_config["targets"]["DEV_INTEGRATION"]["variables"][
+            "feature_store_schema"
+        ]
+        == "nextads_integration"
+    )
+    assert (
+        bundle_config["targets"]["PREPROD"]["variables"][
+            "feature_store_schema"
+        ]
+        == "nextads_feature_store"
+    )
+    assert (
+        bundle_config["targets"]["PROD"]["variables"]["feature_store_schema"]
+        == "nextads_feature_store"
     )
     assert libraries_config["variables"]["feature_store_libraries"][
         "default"

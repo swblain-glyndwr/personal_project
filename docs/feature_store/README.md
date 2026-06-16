@@ -30,6 +30,8 @@ The repo-owned executable contract is split across:
 
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
 
+Current `build_*` entrypoints are metadata-only scaffolds: they log the feature tables owned by each source job and then exit. They do not populate rows yet. Row materialisation starts with the migration backlog items after the Databricks Feature Engineering table registration and schema routing have been validated.
+
 ## Feature Catalogue
 
 | Feature group | Physical table/view | Entity/grain | Primary consumers |
@@ -60,7 +62,7 @@ The docs should explain intent and migration order. The registry and SQL contrac
 
 Initial owner is `marketing_data` for all feature tables. Most feature groups are daily refreshes keyed by `reference_date`, `feature_date` or `session_date`; product embeddings are weekly/latest until a source-change-driven refresh is introduced; quality events are per run.
 
-The first development deployments should target `marketingdata_dev` with `${var.feature_store_schema}`. Future production setup should use a dedicated governed schema such as `marketingdata_prod.nextads_feature_store` after write permissions and migration ownership are agreed.
+The first development deployments should target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema, and DEV_INTEGRATION uses `nextads_integration`. Future production setup should use `marketingdata_prod.nextads_feature_store` after write permissions and migration ownership are agreed.
 
 ## Dependencies
 

@@ -13,12 +13,12 @@ The executable contract lives in `configs/features/nextads_feature_store.yaml` a
 
 | Environment phase | Catalog | Schema |
 | --- | --- | --- |
-| Branch/SANDBOX smoke | `marketingdata_dev` | `${var.feature_store_schema}`, currently defaulting to `${var.user_schema}` |
-| DEV pipeline | `marketingdata_dev` | `${var.feature_store_schema}`, with DEV default inherited from the branch deploy user |
-| DEV integration | `marketingdata_dev` | `nextads_integration` unless overridden |
-| Future PROD | `marketingdata_prod` | Intended dedicated schema such as `nextads_feature_store`, after permission and migration sign-off |
+| Branch/SANDBOX smoke | `marketingdata_dev` | `${workspace.current_user.short_name}` via `feature_store_schema` |
+| DEV pipeline | `marketingdata_dev` | `${var.git_last_commit_user_name}` via `feature_store_schema` |
+| DEV integration | `marketingdata_dev` | `nextads_integration` via `feature_store_schema` |
+| Future PREPROD/PROD | `marketingdata_prod` | `nextads_feature_store`, after permission and migration sign-off |
 
-The branch includes `feature_store_schema` as a bundle variable so the table schema can move from user schema to a governed schema without rewriting feature-store code.
+The branch includes `feature_store_schema` as an explicit bundle variable per target so development runs follow the repo pattern and shared environments use governed schemas. The registry fallback is `nextads_feature_store` for manual use, but DAB jobs should always pass the target-specific schema value.
 
 ## Initial Customer Feature Tables
 

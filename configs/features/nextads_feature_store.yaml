@@ -2,7 +2,7 @@ feature_store:
   name: nextads_feature_store
   description: Offline Next Ads feature store for reusable model features.
   default_catalog: marketingdata_dev
-  default_schema: ds_sandbox
+  default_schema: nextads_feature_store
   table_root: sql/features/nextads
   physical_tables:
     - name: next_uk_nextads_fs_account_profile

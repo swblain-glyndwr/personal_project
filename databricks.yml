@@ -80,7 +80,7 @@ variables:
     default: "1970-01-01"
   feature_store_schema:
     description: Schema for opt-in Next Ads Feature Store tables
-    default: ${var.user_schema}
+    default: nextads_feature_store
 
 targets:
   SANDBOX:
@@ -110,6 +110,7 @@ targets:
       job_cluster_policy_id_fixed: 00094FE740FAEA3D
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
+      feature_store_schema: ${workspace.current_user.short_name}
 
   # deployed with cicd SPN but with user schema derived from last git commit author to avoid collision of user schemas in dev when multiple developers are deploying
   DEV:
@@ -139,6 +140,7 @@ targets:
       job_parameter_environment_name: dev
       # override user schema to last git commit author for dev environment, this is because for DEV deployment the SP would be the user and we want to avoid collision of user schemas in dev when multiple developers are deploying.
       user_schema: ${var.git_last_commit_user_name}
+      feature_store_schema: ${var.git_last_commit_user_name}
 
   # Shared integration target for code merged to develop.
   # This validates combined team changes in marketingdata_dev.nextads_integration.
@@ -169,6 +171,7 @@ targets:
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
       user_schema: nextads_integration
+      feature_store_schema: nextads_integration
 
   # PREPROD:
   #   # intended to deploy as in prod simulating prod, in prod mode etc.
@@ -214,6 +217,7 @@ targets:
       job_cluster_policy_id_fixed: 0007D38BE4B60771
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: preprod
+      feature_store_schema: nextads_feature_store
 
   PROD:
     mode: production
@@ -252,6 +256,7 @@ targets:
       job_cluster_policy_id_fixed: 0007D38BE4B60771
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
+      feature_store_schema: nextads_feature_store
       notification_emails:
         - mktg_data_support@next.co.uk
         - edward_taylor@next.co.uk
