@@ -7,6 +7,11 @@ bundle:
 
 include:
   - resources/jobs/mktg_next_uk_nextads.yml
+  - resources/jobs/mktg_next_uk_nextads_page_build.yml
+  - resources/jobs/mktg_next_uk_nextads_masid_handoff.yml
+  - resources/jobs/mktg_next_uk_nextads_payload_export.yml
+  - resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
+  - resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity.yml
   - resources/jobs/mktg_next_uk_nextads_qa.yml
   - resources/variables/clusters.yml
@@ -65,11 +70,14 @@ variables:
   deployed_by:
     description: Deployed by user, e.g. 'Doe, John'
     default: ${workspace.current_user.userName}
-  notification_emails:
-    description: Email addresses for job failure notifications
+  data_team_notification_emails:
+    description: Internal data team owners for core build and QA failure notifications
     default: []
-  qa_notification_emails:
-    description: Internal email addresses for QA-only job failure notifications
+  reporting_notification_emails:
+    description: Reporting owners for results job failure notifications
+    default: []
+  data_and_downstream_notification_emails:
+    description: Combined data team and downstream recipients for handoff and export failure notifications
     default: []
 
 targets:
@@ -242,14 +250,30 @@ targets:
       job_cluster_policy_id_fixed: 0007D38BE4B60771
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
-      notification_emails:
-        - mktg_data_support@next.co.uk
+      data_team_notification_emails:
         - edward_taylor@next.co.uk
         - adrienne_lowe@next.co.uk
         - hadi_miah@next.co.uk
         - thomas_harrop@next.co.uk
         - stephen_blain@next.co.uk
         - jack_douglas@next.co.uk
+        - claire_wilsonbarnes@next.co.uk
+        - thomas_lynch@next.co.uk
+      reporting_notification_emails:
+        - stephen_blain@next.co.uk
+        - hadi_miah@next.co.uk
+        - thomas_lynch@next.co.uk
+        - thomas_harrop@next.co.uk
+      data_and_downstream_notification_emails:
+        - edward_taylor@next.co.uk
+        - adrienne_lowe@next.co.uk
+        - hadi_miah@next.co.uk
+        - thomas_harrop@next.co.uk
+        - stephen_blain@next.co.uk
+        - jack_douglas@next.co.uk
+        - claire_wilsonbarnes@next.co.uk
+        - thomas_lynch@next.co.uk
+        - mktg_data_support@next.co.uk
         - jane_hobday@next.co.uk
         - james_hobday@next.co.uk
         - sarah_galloway-grant@next.co.uk
@@ -258,9 +282,3 @@ targets:
         - dimitrios_liakouras@next.co.uk
         - nitin_surti@next.co.uk
         - sonal_sakaria@next.co.uk
-        - claire_wilsonbarnes@next.co.uk
-      qa_notification_emails:
-        - adrienne_lowe@next.co.uk
-        - hadi_miah@next.co.uk
-        - stephen_blain@next.co.uk
-        - edward_taylor@next.co.uk

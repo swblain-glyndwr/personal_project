@@ -1,7 +1,7 @@
 resources:
   jobs:
-    mktg_next_uk_nextads_realtime_results_cicd:
-      name: mktg_next_uk_nextads_realtime_results_cicd
+    mktg_next_uk_nextads_payload_export_cicd:
+      name: mktg_next_uk_nextads_payload_export
       queue:
         enabled: true
       job_clusters: ${var.job_clusters_config}
@@ -13,23 +13,23 @@ resources:
         department: marketing
         project: nextads
       email_notifications:
-        on_failure: ${var.reporting_notification_emails}
+        on_failure: ${var.data_and_downstream_notification_emails}
       notification_settings:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
-      schedule:
-        quartz_cron_expression: 0 30 7 * * ?
-        timezone_id: Europe/London
       timeout_seconds: 3600
       tasks:
-        - task_key: realtime_results
+        - task_key: Export_for_Bloomreach
           spark_python_task:
-            python_file: ../../scripts/realtime_results.py
+            python_file: ../../scripts/build_v2_payload.py
             parameters:
               - --client
               - "next_uk"
               - --job_env
               - ${var.job_parameter_environment_name}
-          job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+              - --do_export
+              - "1"
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
           libraries: ${var.shared_libraries}
+          max_retries: 2
           timeout_seconds: 3600

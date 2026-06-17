@@ -14,7 +14,7 @@ resources:
         domain: theme_affinity
         legacy_name: hackathon
       email_notifications:
-        on_failure: ${var.notification_emails}
+        on_failure: ${var.data_team_notification_emails}
       notification_settings:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
