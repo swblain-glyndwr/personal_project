@@ -422,7 +422,7 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     )
     assert (
         feature_store_cluster["new_cluster"]["spark_version"]
-        == "17.3.x-cpu-ml-scala2.12"
+        == "17.3.x-cpu-ml-scala2.13"
     )
     assert feature_store_cluster["new_cluster"]["runtime_engine"] == "STANDARD"
     assert set(job_config["targets"]) == {"SANDBOX", "DEV", "DEV_INTEGRATION"}

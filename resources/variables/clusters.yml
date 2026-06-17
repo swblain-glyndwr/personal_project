@@ -42,7 +42,7 @@ _base_cluster_config_photon: &base_cluster_photon
 
 _feature_store_ml_cluster_config: &feature_store_ml_cluster
   <<: *base_cluster
-  spark_version: 17.3.x-cpu-ml-scala2.12
+  spark_version: 17.3.x-cpu-ml-scala2.13
   runtime_engine: STANDARD
 
 variables:
