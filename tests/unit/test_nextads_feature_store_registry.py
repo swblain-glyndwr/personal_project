@@ -414,10 +414,16 @@ def test_feature_store_job_is_development_only_and_unscheduled():
     assert libraries_config["variables"]["feature_store_libraries"][
         "default"
     ][2]["pypi"]["package"] == "databricks-feature-engineering==0.12.1"
-    feature_store_cluster = next(
-        cluster
+    shared_cluster_keys = {
+        cluster["job_cluster_key"]
         for cluster in clusters_config["variables"]["job_clusters_config"]["default"]
-        if cluster["job_cluster_key"]
+    }
+    assert "next_ads_feature_store_ml_cluster_D4ads_v5_1_1" not in shared_cluster_keys
+    feature_store_cluster = clusters_config["variables"][
+        "feature_store_job_clusters_config"
+    ]["default"][0]
+    assert (
+        feature_store_cluster["job_cluster_key"]
         == "next_ads_feature_store_ml_cluster_D4ads_v5_1_1"
     )
     assert (
@@ -431,6 +437,7 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         "mktg_next_uk_nextads_feature_store"
     ]
     assert "schedule" not in job
+    assert job["job_clusters"] == "${var.feature_store_job_clusters_config}"
     assert job["tags"]["domain"] == "feature_store"
     assert job["tasks"][0]["task_key"] == "create_feature_store_tables"
     assert any(

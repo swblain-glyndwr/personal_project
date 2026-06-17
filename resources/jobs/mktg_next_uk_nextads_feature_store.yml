@@ -6,7 +6,7 @@ nextads_feature_store_config: &nextads_feature_store_config
     name: mktg_next_uk_nextads_feature_store
     queue:
       enabled: true
-    job_clusters: ${var.job_clusters_config}
+    job_clusters: ${var.feature_store_job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
       git_commit: ${var.git_commit_sha}
