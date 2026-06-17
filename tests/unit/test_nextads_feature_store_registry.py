@@ -14,7 +14,7 @@ from scripts.table_operations.create_feature_store_tables import (
     create_databricks_feature_table,
     schema_from_contract,
 )
-from scripts.table_operations.create_tables import extract_create_table_columns
+from next_ads.features.sql_contracts import extract_create_table_columns
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -411,9 +411,13 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         bundle_config["targets"]["PROD"]["variables"]["feature_store_schema"]
         == "nextads_feature_store"
     )
-    assert libraries_config["variables"]["feature_store_libraries"][
-        "default"
-    ][2]["pypi"]["package"] == "databricks-feature-engineering==0.12.1"
+    feature_store_libraries = libraries_config["variables"][
+        "feature_store_libraries"
+    ]["default"]
+    assert all("requirements" not in library for library in feature_store_libraries)
+    assert feature_store_libraries[1]["pypi"]["package"] == (
+        "databricks-feature-engineering==0.12.1"
+    )
     shared_cluster_keys = {
         cluster["job_cluster_key"]
         for cluster in clusters_config["variables"]["job_clusters_config"]["default"]

@@ -9,7 +9,7 @@ from next_ads.features.feature_store_registry import (
     FeatureStoreRegistry,
     load_feature_store_registry,
 )
-from scripts.table_operations.create_tables import extract_create_table_columns
+from next_ads.features.sql_contracts import extract_create_table_columns
 
 
 def create_feature_engineering_client():
