@@ -112,3 +112,20 @@ variables:
           node_type_id: Standard_E16ds_v5
           driver_node_type_id: Standard_D32ads_v5
           num_workers: 4
+  pipeline_clusters_config:
+    description: Cluster configuration for Lakeflow pipelines
+    default:
+      - label: default
+        node_type_id: Standard_D32ads_v5
+        driver_node_type_id: Standard_D16ds_v4
+        custom_tags:
+          Recharge Cost Centre: C9871
+          Recharge Department: MARKETING DATA
+          Showback Cost Centre: C9871
+          Showback Team: MARKETING DATA
+          Team: marketing_job
+        policy_id: ${var.job_cluster_lp_policy_id}
+        autoscale:
+          min_workers: 2
+          max_workers: 6
+          mode: ENHANCED
