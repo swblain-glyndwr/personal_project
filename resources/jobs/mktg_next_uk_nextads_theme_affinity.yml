@@ -4,6 +4,7 @@ resources:
       name: mktg_next_uk_nextads_theme_affinity
       queue:
         enabled: true
+      job_clusters: ${var.job_clusters_config}
       tags:
         deployed_at: ${var.deploy_timestamp}
         git_commit: ${var.git_commit_sha}
@@ -12,118 +13,103 @@ resources:
         department: marketing
         project: nextads
         domain: theme_affinity
-        legacy_name: hackathon
       email_notifications:
-        on_failure: ${var.notification_emails}
+        on_failure: ${var.data_team_notification_emails}
       notification_settings:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
-      schedule:
-        quartz_cron_expression: 52 0 9 * * ?
-        timezone_id: Europe/London
-      job_clusters:
-        - job_cluster_key: theme_affinity_sql
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            spark_conf:
-              spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
-            azure_attributes:
-              availability: SPOT_WITH_FALLBACK_AZURE
-              spot_bid_max_price: -1
-            node_type_id: Standard_E32ds_v5
-            driver_node_type_id: Standard_E32ds_v5
-            custom_tags:
-              Showback Cost Centre: C9871
-              Recharge Department: MARKETING DATA
-              Showback Team: MARKETING DATA
-              Recharge Cost Centre: C9871
-            spark_env_vars:
-              CURRENT_ENV: ${var.environment_name}
-              GOOGLE_CLOUD_PROJECT: big-query-156009
-              PYSPARK_PYTHON: /databricks/python3/bin/python3
-            policy_id: ${var.job_cluster_policy_id}
-            workload_type:
-              clients:
-                notebooks: true
-                jobs: true
-            data_security_mode: SINGLE_USER
-            runtime_engine: STANDARD
-            is_single_node: false
-            autoscale:
-              min_workers: 1
-              max_workers: 4
+      timeout_seconds: 21600
       tasks:
-        - task_key: prep_base_data_0_3
-          notebook_task:
-            notebook_path: ${workspace.file_path}/hackathon_model/run_pipeline_predict
-            base_parameters:
-              catalog: ds_sandbox
-              dry_run: "False"
-              layer: 0-3
-              reference_date: predict
-              table_prefix: next_uk_nextAds_predict_prod
-            source: WORKSPACE
-          job_cluster_key: theme_affinity_sql
-          timeout_seconds: 7200
-        - task_key: prep_base_data_4
-          notebook_task:
-            notebook_path: ${workspace.file_path}/hackathon_model/run_pipeline_predict
-            base_parameters:
-              catalog: ds_sandbox
-              dry_run: "False"
-              layer: "4"
-              reference_date: predict
-              table_prefix: next_uk_nextAds_predict_prod
-            source: WORKSPACE
-          job_cluster_key: theme_affinity_sql
-          max_retries: 1
-          min_retry_interval_millis: 60000
-          retry_on_timeout: true
-          timeout_seconds: 9000
-        - task_key: prep_base_data_5
-          depends_on:
-            - task_key: prep_base_data_0_3
-            - task_key: prep_base_data_4
-          notebook_task:
-            notebook_path: ${workspace.file_path}/hackathon_model/run_pipeline_predict
-            base_parameters:
-              catalog: ds_sandbox
-              dry_run: "False"
-              layer: "5"
-              reference_date: predict
-              table_prefix: next_uk_nextAds_predict_prod
-            source: WORKSPACE
-          job_cluster_key: theme_affinity_sql
-          max_retries: 1
-          min_retry_interval_millis: 120000
-          timeout_seconds: 10800
-        - task_key: rules_rank
-          depends_on:
-            - task_key: prep_base_data_5
-          notebook_task:
-            notebook_path: ${workspace.file_path}/hackathon_model/simple_rules_rank
-            source: WORKSPACE
-          job_cluster_key: theme_affinity_sql
-          max_retries: 1
-          min_retry_interval_millis: 60000
+        - task_key: predict_data_prep
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.nextads_theme_affinity_predict_data_prep.id}
+            full_refresh: false
           timeout_seconds: 14400
-        - task_key: predict
+        - task_key: model_predict
           depends_on:
-            - task_key: rules_rank
-          notebook_task:
-            notebook_path: ${workspace.file_path}/hackathon_model/predict_model
-            source: WORKSPACE
-          job_cluster_key: theme_affinity_sql
+            - task_key: predict_data_prep
+          spark_python_task:
+            python_file: ../../scripts/theme_affinity/model_predict.py
+            parameters:
+              - --client
+              - next_uk
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --model_uri
+              - ${var.theme_affinity_model_uri}
+              - --log_level
+              - INFO
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+          libraries: ${var.theme_affinity_libraries}
           max_retries: 1
           min_retry_interval_millis: 60000
           timeout_seconds: 10800
+        - task_key: sense_check_dlt_data
+          depends_on:
+            - task_key: predict_data_prep
+          spark_python_task:
+            python_file: ../../scripts/theme_affinity/sense_check.py
+            parameters:
+              - --client
+              - next_uk
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --check_scope
+              - data
+              - --baseline_intermediate_namespace
+              - marketingdata_prod.ds_sandbox
+              - --baseline_intermediate_prefix
+              - next_uk_nextAds_predict_prod
+              - --summary_table
+              - ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_dlt_sense_check_summary
+              - --log_level
+              - INFO
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+          libraries: ${var.theme_affinity_libraries}
+          max_retries: 1
+          min_retry_interval_millis: 60000
+          timeout_seconds: 5400
         - task_key: clean_output
           depends_on:
-            - task_key: predict
-          notebook_task:
-            notebook_path: ${workspace.file_path}/hackathon_model/clean_output
-            source: WORKSPACE
-          job_cluster_key: theme_affinity_sql
+            - task_key: model_predict
+          spark_python_task:
+            python_file: ../../scripts/theme_affinity/clean_output.py
+            parameters:
+              - --client
+              - next_uk
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --log_level
+              - INFO
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+          libraries: ${var.theme_affinity_libraries}
+          max_retries: 1
+          min_retry_interval_millis: 60000
+          timeout_seconds: 5400
+        - task_key: sense_check_model_outputs
+          depends_on:
+            - task_key: clean_output
+          spark_python_task:
+            python_file: ../../scripts/theme_affinity/sense_check.py
+            parameters:
+              - --client
+              - next_uk
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --check_scope
+              - model_outputs
+              - --baseline_intermediate_namespace
+              - marketingdata_prod.ds_sandbox
+              - --baseline_intermediate_prefix
+              - next_uk_nextAds_predict_prod
+              - --baseline_final_table
+              - marketingdata_prod.ds_sandbox.next_uk_next_ads_hackathon_model_full
+              - --summary_table
+              - ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_model_sense_check_summary
+              - --log_level
+              - INFO
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+          libraries: ${var.theme_affinity_libraries}
           max_retries: 1
           min_retry_interval_millis: 60000
           timeout_seconds: 5400

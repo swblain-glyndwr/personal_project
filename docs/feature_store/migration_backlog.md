@@ -1,6 +1,6 @@
 # Next Ads Feature Store Migration Backlog
 
-Azure Boards story: 5111881  
+Azure Boards story: 5111881
 Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
 ## Migration Principles
@@ -16,7 +16,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 | Priority | Migration | Target tables/views | Notes |
 | --- | --- | --- | --- |
 | 1 | Confirm DEV schema, permissions and Feature Engineering Client registration | All setup tables | Run the paused DEV/SANDBOX setup job against `${var.feature_store_schema}` and confirm table registration. |
-| 2 | Populate Theme Affinity feature-store slice | Theme affinity feature tables, labels and model input | First populated slice; reads existing hackathon outputs and leaves operational outputs unchanged. |
+| 2 | Populate Theme Affinity feature-store slice | Theme affinity feature tables, labels and model input | First populated slice; reads the operationalised Theme Affinity runtime tables and leaves operational outputs unchanged. |
 | 3 | Validate Theme Affinity compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Preserve current `hackathon_model/config.py` feature list while proving output equivalence. |
 | 4 | Populate first customer feature table | `next_uk_nextads_fs_account_profile` | Start with account descriptors and reference-date metadata. Validate key uniqueness and row counts. |
 | 5 | Populate first advert/embedding table | `next_uk_nextads_fs_advert_core_daily` or `next_uk_nextads_fs_product_embeddings_latest` | Choose advert core first for lower risk, or embeddings first if the DEV validation focuses on vector metadata. |
@@ -35,7 +35,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 | Product embeddings | Register product embedding lookup with explicit model/version metadata and coverage checks. | High |
 | Semantic advert features | Promote advert semantic embeddings and neighbour signals after embedding cache behaviour is stable. | Medium |
 | Seasonal demand | Move same-month-last-year, 7-day, 30-day and trend features into seasonal feature tables. | Medium |
-| Theme Affinity features | Move current hackathon SQL outputs behind the compatibility view and then into native feature-store tables. | High |
+| Theme Affinity features | Move current Theme Affinity runtime outputs behind the compatibility view and then into native feature-store tables. | High |
 | CWB pCTR affinity | Map CWB analytics pCTR affinity features into account-advert and pCTR model-input contracts. | High |
 | Labels | Standardise click/impression and theme response labels with horizons and point-in-time metadata. | Medium |
 | Quality checks | Extend scaffolded checks into row-count, key uniqueness, null-rate and freshness writes to quality events. | High |

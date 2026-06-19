@@ -106,8 +106,10 @@ def check_primary_key(df, logger, JOB_ENV, WEBHOOK_URL):
                 warn_dup_masid += "\n" + issue_ad
                 df = df.where(F.col("MASIDToken") != m)
 
-        if JOB_ENV == "prod":
-            post_to_webhook(WEBHOOK_URL, "/n".join(warn_dup_masid))
+        logger.info(
+            "Duplicate MASID suffix auto-resolution warnings are not posted "
+            "to Google Chat for the v2 control sheet."
+        )
 
     return df
 

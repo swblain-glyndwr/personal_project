@@ -99,6 +99,16 @@ default:
     nextads_plp_gs_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_plp_gs_latest"
     # operational tables
     nextads_table_sizes: "@format {this.catalog_write}.{this.schema_write}.nextads_table_sizes"
+
+  ranking_model_table_prefix: "@format {this.client}_nextads_theme_affinity_predict"
+  ranking_model_tables:
+    model_train_input_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_complete_ranked"
+    predict_master: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_master"
+    predict_complete: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_complete"
+    predict_input_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_ranked"
+    predict_output_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_half"
+    model_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"
+    model_full: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_full"
     nextads_payload_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload_latest"
     nextads_payload: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload"
     results_underperforming_ads: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_underperforming_ads"
@@ -109,3 +119,7 @@ default:
     control_sheet_latest_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_latest_v2"
     exclusions_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions_latest"
     exclusions: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions"
+
+  theme_affinity_assignment_sources:
+    champion: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"
+    challenger: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"

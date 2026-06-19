@@ -1,13 +1,13 @@
 # Next Ads Feature Store Documentation
 
-Feature: 5111595 - Reusable feature layer (Databricks Feature Store)  
+Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 Documentation/backlog story: 5111881
 
 ## Scope
 
 This folder documents the first repo-owned Next Ads Databricks Feature Store route.
 
-The implementation is intentionally batch/offline first. It creates governed Databricks Feature Engineering table contracts and a paused development-only DAB job so existing production Theme Affinity, hackathon, response-model and pCTR outputs are not renamed or replaced in this slice.
+The implementation is intentionally batch/offline first. It creates governed Databricks Feature Engineering table contracts and a paused development-only DAB job so existing production Theme Affinity, response-model and pCTR outputs are not renamed or replaced in this slice.
 
 ## Documents
 
@@ -30,7 +30,7 @@ The repo-owned executable contract is split across:
 
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
 
-The Theme Affinity/LTR entrypoints now materialise the first populated feature-store slice from existing hackathon/Theme Affinity outputs through the Databricks Feature Engineering client. Account, advert and CWB pCTR jobs remain scaffold/dependency-only until their source contracts are migrated.
+The Theme Affinity/LTR entrypoints now materialise the first populated feature-store slice from the operationalised Theme Affinity runtime tables through the Databricks Feature Engineering client. Account, advert and CWB pCTR jobs remain scaffold/dependency-only until their source contracts are migrated.
 
 ## Feature Catalogue
 

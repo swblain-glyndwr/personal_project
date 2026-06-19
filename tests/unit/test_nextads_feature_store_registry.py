@@ -386,6 +386,12 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         == "marketingdata_prod"
     )
     assert (
+        bundle_config["variables"]["feature_store_theme_table_prefix"][
+            "default"
+        ]
+        == "next_uk_nextads_theme_affinity_predict"
+    )
+    assert (
         bundle_config["targets"]["SANDBOX"]["variables"][
             "feature_store_schema"
         ]
@@ -471,6 +477,10 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         )
         assert "--theme_source_schema" in parameters
         assert "--theme_table_prefix" in parameters
+        assert (
+            parameters[parameters.index("--theme_table_prefix") + 1]
+            == "${var.feature_store_theme_table_prefix}"
+        )
     assert all(
         "${var.feature_store_schema}"
         in task["spark_python_task"]["parameters"]

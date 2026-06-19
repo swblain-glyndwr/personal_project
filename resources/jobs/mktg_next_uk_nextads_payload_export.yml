@@ -1,0 +1,35 @@
+resources:
+  jobs:
+    mktg_next_uk_nextads_payload_export_cicd:
+      name: mktg_next_uk_nextads_payload_export
+      queue:
+        enabled: true
+      job_clusters: ${var.job_clusters_config}
+      tags:
+        deployed_at: ${var.deploy_timestamp}
+        git_commit: ${var.git_commit_sha}
+        git_branch: ${var.git_branch}
+        deployed_by: ${var.deployed_by}
+        department: marketing
+        project: nextads
+      email_notifications:
+        on_failure: ${var.data_and_downstream_notification_emails}
+      notification_settings:
+        no_alert_for_skipped_runs: true
+        no_alert_for_canceled_runs: true
+      timeout_seconds: 3600
+      tasks:
+        - task_key: Export_for_Bloomreach
+          spark_python_task:
+            python_file: ../../scripts/build_v2_payload.py
+            parameters:
+              - --client
+              - "next_uk"
+              - --job_env
+              - ${var.job_parameter_environment_name}
+              - --do_export
+              - "1"
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+          libraries: ${var.shared_libraries}
+          max_retries: 2
+          timeout_seconds: 3600

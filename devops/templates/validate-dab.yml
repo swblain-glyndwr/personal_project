@@ -35,6 +35,7 @@ jobs:
       - script: |
           echo "Validating bundle for target ${{ parameters.target }}..."
           unset DATABRICKS_CLUSTER_ID
+          source devops/scripts/set_dab_vars.sh ${{ parameters.target }}
           databricks bundle validate -t ${{ parameters.target }}
           databricks bundle plan -t ${{ parameters.target }}
         displayName: 'Validate and plan bundle'

@@ -82,7 +82,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --theme_source_schema
             - ds_sandbox
             - --theme_table_prefix
-            - next_uk_nextAds_predict_prod
+            - ${var.feature_store_theme_table_prefix}
             - --log_level
             - INFO
         job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
@@ -124,7 +124,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --theme_source_schema
             - ds_sandbox
             - --theme_table_prefix
-            - next_uk_nextAds_predict_prod
+            - ${var.feature_store_theme_table_prefix}
             - --log_level
             - INFO
         job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
@@ -147,7 +147,7 @@ nextads_feature_store_config: &nextads_feature_store_config
             - --theme_source_schema
             - ds_sandbox
             - --theme_table_prefix
-            - next_uk_nextAds_predict_prod
+            - ${var.feature_store_theme_table_prefix}
             - --log_level
             - INFO
         job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1

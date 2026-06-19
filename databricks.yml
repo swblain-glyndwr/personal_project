@@ -7,8 +7,14 @@ bundle:
 
 include:
   - resources/jobs/mktg_next_uk_nextads.yml
+  - resources/jobs/mktg_next_uk_nextads_page_build.yml
+  - resources/jobs/mktg_next_uk_nextads_masid_handoff.yml
+  - resources/jobs/mktg_next_uk_nextads_payload_export.yml
+  - resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
+  - resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity.yml
   - resources/jobs/mktg_next_uk_nextads_qa.yml
+  - resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
   - resources/variables/clusters.yml
   - resources/variables/libraries.yml
   - resources/jobs/mktg_next_uk_nextads_results.yml
@@ -24,6 +30,7 @@ sync:
   include:
     - next_ads/**
     - next_ads/data/**
+    - scripts/**
     - src/next_ads/**
     - src/next_ads/data/**
     - jobs/features/**
@@ -48,12 +55,21 @@ variables:
   job_cluster_policy_id_fixed:
     description: policy id for fixed job clusters
     default: 00094FE740FAEA3D
+  job_cluster_lp_policy_id:
+    description: policy id for Lakeflow pipeline clusters
+    default: 000CC98093ABF8DC
   run_as_SPN_name:
     description: the name of the service principal identity that will deploy the bundle
     default: 7ecc733a-4b66-4783-b984-985333d55c38
   mktgdata_catalog:
     description: the name of the marketing unity catalog we are using, e.g. marketingdata_prod
     default: marketingdata_dev
+  theme_affinity_model_uri:
+    description: MLflow model URI used by the Theme Affinity prediction task
+    default: models:/marketingdata_prod.ds_sandbox.nextads_hackathon_model/1
+  theme_affinity_reference_date:
+    description: Reference date for Theme Affinity data prep. Use current for the operational daily run, or YYYY-MM-DD for an explicit backfill date.
+    default: current
   deploy_timestamp:
     description: Deployment timestamp
     default: "unknown"
@@ -69,11 +85,14 @@ variables:
   deployed_by:
     description: Deployed by user, e.g. 'Doe, John'
     default: ${workspace.current_user.userName}
-  notification_emails:
-    description: Email addresses for job failure notifications
+  data_team_notification_emails:
+    description: Internal data team owners for core build and QA failure notifications
     default: []
-  qa_notification_emails:
-    description: Internal email addresses for QA-only job failure notifications
+  reporting_notification_emails:
+    description: Reporting owners for results job failure notifications
+    default: []
+  data_and_downstream_notification_emails:
+    description: Combined data team and downstream recipients for handoff and export failure notifications
     default: []
   feature_store_reference_date:
     description: Reference date for opt-in feature-store smoke/materialisation jobs
@@ -84,6 +103,9 @@ variables:
   feature_store_theme_source_catalog:
     description: Catalog for existing Theme Affinity source tables consumed by feature-store materialisation
     default: marketingdata_prod
+  feature_store_theme_table_prefix:
+    description: Table prefix for Theme Affinity runtime source tables consumed by feature-store materialisation
+    default: next_uk_nextads_theme_affinity_predict
 
 targets:
   SANDBOX:
@@ -111,6 +133,7 @@ targets:
       environment_name: dev
       job_cluster_policy_id: 00076A5E6270EA99
       job_cluster_policy_id_fixed: 00094FE740FAEA3D
+      job_cluster_lp_policy_id: 000CC98093ABF8DC
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
       feature_store_schema: ${workspace.current_user.short_name}
@@ -139,6 +162,7 @@ targets:
       mktgdata_catalog: marketingdata_dev
       environment_name: dev
       job_cluster_policy_id: 00076A5E6270EA99
+      job_cluster_lp_policy_id: 000CC98093ABF8DC
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
       # override user schema to last git commit author for dev environment, this is because for DEV deployment the SP would be the user and we want to avoid collision of user schemas in dev when multiple developers are deploying.
@@ -171,6 +195,7 @@ targets:
       environment_name: dev
       job_cluster_policy_id: 00076A5E6270EA99
       job_cluster_policy_id_fixed: 00094FE740FAEA3D
+      job_cluster_lp_policy_id: 000CC98093ABF8DC
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
       user_schema: nextads_integration
@@ -218,6 +243,7 @@ targets:
       environment_name: prod
       job_cluster_policy_id: 0019C79D3B6399F0
       job_cluster_policy_id_fixed: 0007D38BE4B60771
+      job_cluster_lp_policy_id: 000EAA504551B388
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: preprod
       feature_store_schema: nextads_feature_store
@@ -257,17 +283,34 @@ targets:
       environment_name: prod
       job_cluster_policy_id: 0019C79D3B6399F0
       job_cluster_policy_id_fixed: 0007D38BE4B60771
+      job_cluster_lp_policy_id: 000EAA504551B388
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
       feature_store_schema: nextads_feature_store
-      notification_emails:
-        - mktg_data_support@next.co.uk
+      data_team_notification_emails:
         - edward_taylor@next.co.uk
         - adrienne_lowe@next.co.uk
         - hadi_miah@next.co.uk
         - thomas_harrop@next.co.uk
         - stephen_blain@next.co.uk
         - jack_douglas@next.co.uk
+        - claire_wilsonbarnes@next.co.uk
+        - thomas_lynch@next.co.uk
+      reporting_notification_emails:
+        - stephen_blain@next.co.uk
+        - hadi_miah@next.co.uk
+        - thomas_lynch@next.co.uk
+        - thomas_harrop@next.co.uk
+      data_and_downstream_notification_emails:
+        - edward_taylor@next.co.uk
+        - adrienne_lowe@next.co.uk
+        - hadi_miah@next.co.uk
+        - thomas_harrop@next.co.uk
+        - stephen_blain@next.co.uk
+        - jack_douglas@next.co.uk
+        - claire_wilsonbarnes@next.co.uk
+        - thomas_lynch@next.co.uk
+        - mktg_data_support@next.co.uk
         - jane_hobday@next.co.uk
         - james_hobday@next.co.uk
         - sarah_galloway-grant@next.co.uk
@@ -276,9 +319,3 @@ targets:
         - dimitrios_liakouras@next.co.uk
         - nitin_surti@next.co.uk
         - sonal_sakaria@next.co.uk
-        - claire_wilsonbarnes@next.co.uk
-      qa_notification_emails:
-        - adrienne_lowe@next.co.uk
-        - hadi_miah@next.co.uk
-        - stephen_blain@next.co.uk
-        - edward_taylor@next.co.uk

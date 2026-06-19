@@ -260,7 +260,9 @@ def test_prod_table_contract_smoke_job_is_read_only_and_target_specific():
         smoke_task["spark_python_task"]["python_file"]
         == "../../scripts/smoke/prod_table_contract_smoke.py"
     )
-    assert smoke_job["email_notifications"]["on_failure"] == "${var.qa_notification_emails}"
+    assert smoke_job["email_notifications"]["on_failure"] == (
+        "${var.data_team_notification_emails}"
+    )
     assert smoke_task["spark_python_task"]["parameters"] == [
         "--client",
         "next_uk",
