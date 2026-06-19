@@ -20,4 +20,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_labels_clicks (
 )
 USING delta
 PARTITIONED BY (session_date)
-

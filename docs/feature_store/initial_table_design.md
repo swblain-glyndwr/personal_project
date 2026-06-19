@@ -1,6 +1,6 @@
 # Next Ads Feature Store Initial Table Design
 
-Azure Boards story: 5111861  
+Azure Boards story: 5111861
 Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
 ## Purpose

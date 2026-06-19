@@ -1,6 +1,6 @@
 # Next Ads Offline Candidate Similarity Diagnostics
 
-Azure Boards story: 5149979  
+Azure Boards story: 5149979
 Status: follow-up story concept, not part of the current feature-store production model contracts.
 
 ## Purpose

@@ -26,4 +26,3 @@ SELECT
   trending_7x30,
   simple_rules_rank
 FROM {catalog}.{schema}.next_uk_nextads_fs_theme_affinity_model_input
-

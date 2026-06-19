@@ -24,4 +24,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_item_attributes
   CONSTRAINT pk_nextads_fs_item_attributes_latest PRIMARY KEY (item_id)
 )
 USING delta
-

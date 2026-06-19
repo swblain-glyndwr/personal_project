@@ -17,4 +17,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_labels_theme_re
 )
 USING delta
 PARTITIONED BY (reference_date)
-

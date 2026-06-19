@@ -15,4 +15,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_product_embeddi
   )
 )
 USING delta
-

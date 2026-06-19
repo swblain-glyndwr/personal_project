@@ -1,6 +1,6 @@
 # Next Ads Feature Store Reusable Feature Inventory
 
-Azure Boards story: 5111856  
+Azure Boards story: 5111856
 Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
 ## Purpose

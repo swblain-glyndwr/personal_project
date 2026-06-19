@@ -23,4 +23,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_seasonal_produc
 )
 USING delta
 PARTITIONED BY (feature_date)
-

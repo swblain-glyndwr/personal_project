@@ -20,4 +20,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_account_advert_
 )
 USING delta
 PARTITIONED BY (reference_date)
-

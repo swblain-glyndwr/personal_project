@@ -26,4 +26,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_advert_core_dai
 )
 USING delta
 PARTITIONED BY (feature_date)
-
