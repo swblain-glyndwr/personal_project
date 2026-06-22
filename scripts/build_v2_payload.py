@@ -460,9 +460,9 @@ def write_payload_tables(
     )
 
 
-def write_output_to_csv(df_output, pii_exponea_next_uk_path, logger):
+def write_output_to_csv(df_output, pii_exponea_next_uk_path, logger, process="next_ads"):
     payload_path = os.path.join(
-        pii_exponea_next_uk_path, "outbound", "customer_attributes", "next_ads"
+        pii_exponea_next_uk_path, "outbound", "customer_attributes", process
     )
 
     logger.info(f"Writing output dataframe to CSV at: {payload_path}")
@@ -558,9 +558,16 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
             ).alias("next_ads"),
         )
 
-        write_output_to_csv(
-            df_latest_payload, config.pii_exponea_next_uk_path, logger
-        )
+        write_output_to_csv(df_latest_payload, config.pii_exponea_next_uk_path, logger)
+
+        # exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
+        #                  where roamingprofileid is not null
+        #                  and trim(roamingprofileid)!=''
+        #                  and (next_ads is not null)""")
+        # in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti") #GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
+        # distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", lit(""))
+
+        # write_output_to_csv(distinct_nextads_blank, config.pii_exponea_next_uk_path, logger, process="next_ads_blanking")
 
     logger.info("Output complete")
     logger.info(f"Output row count: {df_latest_payload.count()}")
