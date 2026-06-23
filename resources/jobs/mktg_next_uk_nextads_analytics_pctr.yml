@@ -26,7 +26,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/00_base_sessions
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               start_date: "{{start_date}}"
               end_date : "{{start_date}}"
               lookback_period: 30
@@ -42,7 +42,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/01_core_datasets
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               start_date: "{{start_date}}"
               end_date : "{{start_date}}"
               lookback_period: 30
@@ -58,7 +58,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/02_customer_advert_base-predictions
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
               year_lookback_period : 365
               start_date: "{{start_date}}"
@@ -74,7 +74,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/03_session_aggregation
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
               table_prefix: next_uk_nextAds_analytics_pctr
             source: WORKSPACE
@@ -87,7 +87,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/04_ctr_metrics
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
               table_prefix: next_uk_nextAds_analytics_pctr
             source: WORKSPACE
@@ -100,7 +100,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/05_page_views
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
               table_prefix: next_uk_nextAds_analytics_pctr
             source: WORKSPACE
@@ -113,7 +113,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/06_purchases
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
               year_lookback_period: 365
               table_prefix: next_uk_nextAds_analytics_pctr
@@ -127,7 +127,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/07_customer_advert_exposure
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
               table_prefix: next_uk_nextAds_analytics_pctr
             source: WORKSPACE
@@ -140,7 +140,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/08_view_advert_affinity
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
               table_prefix: next_uk_nextAds_analytics_pctr
             source: WORKSPACE
@@ -158,7 +158,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/SQL/09_combining_data
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               table_prefix: next_uk_nextAds_analytics_pctr
               output_table_name: _features
             source: WORKSPACE
@@ -171,7 +171,7 @@ resources:
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/run_predictions.py
             base_parameters:
-              catalog_schema_prefix: ${var.catalog_write}.${var.schema_write}
+              catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               table_prefix: next_uk_nextAds_analytics_pctr
               lookback_period: 30
               affinity_weighting_factor: 4  
