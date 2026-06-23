@@ -8,6 +8,7 @@ _base_cluster_shared: &base_cluster_shared
     spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
     spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
     credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
+    spark.databricks.driver.ipykernel.maxErrorMessageLength: "100000"
   azure_attributes:
     first_on_demand: 1
     availability: SPOT_WITH_FALLBACK_AZURE
@@ -112,3 +113,10 @@ variables:
           node_type_id: Standard_E16ds_v5
           driver_node_type_id: Standard_D32ads_v5
           num_workers: 4
+      - job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        new_cluster:
+          <<: *base_cluster_fixed_standard
+          node_type_id: Standard_E16ds_v5
+          driver_node_type_id: Standard_D32ads_v5
+          num_workers: 4
+     

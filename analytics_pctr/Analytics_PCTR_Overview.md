@@ -15,7 +15,8 @@ The aim of this project was to build a basic propensity-to-click-through (pCTR) 
 * Data gaps on website click & impressions exist between Feb 18, 2026, and Mar 30, 2026. Training data is viable from Apr 29, 2026, onwards to satisfy the 30-day prior click/ impressions lookback requirement.
 * Due to issues with naming convention for adverts feeding through from GA data we have had to utilise matching logic to map the GA data to the uniqueadvertids. This will need to be reviwed in future as V2 goes live as it will not be applicable 
 * In order not to lose click/ impression  history if an advert ad the same campaign number & title then the process will utilise the click/ impressions data from all adverts with this over the time window - so new adverts CTR slowly replace the prior advert overtime
-
+* There is a dependency on the following table to enable simplification of geolocations: 
+`marketingdata_prod.search.nov_country_mapping`
 ## Current Modelling Process:
 * Due to the advert and customer global features (such as customer propensity to click/ advert click through rates) having such a large impact we opted for a 2 stage approach to the modelling - utilising the global features to generate a 'popularity' model - to indicate popularity of advert/ customer overall likelihood to click and then an 'affinity' model trained on the residuals of the popularity model, only utilising affinity features built from customer interaction data to enable a refinement layer.  
 * Smoothing is applied to the popularity model (to prevent low impression number, high CTR adverts from being over-represented) 
@@ -27,7 +28,7 @@ The aim of this project was to build a basic propensity-to-click-through (pCTR) 
 
 Deployment has been set up in the job: `mktg_next_uk_nextads_analytics_pctr`
 
-This currently contains both the feature build stages as well as the prediction pipeline. 
+This currently contains both the feature build stages as well as the prediction pipeline although these should be seperated out as part of further developments 
 
 ### Output tables: 
 `next_uk_nextAds_analytics_pctr_predictions`-  history table for daily view of scored advert rankings 
