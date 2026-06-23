@@ -145,7 +145,7 @@ def aggregate_model_scores(
         model_score_table,
         models=model_subset,
         melt_scores=True
-        )
+    )
 
     # Join scores to entity using model as a key
     df_scores_pre_agg = df_scores.join(df, on="Model")

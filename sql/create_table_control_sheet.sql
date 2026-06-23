@@ -46,6 +46,7 @@ create table {catalog}.{schema}.{client}_nextads_control_sheet (
   TargetingAttributes STRING,
   Themes STRING,
   AdVariant STRING,
+  ClusterID STRING,
   Page STRING,
   Screen STRING,
   PageGroup STRING,

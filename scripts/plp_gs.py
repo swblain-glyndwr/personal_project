@@ -29,7 +29,7 @@ from pyspark.sql.dataframe import DataFrame
 from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
-from next_ads.utils import gs_helpers
+from next_ads.delivery import google_sheets as gs_helpers
 from next_ads.utils import config_manager
 from dynaconf import Dynaconf
 import pandera.pyspark as pa
@@ -43,8 +43,7 @@ dbutils = get_dbutils()
 
 @pa.check_output(schemas.GlobalSolutionOutputModel, lazy=True)
 def process_control_sheet(config: Dynaconf) -> "DataFrame":
-    """
-    Process control sheet from config.
+    """Process control sheet from config.
 
     Args:
         config: Dynaconf config object with expected keys:
@@ -200,13 +199,17 @@ if __name__ == "__main__":
     # load configuration
     config = config_manager.load_config(JOB_ENV)
 
-    output_table_name_map = config.tables_write.nextads_plp_gs
-    OUTPUT_TABLE_NAME = output_table_name_map[CLIENT][TERRITORY]["latest"]
+    delivery_config = gs_helpers.resolve_plp_gs_delivery_config(
+        config=config,
+        client=CLIENT,
+        territory=TERRITORY,
+    )
+    OUTPUT_TABLE_NAME = delivery_config.output_table_name
     WAREHOUSE = config.catalog_read
-    SCHEMA = config.schema_write
+    SCHEMA = delivery_config.schema_write
 
     # final output write
-    GS_FINAL_OUTPUT_TABLE_NAME = config.tables_write.nextads_plp_gs_latest
+    GS_FINAL_OUTPUT_TABLE_NAME = delivery_config.final_output_table_name
     ACCOUNT_NAME = config.az_st_account
     ACCOUNT_URL = config.az_st_account_url
     CONTAINER_NAME = config.az_st_container_name
@@ -214,24 +217,13 @@ if __name__ == "__main__":
     SECRET_KEY_SPN_CLIENTID = config.secret_key_spn_clientid
     SECRET_KEY_SPN_SECRET = config.secret_key_spn_secret
     TENANT_ID = config.az_tenant_id
-    AZ_OUTPUT_ABFSS_PATH = config.task_plp_gs_combiner.az_output_abfss_path
-
-    # final output write
-    # TABLES_TO_COMBINE = config.task_plp_gs_combiner.tables_to_combine.to_list()
-    GS_FINAL_OUTPUT_TABLE_NAME = config.tables_write.nextads_plp_gs_latest
-    ACCOUNT_NAME = config.az_st_account
-    ACCOUNT_URL = config.az_st_account_url
-    CONTAINER_NAME = config.az_st_container_name
-    DBUTILS_SECRET_SCOPE = config.dbutils_secret_scope
-    SECRET_KEY_SPN_CLIENTID = config.secret_key_spn_clientid
-    SECRET_KEY_SPN_SECRET = config.secret_key_spn_secret
-    TENANT_ID = config.az_tenant_id
-    AZ_OUTPUT_ABFSS_PATH = config.task_plp_gs_combiner.az_output_abfss_path
+    AZ_OUTPUT_ABFSS_PATH = delivery_config.az_output_abfss_path
 
     # log all params
     logger.info(
         f"Configuration - "
         f"ENV: {JOB_ENV}, "
+        f"CATALOG_WRITE: {delivery_config.catalog_write}, "
         f"WAREHOUSE: {WAREHOUSE}, "
         f"SCHEMA: {SCHEMA}, "
         f"CLIENT: {CLIENT}, "

@@ -9,11 +9,18 @@
   },
   "workspaceFolder": "/workspaces/next-ads",
   "remoteUser": "vscode",
-  "runArgs": ["--network", "host", "--env-file",".devcontainer/devcontainer.env"],
-  "forwardPorts": [8020],
+  "runArgs": [
+    "--network",
+    "host",
+    "--env-file",
+    ".devcontainer/devcontainer.env"
+  ],
+  "forwardPorts": [
+    8020
+  ],
   "remoteEnv": {
-  "DATABRICKS_CONFIG_DIR": "/workspaces/next-ads/.databricks"
-},
+    "DATABRICKS_CONFIG_DIR": "/workspaces/next-ads/.databricks"
+  },
   "customizations": {
     "vscode": {
       "settings": {
@@ -27,11 +34,12 @@
         "ms-python.python",
         "ms-python.vscode-pylance",
         "ms-python.debugpy",
-        "eamodio.gitlens",           // better Git experience
-        "njpwerner.autodocstring"   // Python docstrings
+        "eamodio.gitlens", // better Git experience
+        "njpwerner.autodocstring", // Python docstrings
+        "redhat.vscode-yaml" // YAML support
       ]
     }
-},
-  "postStartCommand":  "bash ${containerWorkspaceFolder}/.devcontainer/post_create.sh",
+  },
+  "postStartCommand": "bash ${containerWorkspaceFolder}/.devcontainer/post_create.sh",
   "shutdownAction": "stopContainer"
 }

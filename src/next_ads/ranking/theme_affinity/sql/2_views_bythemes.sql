@@ -1,0 +1,36 @@
+with views as (
+  SELECT DISTINCT
+    account_number,
+    date,
+    theme_clean,
+    timestamp,
+    reference_date
+  FROM {schema}.{table_prefix}_views_themes
+  WHERE reference_date = date"{reference_date}"
+),
+base as (
+  SELECT
+    views.account_number,
+    reference_date,
+    theme_clean,
+    max_by(timestamp, struct(date, timestamp)) as timestamp,
+    max(views.date) as date,
+    count(distinct views.date) as frequency,
+    max(if(views.date between reference_date -28 and "{end_date_views}" , 1, 0)) as recency28,
+    max(if(views.date between reference_date - 7 and "{end_date_views}", 1,0)) as recency7
+  FROM views
+  group by ALL
+)
+SELECT distinct
+  reference_date,
+  account_number,
+  theme_clean,
+  recency28,
+  recency7,
+  date_diff(reference_date, base.date) as recency,
+  frequency,
+  IF( row_number() over(partition by reference_date, account_number ORDER BY base.date DESC, timestamp DESC, frequency DESC, theme_clean ASC) = 1, 1, 0) AS most_recent,
+  row_number() over(partition by reference_date, account_number ORDER BY base.date DESC, timestamp DESC, frequency DESC, theme_clean ASC) as recency_rank,
+  current_date() as rundate
+FROM base
+QUALIFY recency_rank <= 30

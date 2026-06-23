@@ -1,12 +1,14 @@
 # Pandera PySpark Data Validation Guide
 
-Pandera is a data validation library that brings type hints and schema validation to PySpark DataFrames. It helps catch data quality issues early and ensures your data pipelines are robust.
+Pandera is a data validation library that brings type hints and schema
+validation to PySpark DataFrames. It helps catch data quality issues early and
+keeps pipeline inputs and outputs explicit.
 
 **Official Documentation:** https://pandera.readthedocs.io/en/stable/pyspark.html
 
 ---
 
-## **Quick Start**
+## Quick Start
 
 ### 1. Install Pandera
 
@@ -16,27 +18,32 @@ poetry add pandera
 
 ### 2. Define Your Schema
 
-Create a schema file in your project:
+Data validation code now lives in the reusable production package area:
 
-```
+```text
 next-ads/
-├── next_ads/
-│   ├── data_validation/
-│   │   ├── schemas.py          # Data schemas
-│   │   └── custom_checks.py    # Custom validation checks
-└── ...
+  src/
+    next_ads/
+      data/
+        validation/
+          schemas.py        # Data schemas
+          custom_checks.py  # Custom validation checks
 ```
+
+During the package migration, existing imports from
+`next_ads.data_validation` remain supported by compatibility wrappers.
 
 ### 3. Create Schema (DataFrameModel)
 
-**`next_ads/data_validation/schemas.py`**
+**`src/next_ads/data/validation/schemas.py`**
 
 ### 4. Validate Your Data
 
 ```python
-from next_ads.data_validation import schemas
-from pyspark.sql import SparkSession
 import json
+
+from next_ads.data.validation import schemas
+from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.appName("validation").getOrCreate()
 
@@ -47,26 +54,25 @@ df = spark.read.csv("data.csv", header=True)
 validated_df = schemas.ControlSheetInputModel.validate(df, lazy=True)
 pandera_errors = validated_df.pandera.errors
 print(json.dumps(dict(pandera_errors), indent=2))
-print(f"Validation failed: {e}")
 ```
 
 ---
 
-## **Custom Validation Checks**
+## Custom Validation Checks
 
-Create reusable custom checks:
+Create reusable custom checks in:
 
-**`next_ads/data_validation/custom_checks.py`**
+**`src/next_ads/data/validation/custom_checks.py`**
 
 ---
 
-## **Common Validation Patterns**
+## Common Validation Patterns
 
 ### Check Value in List
 
 ```python
 Realm: StringType = pa.Field(
-    isin_spark={"allowed_values": ["Next"]}
+    isin_spark={"allowed_values": ["Next"]},
 )
 ```
 
@@ -74,7 +80,7 @@ Realm: StringType = pa.Field(
 
 ```python
 url: StringType = pa.Field(
-    str_matches_spark={"pattern": r"^/"}
+    str_matches_spark={"pattern": r"^/"},
 )
 ```
 
@@ -82,39 +88,41 @@ url: StringType = pa.Field(
 
 ```python
 Status: StringType = pa.Field(
-    nullable=True  # Allows NULL values
+    nullable=True,  # Allows NULL values
 )
 ```
 
 ---
 
-## **Usage in Scripts**
+## Usage In Scripts
 
 ### Validate Input Data
 
 ```python
-from next_ads.data_validation import schemas
+from next_ads.data.validation import schemas
+
 
 @pa.check_input(schemas.ControlSheetInputModel, lazy=True)
 def process_control_sheet(df):
-    """Process control sheet with automatic validation"""
-    # Your transformation logic
+    """Process control sheet with automatic validation."""
     return df
 ```
 
 ### Validate Output Data
 
 ```python
-@pa.check_output(schemas.ControlSheetOutputModel, lazy=True)
+from next_ads.data.validation import schemas
+
+
+@pa.check_output(schemas.GlobalSolutionOutputModel, lazy=True)
 def build_page(df):
-    """Build page with output validation"""
-    # Your transformation logic
+    """Build page with output validation."""
     return df
 ```
 
 ---
 
-## **Useful Resources**
+## Useful Resources
 
 - [Pandera Official Docs](https://pandera.readthedocs.io/)
 - [PySpark API Reference](https://pandera.readthedocs.io/en/stable/pyspark.html)

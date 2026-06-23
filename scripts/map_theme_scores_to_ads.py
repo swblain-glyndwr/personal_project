@@ -21,7 +21,7 @@ from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import truncate_and_load, delete_from_and_load
 from dsutils.etl import post_to_webhook
-from next_ads.Assignment import get_ad_feedback_scores, greedy_assignment
+from next_ads.Assignment import get_ad_feedback_scores, greedy_assignment, generate_repeat_ad_sessions
 from next_ads.utils import config_manager
 from next_ads.utils import etl
 
@@ -51,9 +51,11 @@ with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
 
 APPLY_AD_FEEDBACK = jobparser.has_arg('--apply-ad-feedback')
 AD_FEEDBACK_WEIGHT = jobparser.get_arg('--ad-feedback-weight') or 0.05
-TOP_ADS_PER_LOCATION = jobparser.get_arg('--top-ads-per-location') or 20
+TOP_ADS_PER_LOCATION = int(jobparser.get_arg('--top-ads-per-location') or 20)
+assert TOP_ADS_PER_LOCATION > 0, 'top-ads-per-location must be greater than zero'
 MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
 INCREMENTAL_LOOKBACK = cfg['incrementality']['incremental_lookback']
+AUTO_TRADING_SWITCH = cfg['incrementality']['auto_trading_switch']
 
 tbls = cfg["tables"]["write"]
 SCHEMA = config.schema_write
@@ -64,11 +66,17 @@ tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
 CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
 CUSTOMER_CELLS_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
+UNDERPERFORMING_ADS = etl.map_tbl(tbls['results_underperforming_ads'],
+                                  **tbl_args)
+SESSIONS = cfg['tables']['read']['bq_sessions']
+ACTIONS = cfg['tables']['read']['bq_actions']
 
 if ALGO == 'challenger':
     logger.info('Running script as Challenger')
     # read
-    NEXT_THEME_SCORES_LATEST = cfg['tables']['read']["hackathon_assignments"]
+    NEXT_THEME_SCORES_LATEST = (
+        config.theme_affinity_assignment_sources.challenger
+    )
     # write
     THEME_SCORE_COMPONENTS_LATEST = etl.map_tbl(tbls["theme_score_components_latest"],**tbl_args)
     THEME_SCORE_COMPONENTS = etl.map_tbl(tbls["theme_score_components"],**tbl_args)
@@ -76,7 +84,9 @@ if ALGO == 'challenger':
 else:
     logger.info('Running script as default (Champion)')
     # read
-    NEXT_THEME_SCORES_LATEST = cfg['tables']['read']["hackathon_assignments"]
+    NEXT_THEME_SCORES_LATEST = (
+        config.theme_affinity_assignment_sources.champion
+    )
     # write
     THEME_SCORE_COMPONENTS_LATEST = etl.map_tbl(
         tbls["theme_score_components_latest"],
@@ -87,7 +97,7 @@ else:
     PRERANKED_ADS_FROM_THEMES_LATEST = etl.map_tbl(
         tbls["preranked_ads_from_themes_latest"],
         **tbl_args)
-    
+
 WEBHOOK_URL = cfg['webhooks']['DS Warnings']
 
 # Force read from prod results tables for ad feedback scores
@@ -101,10 +111,31 @@ AD_RESULTS = etl.map_tbl(
 spark = configure_spark()
 
 logger.info(f'Getting theme to ad mappings from {CONTROL_SHEET_LATEST}')
-# Below will need changing back for live
+
+# AutoTrading/ remove underperforming ads from best targeting
+# based on recent performance checks.
+df_ads = (
+    spark.table(CONTROL_SHEET_LATEST)
+)
+
+
+if AUTO_TRADING_SWITCH:
+    count_df_ads = df_ads.select('UniqueAdID').distinct().count()
+
+    df_ads = (
+        df_ads
+        .join(spark.table(UNDERPERFORMING_ADS),
+              on=['UniqueAdID', 'rundate'],
+              how='left_anti')
+        .cache()
+    )
+
+    count_df_ads_pruned = df_ads.select('UniqueAdID').distinct().count()
+
+    logger.info(f'AutoTrading: removed {count_df_ads - count_df_ads_pruned:,} underperforming ads.')
+
 df_theme2ad = (
-    spark
-    .table(CONTROL_SHEET_LATEST)
+    df_ads
     .where(F.col('AudienceOnly') != 1)
     .select('Themes', 'UniqueAdID', 'AdVariant')
     .where(F.col('Themes').isNotNull())
@@ -275,14 +306,71 @@ df_score_components = (
             F.col('NextTheme').alias('Theme'),
             'UniqueAdID',
             'AdVariant',
+            F.col('ProbAggRebased').alias('TriggerScore'),
             'RelevanceScore',
             'IncrementalScore',
             'Score')
 )
+
+logger.info('Getting multi-session ad score')
+multi_session_ad_df = generate_repeat_ad_sessions(SESSIONS,ACTIONS)
+
+logger.info('Joining multi-sessions onto score_components, and downweighting ads seen more than 3 times in 7 days')
+df_score_components = (
+    df_score_components
+    .join(multi_session_ad_df,
+          on='AccountNumber',
+          how = 'left'
+          )
+    .withColumn(
+        'RowID',
+        F.concat_ws('_', F.col('AccountNumber'), F.col('UniqueAdID'))
+    )
+    .withColumn(
+        'StringDistance',
+        F.levenshtein(F.col("AdSeen"), F.col("UniqueAdID"))
+    )
+)
+fm_window = Window.partitionBy("RowID").orderBy(F.col("StringDistance").asc_nulls_last())
+max_distance_threshold = 10
+
+df_score_components = (
+    df_score_components
+    .withColumn(
+        'MatchRank',
+        F.row_number().over(fm_window)
+    )
+    .filter(
+        F.col('MatchRank') == 1
+    )
+    .withColumn(
+        "MultiSessionDownweightScore",
+        F.when(
+            F.col("StringDistance") <= max_distance_threshold,
+            F.col("MultiSessionDownweightScore")
+        )
+        .otherwise(
+            F.lit(1.0)
+        )
+    )
+    .withColumn(
+        "Score",
+        F.col("Score") * F.col("MultiSessionDownweightScore")
+    )
+    .drop(
+        'MatchRank',
+        'StringDistance',
+        'AdSeen',
+        'RowID',
+        'sessions_seen_ad_in_last_7_days'
+    )
+    )
 df_score_components.cache()
 df_score_components.count()
 
-df_score_components_for_write = df_score_components.drop('AdVariant')
+df_score_components_for_write = df_score_components.drop(
+    'AdVariant',
+    'TriggerScore')
 
 logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS_LATEST}')
 truncate_and_load(
@@ -344,9 +432,9 @@ df_adset2loc = (
     .select('AdSetID', F.explode('LocationSet').alias('Location'))
 )
 
-nLocs = df_adset2loc.select('Location').distinct().count()
-nAdSets = df_adsets.count()
-logger.info(f'{nAdSets:,} distinct ad sets found across {nLocs:,} locations')
+n_locs = df_adset2loc.select('Location').distinct().count()
+n_ad_sets = df_adsets.count()
+logger.info(f'{n_ad_sets:,} distinct ad sets found across {n_locs:,} locations')
 
 adsets_rows = df_adsets.collect()
 for row in adsets_rows:
@@ -407,7 +495,7 @@ df_adset_scores = (
         )
     )
     .where(F.col('AdPerThemeRank') == 1)
-    .select('AccountNumber', 'UniqueAdID', 'Score')
+    .select('AccountNumber', 'UniqueAdID', 'Score', 'TriggerScore')
     .join(df_ad2adset, on='UniqueAdID', how='inner')
     .withColumn('TieBreaker', F.rand(seed=17))
     .withColumn(
@@ -426,7 +514,13 @@ logger.info('Mapping ranked ads back to locations')
 df_ad_scores = (
     df_adset_scores
     .join(df_adset2loc, on='AdSetID', how='inner')
-    .select('AccountNumber', 'UniqueAdID', 'Location', 'Score', 'Rank')
+    .select(
+        'AccountNumber',
+        'UniqueAdID',
+        'Location',
+        'Score',
+        'TriggerScore',
+        'Rank')
 )
 
 logger.info('Checking for ads assigned to ineligible locations')

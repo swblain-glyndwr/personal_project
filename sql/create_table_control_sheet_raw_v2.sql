@@ -1,0 +1,38 @@
+CREATE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_raw_v2 (
+  UniqueAdID STRING NOT NULL,
+  UniqueAdIDPremium STRING,
+  CMSPageID STRING,
+  PotNumber STRING,
+  CampaignNumber STRING,
+  Title STRING,
+  AlgoDivision STRING,
+  TradeDivision STRING,
+  Brand STRING,
+  MASIDToken STRING,
+  ProductListingPage STRING,
+  ForYouPage STRING,
+  CheckoutPage STRING,
+  ShoppingBagPage STRING,
+  HomePage STRING,
+  Segment STRING,
+  AdDriver STRING,
+  TemplateName STRING,
+  StartDate STRING,
+  EndDate STRING,
+  Status STRING,
+  AudienceOnly STRING,
+  URL STRING,
+  Items STRING,
+  Tags STRING,
+  Themes STRING,
+  AdVariant STRING,
+  rundate DATE,
+  CONSTRAINT `pk_{client}_nextads_control_sheet_raw_v2` PRIMARY KEY (`UniqueAdID`))
+USING delta
+PARTITIONED BY (rundate)
+TBLPROPERTIES (
+  'delta.enableDeletionVectors' = 'true',
+  'delta.feature.deletionVectors' = 'supported',
+  'delta.feature.invariants' = 'supported',
+  'delta.minReaderVersion' = '3',
+  'delta.minWriterVersion' = '7')

@@ -5,7 +5,7 @@ from pyspark.sql import functions as F
 from collections.abc import Callable
 from dsutils.dbc import get_spark
 from dsutils.logtools import get_logger
-from dsutils.etl import assert_pk, build_spark_schema
+from dsutils.etl import assert_pk, build_spark_schema, post_to_webhook
 from dsutils.columnscalers import subtract_mean
 from dsutils.timing import timer
 
@@ -13,16 +13,102 @@ from dsutils.timing import timer
 logger = get_logger(__name__)
 
 
+def assign_random_ads_v2(
+        df_ads: DataFrame,
+        df_cust_grp: DataFrame,
+        grp_col: str = 'AlgoDivision',
+        n_ads: int = 20,
+        seed: int = 42) -> DataFrame:
+    """Assigns N random ads per customer from their preferred group
+    (e.g. AlgoDivision), ensuring uniform ad coverage across all customers.
+
+    Uses a cyclic rotation approach:
+      1. Ads are assigned a stable slot number (1..K) within each group.
+      2. Each customer is assigned a random integer offset (0..K-1).
+      3. The customer's N ads are the K slots starting at their offset
+         (wrapping cyclically). This guarantees every ad is served to
+         approximately the same number of customers.
+
+    This avoids any per-customer cross-join or AccountNumber-partitioned
+    window function: the only join is customers × within-group ads
+    (~12M × ~29 rows per division), which Spark handles efficiently.
+
+    Arguments:
+        df_ads - PySpark dataframe with cols ("UniqueAdID", grp_col)
+        df_cust_grp - PySpark dataframe with cols ("AccountNumber", grp_col)
+                      where grp_col is the customer's preferred group
+        grp_col - column representing the grouping (e.g. "AlgoDivision")
+        n_ads - number of ads to return per customer (default 20)
+        seed - random seed for reproducibility
+
+    Returns:
+        DataFrame with columns: AccountNumber, UniqueAdID, Rank
+    """
+    logger.info(
+        f'Assigning {n_ads} random ads per customer within group: {grp_col} '
+        f'using cyclic rotation (seed={seed})'
+    )
+
+    # 1. Assign a randomised slot number to each ad within its group.
+    #    Ordering by rand() rather than UniqueAdID ensures slot assignments
+    #    are not influenced by the source table row order or ad ID ordering.
+    df_ads_slotted = (
+        df_ads.select('UniqueAdID', grp_col)
+        .withColumn(
+            'AdSlot',
+            F.row_number().over(
+                Window.partitionBy(grp_col).orderBy(F.rand(seed=seed))
+            )
+        )
+    )
+
+    # Count of ads per group (small collect — one row per division)
+    df_ad_counts = (
+        df_ads_slotted
+        .groupBy(grp_col)
+        .agg(F.max('AdSlot').alias('nAds'))
+    )
+
+    # 2. Assign each customer a unique random offset in [0, nAds-1]
+    df_cust_offset = (
+        df_cust_grp.select('AccountNumber', grp_col)
+        .join(df_ad_counts, on=grp_col, how='inner')
+        .withColumn(
+            'Offset',
+            (F.rand(seed=seed) * F.col('nAds')).cast('int')
+        )
+    )
+
+    # 3. Join each customer to all ads in their group (~29 ads per customer)
+    #    Compute each ad's cyclic rank relative to this customer's offset:
+    #      Rank = ((AdSlot - 1 - Offset + nAds) % nAds) + 1
+    #    Then keep only the top n_ads ranks.
+    df_result = (
+        df_cust_offset
+        .join(df_ads_slotted, on=grp_col, how='inner')
+        .withColumn(
+            'Rank',
+            ((F.col('AdSlot') - 1 - F.col('Offset') + F.col('nAds'))
+             % F.col('nAds')) + 1
+        )
+        .where(F.col('Rank') <= n_ads)
+        .select('AccountNumber', 'UniqueAdID', 'Rank')
+    )
+
+    return df_result
+
+
 def assign_random_ads(
         df_ads: DataFrame,
         df_cust_grp: DataFrame,
         grp_col: str = None) -> DataFrame:
-    """
-    Function assigns Ads randomly (and uniformly) within group.
+    """Function assigns Ads randomly (and uniformly) within group.
+
     Arguments:
         df_ads - PySpark dataframe with cols ("UniqueAdID", grp_col)
         df_cust_grp - PySpark dataframe with cols ("AccountNumber", grp_col)
         grp_col - column reference to group (partition) by (e.g. "Division")
+
     Returns:
         Dataframe - Ads assigned randomly (uniform) to customers within-group
     """
@@ -82,23 +168,21 @@ def assign_random_ads_with_exclusions(
         df_ads: DataFrame,
         df_cust_grp: DataFrame,
         grp_col: str = None) -> DataFrame:
-    """
-    Assigns Ads randomly (and uniformly) within group, excluding specific ads
+    """Assigns Ads randomly (and uniformly) within group, excluding specific ads
     per customer.
-    
+
     Arguments:
         df_ads - PySpark dataframe with cols ("UniqueAdID", grp_col)
         df_cust_grp - PySpark dataframe with cols ("AccountNumber",
                       grp_col, "ExcludedAdID")
         grp_col - column reference to group (partition) by
                   (e.g. "AlgoDivision")
-    
+
     Returns:
         Dataframe - Ads assigned randomly (uniform) to customers
                     within-group, excluding the ExcludedAdID for each
                     customer
     """
-
     if grp_col is None:
         df_ads = df_ads.withColumn('global', F.lit(1))
         df_cust_grp = df_cust_grp.withColumn('global', F.lit(1))
@@ -123,7 +207,7 @@ def assign_random_ads_with_exclusions(
 
     # Assign random ads per customer, excluding their ExcludedAdID
     grp_cust_rdm_list = []
-    
+
     for grp_k in grp_ads:
         logger.debug(f'Assigning for {grp_col}: {grp_k}')
 
@@ -151,7 +235,7 @@ def assign_random_ads_with_exclusions(
                 (F.col("UniqueAdID") != F.col("ExcludedAdID"))
             )
         )
-        
+
         # Assign random selection within eligible ads per customer
         w_customer = (
             Window
@@ -170,7 +254,7 @@ def assign_random_ads_with_exclusions(
         )
 
         grp_cust_rdm_list.append(df_cust_rdm_grp)
-    
+
     # Union all groups
     df_assigned = grp_cust_rdm_list.pop()
     for df_grp in grp_cust_rdm_list:
@@ -193,8 +277,7 @@ def assign_best_ads(
         control_sheet_latest_table: str = '',
         ad_feedback_weight: float = 0.5
         ) -> DataFrame:
-    """
-    Assigns "best" Ad to each customer based on scores provided.
+    """Assigns "best" Ad to each customer based on scores provided.
 
     Arguments:
         df_ads - Dataframe with columns: UniqueAdID, TargetingCriteria (unique
@@ -398,8 +481,7 @@ def assign_best_ads_rec(
         control_sheet_latest_table: str = '',
         ad_feedback_weight: float = 0.5
         ) -> DataFrame:
-    """
-    Assigns "best" Ad to each customer based on RECOMMENDER scores provided.
+    """Assigns "best" Ad to each customer based on RECOMMENDER scores provided.
 
     Arguments:
         df_ads - Dataframe with column: UniqueAdID (unique values)
@@ -520,6 +602,48 @@ def assign_best_ads_rec(
 
     return df_return
 
+def assign_nextgenads(
+        df_ads: DataFrame,
+        customer_to_cluster_table: str,
+        df_cust: DataFrame = None,
+        return_ranks: list = [1]
+        ) -> DataFrame:
+    """Assigns NextGenAds to customers based on cluster assignments.
+
+    Arguments:
+        df_ads - Dataframe with columns: UniqueAdID, AudienceOnly, ClusterID.
+        Caller is responsible for filtering to the relevant location before
+        passing.
+        customer_to_cluster_table - Name of table containing AccountNumber,
+        assigned_cluster_id, assignment_rank
+        df_cust - Filter customers (Dataframe with col: AccountNumber)
+        return_ranks - Assignment ranks to return (e.g. [1] for top cluster)
+    """
+    df_cluster2ad = (
+        df_ads
+        .select(
+                F.col("ClusterID").cast("int").alias("assigned_cluster_id"),
+                F.col("UniqueAdID")
+            )
+        .distinct()
+    )
+    # Cluster assignment per customer filtered to requested ranks,
+    # joined to UniqueAdID
+    df_assigned_nextgenads = (
+        get_spark()
+        .table(customer_to_cluster_table)
+        .join(df_cust,
+              on="AccountNumber",
+              how="inner")
+        .where(F.col("assignment_rank").isin(return_ranks))
+        .select("AccountNumber", "assigned_cluster_id")
+        .join(df_cluster2ad, on="assigned_cluster_id", how="inner")
+        .select("AccountNumber", "UniqueAdID")
+        .distinct()
+    )
+
+    return df_assigned_nextgenads
+
 
 def assign_best_ads_with_constraints_rec(
         df_ads: DataFrame,
@@ -599,8 +723,7 @@ def get_ad_feedback_scores(
         ctrl_apportioned_revenue_col: str = 'C_ApportionedRevenue',
         session_overlap_ratio_col: str = 'SessionOverlapRatio',
         ) -> DataFrame | None:
-    """
-    Generates scaled ad performance scores designed for boosting/penalising
+    """Generates scaled ad performance scores designed for boosting/penalising
     targeting score of ads during assignment. If no suitable ad scores can be
     found, the function will return None.
     """
@@ -681,6 +804,64 @@ def get_ad_feedback_scores(
     return df_ad_results_scaled_stand.select(ad_id_col, 'AdFeedbackScore')
 
 
+def assign_preranked_ads_v2(
+        df_ads: DataFrame,
+        preranked_ads_table: str,
+        page_type: str,
+        df_cust: DataFrame = None,
+        n_ads: int = 20,
+) -> DataFrame:
+    """Assigns pre-ranked ads to customers for a given PageType.
+
+    Reads the preranked ads table (schema: AccountNumber, UniqueAdID, Score,
+    TriggerScore, Rank, PageType), filters to the specified PageType, then
+    inner-joins to df_ads to restrict to currently eligible ads. Assumes dense
+    rank is used in preranked_ads to handle ties.
+
+    The PageType filter is required even though df_ads is already scoped to a
+    single page type, because the same UniqueAdID can appear in the preranked
+    table for multiple page types (with different ranks). Filtering only on
+    UniqueAdID would produce duplicate AccountNumber/UniqueAdID pairs and fail
+    the PK assertion.
+
+    Arguments:
+        df_ads - DataFrame with column: UniqueAdID (eligible ads for this
+                 PageType, already filtered from the control sheet)
+        preranked_ads_table - Name of table containing preranked ads
+        page_type - PageType to filter on (e.g. "sb")
+        df_cust - Optional customer filter (DataFrame with col: AccountNumber)
+        n_ads - Maximum number of ranked ads to return per customer (default 20)
+
+    Returns:
+        DataFrame with columns: AccountNumber, UniqueAdID, Rank, TriggerScore
+    """
+    logger.info(
+        f'Assigning preranked ads for PageType: {page_type} '
+        f'using scores from {preranked_ads_table}'
+    )
+
+    df_adscores = (
+        get_spark()
+        .table(preranked_ads_table)
+        .where(F.col('PageType') == page_type)
+        .select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')
+        .join(df_ads.select('UniqueAdID'), on='UniqueAdID', how='inner')
+        .where(F.col('Rank') <= n_ads)
+    )
+
+    if df_cust is not None:
+        logger.debug('Filtering customers for assignment')
+        df_adscores = df_adscores.join(df_cust, on='AccountNumber', how='inner')
+
+    assert_pk(df_adscores, ['AccountNumber', 'UniqueAdID'])
+
+    return df_adscores.select(
+        'AccountNumber',
+        'UniqueAdID',
+        'Rank',
+        'TriggerScore')
+
+
 def assign_preranked_ads(
         df_ads: DataFrame,
         preranked_ads_table: str,
@@ -689,8 +870,7 @@ def assign_preranked_ads(
         return_ranks: list = [1],
         inherit_rank_from_location: str = ''
         ) -> DataFrame:
-    """
-    Assigns "best" Ad to each customer based on pre-ranked ads provided.
+    """Assigns "best" Ad to each customer based on pre-ranked ads provided.
 
     Arguments:
         df_ads - Dataframe with column: UniqueAdID (unique values)
@@ -699,7 +879,6 @@ def assign_preranked_ads(
         df_cust - Filter customers (Dataframe with col: AccountNumber)
         return_ranks - Rankings to return (e.g. for 'second best ad' use [2])
     """
-
     if inherit_rank_from_location:
         logger.info(f'Inheriting rank for {location} from location: '
                     + f'{inherit_rank_from_location}')
@@ -774,8 +953,7 @@ def assign_predetermined_audience(
         audiences: list[list[dict]],
         tables: dict
         ) -> DataFrame:
-    """
-    Assigns predefined audience, in order.
+    """Assigns predefined audience, in order.
     First in list takes priority when customer in multiple audiences.
 
     Arguments:
@@ -836,8 +1014,7 @@ def assign_predetermined_audience(
 
 
 def melt_transient_cells(df: DataFrame) -> DataFrame:
-    """
-    Utility function for melting transient cells.
+    """Utility function for melting transient cells.
     """
     df_melted = df.unpivot(
         ids="AccountNumber",
@@ -847,9 +1024,8 @@ def melt_transient_cells(df: DataFrame) -> DataFrame:
     return df_melted
 
 
-def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
-    """
-    Returns AlgoDivison for all customers from the provided model scores table.
+def get_algo_divisions(sql_file: str, TRANSIENT_CELLS_TABLE_LATEST: str, WEBHOOK_URL_DS: str, JOB_ENV: str) -> DataFrame:
+    """Returns AlgoDivison for all customers from the provided model scores table.
     The AlgoDivision returned is the Division for which the account has the
     highest propensity, once propensity scores have been expressed relative to
     the division's mean score. This yields a division per customer that is the
@@ -861,9 +1037,12 @@ def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
     """
     logger.debug(
         'Assigning customers to their preferred division (AlgoDivision)')
+    with open(sql_file, 'r') as f:
+        sql_query = f.read()
+
     division_scores = (
         get_spark()
-        .table(model_scores_latest_table)
+        .sql(sql_query)
         .drop('rundate')
         .withColumnRenamed('account_number', 'AccountNumber')
         .select(
@@ -881,8 +1060,12 @@ def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
     w_acc_scaled_score_desc = (
         Window
         .partitionBy("AccountNumber")
-        .orderBy(F.desc(F.col("ScoreScaled")))
+        .orderBy(
+            F.desc(F.col("ScoreScaled")),
+            (F.col("AlgoDivision") == "Womens").cast("int").desc(),
+            F.col("AlgoDivision").asc()
         )
+    )
 
     division_assignments = (
         division_scores
@@ -895,15 +1078,109 @@ def get_algo_divisions(model_scores_latest_table: str) -> DataFrame:
         .withColumn('ScoreScaled',
                     subtract_mean(F.col('score'),
                                   partition_by=['AlgoDivision']))
-        .withColumn('Rank', F.rank().over(w_acc_scaled_score_desc))
+        .withColumn('Rank', F.row_number().over(w_acc_scaled_score_desc))
         .where(F.col('Rank') == 1)
         .select('AccountNumber', 'AlgoDivision')
     )
 
     assert_pk(division_assignments, ['AccountNumber', 'AlgoDivision'])
 
-    return division_assignments
+    # testing division_assignments coverage
+    df_transient_cells = (
+        get_spark()
+        .table(TRANSIENT_CELLS_TABLE_LATEST)
+        .filter(F.col('Cell') == 'AlgoDivision')
+        .select('AccountNumber','CellValue')
+        .distinct()
+    )
 
+    missing_accounts = (
+        df_transient_cells
+        .join(division_assignments, on='AccountNumber', how='left_anti')
+    )
+    missing_accounts_percentage = 100.0 * missing_accounts.count() / df_transient_cells.count() if df_transient_cells.count() > 0 else 0
+    missing_accounts_percentage = round(missing_accounts_percentage, 4)
+    if missing_accounts_percentage > 5:
+        msg = (
+            'MISSING ACCOUNT_NUMBERS\n'
+            'The drop in account numbers from AlgoDivision\n'
+            f'table exceeds the threshold. There is a {missing_accounts_percentage}% drop\n'
+            f'Acceptance threshold is 5%'
+        )
+        if JOB_ENV == 'prod':
+            post_to_webhook(WEBHOOK_URL_DS, msg)
+    else:
+        msg = (
+            f'There is a {missing_accounts_percentage}% drop in account numbers from AlgoDivision\n'
+            f'table. Acceptance threshold is 5'
+        )
+    logger.warning(msg)
+
+    # testing diivision_assignments department distribution
+    grand_total_window = Window.rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+    historical_distribution = (
+        df_transient_cells
+        .filter(F.col('Cell') == 'AlgoDivision')
+        .groupby('cellvalue')
+        .agg(
+            F.count_distinct('AccountNumber').alias('count')
+        )
+        .withColumn('pct_of_accounts',
+                    F.round(
+                    (100.0 * F.col("count")) / F.sum("count").over(grand_total_window),
+                    2
+                )
+            )
+        .orderBy(F.col('count').desc())
+    )
+
+    current_distribution = (
+        division_assignments
+        .groupby('AlgoDivision')
+        .agg(
+            F.count_distinct('AccountNumber').alias('count_new')
+        )
+        .withColumn('pct_of_accounts_new',
+                    F.round(
+                    (100.0 * F.col("count_new")) / F.sum("count_new").over(grand_total_window),
+                    2
+                )
+            )
+        .orderBy(F.col('count_new').desc())
+    )
+
+    df_dist_joined = (
+        historical_distribution
+        .join(
+            current_distribution,
+            (historical_distribution.cellvalue == current_distribution.AlgoDivision),
+            how='outer'
+        )
+        .withColumn(
+            'pct_diff',
+            F.col('pct_of_accounts_new') - F.col('pct_of_accounts')
+        )
+    )
+
+    # Log if any pct_diff is above 5
+    diffs_above_5 = (
+        df_dist_joined
+        .where(F.abs(F.col('pct_diff')) > 5)
+        .select('cellvalue', 'pct_diff')
+        .collect()
+    )
+
+    if diffs_above_5:
+        msg = (
+            'CHANGE IN ALGODIVISION DISTRIBUTION\n'
+            'The distribution of AlgoDivision has changed by more than 5%\n'
+            f'Divisions with pct_diff above 5: {str([(row["cellvalue"], row["pct_diff"]) for row in diffs_above_5])}'
+        )
+        logger.warning(msg)
+        if JOB_ENV == 'prod':
+            post_to_webhook(WEBHOOK_URL_DS, msg)
+
+    return division_assignments
 
 @timer
 def greedy_assignment(
@@ -913,8 +1190,7 @@ def greedy_assignment(
         user_col: str = 'user',
         rank_col: str = 'rank',
         logging_interval: int = 100000) -> dict:
-    """
-    Make greedy assignmends of users to items, based on a sequence of
+    """Make greedy assignmends of users to items, based on a sequence of
     item-user pairs, and associated item quotas.
     It is recommended that the supplied dataframe is filtered to items
     with quotas before passing it to the function for efficiency
@@ -931,7 +1207,6 @@ def greedy_assignment(
         `rank_col`: Name of rank column in df
         `logging_interval`: How many cycles between progress logs
     """
-
     logger.info('Starting greedy assignment')
 
     cmap = {
@@ -1002,3 +1277,97 @@ def greedy_assignment(
     result = get_spark().createDataFrame(result_data, schema=output_schema)
 
     return result
+
+def generate_repeat_ad_sessions(SESSIONS,ACTIONS):
+    """Returns DF containing number of times each user has seen the same ad in repeat sessions.
+    Look back over 7 days, and count each time a user has recieved the same ad across multiple sessions.
+    If a user has already seen the ad in more than 3 unique sessions, a downweight score is outputted
+    to force a new ad to be served to the customer
+    Args:
+      SESSIONS (str): Sessions bq table
+      ACTIONS (str): Actions bq table
+
+    Returns:
+        DataFrame with columns `AccountNumber`, `AdSeen`, `sessions_seen_ad_in_last_7_days`, `MultiSessionDownweightScore`
+    """
+    sessions = (
+        get_spark()
+        .table(SESSIONS)
+        .where((F.col("SiteCountry") == "UK") &
+               (F.col("Device").isin("Mobile","Desktop")) &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("AccountNumber_RPID").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            F.col("AccountNumber_RPID").alias("AccountNumber"))
+    )
+    sessions_app = (
+        get_spark()
+        .table(SESSIONS + "_app")
+        .where((F.col("SiteCountry") == "UK") &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("AccountNumber_RPID").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            F.col("AccountNumber_RPID").alias("AccountNumber"))
+    )
+    actions = (
+        get_spark()
+        .table(ACTIONS)
+        .where((F.col("Action") == ("Banner Impression - Next Ads")) &
+               (F.col("PagePath").isin("/shoppingbag","/secure/checkout/complete")) &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("Level2").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            "Level2")
+    )
+    actions_app = (
+        get_spark()
+        .table(ACTIONS + "_app")
+        .where((F.col("Action") == ("Banner Impression - Next Ads")) &
+               (F.col("ScreenName") == "PLP") &
+               (F.col("Date").between(F.current_date() - F.expr("INTERVAL 7 DAYS"), F.current_date() - F.expr("INTERVAL 1 DAY"))) &
+               F.col("Level2").isNotNull())
+        .select(
+            "UniqueVisitID",
+            "Date",
+            "Level2")
+    )
+
+    df_web = (actions
+        .join(
+            sessions,
+            on=["UniqueVisitID", "Date"],
+            how="inner")
+    )
+    df_app = (actions_app
+        .join(
+            sessions_app,
+            on=["UniqueVisitID", "Date"],
+            how="inner")
+    )
+
+    df = df_web.union(df_app)
+
+    df = (df
+          .groupby(
+              "AccountNumber",
+              F.col("Level2").alias("AdSeen")
+          )
+          .agg(
+              F.countDistinct(F.col('UniqueVisitID'))
+              .alias('sessions_seen_ad_in_last_7_days')
+              )
+          .withColumn('MultiSessionDownweightScore',
+                      F.when(F.col('sessions_seen_ad_in_last_7_days') == 3, 0.84)
+                      .when(F.col('sessions_seen_ad_in_last_7_days') == 4, 0.8)
+                      .when(F.col('sessions_seen_ad_in_last_7_days') == 5, 0.7)
+                      .when(F.col('sessions_seen_ad_in_last_7_days') >= 6, 0.5)
+                      .otherwise(1)
+          )
+    )
+    return df

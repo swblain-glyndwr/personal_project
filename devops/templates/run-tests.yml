@@ -21,14 +21,20 @@ parameters:
     displayName: 'Test type to run'
   - name: databricksClusterId
     type: string
+  - name: continueOnError
+    type: boolean
+    default: true
 
 jobs:
   - job: RunTests
     displayName: 'Run ${{ parameters.testType }} Tests with Poetry'
     pool:
-      name: '${{parameters.AzureBuildAgentPool}}'
+      name: '${{ parameters.AzureBuildAgentPool }}'
       vmImage: ubuntu-latest
     steps:
+      - checkout: self
+        fetchDepth: 0
+
       - task: UsePythonVersion@0
         inputs:
           versionSpec: ${{ parameters.pythonVersion }}
@@ -66,7 +72,6 @@ jobs:
       - bash: |
           export DATABRICKS_CLUSTER_ID="${{ parameters.databricksClusterId }}"
           echo "Running ${{ parameters.testType }} tests on Databricks cluster $DATABRICKS_CLUSTER_ID for target ${{ parameters.target }}..."
-          # Determine test path based on parameter
           if [ "${{ parameters.testType }}" = "unit" ]; then
             TEST_PATH="tests/unit/"
             echo "Running UNIT tests from: $TEST_PATH"
@@ -77,12 +82,11 @@ jobs:
             TEST_PATH="tests/"
             echo "Running ALL tests from: $TEST_PATH"
           fi
-          
-          # Run pytest with selected path
+
           poetry run pytest $TEST_PATH -v --junitxml=junit/test-results.xml
         name: run_tests
         displayName: Run Python ${{ parameters.testType }} Tests
-        continueOnError: true
+        continueOnError: ${{ parameters.continueOnError }}
         env:
           DATABRICKS_HOST: $(DATABRICKS_HOST)
           DATABRICKS_CLIENT_ID: $(Databricks-Spn-MarketingData-ClientId)
@@ -98,7 +102,32 @@ jobs:
 
       - script: |
           echo "Linting Python code..."
-          poetry run ruff check || echo "⚠️  Formatting issues"
+          if [ "${{ parameters.continueOnError }}" = "true" ]; then
+            poetry run ruff check || echo "WARNING: Formatting or linting issues"
+          else
+            if [ -n "${SYSTEM_PULLREQUEST_TARGETBRANCH:-}" ]; then
+              TARGET_BRANCH="${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
+              git fetch origin "$TARGET_BRANCH" --depth=1
+              mapfile -t CHANGED_PYTHON_FILES < <(
+                git diff --name-only --diff-filter=ACMR "origin/$TARGET_BRANCH"...HEAD -- "*.py"
+              )
+            elif git rev-parse HEAD~1 >/dev/null 2>&1; then
+              mapfile -t CHANGED_PYTHON_FILES < <(
+                git diff --name-only --diff-filter=ACMR HEAD~1 HEAD -- "*.py"
+              )
+            else
+              mapfile -t CHANGED_PYTHON_FILES < <(git ls-files "*.py")
+            fi
+
+            if [ "${#CHANGED_PYTHON_FILES[@]}" -eq 0 ]; then
+              echo "No changed Python files to lint."
+              exit 0
+            fi
+
+            printf 'Changed Python files to lint:\n'
+            printf '%s\n' "${CHANGED_PYTHON_FILES[@]}"
+            poetry run ruff check "${CHANGED_PYTHON_FILES[@]}"
+          fi
         displayName: 'Lint code'
         condition: |
           and(
@@ -108,7 +137,7 @@ jobs:
               eq('${{ parameters.testType }}', 'all')
             )
           )
-        continueOnError: true
+        continueOnError: ${{ parameters.continueOnError }}
 
       # - task: PublishCodeCoverageResults@1
       #   condition: succeededOrFailed()

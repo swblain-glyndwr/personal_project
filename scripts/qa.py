@@ -235,7 +235,7 @@ df_avg_no_ad_found = (
 
 avg_no_ad_found = df_avg_no_ad_found.first()["avg_no_ad_found_per_account"]
 
-if avg_no_ad_found > 5.0:
+if avg_no_ad_found is not None and avg_no_ad_found > 5.0:
     warning_msg = (
         f"Warning: Average count of 'NoAdFound' in UniqueAdIDAssigned "
         f"per account is {avg_no_ad_found} (threshold: 5.0)"
