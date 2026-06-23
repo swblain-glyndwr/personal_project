@@ -167,7 +167,7 @@ resources:
 
         - task_key: predict
           depends_on:
-            - task_key: rules_rank
+            - task_key: feature_build
           notebook_task:
             notebook_path: ${workspace.file_path}/analytics_pctr/run_predictions.py
             base_parameters:
