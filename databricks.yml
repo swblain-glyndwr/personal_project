@@ -225,6 +225,7 @@ targets:
       job_cluster_lp_policy_id: 000EAA504551B388
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: preprod
+      user_schema: ds_sandbox
 
   PROD:
     mode: production
@@ -264,6 +265,7 @@ targets:
       job_cluster_lp_policy_id: 000EAA504551B388
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
+      user_schema: warehouse
       data_team_notification_emails:
         - edward_taylor@next.co.uk
         - adrienne_lowe@next.co.uk

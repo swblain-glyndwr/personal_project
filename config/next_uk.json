@@ -2992,7 +2992,6 @@
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
             "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
             "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest",
-            "hackathon_assignments":"marketingdata_prod.ds_sandbox.next_uk_next_ads_hackathon_model_latest",
             "fathers_day_audience":"marketingdata_prod.ds_sandbox.nextads_fd_2026",
             "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest"
         },

@@ -177,4 +177,4 @@ resources:
           job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
           libraries: ${var.shared_libraries}
           max_retries: 2
-          timeout_seconds: 300
+          timeout_seconds: 3600

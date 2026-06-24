@@ -24,7 +24,6 @@ default:
     credit_ad_accounts: "@format {this.catalog_read}.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915"
     kids_age_groups_latest: "@format {this.catalog_read}.warehouse.purchased_age_groups_latest"
     eid_audience: "@format {this.catalog_read}.ds_sandbox.nextads_eid_2026"
-    hackathon_assignments: "@format {this.catalog_read}.ds_sandbox.next_uk_next_ads_hackathon_model_latest"
 
   # Tables written to environment-specific catalog and schema
   tables_write:
@@ -99,6 +98,17 @@ default:
     nextads_plp_gs_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_plp_gs_latest"
     # operational tables
     nextads_table_sizes: "@format {this.catalog_write}.{this.schema_write}.nextads_table_sizes"
+    # v2 tables
+    control_sheet_raw_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_raw_v2"
+    control_sheet_raw_latest_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_raw_latest_v2"
+    control_sheet_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_v2"
+    control_sheet_latest_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_latest_v2"
+    exclusions_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions_latest"
+    exclusions: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions"
+    # payload/export and feedback tables
+    nextads_payload_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload_latest"
+    nextads_payload: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload"
+    results_underperforming_ads: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_underperforming_ads"
 
   ranking_model_table_prefix: "@format {this.client}_nextads_theme_affinity_predict"
   ranking_model_tables:
@@ -109,16 +119,6 @@ default:
     predict_output_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_half"
     model_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"
     model_full: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_full"
-    nextads_payload_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload_latest"
-    nextads_payload: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload"
-    results_underperforming_ads: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_underperforming_ads"
-    # v2 tables
-    control_sheet_raw_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_raw_v2"
-    control_sheet_raw_latest_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_raw_latest_v2"
-    control_sheet_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_v2"
-    control_sheet_latest_v2: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_control_sheet_latest_v2"
-    exclusions_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions_latest"
-    exclusions: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_exclusions"
 
   theme_affinity_assignment_sources:
     champion: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"

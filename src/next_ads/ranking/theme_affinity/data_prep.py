@@ -38,9 +38,9 @@ def build_common_params(reference_date: str, namespace: str, table_prefix: str):
     start_date_atbs, end_date_atbs = _range_values(reference_date, 30)
     start_date_baskets, end_date_baskets = _range_values(reference_date, 365)
     end_date_views_ly = _offset_date(end_date_views, 365)
-    start_date_views_ly = _offset_date(end_date_views_ly, -30)
+    start_date_views_ly = _offset_date(end_date_views_ly, 30)
     end_date_baskets_ly = _offset_date(end_date_baskets, 365)
-    start_date_baskets_ly = _offset_date(end_date_baskets_ly, -30)
+    start_date_baskets_ly = _offset_date(end_date_baskets_ly, 30)
     return {
         "catalog": namespace,
         "schema": namespace,
@@ -68,9 +68,9 @@ def build_sql_entries(reference_date: str, table_prefix: str):
     start_date_atbs, end_date_atbs = _range_values(reference_date, 30)
     start_date_baskets, end_date_baskets = _range_values(reference_date, 365)
     end_date_views_ly = _offset_date(end_date_views, 365)
-    start_date_views_ly = _offset_date(end_date_views_ly, -30)
+    start_date_views_ly = _offset_date(end_date_views_ly, 30)
     end_date_baskets_ly = _offset_date(end_date_baskets, 365)
-    start_date_baskets_ly = _offset_date(end_date_baskets_ly, -30)
+    start_date_baskets_ly = _offset_date(end_date_baskets_ly, 30)
 
     return {
         0: [
