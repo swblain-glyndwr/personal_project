@@ -1,0 +1,39 @@
+mktg_next_uk_nextads_predict_data_prep_config: &mktg_next_uk_nextads_predict_data_prep_config
+  nextads_theme_affinity_predict_data_prep:
+    name: nextads_theme_affinity_predict_data_prep
+    configuration:
+      pipeline.schema: ${var.user_schema}
+      pipeline.job_env: ${var.job_parameter_environment_name}
+      pipeline.reference_date: ${var.theme_affinity_reference_date}
+      pipeline.table_prefix: next_uk_nextads_theme_affinity_predict
+      pipeline.sql_path: ${workspace.file_path}/src/next_ads/ranking/theme_affinity/sql
+    clusters: ${var.pipeline_clusters_config}
+    libraries:
+      - glob:
+          include: ${workspace.file_path}/src/next_ads/ranking/theme_affinity/dlt_pipeline.py
+    schema: ${var.user_schema}
+    edition: CORE
+    catalog: ${var.mktgdata_catalog}
+    root_path: ${workspace.file_path}
+
+targets:
+  SANDBOX:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_predict_data_prep_config
+  DEV:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_predict_data_prep_config
+  DEV_INTEGRATION:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_predict_data_prep_config
+  PREPROD:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_predict_data_prep_config
+  PROD:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_predict_data_prep_config

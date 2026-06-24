@@ -1,0 +1,148 @@
+resources:
+  jobs:
+    mktg_next_uk_nextads_page_build_cicd:
+      name: mktg_next_uk_nextads_page_build
+      queue:
+        enabled: true
+      job_clusters: ${var.job_clusters_config}
+      tags:
+        deployed_at: ${var.deploy_timestamp}
+        git_commit: ${var.git_commit_sha}
+        git_branch: ${var.git_branch}
+        deployed_by: ${var.deployed_by}
+        department: marketing
+        project: nextads
+      email_notifications:
+        on_failure: ${var.data_team_notification_emails}
+      notification_settings:
+        no_alert_for_skipped_runs: true
+        no_alert_for_canceled_runs: true
+      timeout_seconds: 21600 # required by Engineering at job level as Monitoring Dashboard doesnt handle for_each_task type
+      tasks:
+        - task_key: build_page_v2
+          for_each_task:
+            inputs: '["HomePage", "ShoppingBagPage", "CheckoutPage", "ProductListingPage", "ForYouPage"]'
+            concurrency: 10
+            task:
+              task_key: build_page_v2_iteration
+              spark_python_task:
+                python_file: ../../scripts/build_page_v2.py
+                parameters:
+                  - --client
+                  - "next_uk"
+                  - --job_env
+                  - ${var.job_parameter_environment_name}
+                  - --page_type
+                  - "{{input}}"
+              job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+              libraries: ${var.shared_libraries}
+              max_retries: 2
+              min_retry_interval_millis: 5000
+              timeout_seconds: 10800
+        - task_key: build_page_primary
+          for_each_task:
+            inputs: '["SB1","OC1","PH3","PH4","PH5","LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9","LP10","LP11","PL1","PL2","PL3","PL4","PL5","PL6","PL7","PL8","PL9","PL10","PL11","PL12","PL13","PL14","PL15","PL16","PL17","PL18","PL19","PL20","PL21","PL22","PL23","PL24","PL25","PL26","PL27","PL28","PL29","PL30","PL31","PL32","PL33","PL34","PL35","PL36","PL37","PL38","PL39","PL40","FY1","FY2","FY3","FY4","FY5","FY6","FY7","FY8","FY9","FY10","FY11","FY12","FY13","FY14","FY15","FY16","FY17","FY18","FY19","FY20","PLX"]'
+            concurrency: 30
+            task:
+              task_key: build_page_primary_iteration
+              spark_python_task:
+                python_file: ../../scripts/build_page.py
+                parameters:
+                  - --client
+                  - "next_uk"
+                  - --job_env
+                  - ${var.job_parameter_environment_name}
+                  - --location
+                  - "{{input}}"
+              job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+              libraries: ${var.shared_libraries}
+              max_retries: 2
+              min_retry_interval_millis: 5000
+              timeout_seconds: 10800
+        - task_key: build_page_secondary
+          depends_on:
+            - task_key: build_page_primary
+          for_each_task:
+            inputs: '[{"location":"SB2","inherit_basic_from":"SB1"},{"location":"OC2","inherit_basic_from":"OC1"}]'
+            concurrency: 2
+            task:
+              task_key: build_page_secondary_iteration
+              spark_python_task:
+                python_file: ../../scripts/build_page.py
+                parameters:
+                  - --client
+                  - "next_uk"
+                  - --job_env
+                  - ${var.job_parameter_environment_name}
+                  - --location
+                  - "{{input.location}}"
+                  - --inherit_basic_from
+                  - "{{input.inherit_basic_from}}"
+              job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+              libraries: ${var.shared_libraries}
+              max_retries: 2
+              min_retry_interval_millis: 5000
+              timeout_seconds: 10800
+        - task_key: trigger_qa_job
+          depends_on:
+            - task_key: build_page_secondary
+          spark_python_task:
+            python_file: ../../scripts/trigger_databricks_job.py
+            parameters:
+              - --job-id
+              - ${resources.jobs.mktg_next_uk_nextads_qa_cicd.id}
+              - --job-name
+              - "mktg_next_uk_nextads_qa"
+              - --fail-on-submit-error
+          job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+          libraries: ${var.shared_libraries}
+          max_retries: 2
+          timeout_seconds: 3600
+        - task_key: trigger_masid_handoff_check_job
+          depends_on:
+            - task_key: build_page_secondary
+          run_if: ALL_DONE
+          spark_python_task:
+            python_file: ../../scripts/trigger_databricks_job.py
+            parameters:
+              - --job-id
+              - ${resources.jobs.mktg_next_uk_nextads_masid_handoff_cicd.id}
+              - --job-name
+              - "mktg_next_uk_nextads_masid_handoff"
+              - --fail-on-submit-error
+          job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+          libraries: ${var.shared_libraries}
+          max_retries: 2
+          timeout_seconds: 3600
+        - task_key: trigger_payload_export_job
+          depends_on:
+            - task_key: build_page_v2
+          run_if: ALL_DONE
+          spark_python_task:
+            python_file: ../../scripts/trigger_databricks_job.py
+            parameters:
+              - --job-id
+              - ${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}
+              - --job-name
+              - "mktg_next_uk_nextads_payload_export"
+              - --fail-on-submit-error
+          job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+          libraries: ${var.shared_libraries}
+          max_retries: 2
+          timeout_seconds: 3600
+        - task_key: trigger_plp_gs_delivery_job
+          depends_on:
+            - task_key: build_page_secondary
+          run_if: ALL_DONE
+          spark_python_task:
+            python_file: ../../scripts/trigger_databricks_job.py
+            parameters:
+              - --job-id
+              - ${resources.jobs.mktg_next_uk_nextads_plp_gs_delivery_cicd.id}
+              - --job-name
+              - "mktg_next_uk_nextads_plp_gs_delivery"
+              - --fail-on-submit-error
+          job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+          libraries: ${var.shared_libraries}
+          max_retries: 2
+          timeout_seconds: 3600

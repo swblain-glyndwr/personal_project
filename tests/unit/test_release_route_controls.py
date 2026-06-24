@@ -260,7 +260,9 @@ def test_prod_table_contract_smoke_job_is_read_only_and_target_specific():
         smoke_task["spark_python_task"]["python_file"]
         == "../../scripts/smoke/prod_table_contract_smoke.py"
     )
-    assert smoke_job["email_notifications"]["on_failure"] == "${var.qa_notification_emails}"
+    assert smoke_job["email_notifications"]["on_failure"] == (
+        "${var.data_team_notification_emails}"
+    )
     assert smoke_task["spark_python_task"]["parameters"] == [
         "--client",
         "next_uk",
@@ -346,10 +348,12 @@ def test_preprod_and_prod_output_routes_are_separate():
 
     assert preprod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert preprod_vars["job_parameter_environment_name"] == "preprod"
+    assert preprod_vars["user_schema"] == "ds_sandbox"
     assert settings["preprod"]["catalog_write"] == "marketingdata_prod"
     assert settings["preprod"]["schema_write"] == "ds_sandbox"
 
     assert prod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert prod_vars["job_parameter_environment_name"] == "prod"
+    assert prod_vars["user_schema"] == "warehouse"
     assert settings["prod"]["catalog_write"] == "marketingdata_prod"
     assert settings["prod"]["schema_write"] == "warehouse"

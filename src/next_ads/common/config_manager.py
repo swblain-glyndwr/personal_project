@@ -46,6 +46,10 @@ def _settings_files() -> list[str]:
             "config/tables_settings.yaml",
             "configs/tables_settings.yaml",
         ),
+        _existing_path(
+            "config/model_settings.yaml",
+            "configs/model_settings.yaml",
+        ),
         _existing_path("config/users.yaml", "configs/users.yaml"),
     ]
 
