@@ -42,7 +42,7 @@ To build these datasets - the same SQL scripts ( with relevant start_date/end_da
 * 02_customer_advert_base-training or 02_customer_advert_base-validation instead of 02_customer_advertbase-predictions
 * alterations of code in steps: 05_page_views, 06_purchases & 08_view_advert_affinity to utilise history table joins rather than latest tables
 * alteration of table name in step 09 to _features_training
-* running of step 10_history_insert or 10_validation_history_insert 
+* running of step 10_history_insert with either _validation_history or _training_history as the table name dependent upon which dataset is being created
 
 The train_model.py script has been generated to retrain a model & has the flexibility to expand out for further parameter testing and alternative models 
 

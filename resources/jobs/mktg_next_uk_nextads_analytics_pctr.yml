@@ -24,7 +24,7 @@ resources:
       tasks:
         - task_key: base_sessions
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/00_base_sessions
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/00_base_sessions.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               start_date: "{{start_date}}"
@@ -40,7 +40,7 @@ resources:
           depends_on:
             - task_key: base_sessions
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/01_core_datasets
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/01_core_datasets.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               start_date: "{{start_date}}"
@@ -56,7 +56,7 @@ resources:
           depends_on:
             - task_key: core_datasets
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/02_customer_advert_base-predictions
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/02_customer_advert_base-predictions.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
@@ -72,7 +72,7 @@ resources:
           depends_on:
             - task_key: customer_advert_base
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/03_session_aggregation
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/03_session_aggregation.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
@@ -85,7 +85,7 @@ resources:
           depends_on:
             - task_key: customer_advert_base
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/04_ctr_metrics
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/04_ctr_metrics.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
@@ -98,7 +98,7 @@ resources:
           depends_on:
             - task_key: customer_advert_base
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/05_page_views
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/05_page_views.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
@@ -111,7 +111,7 @@ resources:
           depends_on:
             - task_key: customer_advert_base
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/06_purchases
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/06_purchases.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
@@ -125,7 +125,7 @@ resources:
           depends_on:
             - task_key: customer_advert_base
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/07_customer_advert_exposure
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/07_customer_advert_exposure.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
@@ -138,7 +138,7 @@ resources:
           depends_on:
             - task_key: customer_advert_base
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/08_view_advert_affinity
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/08_view_advert_affinity.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               lookback_period: 30
@@ -156,7 +156,7 @@ resources:
             - task_key: customer_ad_exposure
             - task_key: view_advert_affinity
           notebook_task:
-            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/09_combining_data
+            notebook_path: ${workspace.file_path}/analytics_pctr/SQL/09_combining_data.sql
             base_parameters:
               catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
               table_prefix: next_uk_nextAds_analytics_pctr
@@ -181,4 +181,3 @@ resources:
           job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
           libraries: ${var.shared_libraries}
           timeout_seconds: 7200
-
