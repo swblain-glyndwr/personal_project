@@ -138,7 +138,6 @@ ORDER BY 1, attr_type desc, normalised_weight DESC
 );
 
 /* Affinity of views to baskets by catid */
-%sql
 
 CREATE OR REPLACE TABLE IDENTIFIER(:catalog_schema_prefix||'.'|| :table_prefix || '_catid_view_basket_affinity') AS (
 WITH total as (
