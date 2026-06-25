@@ -182,39 +182,3 @@ CREATE OR REPLACE TABLE IDENTIFIER(:catalog_schema_prefix||'.'|| :table_prefix |
     , location int
     , PRIMARY KEY (rundate , account_number , uniqueAdID)
  );
-
-/* Predictions History */
-
-CREATE OR REPLACE TABLE IDENTIFIER(:catalog_schema_prefix||'.'|| :table_prefix || '_predictions')
-(  
-     
-     account_number string
-    , uniqueAdID string 
-    , popularity_smoothed_score double
-    , regression_weighted_score double
-    , popularity_prob_click double
-    , residual_predictions double
-    , combined_weighted_score double
-    , weighted_ranking int
-    , advert_impressions_30days int
-    , advert_item_revenue double    , rundate date
-    , PRIMARY KEY (rundate , account_number , uniqueAdID)
- );
-
-/* Predictions Latest */
-
-CREATE OR REPLACE TABLE IDENTIFIER(:catalog_schema_prefix||'.'|| :table_prefix || '_predictions_latest')
-(  
-     account_number string
-    , uniqueAdID string 
-    , popularity_smoothed_score double
-    , regression_weighted_score double
-    , popularity_prob_click double
-    , residual_predictions double
-    , combined_weighted_score double
-    , weighted_ranking int
-    , advert_impressions_30days int
-    , advert_item_revenue double
-    , rundate date
-    , PRIMARY KEY (rundate , account_number , uniqueAdID)
- );
