@@ -175,8 +175,8 @@ resources:
               table_prefix: next_uk_nextAds_analytics_pctr
               lookback_period: 30
               affinity_weighting_factor: 4  
-              regressor_model_uri : models:/ ${var.mktgdata_catalog}.${var.user_schema}.nextads_analytics_pctr_affinity_regression_model/2
-              classifier_model_uri : models:/ ${var.mktgdata_catalog}.${var.user_schema}.nextads_analytics_pctr_popularity_classification_model/2
+              regressor_model_uri : models:/${var.mktgdata_catalog}.${var.user_schema}.nextads_analytics_pctr_affinity_regression_model/2
+              classifier_model_uri : models:/${var.mktgdata_catalog}.${var.user_schema}.nextads_analytics_pctr_popularity_classification_model/2
             source: WORKSPACE
           job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
           libraries: ${var.analytics_pctr_libraries}
