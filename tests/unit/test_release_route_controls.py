@@ -348,10 +348,12 @@ def test_preprod_and_prod_output_routes_are_separate():
 
     assert preprod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert preprod_vars["job_parameter_environment_name"] == "preprod"
+    assert preprod_vars["user_schema"] == "ds_sandbox"
     assert settings["preprod"]["catalog_write"] == "marketingdata_prod"
     assert settings["preprod"]["schema_write"] == "ds_sandbox"
 
     assert prod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert prod_vars["job_parameter_environment_name"] == "prod"
+    assert prod_vars["user_schema"] == "warehouse"
     assert settings["prod"]["catalog_write"] == "marketingdata_prod"
     assert settings["prod"]["schema_write"] == "warehouse"

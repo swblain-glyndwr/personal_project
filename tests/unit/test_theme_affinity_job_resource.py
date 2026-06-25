@@ -280,3 +280,14 @@ def test_theme_affinity_dlt_uses_operational_reference_date_variable():
     assert "pipeline.reference_date: predict" not in (
         PROJECT_ROOT / "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     ).read_text()
+
+
+def test_theme_affinity_assignment_sources_use_new_model_output():
+    settings = _load_yaml("config/tables_settings.yaml")
+    assignment_sources = settings["default"]["theme_affinity_assignment_sources"]
+
+    assert assignment_sources["champion"] == (
+        "@format {this.catalog_write}.{this.schema_write}."
+        "{this.client}_nextads_theme_affinity_model_latest"
+    )
+    assert assignment_sources["challenger"] == assignment_sources["champion"]

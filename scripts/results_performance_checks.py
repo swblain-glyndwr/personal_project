@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+
 try:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
 except NameError:
@@ -13,20 +14,21 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
 import json
 import datetime
 from datetime import date, timedelta
 from pyspark.sql import functions as F
-from pyspark.sql import Window
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (post_to_webhook,
-                         delete_from_and_load,
-                         truncate_and_load)
+                         delete_from_and_load)
 from dsutils.argparser import get_job_parser
 from next_ads.Results import check_control_ratio
 from next_ads.utils import config_manager
 from next_ads.utils import etl
+
+
 
 
 jobparser = get_job_parser()
@@ -39,11 +41,13 @@ logger = get_logger(__name__)
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
 
+
 if not CLIENT:
     assert JOB_ENV.lower() == 'dev', \
         f'Client must be specified when running in {JOB_ENV}'
     CLIENT = 'next_uk'  # Client can be specified for interactive debugging
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
+
 
 # load configuration
 config = config_manager.load_config(JOB_ENV)
@@ -51,8 +55,10 @@ logger.info(f"Configuring run for client: {CLIENT}")
 with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
     cfg = json.load(f)
 
+
 LOOKBACK_DAYS = cfg['results_prm']['lookback_days']
 CHECK_SESSIONS_FROM = date.today() - timedelta(days=LOOKBACK_DAYS+1)
+
 
 TOLERANCE_CTRL = cfg['ctrl_ratio_checks']['tolerance']
 MIN_CSESSIONS_CTRL = cfg['ctrl_ratio_checks']['min_c_sessions']
@@ -64,9 +70,11 @@ CONTROL_RATIO = (ctrl_pc/(1-ctrl_pc))*100
 INCREMENTAL_VALUE_THRESHOLD = cfg['incrementality'
                                   ]['incremental_value_threshold']
 
+
 tbls = cfg["tables"]["write"]
 SCHEMA = config.schema_write
 logger.info(f'Write schema set to {SCHEMA}')
+
 
 # Map write schema to parameterised write table names
 tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
@@ -75,8 +83,10 @@ AD_RESULTS = etl.map_tbl(tbls['results_ads'], **tbl_args)
 UNDERPERFORMING_ADS = etl.map_tbl(tbls['results_underperforming_ads'],
                                   **tbl_args)
 
+
 WEBHOOK_URL = cfg['webhooks']['Results Warnings']
 WEBHOOK_URL_DS = cfg['webhooks']['DS Warnings']
+
 
 df_ads_active = (
     spark
@@ -85,6 +95,7 @@ df_ads_active = (
     .distinct()
 )
 
+
 # Check 1: Identify underperforming ads and write out to table.
 AUTO_TRADING_SWITCH = cfg['incrementality']['auto_trading_switch']
 INCREMENTAL_LOOKBACK = cfg["incrementality"]["incremental_lookback"]
@@ -92,8 +103,9 @@ CHECK_SESSIONS_FROM = (datetime.date.today() -
                        datetime.timedelta(days=INCREMENTAL_LOOKBACK+1))
 C_SESSIONS = cfg["incrementality"]["min_c_session"]
 
+
 df_incremental = (
-        spark.table(AD_RESULTS)
+        spark.table(AD_RESULTS).alias("a")
         .where((F.col('SessionDate') >= CHECK_SESSIONS_FROM))
         .groupBy('UniqueAdID')
         .agg(
@@ -133,6 +145,13 @@ df_incremental = (
                 F.col('IncARPS') / F.col('C_ARPS'))
             .otherwise(F.lit(None))
         )
+        .join(
+        spark.table(UNDERPERFORMING_ADS)
+        .filter(F.col("rundate") < date.today())
+        .alias("x"),
+        F.col("a.UniqueAdID") == F.col("x.UniqueAdID"),
+        "leftanti",
+    )
     )
 df_ads_removed = (
     df_incremental
@@ -140,31 +159,138 @@ df_ads_removed = (
            (F.col('EstContribution') <= INCREMENTAL_VALUE_THRESHOLD))
 )
 
+
+df_excl_campaigns = (
+    df_ads_removed
+        .withColumn('PotNumber',F.split_part(F.col('UniqueAdID'), F.lit('_'), F.lit(1)))
+        .withColumn('CampaignNumber',F.split_part(F.col('UniqueAdID'), F.lit('_'), F.lit(2)))
+        .select("PotNumber",
+                "CampaignNumber")
+)
+
+
+# Find previous ad results for removed campaigns
+df_ad_pre_performance = (
+    spark.table(AD_RESULTS).alias('a')
+        .join(
+            df_excl_campaigns.alias('b'),
+            on=(
+                (F.split_part(F.col('a.UniqueAdID'),F.lit('_'), F.lit(1)) == F.col('b.PotNumber')) &
+                (F.split_part(F.col('a.UniqueAdID'),F.lit('_'), F.lit(2)) == F.col('b.CampaignNumber'))
+               ),
+            how='leftanti'
+        )
+        .groupBy('UniqueAdID')
+        .agg(
+            F.sum('ApportionedRevenue').alias('ApportionedRevenue'),
+            F.sum('Sessions').alias('Sessions'),
+            F.sum('C_ApportionedRevenue').alias('C_ApportionedRevenue'),
+            F.sum('C_Sessions').alias('C_Sessions'),
+            F.when(
+                F.sum('Sessions') > 0,
+                F.sum(F.col('SessionOverlapRatio') *
+                      F.col('Sessions')
+                      ) / F.sum('Sessions')
+           ).otherwise(F.lit(None)).alias('SessionOverlapRatio'),
+        )
+        .withColumn('ARPS',
+            F.when(F.col('Sessions') > 0,
+                F.col('ApportionedRevenue') / F.col('Sessions'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('C_ARPS',
+            F.when(F.col('C_Sessions') > 0,
+                F.col('C_ApportionedRevenue') / F.col('C_Sessions'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('IncARPS', F.col('ARPS') - F.col('C_ARPS'))
+        .withColumn('IncARPSAdj',
+            F.when(F.col('SessionOverlapRatio').isNotNull()
+                & (F.col('SessionOverlapRatio') > 0),
+                F.col('IncARPS') / F.col('SessionOverlapRatio'))
+            .otherwise(F.lit(None))
+        )
+        .withColumn('EstContribution', (F.col('IncARPSAdj') * F.col('Sessions')))
+        .withColumn('IncPct',
+            F.when(F.col('C_ARPS').isNotNull() & (F.col('C_ARPS') != 0),
+                (F.col('IncARPS') / F.col('C_ARPS')))
+            .otherwise(F.lit(None))
+        ).select(
+            "UniqueAdID",
+            "Sessions",
+            "IncPct",
+            "EstContribution",
+            "IncARPS",
+            "IncARPSAdj",
+            'ARPS'
+        ).orderBy(
+            F.split_part(F.col('UniqueAdID'),F.lit('_'), F.lit(2)), "UniqueAdID"
+        )
+)
+
 # Inferences
 total_ads = df_incremental.select('UniqueAdID').distinct().count()
 removed_ads = df_ads_removed.select('UniqueAdID').distinct().count()
 
+
 logger.info(f'Total Ads: {total_ads:,}')
-logger.info(f'Removed Ads: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)')
 
-total_sessions = df_incremental.agg(F.sum('Sessions')).collect()[0][0] or 0
-ads_removed_sessions = df_ads_removed.agg(F.sum('Sessions')).collect()[0][0] or 0
-impact_pct = round((ads_removed_sessions / total_sessions) * 100, 2) if total_sessions else None
+if total_ads > 0:
 
-logger.info(f'Total Ads Sessions: {total_sessions:,}')
-logger.info(f'Potential impact on Sessions: {ads_removed_sessions:,} ({impact_pct:.2f}%)')
+    logger.info(f'Removed Ads: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)')
 
-output = [row.asDict() for row in df_ads_removed.collect()]
+    total_sessions = df_incremental.agg(F.sum('Sessions')).collect()[0][0] or 0
+    ads_removed_sessions = df_ads_removed.agg(F.sum('Sessions')).collect()[0][0] or 0
+    impact_pct = round((ads_removed_sessions / total_sessions) * 100, 2) if total_sessions else None
+
+    logger.info(f'Total Ads Sessions: {total_sessions:,}')
+    logger.info(f'Potential impact on Sessions: {ads_removed_sessions:,} ({impact_pct:.2f}%)')
+
+else:
+
+    logger.info('Total Ads Sessions: 0')
+    logger.info('Potential impact on Sessions: 0')
+
+ads_msgs = (
+    df_ads_removed.withColumn('Title',F.lit('Current Ad'))
+    .select(
+        'Title',
+        'UniqueAdID',
+        F.concat(F.lit('£'),F.round(F.col('IncARPSAdj'),2)).alias('IncARPSAdj'),
+        'Sessions',
+        F.concat(F.lit('£'),F.round(F.col('ARPS'),2)).alias('ARPS'),
+        F.concat(F.lit('£'),F.round(F.col('EstContribution'),2)).alias('EstContribution'),
+        F.concat(F.round((F.col('IncPct')) * 100, 2), F.lit('%')).alias('IncPct')
+    ).union(
+        df_ad_pre_performance.withColumn('Title',F.lit('Previous Performance'))
+        .select(
+            'Title',
+            'UniqueAdID',
+            F.concat(F.lit('£'),F.round(F.col('IncARPSAdj'),2)).alias('IncARPSAdj'),
+            'Sessions',
+            F.concat(F.lit('£'),F.round(F.col('ARPS'),2)).alias('ARPS'),
+            F.concat(F.lit('£'),F.round(F.col('EstContribution'),2)).alias('EstContribution'),
+            F.concat(F.round((F.col('IncPct')) * 100, 2), F.lit('%')).alias('IncPct')
+        )
+    )
+).orderBy(F.split_part(F.col('UniqueAdID'),F.lit('_'), F.lit(2)), "Title", "UniqueAdID")
+
+
+output = [row.asDict() for row in ads_msgs.collect()]
+
 
 output_str = '\n'.join(
-    f"Ad: {row['UniqueAdID']}\n"
+    f"{row['Title']}: {row['UniqueAdID']}\n"
     f"  IncARPSAdj: {row['IncARPSAdj']}\n  Sessions: {row['Sessions']}\n"
     f"  ARPS: {row['ARPS']}\n"
+    f"  IncPct: {row['IncPct']}\n"
     f"  EstContribution: {row['EstContribution']}\n"
     for row in output
 )
 
+
 auto_trading_status = 'AutoTrading ON' if AUTO_TRADING_SWITCH else 'AutoTrading OFF'
+
 
 if removed_ads > 0:
     suppression_note = (
@@ -177,9 +303,10 @@ if removed_ads > 0:
         f'- Num ads flagged: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)\n'
         f'- Min {C_SESSIONS:,} control sessions\n\n'
         f'{output_str}\n\n'
-        'Check full results in dashboard.'
+        'Check full results in dashboard.\n\n'
     )
     logger.warning(msg)
+
 
     if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg)
@@ -191,14 +318,18 @@ else:
     )
     logger.warning(msg)
 
+
     if JOB_ENV == 'prod':
         post_to_webhook(WEBHOOK_URL, msg)
+
 
 logger.info(f"Loading assignments to {UNDERPERFORMING_ADS}")
 delete_from_and_load(df_ads_removed,
                      UNDERPERFORMING_ADS,
                      pk_cols=["UniqueAdID"],
                      del_where={"rundate": "current_date()"})
+
+
 
 
 # Check 2: check that control ratio is within tolerance for various splits
@@ -210,6 +341,7 @@ for ref in CONTROL_CHECK_TABLES:
         .where(F.col('SessionDate') >= CONTROL_CHECK_START)
     )
 
+
     df_ctrl_out_of_tolerance = (
         check_control_ratio(
             df_ctrl_check,
@@ -218,6 +350,7 @@ for ref in CONTROL_CHECK_TABLES:
             min_c_sessions=MIN_CSESSIONS_CTRL
             )
     )
+
 
     if not df_ctrl_out_of_tolerance.isEmpty():
         ctrl_warnings = [
@@ -231,5 +364,6 @@ for ref in CONTROL_CHECK_TABLES:
             logger.warning(ctrl_warning)
         if JOB_ENV == 'prod':
             post_to_webhook(WEBHOOK_URL_DS, '\n'.join(ctrl_warnings))
+
 
 logger.info("Run Complete")
