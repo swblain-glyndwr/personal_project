@@ -54,7 +54,7 @@ resources:
           timeout_seconds: 3600
         - task_key: load_control_sheet
           spark_python_task:
-            python_file: ../../scripts/load_control_sheet.py
+            python_file: ../../jobs/nextads_main/load_control_sheet.py
             parameters:
               - --client
               - "next_uk"
@@ -82,7 +82,7 @@ resources:
           timeout_seconds: 3600
         - task_key: parse_attributes
           spark_python_task:
-            python_file: ../../scripts/parse_attributes.py
+            python_file: ../../jobs/nextads_main/parse_attributes.py
             parameters:
               - --client
               - "next_uk"
@@ -98,7 +98,7 @@ resources:
           depends_on:
             - task_key: parse_attributes
           spark_python_task:
-            python_file: ../../scripts/parse_theme_mapping.py
+            python_file: ../../jobs/nextads_main/parse_theme_mapping.py
             parameters:
               - --client
               - "next_uk"

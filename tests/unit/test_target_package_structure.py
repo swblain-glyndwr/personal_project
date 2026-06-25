@@ -36,17 +36,39 @@ def test_existing_databricks_job_entrypoints_stay_on_scripts():
     )
     job = job_config["resources"]["jobs"]["mktg_next_uk_nextads_cicd"]
 
-    python_files = []
+    allowed_moved_entrypoints = {
+        "load_control_sheet": "../../jobs/nextads_main/load_control_sheet.py",
+        "parse_attributes": "../../jobs/nextads_main/parse_attributes.py",
+        "parse_theme_mapping": "../../jobs/nextads_main/parse_theme_mapping.py",
+    }
+    python_files_by_task = {}
     for task in job["tasks"]:
         if "spark_python_task" in task:
-            python_files.append(task["spark_python_task"]["python_file"])
+            python_files_by_task[task["task_key"]] = task["spark_python_task"][
+                "python_file"
+            ]
         if "for_each_task" in task:
             nested_task = task["for_each_task"]["task"]
-            python_files.append(nested_task["spark_python_task"]["python_file"])
+            python_files_by_task[nested_task["task_key"]] = nested_task[
+                "spark_python_task"
+            ]["python_file"]
 
-    assert python_files
-    assert all(path.startswith("../../scripts/") for path in python_files)
-    assert not any(path.startswith("../../src/") for path in python_files)
+    assert python_files_by_task
+    assert {
+        task_key: python_files_by_task[task_key]
+        for task_key in allowed_moved_entrypoints
+    } == allowed_moved_entrypoints
+
+    remaining_paths = [
+        path
+        for task_key, path in python_files_by_task.items()
+        if task_key not in allowed_moved_entrypoints
+    ]
+    assert remaining_paths
+    assert all(path.startswith("../../scripts/") for path in remaining_paths)
+    assert not any(
+        path.startswith("../../src/") for path in python_files_by_task.values()
+    )
 
 
 def test_feature_layer_target_directories_exist_without_active_jobs():
@@ -71,5 +93,6 @@ def test_repo_structure_documentation_describes_transition_rules():
     assert "src/next_ads" in doc
     assert "src/next_ads/features" in doc
     assert "Existing Databricks job entry points remain in `scripts/`" in doc
+    assert "When a story explicitly scopes a domain move" in doc
     assert "Existing Databricks job definitions remain in `resources/jobs/`" in doc
     assert "Decision-affecting logic should move only in follow-up stories" in doc

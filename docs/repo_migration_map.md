@@ -69,7 +69,7 @@ src/
 | `scripts/` | Current Databricks Python job entrypoints and operational utilities. | `jobs/` | Production | High | After package imports are stable. | Job-path tests, DAB validate, DEV Integration deploy, PREPROD smoke. | Current jobs point here directly. |
 | `jobs/features/` | Target home for feature-materialisation Databricks entrypoints. | `jobs/features/` | Operational-transition | Low | Keep as first-class target folder; populate when feature contracts are agreed. | Path/import checks until real jobs move. | Current jobs remain unchanged until entrypoint moves are agreed. |
 | `jobs/model/` | Target home for model training/scoring entrypoints. | `jobs/model/` | Operational-transition | Low | Keep as target folder; populate only when model lifecycle is agreed. | Path/import checks until real jobs move. | Theme Affinity and pCTR should separate feature generation from model and scoring steps. |
-| `jobs/nextads_main/` | Target home for current v1 production job entrypoints. | `jobs/nextads_main/` | Production | Low | Keep as target folder; move scripts only after package dependencies are stable. | Path/import checks until real jobs move. | Current jobs remain in `scripts/` until moved in separate slices. |
+| `jobs/nextads_main/` | Target home for current v1 production job entrypoints. | `jobs/nextads_main/` | Production | Medium | Keep as target folder; move scripts by domain with wrappers and route tests. | Path/import checks, DAB validate, focused unit tests, DEV Integration smoke where output-affecting. | Control-domain entrypoints moved here in PR `246383`; remaining main-job entrypoints move in later domain branches. |
 | `jobs/nextads_v2/` | Target home for Ads v2 production-transition job entrypoints. | `jobs/nextads_v2/` | Operational-transition | Low | Keep as target folder; move v2 only after active PRs and contracts are accounted for. | Path/import checks until real jobs move. | Ads v2 is active work, not an experiment. |
 | `resources/jobs/` | Databricks Asset Bundle job definitions. | `pipelines/databricks/jobs/` | Deployment | Medium | With DAB include-path update. | DAB validate for DEV Integration, PREPROD, PROD. | Keep `databricks.yml` at root unless agreed otherwise. |
 | `resources/variables/` | Databricks cluster/library variables. | `pipelines/databricks/variables/` | Deployment | Medium | With DAB include-path update. | DAB validate. | Move with resources/jobs or immediately after. |
@@ -143,11 +143,11 @@ while preserving existing output contracts during the restructure.
 
 | Current path | Current task/role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
-| `scripts/load_control_sheet.py` | `load_control_sheet` task; reads control sheet and writes control-sheet raw/latest outputs. | `jobs/nextads_main/load_control_sheet.py` | Production | High | After package/config migration. | DEV Integration run, PREPROD smoke/full validation. | Writes critical control data. |
+| `scripts/load_control_sheet.py` | Compatibility wrapper for the `load_control_sheet` task; reads control sheet and writes control-sheet raw/latest outputs via the moved entrypoint. | `jobs/nextads_main/load_control_sheet.py` | Production | High | Moved in PR `246383`; keep wrapper until references are gone. | Job-path tests, DAB validate, DEV Integration run before release, PREPROD smoke/full validation in release context. | Writes critical control data. The main DAB job now points at `jobs/nextads_main/load_control_sheet.py`. |
 | `scripts/assign_customer_cells.py` | `assign_customer_cells` task. | `jobs/nextads_main/assign_customer_cells.py` | Production | High | After decisioning package move. | Assignment output comparison. | Decision/output-affecting. |
 | `scripts/combine_customer_cells.py` | `combine_customer_cells` task. | `jobs/nextads_main/combine_customer_cells.py` | Production | High | After data/decisioning package move. | Customer cell output comparison. | Output-affecting. |
-| `scripts/parse_attributes.py` | `parse_attributes` task. | `jobs/nextads_main/parse_attributes.py` | Production | Medium | After control package move. | Attribute table sanity check. | Control metadata. |
-| `scripts/parse_theme_mapping.py` | `parse_theme_mapping` task. | `jobs/nextads_main/parse_theme_mapping.py` | Production | Medium | After control package move. | Theme mapping table sanity check. | Control metadata. |
+| `scripts/parse_attributes.py` | Compatibility wrapper for the `parse_attributes` task. | `jobs/nextads_main/parse_attributes.py` | Production | Medium | Moved in PR `246383`; keep wrapper until references are gone. | Job-path tests, DAB validate, attribute table sanity check before release. | Control metadata. The main DAB job now points at `jobs/nextads_main/parse_attributes.py`. |
+| `scripts/parse_theme_mapping.py` | Compatibility wrapper for the `parse_theme_mapping` task. | `jobs/nextads_main/parse_theme_mapping.py` | Production | Medium | Moved in PR `246383`; keep wrapper until references are gone. | Job-path tests, DAB validate, theme mapping table sanity check before release. | Control metadata. The main DAB job now points at `jobs/nextads_main/parse_theme_mapping.py`. |
 | `scripts/build_markov_chain.py` | `score_lightweight` task. | `jobs/nextads_main/build_markov_chain.py` | Production | High | After ranking/retrieval map agreed. | Model score output comparison. | Ranking/scoring-affecting. |
 | `scripts/map_theme_scores_to_ads.py` | `map_theme_scores_to_ads` task; maps scores to ads. | `jobs/nextads_main/map_theme_scores_to_ads.py` | Production | High | After ranking/decisioning package moves. | Representative ranking output comparison. | Uses legacy Theme Affinity assignments when configured through current `hackathon_assignments` config. |
 | `scripts/build_page.py` | `build_page_primary` and `build_page_secondary` tasks. | `jobs/nextads_main/build_page.py` | Production | High | After decisioning package move. | Page output comparison. | Final assignment output-affecting. |
@@ -351,29 +351,43 @@ parallel-run evidence.
 
 ## Recommended Move Order
 
-1. Create `src/next_ads` skeleton and compatibility bridge.
-2. Add this migration map and agree risk/status labels.
-3. Move pure package utilities with wrappers.
-4. Add first-class feature-layer skeleton.
-5. Move data validation schemas/checks.
-6. Move config loader with compatibility support for `config/` and `configs/`.
-7. Move control sheet and attribute parsing logic.
-8. Confirm Ads v2 route and contracts before moving v2 files.
-9. Move retrieval and data prep code before decisioning or job entrypoints.
-10. Move legacy Theme Affinity notebooks/assets from `hackathon_model/` into `experiments/theme_affinity/` with operational-transition label and output contract.
-11. Split Theme Affinity into feature generation, MLflow model loading/scoring, ranking output, and delivery compatibility.
-12. Identify Theme Affinity feature outputs for future reuse.
-13. Move pCTR/response model pieces only after ownership and route are confirmed, separating feature builders from training/scoring.
-14. Move ranking/scoring logic with output comparison.
-15. Move decisioning/assignment logic with output comparison.
-16. Move delivery/export logic after v1/v2 contracts are clear.
-17. Move SQL/table operations without renaming live table contracts.
-18. Move Databricks entrypoints from `scripts/` to `jobs/`.
-19. Move DAB, DLT, and Lakeflow resources to `pipelines/databricks/`.
-20. Move tests as corresponding production modules move.
-21. Bring analyst reporting into the repo after core structure is stable.
-22. Move Azure DevOps support files only after pipeline path updates are ready.
-23. Retire old wrappers and old paths after no references remain.
+The current plan is an aggressive domain-by-domain move: package code and
+Databricks entrypoints can move together when the branch is explicitly scoped,
+wrappers remain where needed, and output contracts are preserved.
+
+1. `feature/SWB/5128910-control-domain-move`
+   Move control sheet, attribute parsing, theme mapping, control helpers, and
+   matching entrypoints. This is draft PR `246383`.
+2. `feature/SWB/5128910-main-job-entrypoint-move`
+   Move remaining core main-job scripts into `jobs/nextads_main` and update
+   `resources/jobs` paths in the same branch.
+3. `feature/SWB/5128910-ranking-domain-move`
+   Move scoring, theme-score mapping, Theme Affinity ranking pieces, and
+   ranking scripts into `src/next_ads/ranking` plus relevant job entrypoints.
+4. `feature/SWB/5128910-decisioning-domain-move`
+   Move assignment, customer-cell, and build-page logic into
+   `src/next_ads/decisioning` and update entrypoints.
+5. `feature/SWB/5128910-delivery-domain-move`
+   Move PLP GS, MASID handoff, Bloomreach/v2 payload, and export logic into
+   `src/next_ads/delivery` plus delivery job entrypoints.
+6. `feature/SWB/5128910-features-models-foundation`
+   Move feature generation, Theme Affinity DLT/Lakeflow feature prep, pCTR
+   feature prep, and MLflow train/promote/scoring routes into
+   `src/next_ads/features`, `src/next_ads/ranking/*`, and `jobs/model`. This is
+   already active through the Feature Store foundation and Theme Affinity
+   MLflow lifecycle PRs.
+7. `feature/SWB/5128910-adsv2-domain-move`
+   Move v2-specific control, ranking, assignment, delivery, configs, and SQL
+   into Ads v2 package subdomains after active v2 PRs and contracts are clear.
+8. `feature/SWB/5128910-realtime-reporting-move`
+   Move realtime and reporting/results helpers into `src/next_ads/realtime`
+   and `src/next_ads/reporting`.
+9. `feature/SWB/5128910-config-sql-layout`
+   Move config and SQL into domain folders, update config loader/path
+   resolution, and update tests without renaming live table contracts.
+10. `feature/SWB/5128910-cleanup-legacy-paths`
+    Remove old wrappers, stale scripts, empty folders, dead imports, and update
+    docs once references are gone.
 
 ## High-Risk Items Requiring Separate Stories
 
@@ -384,7 +398,8 @@ Do not move these until their contracts and validation are agreed:
 - `scripts/assign_customer_cells.py`
 - `scripts/build_page.py`
 - `scripts/map_theme_scores_to_ads.py`
-- `scripts/load_control_sheet.py`
+- future control-sheet logic or output changes beyond the PR `246383` entrypoint
+  move
 - `scripts/conditional_probability_recs.py` and `sql/create_table_conditional_probability*.sql`
 - `scripts/results_to_bigquery.py`
 - `scripts/table_operations/create_tables.py`

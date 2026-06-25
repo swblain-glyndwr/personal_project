@@ -27,6 +27,7 @@ include:
 
 sync:
   include:
+    - jobs/**
     - next_ads/**
     - next_ads/data/**
     - scripts/**
