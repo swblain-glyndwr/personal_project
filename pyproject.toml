@@ -131,6 +131,7 @@ markers = [
     "abfs_integration: marks tests as ABFS integration tests (deselect with '-m \"not abfs_integration\"')",
     "config_integration: marks tests as config_manager integration tests (deselect with '-m \"not config_integration\"')",
     "controlsheettable_integration: marks tests for checking control sheet table integration tests",
+    "databricks: marks tests that require Databricks Connect/workspace authentication",
 ]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

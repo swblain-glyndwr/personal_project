@@ -1,4 +1,3 @@
-import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -35,6 +34,7 @@ from next_ads.control.item_attributes import (
     build_recent_catalog,
 )
 from next_ads.utils import config_manager, etl
+from next_ads.common.paths import load_client_config
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
@@ -52,8 +52,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
 
     config = config_manager.load_config(JOB_ENV)
     logger.info(f"Configuring run for client: {CLIENT}")
-    with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-        cfg = json.load(f)
+    cfg = load_client_config(CLIENT)
 
     today = date.today().strftime(format="%Y-%m-%d")
     set_attributes = REFRESH_ATTRIBUTES_DATE == today or False

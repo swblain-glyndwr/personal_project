@@ -1,21 +1,18 @@
 import pytest
-from pathlib import Path
-import json
 from pyspark.sql import DataFrame
 from pyspark.sql.connect.dataframe import DataFrame as DataFrameConn
 from dsutils.dbc import configure_spark
 from dsutils.gcp import spark_df_from_sheets
+from next_ads.common.paths import iter_client_config_paths, load_client_config
 
 
-root_dir = Path(__file__).parent.parent.parent
-clients = [f.name.split('.')[0] for f in root_dir.glob('config/*.json')]
+clients = [path.stem for path in iter_client_config_paths()]
 
 
 @pytest.mark.parametrize('client', clients)
 def test_control_sheet_exist(client):
 
-    with open(f'config/{client}.json') as f:
-        cfg = json.load(f)
+    cfg = load_client_config(client)
 
     _ = configure_spark()
     df = spark_df_from_sheets(

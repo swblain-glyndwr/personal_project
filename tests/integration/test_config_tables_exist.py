@@ -1,20 +1,17 @@
 import pytest
-from pathlib import Path
-import json
 from dsutils.dbc import configure_spark
+from next_ads.common.paths import load_client_config, resolve_client_config_path
 from next_ads.utils import etl
 
 
-root_dir = Path(__file__).parent.parent.parent
-clients = [f.name.split('.')[0] for f in root_dir.glob('config/next_uk.json')]
+clients = [resolve_client_config_path("next_uk").stem]
 
 
 @pytest.mark.parametrize('client', clients)
 def test_read_tables_exist(client):
 
     spark = configure_spark()
-    with open(f"config/{client}.json") as f:
-        cfg = json.load(f)
+    cfg = load_client_config(client)
 
     read_tables = cfg["tables"]["read"]
 
@@ -27,8 +24,7 @@ def test_read_tables_exist(client):
 def test_write_tables_exist(client):
 
     spark = configure_spark()
-    with open(f"config/{client}.json") as f:
-        cfg = json.load(f)
+    cfg = load_client_config(client)
 
     write_tables = cfg["tables"]["write"]
     prod_schema = cfg["schema"]["prod"]

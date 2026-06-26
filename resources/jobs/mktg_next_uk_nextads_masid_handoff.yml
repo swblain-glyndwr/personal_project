@@ -21,7 +21,7 @@ resources:
       tasks:
         - task_key: masid_handoff_check
           spark_python_task:
-            python_file: ../../scripts/masid_handoff_check.py
+            python_file: ../../jobs/nextads_delivery/masid_handoff_check.py
             parameters:
               - --client
               - "next_uk"

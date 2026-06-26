@@ -30,17 +30,12 @@ def test_target_package_structure_exists_and_imports():
         importlib.import_module(f"next_ads.{subpackage}")
 
 
-def test_existing_databricks_job_entrypoints_stay_on_scripts():
+def test_existing_databricks_job_entrypoints_stay_on_scripts_or_jobs():
     job_config = yaml.safe_load(
         (PROJECT_ROOT / "resources/jobs/mktg_next_uk_nextads.yml").read_text()
     )
     job = job_config["resources"]["jobs"]["mktg_next_uk_nextads_cicd"]
 
-    allowed_moved_entrypoints = {
-        "load_control_sheet": "../../jobs/nextads_main/load_control_sheet.py",
-        "parse_attributes": "../../jobs/nextads_main/parse_attributes.py",
-        "parse_theme_mapping": "../../jobs/nextads_main/parse_theme_mapping.py",
-    }
     python_files_by_task = {}
     for task in job["tasks"]:
         if "spark_python_task" in task:
@@ -53,22 +48,15 @@ def test_existing_databricks_job_entrypoints_stay_on_scripts():
                 "spark_python_task"
             ]["python_file"]
 
-    assert python_files_by_task
-    assert {
-        task_key: python_files_by_task[task_key]
-        for task_key in allowed_moved_entrypoints
-    } == allowed_moved_entrypoints
+    python_files = list(python_files_by_task.values())
 
-    remaining_paths = [
-        path
-        for task_key, path in python_files_by_task.items()
-        if task_key not in allowed_moved_entrypoints
-    ]
-    assert remaining_paths
-    assert all(path.startswith("../../scripts/") for path in remaining_paths)
-    assert not any(
-        path.startswith("../../src/") for path in python_files_by_task.values()
+    assert python_files
+    assert all(
+        path.startswith("../../scripts/")
+        or path.startswith("../../jobs/nextads_main/")
+        for path in python_files
     )
+    assert not any(path.startswith("../../src/") for path in python_files)
 
 
 def test_repo_structure_documentation_describes_transition_rules():

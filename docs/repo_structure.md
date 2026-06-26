@@ -149,8 +149,19 @@ validation evidence.
 
 ### New Configuration
 
-New settings should eventually move toward `configs/`, but the current `config/`
-folder remains active during transition.
+Operational settings now live under `configs/`, grouped by purpose:
+
+```text
+configs/runtime/
+configs/control/
+configs/adsv2/
+configs/model/
+configs/delivery/
+configs/clients/
+```
+
+The config loader keeps compatibility fallbacks for legacy flat `config/`
+paths during transition.
 
 Do not move or rename config files without checking:
 
@@ -243,7 +254,8 @@ and should not become a second source of truth.
   wrappers remain and job paths are validated.
 - Existing Databricks job definitions remain in `resources/jobs/` until the
   deployment layout is changed by a specific story.
-- The current `config/` folder is not renamed in the foundation work.
+- Operational config now lives under grouped `configs/` folders, with loader
+  fallbacks retained for legacy flat `config/` paths during the transition.
 - Existing imports from the top-level `next_ads` package must keep working
   during the transition.
 - Decision-affecting logic should move only in follow-up stories with output

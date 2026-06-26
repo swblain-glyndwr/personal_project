@@ -24,7 +24,7 @@ resources:
       tasks:
         - task_key: assign_customer_cells
           spark_python_task:
-            python_file: ../../scripts/assign_customer_cells.py
+            python_file: ../../jobs/nextads_main/assign_customer_cells.py
             parameters:
               - --client
               - "next_uk"
@@ -42,7 +42,7 @@ resources:
           depends_on:
             - task_key: assign_customer_cells
           spark_python_task:
-            python_file: ../../scripts/combine_customer_cells.py
+            python_file: ../../jobs/nextads_main/combine_customer_cells.py
             parameters:
               - --client
               - "next_uk"
@@ -114,7 +114,7 @@ resources:
           depends_on:
             - task_key: parse_theme_mapping
           spark_python_task:
-            python_file: ../../scripts/build_markov_chain.py
+            python_file: ../../jobs/nextads_main/build_markov_chain.py
             parameters:
               - --client
               - "next_uk"
@@ -131,7 +131,7 @@ resources:
             - task_key: score_lightweight
             - task_key: load_control_sheet
           spark_python_task:
-            python_file: ../../scripts/map_theme_scores_to_ads.py
+            python_file: ../../jobs/nextads_main/map_theme_scores_to_ads.py
             parameters:
               - --client
               - "next_uk"
@@ -167,7 +167,7 @@ resources:
             - task_key: combine_customer_cells
             - task_key: map_theme_scores_to_ads_v2
           spark_python_task:
-            python_file: ../../scripts/trigger_databricks_job.py
+            python_file: ../../jobs/nextads_main/trigger_databricks_job.py
             parameters:
               - --job-id
               - ${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}

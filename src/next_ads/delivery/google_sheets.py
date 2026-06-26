@@ -1,15 +1,30 @@
 """Global solution helpers"""
 
 import ast
+import json
 from dataclasses import dataclass
 
 import gspread as gs
+import pandera.pyspark as pa
 import pandas as pd
-from pyspark.sql.types import StringType, StructField, StructType
-from pyspark.sql.functions import PandasUDFType, pandas_udf, current_date
 import pyspark
+from dynaconf import Dynaconf
+from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.functions import (
+    PandasUDFType,
+    col,
+    concat,
+    current_date,
+    lit,
+    pandas_udf,
+    when,
+)
+from pyspark.sql.types import StringType, StructField, StructType
 from dsutils.dbc import configure_spark, get_dbutils
-from dsutils.logtools import get_logger
+from dsutils.logtools import configure_logging, get_logger
+
+from next_ads.data_validation import schemas
+from next_ads.utils import config_manager
 
 spark = None
 dbutils = None
@@ -64,6 +79,242 @@ def resolve_plp_gs_delivery_config(
         catalog_write=config.catalog_write,
         schema_write=config.schema_write,
     )
+
+
+@pa.check_output(schemas.GlobalSolutionOutputModel, lazy=True)
+def process_control_sheet(
+    config: Dynaconf,
+    spark_session=None,
+    run_logger=None,
+) -> "DataFrame":
+    """Process PLP Google Sheets delivery rows from configured source tables."""
+    spark_session = spark_session or _get_spark()
+    run_logger = run_logger or logger
+
+    run_logger.info(
+        "Loading control sheet from tables: "
+        f"{config.tables_write.control_sheet_raw_latest}, "
+        f"{config.tables_write.control_sheet_plp_raw_latest}, "
+        f"{config.tables_write.multipage_locations_latest}"
+    )
+    latest_control_sheet = spark_session.table(
+        config.tables_write.control_sheet_raw_latest
+    )
+    plp_placements = spark_session.table(
+        config.tables_write.control_sheet_plp_raw_latest
+    )
+    plx_placements = spark_session.table(
+        config.tables_write.multipage_locations_latest
+    )
+
+    latest_control_sheet = latest_control_sheet.filter(
+        latest_control_sheet.UniqueAdID != ""
+    ).filter(latest_control_sheet.CMSPageID != "")
+
+    latest_control_sheet.createOrReplaceTempView("control_sheet")
+
+    plp_placements = (
+        plp_placements.where(col("Page") != "")
+        .where(col("Location").startswith("PL"))
+        .withColumnsRenamed({"Location": "PLP_slot", "Page": "URL"})
+        .select("PLP_slot", "URL")
+    )
+    plp_placements.createOrReplaceTempView("plp_placements")
+
+    try:
+        plx_placements = (
+            plx_placements.withColumnsRenamed(
+                {"Location": "PLP_slot", "Page": "URL"}
+            )
+            .where(col("URL") != "")
+            .select("PLP_slot", "URL")
+        )
+        plx_placements = plx_placements.join(
+            plp_placements.select("URL"), how="left_anti", on=["URL"]
+        )
+
+        plp_placements = plp_placements.unionByName(plx_placements)
+
+    except IndexError:
+        run_logger.error("No additional PLP placements found")
+
+    plp_slots = [
+        i for i in latest_control_sheet.columns if i.lower().startswith("pl")
+    ] + ["PLX"]
+
+    latest_control_sheet = latest_control_sheet.select(
+        "uniqueadid",
+        "realm",
+        "territory",
+        "status",
+        "CMSPageID",
+        "MASIDToken",
+        *plp_slots,
+    )
+
+    latest_control_sheet = latest_control_sheet.withColumn(
+        "action",
+        lit("upsert"),
+    )
+
+    latest_control_sheet_melt = latest_control_sheet.melt(
+        [
+            "uniqueadid",
+            "MASIDToken",
+            "CMSPageID",
+            "action",
+            "realm",
+            "territory",
+        ],
+        plp_slots,
+        "PLP_slot",
+        "PLP_bools",
+    )
+
+    latest_control_sheet_melt = latest_control_sheet_melt.join(
+        plp_placements, on=["PLP_slot"]
+    )
+    latest_control_sheet_melt = latest_control_sheet_melt.dropDuplicates(
+        subset=["URL", "PLP_slot", "uniqueadid"]
+    )
+
+    latest_control_sheet_melt = latest_control_sheet_melt.filter(
+        latest_control_sheet_melt.PLP_bools == "TRUE"
+    )
+
+    latest_control_sheet_melt = latest_control_sheet_melt.withColumn(
+        "MASIDCMSid",
+        when(
+            (col("MASIDToken").isNotNull()) & (col("MASIDToken") != ""),
+            concat(
+                col("PLP_slot"),
+                lit("_"),
+                col("MASIDToken"),
+                lit("-"),
+                col("CMSPageID"),
+            ),
+        ).otherwise(
+            concat(
+                lit("-"),
+                col("CMSPageID"),
+            )
+        ),
+    )
+
+    output_df = latest_control_sheet_melt.groupby(
+        "action", "realm", "territory", "URL"
+    ).apply(get_masid_csmid_columns_udf)
+
+    return format_output_col_names(
+        output_df,
+        output_schema_mapping={
+            "action": "Action",
+            "realm": "realm",
+            "territory": "territory",
+            "URL": "url",
+            "MASIDCMSid": "masIdSlotsAndCMSContent",
+        },
+    )
+
+
+def run_plp_gs_delivery(
+    job_env: str,
+    territory: str,
+    client: str,
+    log_level: str | None,
+    spark_session=None,
+    dbutils_obj=None,
+) -> None:
+    """Run the PLP Google Sheets delivery task."""
+    if log_level:
+        configure_logging(log_level=log_level)
+    else:
+        configure_logging()
+
+    run_logger = get_logger(__name__)
+    spark_session = spark_session or configure_spark()
+    dbutils_obj = dbutils_obj or get_dbutils()
+
+    config = config_manager.load_config(job_env)
+    delivery_config = resolve_plp_gs_delivery_config(
+        config=config,
+        client=client,
+        territory=territory,
+    )
+
+    run_logger.info(
+        f"Configuration - "
+        f"ENV: {job_env}, "
+        f"CATALOG_WRITE: {delivery_config.catalog_write}, "
+        f"WAREHOUSE: {config.catalog_read}, "
+        f"SCHEMA: {delivery_config.schema_write}, "
+        f"CLIENT: {client}, "
+        f"TERRITORY: {territory}, "
+        f"OUTPUT_TABLE_NAME: {delivery_config.output_table_name}, "
+        f"GS_FINAL_OUTPUT_TABLE_NAME: {delivery_config.final_output_table_name}, "
+        f"ACCOUNT_NAME: {config.az_st_account}, "
+        f"ACCOUNT_URL: {config.az_st_account_url}, "
+        f"CONTAINER: {config.az_st_container_name}, "
+        f"SCOPE: {config.dbutils_secret_scope}, "
+        f"TENANT_ID: {config.az_tenant_id}, "
+        f"AZ_OUTPUT_ABFSS_PATH: {delivery_config.az_output_abfss_path}"
+    )
+
+    spark_session.sql(f"USE CATALOG {config.catalog_read}")
+
+    output_df = process_control_sheet(
+        config=config,
+        spark_session=spark_session,
+        run_logger=run_logger,
+    )
+
+    pandera_errors = output_df.pandera.errors
+    errors_json = json.dumps(dict(pandera_errors), indent=2)
+    run_logger.info(f"Data validation errors: {errors_json}")
+    run_logger.info(output_df.show(5, truncate=False))
+    assert not pandera_errors, "Data validation failed!"
+
+    output_count = output_df.count()
+    run_logger.info(
+        f"Writing to {delivery_config.output_table_name} "
+        f"with {output_count} records"
+    )
+    output_df.write.mode("overwrite").saveAsTable(
+        delivery_config.output_table_name
+    )
+
+    create_dl_table(
+        spark_df=output_df,
+        OUTPUT_TABLE=delivery_config.final_output_table_name,
+        limit_history=True,
+        limit_history_days=365,
+        join_condition=(
+            "(source.rundate=dest.rundate AND source.realm=dest.realm "
+            "AND source.territory=dest.territory)"
+        ),
+    )
+
+    configure_abfs(
+        spark=spark_session,
+        dbutils=dbutils_obj,
+        account_name=config.az_st_account,
+        tenant_id=config.az_tenant_id,
+        dbutils_secret_scope=config.dbutils_secret_scope,
+        secret_key_spn_clientid=config.secret_key_spn_clientid,
+        secret_key_spn_secret=config.secret_key_spn_secret,
+    )
+
+    (
+        output_df.repartition(1)
+        .write.mode("overwrite")
+        .option("header", True)
+        .csv(delivery_config.az_output_abfss_path)
+    )
+    run_logger.info(
+        f"Written output_df with {output_count} records "
+        f"to {delivery_config.az_output_abfss_path}"
+    )
+    run_logger.info("Run complete")
 
 
 def get_service_account_dict(secret="mktg-gcp-service-account-b64-encoded"):

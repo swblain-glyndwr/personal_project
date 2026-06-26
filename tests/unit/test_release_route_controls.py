@@ -47,6 +47,8 @@ def test_bundle_sync_explicitly_includes_transitional_package_roots():
     bundle = load_yaml("databricks.yml")
     sync_includes = bundle["sync"]["include"]
 
+    assert "configs/**" in sync_includes
+    assert "sql/**" in sync_includes
     assert "next_ads/**" in sync_includes
     assert "next_ads/data/**" in sync_includes
     assert "src/next_ads/**" in sync_includes
@@ -341,7 +343,7 @@ def test_production_release_documentation_defines_tagged_route_and_evidence():
 
 def test_preprod_and_prod_output_routes_are_separate():
     bundle = load_yaml("databricks.yml")
-    settings = load_yaml("config/settings.yaml")
+    settings = load_yaml("configs/runtime/settings.yaml")
 
     preprod_vars = bundle["targets"]["PREPROD"]["variables"]
     prod_vars = bundle["targets"]["PROD"]["variables"]

@@ -10,7 +10,7 @@ from pyspark.sql.dataframe import DataFrame
 
 from dsutils.etl import assert_pk
 
-from next_ads.Scoring import append_targeting_criteria
+from next_ads.ranking.scoring import append_targeting_criteria
 from next_ads.data.validation import schemas
 
 

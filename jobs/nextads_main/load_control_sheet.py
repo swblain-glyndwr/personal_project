@@ -1,4 +1,3 @@
-import json
 import sys
 from pathlib import Path
 
@@ -37,6 +36,7 @@ from next_ads.control.load_control_sheet import (
     validate_control_sheet_inputs,
 )
 from next_ads.utils import config_manager
+from next_ads.common.paths import load_client_config
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL):
@@ -57,8 +57,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
 
     config = config_manager.load_config(JOB_ENV)
     logger.info(f"Configuring run for client: {CLIENT}")
-    with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-        cfg = json.load(f)
+    cfg = load_client_config(CLIENT)
 
     run_context = build_control_sheet_run_context(
         client=CLIENT,

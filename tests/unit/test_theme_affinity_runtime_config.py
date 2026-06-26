@@ -81,7 +81,9 @@ def test_theme_affinity_tables_resolve_to_prod_schema(monkeypatch):
 
 
 def test_map_theme_scores_uses_config_led_assignment_sources():
-    script = (PROJECT_ROOT / "scripts/map_theme_scores_to_ads.py").read_text()
+    script = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_score_mapping.py"
+    ).read_text()
 
     assert "theme_affinity_assignment_sources.champion" in script
     assert "theme_affinity_assignment_sources.challenger" in script
@@ -89,8 +91,8 @@ def test_map_theme_scores_uses_config_led_assignment_sources():
     assert 'cfg[\'tables\'][\'read\']["hackathon_assignments"]' not in script
     assert 'cfg["tables"]["read"]["hackathon_assignments"]' not in script
 
-    settings = (PROJECT_ROOT / "config/tables_settings.yaml").read_text()
-    client_config = (PROJECT_ROOT / "config/next_uk.json").read_text()
+    settings = (PROJECT_ROOT / "configs/runtime/tables_settings.yaml").read_text()
+    client_config = (PROJECT_ROOT / "configs/clients/next_uk.json").read_text()
     assert "hackathon_assignments" not in settings
     assert "hackathon_assignments" not in client_config
 

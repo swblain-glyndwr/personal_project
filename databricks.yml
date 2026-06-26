@@ -27,10 +27,12 @@ include:
 
 sync:
   include:
+    - configs/**
     - jobs/**
     - next_ads/**
     - next_ads/data/**
     - scripts/**
+    - sql/**
     - src/next_ads/**
     - src/next_ads/data/**
   exclude:

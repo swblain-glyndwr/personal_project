@@ -71,7 +71,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert "spark_python_task" in dlt_sense_check
     assert (
         dlt_sense_check["spark_python_task"]["python_file"]
-        == "../../scripts/theme_affinity/sense_check.py"
+        == "../../jobs/model/theme_affinity/sense_check.py"
     )
     assert dlt_sense_check["libraries"] == "${var.theme_affinity_libraries}"
     assert "data" in dlt_sense_check["spark_python_task"]["parameters"]
@@ -82,7 +82,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert "spark_python_task" in model_sense_check
     assert (
         model_sense_check["spark_python_task"]["python_file"]
-        == "../../scripts/theme_affinity/sense_check.py"
+        == "../../jobs/model/theme_affinity/sense_check.py"
     )
     assert model_sense_check["libraries"] == "${var.theme_affinity_libraries}"
     assert "model_outputs" in model_sense_check["spark_python_task"]["parameters"]
@@ -115,14 +115,17 @@ def test_theme_affinity_libraries_avoid_full_runtime_requirements():
 
 def test_theme_affinity_script_bootstrap_handles_workspace_paths():
     for script_path in [
-        "scripts/theme_affinity/model_predict.py",
-        "scripts/theme_affinity/clean_output.py",
-        "scripts/theme_affinity/sense_check.py",
+        "jobs/model/theme_affinity/model_predict.py",
+        "jobs/model/theme_affinity/clean_output.py",
+        "jobs/model/theme_affinity/sense_check.py",
         "scripts/theme_affinity/rules_rank.py",
         "scripts/theme_affinity/run_pipeline.py",
     ]:
         script = (PROJECT_ROOT / script_path).read_text()
-        assert "Path(notebook_path).parents[2]" in script
+        if script_path.startswith("jobs/model"):
+            assert "Path(notebook_path).parents[3]" in script
+        else:
+            assert "Path(notebook_path).parents[2]" in script
         assert 'SRC_ROOT = PROJECT_ROOT / "src"' in script
 
 
@@ -205,6 +208,7 @@ def test_theme_affinity_runtime_files_do_not_use_legacy_write_paths():
         PROJECT_ROOT / "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml",
         PROJECT_ROOT / "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml",
         PROJECT_ROOT / "scripts/theme_affinity",
+        PROJECT_ROOT / "jobs/model/theme_affinity",
         PROJECT_ROOT / "src/next_ads/ranking/theme_affinity",
     ]
     forbidden = [
@@ -283,7 +287,7 @@ def test_theme_affinity_dlt_uses_operational_reference_date_variable():
 
 
 def test_theme_affinity_assignment_sources_use_new_model_output():
-    settings = _load_yaml("config/tables_settings.yaml")
+    settings = _load_yaml("configs/runtime/tables_settings.yaml")
     assignment_sources = settings["default"]["theme_affinity_assignment_sources"]
 
     assert assignment_sources["champion"] == (

@@ -29,7 +29,7 @@ resources:
           depends_on:
             - task_key: predict_data_prep
           spark_python_task:
-            python_file: ../../scripts/theme_affinity/model_predict.py
+            python_file: ../../jobs/model/theme_affinity/model_predict.py
             parameters:
               - --client
               - next_uk
@@ -48,7 +48,7 @@ resources:
           depends_on:
             - task_key: predict_data_prep
           spark_python_task:
-            python_file: ../../scripts/theme_affinity/sense_check.py
+            python_file: ../../jobs/model/theme_affinity/sense_check.py
             parameters:
               - --client
               - next_uk
@@ -73,7 +73,7 @@ resources:
           depends_on:
             - task_key: model_predict
           spark_python_task:
-            python_file: ../../scripts/theme_affinity/clean_output.py
+            python_file: ../../jobs/model/theme_affinity/clean_output.py
             parameters:
               - --client
               - next_uk
@@ -90,7 +90,7 @@ resources:
           depends_on:
             - task_key: clean_output
           spark_python_task:
-            python_file: ../../scripts/theme_affinity/sense_check.py
+            python_file: ../../jobs/model/theme_affinity/sense_check.py
             parameters:
               - --client
               - next_uk

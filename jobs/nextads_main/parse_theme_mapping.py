@@ -1,4 +1,3 @@
-import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -36,6 +35,7 @@ from next_ads.control.theme_mapping import (
     valid_theme_rank_condition,
 )
 from next_ads.utils import config_manager, etl
+from next_ads.common.paths import load_client_config
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=None):
@@ -53,8 +53,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
 
     config = config_manager.load_config(JOB_ENV)
     logger.info(f"Configuring run for client: {CLIENT}")
-    with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-        cfg = json.load(f)
+    cfg = load_client_config(CLIENT)
 
     today = date.today().strftime(format="%Y-%m-%d")
     set_theme_attributes = REFRESH_THEMES_DATE == today or False

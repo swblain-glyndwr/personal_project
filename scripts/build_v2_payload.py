@@ -22,7 +22,6 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import json
 import os
 
 import pyspark.sql.functions as F
@@ -33,6 +32,7 @@ from dsutils.etl import delete_from_and_load
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.utils import config_manager
+from next_ads.common.paths import load_client_config
 from next_ads.Export import generate_experimentid
 
 
@@ -91,8 +91,7 @@ def get_experiments(
 
 
 def get_payload_experiment_settings(client: str) -> dict:
-    with open(PROJECT_ROOT / f"config/{client}.json") as f:
-        cfg = json.load(f)
+    cfg = load_client_config(client)
     return cfg.get("payload_experiment_id", {})
 
 

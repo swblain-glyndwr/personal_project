@@ -16,20 +16,20 @@ poetry add dynaconf
 
 ### 2. Create Configuration Files
 
-Create a `config` directory in your project root:
+Create configuration files under `configs/runtime` in your project root:
 
 ```
 next-ads/
-├── config/
-│   ├── settings.yaml          # Base configuration
-│   ├── settings.local.yaml    # Local overrides (git-ignored)
-│   └── .env.local             # Local environment variables overrides (git-ignored)
-└── ...
+  configs/
+    runtime/
+      settings.yaml          # Base configuration
+      settings.local.yaml    # Local overrides (git-ignored)
+      .env.local             # Local environment variable overrides (git-ignored)
 ```
 
 ### 3. Define Settings (YAML Format)
 
-**`config/settings.yaml`**
+**`configs/runtime/settings.yaml`**
 
 Default takes precedence, if ENV is set when loading config then environment specific values overwrite defaults.
 ```yaml
@@ -47,7 +47,7 @@ prod:
   schema: warehouse
 ```
 
-**`config/.env.local`**
+**`configs/runtime/.env.local`**
 
 Local environment variable overrides for configurations.
 ```env
