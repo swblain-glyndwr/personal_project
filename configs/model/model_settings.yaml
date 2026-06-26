@@ -1,7 +1,44 @@
 default:
   ranking_model:
     model_uri: models:/marketingdata_prod.ds_sandbox.nextads_hackathon_model/1
+    model_name: theme_affinity_ranker
+    registered_model_name: nextads_theme_affinity_ranker
+    experiment_path: "@format /Shared/mlflow/nextads/{this.job_env}/experiments/theme_affinity_ranker"
+    train_ratio: 0.75
+    test_ratio: 0.15
+    training_backend: spark_xgb_ranker
+    spark_num_workers: 4
+    num_boost_round: 200
+    early_stopping_rounds: 20
+    training_frame:
+      max_accounts: 50000
+      max_candidates_per_account: 256
+      max_rows: 15000000
+      max_pandas_rows: 15000000
+      rank_filter_threshold: 256
+      random_seed: 42
+    monitoring:
+      sample_limit: 100000
+      numeric_psi_warn_threshold: 0.1
+      numeric_psi_fail_threshold: 0.25
+      categorical_warn_threshold: 0.1
+      categorical_fail_threshold: 0.25
+      categorical_cols:
+        - repurchase_stage
+        - GmaName
     predict_rank_filter_threshold: 100
+    xgb_params:
+      objective: rank:pairwise
+      eval_metric: ndcg@5
+      tree_method: hist
+      device: cpu
+      learning_rate: 0.05
+      max_depth: 6
+      min_child_weight: 1
+      subsample: 0.8
+      colsample_bytree: 0.8
+      seed: 42
+      verbosity: 1
     high_repurchase_penalty: 0.25
     high_repurchase_manual_themes:
       - homesofas

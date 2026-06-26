@@ -153,6 +153,34 @@ def test_dev_integration_setup_job_is_target_specific():
     ]
 
 
+def test_personal_dev_setup_job_populates_current_user_schema():
+    bundle = load_yaml("databricks.yml")
+    setup = load_yaml("resources/jobs/dev_setup.yml")
+    jobs = setup["targets"]["DEV"]["resources"]["jobs"]
+    setup_job = jobs["mktg_next_uk_nextads_dev_setup"]
+    setup_task = setup_job["tasks"][0]
+
+    assert "resources/jobs/dev_setup.yml" in bundle["include"]
+    assert set(setup["targets"]) == {"DEV"}
+    assert "schedule" not in setup_job
+    assert setup_job["job_clusters"] == "${var.job_clusters_config}"
+    assert setup_task["task_key"] == "populate_dev_tables"
+    assert (
+        setup_task["spark_python_task"]["python_file"]
+        == "../../scripts/table_operations/setup_dev_tables.py"
+    )
+    assert setup_task["spark_python_task"]["parameters"] == ["--standard"]
+    assert setup_task["libraries"] == "${var.shared_libraries}"
+
+
+def test_dev_deploy_schema_variable_is_normalised_to_lower_case():
+    script = (PROJECT_ROOT / "devops/scripts/set_dab_vars.sh").read_text()
+
+    assert 'if [ "${TARGET}" = "DEV" ]; then' in script
+    assert "BUNDLE_VAR_user_schema" in script
+    assert "tr '[:upper:]' '[:lower:]'" in script
+
+
 def test_preprod_route_is_release_branch_only():
     config = load_yaml("azure-pipelines.yml")
     stages = {stage["stage"]: stage for stage in config["stages"]}

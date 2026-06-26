@@ -13,6 +13,12 @@ include:
   - resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
   - resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - resources/jobs/mktg_next_uk_nextads_qa.yml
   - resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
   - resources/variables/clusters.yml
@@ -20,6 +26,7 @@ include:
   - resources/jobs/mktg_next_uk_nextads_results.yml
   - resources/jobs/mktg_next_uk_nextads_realtime_results.yml
   - resources/jobs/table_size_monitoring.yml
+  - resources/jobs/dev_setup.yml
   - resources/jobs/dev_integration_setup.yml
   - resources/jobs/preprod_setup.yml
   - resources/jobs/preprod_dependency_smoke.yml

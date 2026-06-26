@@ -96,3 +96,55 @@ def test_load_mlflow_model_falls_back_to_pyfunc_flavor():
         "pyfunc",
         pyfunc_model,
     )
+
+
+def test_load_mlflow_model_prefers_spark_flavor_when_allowed():
+    spark_model = object()
+
+    class FakeSpark:
+        @staticmethod
+        def load_model(_model_uri):
+            return spark_model
+
+    class FakeMlflow:
+        spark = FakeSpark()
+
+    assert _load_mlflow_model(
+        FakeMlflow(),
+        "models:/catalog.schema.model/1",
+        allow_spark=True,
+    ) == ("spark", spark_model)
+
+
+def test_load_mlflow_model_does_not_load_spark_flavor_in_partition_path():
+    calls = []
+    xgboost_model = object()
+
+    class FakeSpark:
+        @staticmethod
+        def load_model(_model_uri):
+            calls.append("spark")
+            raise AssertionError("spark flavor should not be loaded")
+
+    class FakeXgboost:
+        @staticmethod
+        def load_model(_model_uri):
+            calls.append("xgboost")
+            return xgboost_model
+
+    class FakePyfunc:
+        @staticmethod
+        def load_model(_model_uri):
+            calls.append("pyfunc")
+            return object()
+
+    class FakeMlflow:
+        spark = FakeSpark()
+        xgboost = FakeXgboost()
+        pyfunc = FakePyfunc()
+
+    assert _load_mlflow_model(FakeMlflow(), "models:/catalog.schema.model/1") == (
+        "xgboost",
+        xgboost_model,
+    )
+    assert calls == ["xgboost"]

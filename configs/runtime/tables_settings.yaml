@@ -54,6 +54,12 @@ default:
     theme_score_components_hackathon: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_score_components_hackathon"
     theme_score_components_hackathon_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_score_components_hackathon_latest"
     theme_scoring_events_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_scoring_events_latest"
+    theme_affinity_predict_master: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_master"
+    theme_affinity_predict_complete: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_complete"
+    theme_affinity_predict_ranked: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_ranked"
+    theme_affinity_predict_half: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_half"
+    theme_affinity_model_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"
+    theme_affinity_model_full: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_full"
     preranked_ads_from_themes_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_latest"
     preranked_ads_from_themes_hackathon_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_hackathon_latest"
     preranked_ads_from_themes_v2_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_v2_latest"
@@ -112,7 +118,7 @@ default:
 
   ranking_model_table_prefix: "@format {this.client}_nextads_theme_affinity_predict"
   ranking_model_tables:
-    model_train_input_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_complete_ranked"
+    model_train_input_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_ranked"
     predict_master: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_master"
     predict_complete: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_complete"
     predict_input_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_ranked"

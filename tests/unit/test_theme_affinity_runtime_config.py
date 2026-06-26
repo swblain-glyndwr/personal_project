@@ -31,6 +31,15 @@ def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
         == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
     )
     assert (
+        config.ranking_model_tables.model_train_input_table
+        == config.ranking_model_tables.predict_input_table
+    )
+    assert (
+        config.ranking_model_tables.model_train_input_table
+        == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
+    )
+    assert "complete_ranked" not in config.ranking_model_tables.model_train_input_table
+    assert (
         config.theme_affinity_assignment_sources.champion
         == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_model_latest"
     )
@@ -108,6 +117,31 @@ def test_theme_affinity_runtime_uses_new_outputs_for_assignments(monkeypatch):
         config.ranking_model_tables.model_latest
         == config.theme_affinity_assignment_sources.champion
     )
+
+
+def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
+    monkeypatch.setenv("DYNACONF_SKIP_ENV", "true")
+    monkeypatch.setenv("USER_SCHEMA", "test_user")
+
+    config = load_config("dev")
+
+    expected_setup_tables = {
+        "theme_affinity_predict_master": config.ranking_model_tables.predict_master,
+        "theme_affinity_predict_complete": (
+            config.ranking_model_tables.predict_complete
+        ),
+        "theme_affinity_predict_ranked": (
+            config.ranking_model_tables.predict_input_table
+        ),
+        "theme_affinity_predict_half": (
+            config.ranking_model_tables.predict_output_table
+        ),
+        "theme_affinity_model_latest": config.ranking_model_tables.model_latest,
+        "theme_affinity_model_full": config.ranking_model_tables.model_full,
+    }
+
+    for table_ref, expected_path in expected_setup_tables.items():
+        assert getattr(config.tables_write, table_ref) == expected_path
 
 
 def test_adsv2_write_tables_are_available_under_tables_write(monkeypatch):

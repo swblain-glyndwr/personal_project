@@ -1,3 +1,16 @@
+def _ranked_theme_mapping(spark, item_themes_table: str):
+    theme_mapping = spark.sql(
+        "SELECT DISTINCT theme, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean "
+        f"FROM {item_themes_table} WHERE theme_rank = 1"
+    )
+    if theme_mapping.limit(1).count() == 0:
+        raise ValueError(
+            f"Theme mapping table {item_themes_table} has no theme_rank = 1 rows. "
+            "Run the DEV table population job before clean_output."
+        )
+    return theme_mapping
+
+
 def clean_model_output(spark, runtime):
     from pyspark.sql import Window
     from pyspark.sql import functions as F
@@ -61,9 +74,9 @@ def clean_model_output(spark, runtime):
         .withColumnRenamed("theme", "NextTheme")
         .withColumn("rundate", F.current_date())
     )
-    theme_mapping = spark.sql(
-        "SELECT DISTINCT theme, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean "
-        f"FROM {runtime.config.tables_write.item_themes_latest} WHERE theme_rank = 1"
+    theme_mapping = _ranked_theme_mapping(
+        spark,
+        runtime.config.tables_write.item_themes_latest,
     )
     fixed = (
         full_results.join(
