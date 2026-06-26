@@ -15,6 +15,10 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
       job_type: quality_monitor_setup
     timeout_seconds: 1800
     parameters:
+      - name: action
+        default: setup
+      - name: monitor_type
+        default: time_series
       - name: table_name
         default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_predict_ranked
       - name: output_schema_name
@@ -29,6 +33,16 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
         default: repurchase_stage,GmaName
       - name: run_refresh
         default: "false"
+      - name: problem_type
+        default: classification
+      - name: prediction_col
+        default: prediction
+      - name: model_id_col
+        default: model_id
+      - name: label_col
+        default: label
+      - name: prediction_proba_col
+        default: ""
     tasks:
       - task_key: setup_quality_monitor
         spark_python_task:
@@ -38,6 +52,10 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
             - next_uk
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --action
+            - "{{job.parameters.action}}"
+            - --monitor_type
+            - "{{job.parameters.monitor_type}}"
             - --table_name
             - "{{job.parameters.table_name}}"
             - --output_schema_name
@@ -52,6 +70,16 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
             - "{{job.parameters.slicing_exprs}}"
             - --run_refresh
             - "{{job.parameters.run_refresh}}"
+            - --problem_type
+            - "{{job.parameters.problem_type}}"
+            - --prediction_col
+            - "{{job.parameters.prediction_col}}"
+            - --model_id_col
+            - "{{job.parameters.model_id_col}}"
+            - --label_col
+            - "{{job.parameters.label_col}}"
+            - --prediction_proba_col
+            - "{{job.parameters.prediction_proba_col}}"
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
@@ -72,6 +100,10 @@ targets:
       jobs:
         <<: *theme_affinity_quality_monitor_setup_config
   PREPROD:
+    resources:
+      jobs:
+        <<: *theme_affinity_quality_monitor_setup_config
+  PROD:
     resources:
       jobs:
         <<: *theme_affinity_quality_monitor_setup_config

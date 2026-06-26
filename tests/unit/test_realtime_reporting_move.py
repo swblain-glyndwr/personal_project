@@ -103,6 +103,9 @@ def test_realtime_reporting_jobs_use_moved_entrypoints():
         "results_2": "../../jobs/results/results_2.py",
         "results_3": "../../jobs/results/results_3.py",
         "results_agg": "../../jobs/results/results_agg.py",
+        "enrich_theme_affinity_inference_log": (
+            "../../jobs/results/enrich_theme_affinity_inference_log.py"
+        ),
         "results_performance_check": (
             "../../jobs/results/results_performance_checks.py"
         ),
@@ -114,6 +117,15 @@ def test_realtime_reporting_jobs_use_moved_entrypoints():
         assert results_tasks[task_key]["spark_python_task"]["python_file"] == (
             expected_path
         )
+
+    assert results_tasks["enrich_theme_affinity_inference_log"]["depends_on"] == [
+        {"task_key": "results_3"}
+    ]
+    enrich_parameters = results_tasks["enrich_theme_affinity_inference_log"][
+        "spark_python_task"
+    ]["parameters"]
+    assert "--label_window_days" in enrich_parameters
+    assert "28" in enrich_parameters
 
     assert realtime_results_job["tasks"][0]["spark_python_task"][
         "python_file"

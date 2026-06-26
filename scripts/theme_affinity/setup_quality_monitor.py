@@ -30,7 +30,10 @@ from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
 from next_ads.ml.lifecycle.databricks_monitoring import (
+    InferenceLogQualityMonitorSpec,
     TimeSeriesQualityMonitorSpec,
+    delete_quality_monitor,
+    ensure_inference_log_quality_monitor,
     ensure_time_series_quality_monitor,
     refresh_quality_monitor,
 )
@@ -47,11 +50,18 @@ def _bool_arg(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "y"}
 
 
+def _optional_arg(value: str | None) -> str | None:
+    value = str(value or "").strip()
+    return value or None
+
+
 jobparser = get_job_parser()
 jobparser._parse_args()
 JOB_ENV = jobparser.get_arg("--job_env")
 CLIENT = jobparser.get_arg("--client") or "next_uk"
 LOG_LEVEL = jobparser.get_arg("--log_level")
+ACTION = (jobparser.get_arg("--action") or "setup").strip().lower()
+MONITOR_TYPE = (jobparser.get_arg("--monitor_type") or "time_series").strip().lower()
 TABLE_NAME = jobparser.get_arg("--table_name")
 OUTPUT_SCHEMA_NAME = jobparser.get_arg("--output_schema_name")
 ASSETS_DIR = jobparser.get_arg("--assets_dir")
@@ -59,6 +69,11 @@ TIMESTAMP_COL = jobparser.get_arg("--timestamp_col") or "reference_date"
 GRANULARITIES = _split_csv(jobparser.get_arg("--granularities") or "1 day")
 SLICING_EXPRS = _split_csv(jobparser.get_arg("--slicing_exprs"))
 RUN_REFRESH = _bool_arg(jobparser.get_arg("--run_refresh"))
+PROBLEM_TYPE = jobparser.get_arg("--problem_type") or "classification"
+PREDICTION_COL = jobparser.get_arg("--prediction_col") or "prediction"
+MODEL_ID_COL = jobparser.get_arg("--model_id_col") or "model_id"
+LABEL_COL = _optional_arg(jobparser.get_arg("--label_col"))
+PREDICTION_PROBA_COL = _optional_arg(jobparser.get_arg("--prediction_proba_col"))
 
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
@@ -69,24 +84,56 @@ lifecycle_config = resolve_lifecycle_config(config)
 table_name = TABLE_NAME or lifecycle_config.train_table
 output_schema_name = OUTPUT_SCHEMA_NAME or ".".join(table_name.split(".")[:2])
 assets_dir = ASSETS_DIR or f"/Shared/nextads/quality_monitors/{CLIENT}"
+workspace_client = WorkspaceClient()
 
-logger.info("Validating source table exists: %s", table_name)
-spark.table(table_name).limit(1).count()
-
-spec = TimeSeriesQualityMonitorSpec(
-    table_name=table_name,
-    output_schema_name=output_schema_name,
-    assets_dir=assets_dir,
-    timestamp_col=TIMESTAMP_COL,
-    granularities=GRANULARITIES,
-    slicing_exprs=SLICING_EXPRS,
-)
-
-logger.info("Creating or updating Databricks quality monitor for %s", table_name)
-monitor = ensure_time_series_quality_monitor(WorkspaceClient(), spec)
-logger.info("Quality monitor ready for %s", table_name)
-
-if RUN_REFRESH:
+if ACTION == "delete":
+    logger.info("Deleting Databricks quality monitor for %s", table_name)
+    delete_result = delete_quality_monitor(workspace_client, table_name)
+    logger.info("Quality monitor delete result for %s: %s", table_name, delete_result)
+elif ACTION == "refresh":
     logger.info("Starting quality monitor refresh for %s", table_name)
-    refresh = refresh_quality_monitor(WorkspaceClient(), table_name)
+    refresh = refresh_quality_monitor(workspace_client, table_name)
+    logger.info("Quality monitor refresh started: %s", refresh)
+elif ACTION != "setup":
+    raise ValueError("action must be one of setup, refresh or delete")
+
+if ACTION == "setup":
+    logger.info("Validating source table exists: %s", table_name)
+    spark.table(table_name).limit(1).count()
+
+    if MONITOR_TYPE == "time_series":
+        spec = TimeSeriesQualityMonitorSpec(
+            table_name=table_name,
+            output_schema_name=output_schema_name,
+            assets_dir=assets_dir,
+            timestamp_col=TIMESTAMP_COL,
+            granularities=GRANULARITIES,
+            slicing_exprs=SLICING_EXPRS,
+        )
+        logger.info("Creating or updating time-series quality monitor for %s", table_name)
+        monitor = ensure_time_series_quality_monitor(workspace_client, spec)
+    elif MONITOR_TYPE == "inference_log":
+        spec = InferenceLogQualityMonitorSpec(
+            table_name=table_name,
+            output_schema_name=output_schema_name,
+            assets_dir=assets_dir,
+            problem_type=PROBLEM_TYPE,
+            timestamp_col=TIMESTAMP_COL,
+            granularities=GRANULARITIES,
+            prediction_col=PREDICTION_COL,
+            model_id_col=MODEL_ID_COL,
+            label_col=LABEL_COL,
+            prediction_proba_col=PREDICTION_PROBA_COL,
+            slicing_exprs=SLICING_EXPRS,
+        )
+        logger.info("Creating or updating inference-log quality monitor for %s", table_name)
+        monitor = ensure_inference_log_quality_monitor(workspace_client, spec)
+    else:
+        raise ValueError("monitor_type must be time_series or inference_log")
+
+    logger.info("Quality monitor ready for %s: %s", table_name, monitor)
+
+if ACTION == "setup" and RUN_REFRESH:
+    logger.info("Starting quality monitor refresh for %s", table_name)
+    refresh = refresh_quality_monitor(workspace_client, table_name)
     logger.info("Quality monitor refresh started: %s", refresh)

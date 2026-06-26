@@ -1,5 +1,8 @@
 from next_ads.ml.lifecycle.databricks_monitoring import (
+    InferenceLogQualityMonitorSpec,
     TimeSeriesQualityMonitorSpec,
+    delete_quality_monitor,
+    ensure_inference_log_quality_monitor,
     ensure_time_series_quality_monitor,
     refresh_quality_monitor,
 )
@@ -32,6 +35,10 @@ class _FakeQualityMonitors:
         self.calls.append(("refresh", table_name))
         return {"refreshed": table_name}
 
+    def delete(self, table_name):
+        self.calls.append(("delete", table_name))
+        return {"deleted": table_name}
+
 
 class _FakeClient:
     def __init__(self, exists):
@@ -45,6 +52,22 @@ def _spec():
         assets_dir="/Workspace/monitor",
         timestamp_col="reference_date",
         granularities=("1 day",),
+        slicing_exprs=("segment",),
+    )
+
+
+def _inference_spec():
+    return InferenceLogQualityMonitorSpec(
+        table_name="catalog.schema.inference_log",
+        output_schema_name="catalog.schema",
+        assets_dir="/Workspace/monitor",
+        problem_type="classification",
+        timestamp_col="event_ts",
+        granularities=("1 day",),
+        prediction_col="prediction",
+        model_id_col="model_version",
+        label_col="label",
+        prediction_proba_col="prediction_proba",
         slicing_exprs=("segment",),
     )
 
@@ -77,9 +100,56 @@ def test_ensure_time_series_quality_monitor_updates_existing_monitor():
     assert updated["slicing_exprs"] == ["segment"]
 
 
+def test_ensure_inference_log_quality_monitor_creates_missing_monitor():
+    client = _FakeClient(exists=False)
+
+    result = ensure_inference_log_quality_monitor(client, _inference_spec())
+
+    assert result == {"created": "catalog.schema.inference_log"}
+    assert client.quality_monitors.calls[0] == (
+        "get",
+        "catalog.schema.inference_log",
+    )
+    created = client.quality_monitors.calls[1][1]
+    assert created["table_name"] == "catalog.schema.inference_log"
+    assert created["output_schema_name"] == "catalog.schema"
+    assert created["assets_dir"] == "/Workspace/monitor"
+    assert created["slicing_exprs"] == ["segment"]
+    inference_log = created["inference_log"]
+    assert inference_log.prediction_col == "prediction"
+    assert inference_log.model_id_col == "model_version"
+    assert inference_log.label_col == "label"
+    assert inference_log.prediction_proba_col == "prediction_proba"
+
+
+def test_ensure_inference_log_quality_monitor_updates_existing_monitor():
+    client = _FakeClient(exists=True)
+
+    result = ensure_inference_log_quality_monitor(client, _inference_spec())
+
+    assert result == {"updated": "catalog.schema.inference_log"}
+    assert client.quality_monitors.calls[0] == (
+        "get",
+        "catalog.schema.inference_log",
+    )
+    updated = client.quality_monitors.calls[1][1]
+    assert updated["table_name"] == "catalog.schema.inference_log"
+    assert updated["output_schema_name"] == "catalog.schema"
+    assert updated["slicing_exprs"] == ["segment"]
+    assert updated["inference_log"].prediction_col == "prediction"
+
+
 def test_refresh_quality_monitor_delegates_to_databricks_sdk():
     client = _FakeClient(exists=True)
 
     result = refresh_quality_monitor(client, "catalog.schema.table")
 
     assert result == {"refreshed": "catalog.schema.table"}
+
+
+def test_delete_quality_monitor_delegates_to_databricks_sdk():
+    client = _FakeClient(exists=True)
+
+    result = delete_quality_monitor(client, "catalog.schema.table")
+
+    assert result == {"deleted": "catalog.schema.table"}

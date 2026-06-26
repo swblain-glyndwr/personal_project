@@ -195,11 +195,13 @@ operational constraints are documented.
 Theme Affinity now has two monitoring layers:
 
 - `resources/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml`
-  creates or updates a Databricks quality monitor over
-  `next_uk_nextads_theme_affinity_predict_ranked`. This is target-scoped to
-  SANDBOX, DEV, DEV_INTEGRATION and PREPROD and is intentionally unscheduled.
-  Run it only after the DLT ranked table exists in the target schema, because
-  Databricks creates the monitor against an existing Unity Catalog table.
+  creates, refreshes or deletes a Databricks quality monitor over a supplied
+  Unity Catalog table. By default it creates or updates the existing
+  time-series monitor over `next_uk_nextads_theme_affinity_predict_ranked`.
+  This is target-scoped to SANDBOX, DEV, DEV_INTEGRATION, PREPROD and PROD and
+  is intentionally unscheduled. Run it only after the monitored table exists in
+  the target schema, because Databricks creates the monitor against an existing
+  Unity Catalog table.
 - `scripts/theme_affinity/monitor_model.py` remains the Theme Affinity MLflow evidence job. It
   compares baseline and candidate tables, logs metrics and writes retrain /
   promotion-blocking tags that can be used in review.
@@ -211,12 +213,32 @@ resources cannot be deployed when the resource owner differs from the target
 `run_as` identity, so the job creates the native monitor under the identity that
 runs the setup task and avoids blocking normal bundle validation.
 
-For future models, prefer a true inference-log table for Databricks monitoring:
-include model id or version, prediction, timestamp, input feature columns and
-the eventual label when available. That allows Databricks to profile model
-inputs, predictions, drift and performance by model version. Theme Affinity does
-not yet have that full inference-log contract, so this PR starts with a
-time-series monitor over the ranked DLT table.
+For Theme Affinity production, the current table to monitor for time-series
+distribution drift is
+`marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked`.
+That table is a ranked candidate/model input table, not an inference log.
+
+Use `monitor_type=inference_log` only against a table or view with a true
+inference-log contract: timestamp, model id or version, prediction, optional
+prediction probability, optional observed label and the input feature columns
+needed for monitoring. Databricks allows one monitor configuration per source
+table, so keep the time-series ranked-table monitor and the inference-log
+monitor on separate table contracts. Theme Affinity writes that contract to
+`marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_inference_log` in
+PROD. The model id column is the model-selection mechanism for an inference-log
+monitor; if a single model/version needs to be isolated, create a filtered
+table or view and monitor that table.
+
+An inference-log monitor gives feature and prediction distribution drift by
+model id. Concept/performance drift needs a meaningful observed label or
+outcome column; without labels it can show that inputs or predictions moved,
+but not that the model's relationship to the real outcome changed. The Theme
+Affinity inference-log table includes a nullable `label` column. The results
+job enriches completed inference rows after a 28-day observation window using
+account/session conversion outcomes from the existing results
+`df_sessions_master_meta` artifact. Rows remain unlabelled until their outcome
+window has fully elapsed, which avoids treating partial observations as final
+non-conversions.
 
 ## Guardrails
 

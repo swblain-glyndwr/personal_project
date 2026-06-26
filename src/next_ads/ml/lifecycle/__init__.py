@@ -10,7 +10,10 @@ from next_ads.ml.lifecycle.drift import (
     to_mlflow_metrics,
 )
 from next_ads.ml.lifecycle.databricks_monitoring import (
+    InferenceLogQualityMonitorSpec,
     TimeSeriesQualityMonitorSpec,
+    delete_quality_monitor,
+    ensure_inference_log_quality_monitor,
     ensure_time_series_quality_monitor,
     refresh_quality_monitor,
 )
@@ -33,6 +36,7 @@ __all__ = [
     "DriftMetric",
     "DriftThresholds",
     "ModelLifecycleSpec",
+    "InferenceLogQualityMonitorSpec",
     "TimeSeriesQualityMonitorSpec",
     "assess_drift",
     "categorical_js_divergence",
@@ -41,6 +45,8 @@ __all__ = [
     "copy_model_alias_to_registered_model",
     "copy_model_version_to_registered_model",
     "drift_metrics",
+    "delete_quality_monitor",
+    "ensure_inference_log_quality_monitor",
     "ensure_time_series_quality_monitor",
     "model_uri_for_alias",
     "model_uri_for_version",

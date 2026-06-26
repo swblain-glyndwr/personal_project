@@ -60,6 +60,7 @@ default:
     theme_affinity_predict_half: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_half"
     theme_affinity_model_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"
     theme_affinity_model_full: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_full"
+    theme_affinity_inference_log: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_inference_log"
     preranked_ads_from_themes_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_latest"
     preranked_ads_from_themes_hackathon_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_hackathon_latest"
     preranked_ads_from_themes_v2_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_preranked_ads_from_themes_v2_latest"
@@ -125,6 +126,7 @@ default:
     predict_output_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_half"
     model_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"
     model_full: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_full"
+    inference_log: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_inference_log"
 
   theme_affinity_assignment_sources:
     champion: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_theme_affinity_model_latest"

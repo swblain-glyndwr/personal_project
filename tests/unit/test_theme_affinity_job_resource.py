@@ -370,7 +370,7 @@ def test_theme_affinity_monitor_job_is_unscheduled_and_parameterised():
     assert "{{job.parameters.sample_limit}}" in parameters
 
 
-def test_theme_affinity_quality_monitor_setup_job_is_native_and_not_prod():
+def test_theme_affinity_quality_monitor_setup_job_is_native_and_unscheduled():
     job_config = _load_yaml(
         "resources/jobs/"
         "mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml"
@@ -380,6 +380,7 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_not_prod():
         "DEV",
         "DEV_INTEGRATION",
         "PREPROD",
+        "PROD",
     }
 
     job = job_config["theme_affinity_quality_monitor_setup_config"][
@@ -387,6 +388,8 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_not_prod():
     ]
     assert "schedule" not in job
     assert job["parameters"] == [
+        {"name": "action", "default": "setup"},
+        {"name": "monitor_type", "default": "time_series"},
         {
             "name": "table_name",
             "default": (
@@ -409,6 +412,11 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_not_prod():
         {"name": "granularities", "default": "1 day"},
         {"name": "slicing_exprs", "default": "repurchase_stage,GmaName"},
         {"name": "run_refresh", "default": "false"},
+        {"name": "problem_type", "default": "classification"},
+        {"name": "prediction_col", "default": "prediction"},
+        {"name": "model_id_col", "default": "model_id"},
+        {"name": "label_col", "default": "label"},
+        {"name": "prediction_proba_col", "default": ""},
     ]
     task = job["tasks"][0]
     assert task["task_key"] == "setup_quality_monitor"
@@ -418,9 +426,14 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_not_prod():
     )
     assert task["libraries"] == "${var.theme_affinity_libraries}"
     parameters = task["spark_python_task"]["parameters"]
+    assert "{{job.parameters.action}}" in parameters
+    assert "{{job.parameters.monitor_type}}" in parameters
     assert "{{job.parameters.table_name}}" in parameters
     assert "{{job.parameters.timestamp_col}}" in parameters
     assert "{{job.parameters.run_refresh}}" in parameters
+    assert "{{job.parameters.problem_type}}" in parameters
+    assert "{{job.parameters.prediction_col}}" in parameters
+    assert "{{job.parameters.model_id_col}}" in parameters
 
 
 def test_theme_affinity_mlflow_lifecycle_excludes_old_branch_artifacts():
