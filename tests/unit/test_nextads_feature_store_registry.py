@@ -382,6 +382,14 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         == "nextads_feature_store"
     )
     assert (
+        bundle_config["variables"]["feature_store_source_catalog"]["default"]
+        == "marketingdata_prod"
+    )
+    assert (
+        bundle_config["variables"]["feature_store_source_schema"]["default"]
+        == "warehouse"
+    )
+    assert (
         bundle_config["variables"]["feature_store_theme_source_catalog"][
             "default"
         ]
@@ -391,7 +399,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         bundle_config["variables"]["feature_store_theme_source_schema"][
             "default"
         ]
-        == "ds_sandbox"
+        == "warehouse"
     )
     assert (
         bundle_config["variables"]["feature_store_theme_table_prefix"][
@@ -408,6 +416,14 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     assert (
         bundle_config["targets"]["DEV"]["variables"]["feature_store_schema"]
         == "${var.git_last_commit_user_name}"
+    )
+    assert (
+        "feature_store_theme_source_catalog"
+        not in bundle_config["targets"]["DEV"]["variables"]
+    )
+    assert (
+        "feature_store_theme_source_schema"
+        not in bundle_config["targets"]["DEV"]["variables"]
     )
     assert (
         bundle_config["targets"]["DEV"]["variables"][
@@ -444,15 +460,27 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     )
     assert (
         bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
+            "feature_store_source_catalog"
+        ]
+        == "marketingdata_prod"
+    )
+    assert (
+        bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
+            "feature_store_source_schema"
+        ]
+        == "warehouse"
+    )
+    assert (
+        bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
             "feature_store_theme_source_catalog"
         ]
-        == "marketingdata_dev"
+        == "marketingdata_prod"
     )
     assert (
         bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
             "feature_store_theme_source_schema"
         ]
-        == "nextads_integration"
+        == "warehouse"
     )
     assert "feature_store_schema" not in bundle_config["targets"]["PREPROD"][
         "variables"
@@ -484,6 +512,10 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         == "17.3.x-cpu-ml-scala2.13"
     )
     assert feature_store_cluster["new_cluster"]["runtime_engine"] == "STANDARD"
+    assert (
+        feature_store_cluster["new_cluster"]["data_security_mode"]
+        == "USER_ISOLATION"
+    )
     assert set(job_config["targets"]) == {
         "SANDBOX",
         "DEV",
@@ -515,15 +547,21 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         in task["spark_python_task"]["parameters"]
         for task in job["tasks"][1:]
     )
-    pctr_task = next(
-        task
-        for task in job["tasks"]
-        if task["task_key"] == "build_pctr_affinity_features"
-    )
-    assert "--theme_source_schema" not in pctr_task["spark_python_task"][
-        "parameters"
-    ]
+    for task in job["tasks"][1:]:
+        parameters = task["spark_python_task"]["parameters"]
+        assert "--source_catalog" in parameters
+        assert (
+            parameters[parameters.index("--source_catalog") + 1]
+            == "${var.feature_store_source_catalog}"
+        )
+        assert "--source_schema" in parameters
+        assert (
+            parameters[parameters.index("--source_schema") + 1]
+            == "${var.feature_store_source_schema}"
+        )
     for task_key in (
+        "build_account_features",
+        "build_advert_features",
         "build_theme_affinity_features",
         "build_model_inputs",
         "quality_checks",

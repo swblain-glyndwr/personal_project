@@ -9,6 +9,7 @@ from next_ads.features.materialization import (
     create_feature_engineering_client,
     write_feature_table,
 )
+from next_ads.features.nextads_core import build_click_labels_df
 from next_ads.features.theme_affinity import (
     build_theme_affinity_model_input_df,
     read_theme_source_tables,
@@ -62,6 +63,25 @@ def main() -> None:
         feature_engineering_client=feature_engineering_client,
     )
     LOGGER.info("Wrote Theme Affinity model input feature table: %s", table_path)
+
+    click_labels_df = build_click_labels_df(
+        spark,
+        args.source_catalog,
+        args.source_schema,
+        reference_date,
+    )
+    table_path = write_feature_table(
+        spark,
+        "next_uk_nextads_fs_labels_clicks",
+        click_labels_df,
+        catalog=target_catalog,
+        schema=target_schema,
+        reference_date=reference_date,
+        reference_date_column="session_date",
+        replace_reference_date=replace_reference_date,
+        feature_engineering_client=feature_engineering_client,
+    )
+    LOGGER.info("Wrote click-label feature table: %s", table_path)
     LOGGER.info(
         "pCTR model input remains dependency-only until CWB analytics pCTR "
         "source contracts are wired into this branch."

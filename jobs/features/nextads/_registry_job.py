@@ -34,6 +34,8 @@ def parse_common_args() -> argparse.Namespace:
     parser.add_argument("--reference_date", default=None)
     parser.add_argument("--catalog", default=None)
     parser.add_argument("--schema", default=None)
+    parser.add_argument("--source_catalog", default="marketingdata_prod")
+    parser.add_argument("--source_schema", default="warehouse")
     parser.add_argument("--theme_source_catalog", default=None)
     parser.add_argument("--theme_source_schema", default="ds_sandbox")
     parser.add_argument(

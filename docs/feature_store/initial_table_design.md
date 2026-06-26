@@ -21,7 +21,7 @@ The executable contract lives in `configs/features/nextads_feature_store.yaml` a
 
 The branch includes `feature_store_schema` as an explicit bundle variable per target so development runs follow the repo pattern and shared environments use governed schemas. Feature-store paths normalise user schema values to the repo's lower-case Databricks schema convention before validation or writes. The registry fallback is `nextads_feature_store` for manual use, but DAB jobs should always pass the target-specific schema value.
 
-The shared DEV feature-store job is scheduled daily at 21:00 Europe/London. It uses `marketingdata_dev.nextads_integration` as the first Theme Affinity source and writes reusable model-building features to `marketingdata_dev.nextads_feature_store`.
+The shared DEV feature-store job is scheduled daily at 21:00 Europe/London. It uses stable production Theme Affinity outputs in `marketingdata_prod.warehouse` as the first source and writes reusable model-building features to `marketingdata_dev.nextads_feature_store`.
 
 ## Initial Customer Feature Tables
 

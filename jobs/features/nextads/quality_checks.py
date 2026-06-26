@@ -18,12 +18,17 @@ from pyspark.sql import functions as F
 
 LOGGER = logging.getLogger(__name__)
 
-THEME_AFFINITY_QUALITY_TABLES = [
+FEATURE_STORE_QUALITY_TABLES = [
+    "next_uk_nextads_fs_account_profile",
+    "next_uk_nextads_fs_account_web_activity_90d",
+    "next_uk_nextads_fs_advert_core_daily",
+    "next_uk_nextads_fs_advert_attribute_profile_daily",
     "next_uk_nextads_fs_account_theme_interactions_daily",
     "next_uk_nextads_fs_account_theme_affinity_daily",
     "next_uk_nextads_fs_theme_popularity_daily",
     "next_uk_nextads_fs_labels_theme_response",
     "next_uk_nextads_fs_theme_affinity_model_input",
+    "next_uk_nextads_fs_labels_clicks",
 ]
 
 
@@ -87,7 +92,7 @@ def main() -> None:
     run_timestamp = datetime.now(timezone.utc)
     quality_events = []
 
-    for table_name in THEME_AFFINITY_QUALITY_TABLES:
+    for table_name in FEATURE_STORE_QUALITY_TABLES:
         table = registry.table_spec(table_name)
         table_path = feature_table_path(
             table_name,

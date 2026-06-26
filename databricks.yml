@@ -110,12 +110,18 @@ variables:
   feature_store_schema:
     description: Schema for opt-in Next Ads Feature Store tables
     default: nextads_feature_store
+  feature_store_source_catalog:
+    description: Catalog for stable Next Ads source tables consumed by feature-store materialisation
+    default: marketingdata_prod
+  feature_store_source_schema:
+    description: Schema for stable Next Ads source tables consumed by feature-store materialisation
+    default: warehouse
   feature_store_theme_source_catalog:
     description: Catalog for existing Theme Affinity source tables consumed by feature-store materialisation
     default: marketingdata_prod
   feature_store_theme_source_schema:
     description: Schema for existing Theme Affinity source tables consumed by feature-store materialisation
-    default: ds_sandbox
+    default: warehouse
   feature_store_theme_table_prefix:
     description: Table prefix for Theme Affinity runtime source tables consumed by feature-store materialisation
     default: next_uk_nextads_theme_affinity_predict
@@ -251,8 +257,10 @@ targets:
       job_parameter_environment_name: dev
       user_schema: nextads_feature_store
       feature_store_schema: nextads_feature_store
-      feature_store_theme_source_catalog: marketingdata_dev
-      feature_store_theme_source_schema: nextads_integration
+      feature_store_source_catalog: marketingdata_prod
+      feature_store_source_schema: warehouse
+      feature_store_theme_source_catalog: marketingdata_prod
+      feature_store_theme_source_schema: warehouse
       theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_model_input
 
   # PREPROD:

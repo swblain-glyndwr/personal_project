@@ -47,6 +47,16 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_schema}
           - --reference_date
           - ${var.feature_store_reference_date}
+          - --source_catalog
+          - ${var.feature_store_source_catalog}
+          - --source_schema
+          - ${var.feature_store_source_schema}
+          - --theme_source_catalog
+          - ${var.feature_store_theme_source_catalog}
+          - --theme_source_schema
+          - ${var.feature_store_theme_source_schema}
+          - --theme_table_prefix
+          - ${var.feature_store_theme_table_prefix}
           - --log_level
           - INFO
       job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
@@ -64,6 +74,16 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_schema}
           - --reference_date
           - ${var.feature_store_reference_date}
+          - --source_catalog
+          - ${var.feature_store_source_catalog}
+          - --source_schema
+          - ${var.feature_store_source_schema}
+          - --theme_source_catalog
+          - ${var.feature_store_theme_source_catalog}
+          - --theme_source_schema
+          - ${var.feature_store_theme_source_schema}
+          - --theme_table_prefix
+          - ${var.feature_store_theme_table_prefix}
           - --log_level
           - INFO
       job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
@@ -82,6 +102,10 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_schema}
           - --reference_date
           - ${var.feature_store_reference_date}
+          - --source_catalog
+          - ${var.feature_store_source_catalog}
+          - --source_schema
+          - ${var.feature_store_source_schema}
           - --theme_source_catalog
           - ${var.feature_store_theme_source_catalog}
           - --theme_source_schema
@@ -106,6 +130,10 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_schema}
           - --reference_date
           - ${var.feature_store_reference_date}
+          - --source_catalog
+          - ${var.feature_store_source_catalog}
+          - --source_schema
+          - ${var.feature_store_source_schema}
           - --log_level
           - INFO
       job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
@@ -124,6 +152,10 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_schema}
           - --reference_date
           - ${var.feature_store_reference_date}
+          - --source_catalog
+          - ${var.feature_store_source_catalog}
+          - --source_schema
+          - ${var.feature_store_source_schema}
           - --theme_source_catalog
           - ${var.feature_store_theme_source_catalog}
           - --theme_source_schema
@@ -147,6 +179,10 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_schema}
           - --reference_date
           - ${var.feature_store_reference_date}
+          - --source_catalog
+          - ${var.feature_store_source_catalog}
+          - --source_schema
+          - ${var.feature_store_source_schema}
           - --theme_source_catalog
           - ${var.feature_store_theme_source_catalog}
           - --theme_source_schema

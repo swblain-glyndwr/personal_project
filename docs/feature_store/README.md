@@ -30,7 +30,7 @@ The repo-owned executable contract is split across:
 
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
 
-The Theme Affinity/LTR entrypoints now materialise the first populated feature-store slice from the operationalised Theme Affinity DEV Integration runtime tables through the Databricks Feature Engineering client. Account, advert and CWB pCTR jobs remain scaffold/dependency-only until their source contracts are migrated.
+The first populated feature-store slice now materialises customer/account features, web activity, advert metadata, item attributes, advert attribute rollups, Theme Affinity model inputs, Theme response labels and Shopping Bag click labels from stable production source tables through the Databricks Feature Engineering client. Embedding-derived advert/product tables, pCTR model input and candidate-similarity diagnostics remain scaffolded until their model/source contracts are promoted into this route.
 
 ## Feature Catalogue
 
@@ -64,7 +64,7 @@ Initial owner is `marketing_data` for all feature tables. Most feature groups ar
 
 The first development deployments target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema normalised to the repo's lower-case user schema convention, DEV_INTEGRATION uses `nextads_integration`, and DEV_FEATURE_STORE uses the shared `nextads_feature_store` schema.
 
-`DEV_FEATURE_STORE` is scheduled daily at 21:00 Europe/London and reads Theme Affinity source tables from `marketingdata_dev.nextads_integration`. Theme Affinity training jobs read `marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_model_input` as their model-building input. Production feature-store publication is intentionally deferred to a later curated PR for specific stable feature contracts that need production runtime or monitoring use.
+`DEV_FEATURE_STORE` is scheduled daily at 21:00 Europe/London and reads Theme Affinity source tables from `marketingdata_prod.warehouse`. It writes reusable model-building features to `marketingdata_dev.nextads_feature_store`. Theme Affinity training jobs read `marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_model_input` as their model-building input. Production feature-store publication is intentionally deferred to a later curated PR for specific stable feature contracts that need production runtime or monitoring use.
 
 ## Dependencies
 
@@ -72,7 +72,8 @@ The feature-store route depends on:
 
 - DEV Feature Engineering Client availability and write permissions.
 - Existing source jobs remaining stable while compatibility views are proven.
-- Existing Theme Affinity DEV Integration outputs being built before the shared feature-store materialisation job runs for `reference_date=predict`.
+- Existing production Theme Affinity outputs being available before the shared feature-store materialisation job runs for `reference_date=predict`.
+- Existing production customer, control-sheet, item-attribute, assignment and BigQuery web/action tables being available for the same resolved feature-store reference date.
 - CWB analytics pCTR source contracts being brought into the branch before pCTR feature tables are populated.
 - Challenger testing before feature-store model inputs affect production ranking.
 - Separate offline diagnostics stories before candidate-similarity work is added to the repo.
