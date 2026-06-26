@@ -5,10 +5,12 @@ from dsutils.dbc import configure_spark
 from dsutils.etl import build_spark_schema
 
 
+pytestmark = pytest.mark.databricks
+
+
 @pytest.fixture
 def df_test():
-    """
-    Standard test dataset with 3 items (A, B, C) and 10 users each.
+    """Standard test dataset with 3 items (A, B, C) and 10 users each.
     Rankings are set up so item A gets users 1-10, then B gets users 1-10,
     then C gets users 1-10.
     """
@@ -54,8 +56,7 @@ def df_test():
 
 
 def test_greedy_assignment_all_items_equal_quotas(df_test):
-    """
-    Test where all items have equal quotas of 2.
+    """Test where all items have equal quotas of 2.
     Expected: A gets user1, user2; B gets user3, user4; C gets user5, user6
     """
     item_quotas = {'A': 2, 'B': 2, 'C': 2}
@@ -83,8 +84,7 @@ def test_greedy_assignment_all_items_equal_quotas(df_test):
 
 
 def test_greedy_assignment_partial_items_with_quotas(df_test):
-    """
-    Test where only some items (A and C) have quotas.
+    """Test where only some items (A and C) have quotas.
     Expected: A gets user1, user2; C gets user3, user4 (B is skipped)
     """
     item_quotas = {'A': 2, 'C': 2}
@@ -110,8 +110,7 @@ def test_greedy_assignment_partial_items_with_quotas(df_test):
 
 
 def test_greedy_assignment_single_item_different_quota(df_test):
-    """
-    Test where only one item (B) has a quota of 4.
+    """Test where only one item (B) has a quota of 4.
     Expected: B gets user1, user2, user3, user4
     """
     item_quotas = {'B': 4}
@@ -137,8 +136,7 @@ def test_greedy_assignment_single_item_different_quota(df_test):
 
 
 def test_greedy_assignment_custom_column_names():
-    """
-    Test that custom column names work correctly.
+    """Test that custom column names work correctly.
     """
     data = [
         ['product1', 'customer1', 1],
@@ -182,8 +180,7 @@ def test_greedy_assignment_custom_column_names():
 
 
 def test_greedy_assignment_no_duplicate_users():
-    """
-    Test that users are never assigned to multiple items.
+    """Test that users are never assigned to multiple items.
     Even if they appear in rankings for multiple items, they should only
     be assigned once.
     """
@@ -230,8 +227,7 @@ def test_greedy_assignment_no_duplicate_users():
 
 
 def test_greedy_assignment_empty_quotas(df_test):
-    """
-    Test with empty quotas dictionary.
+    """Test with empty quotas dictionary.
     Expected: Empty result since no items have quotas.
     """
     item_quotas = {}
@@ -250,8 +246,7 @@ def test_greedy_assignment_empty_quotas(df_test):
 
 
 def test_greedy_assignment_quota_exceeds_users():
-    """
-    Test where quota is larger than available users for an item.
+    """Test where quota is larger than available users for an item.
     Expected: All available users should be assigned.
     """
     data = [
@@ -293,8 +288,7 @@ def test_greedy_assignment_quota_exceeds_users():
 
 
 def test_greedy_assignment_zero_quota(df_test):
-    """
-    Test with zero quota for items.
+    """Test with zero quota for items.
     Expected: No assignments.
     """
     item_quotas = {'A': 0, 'B': 0, 'C': 0}
@@ -313,8 +307,7 @@ def test_greedy_assignment_zero_quota(df_test):
 
 
 def test_greedy_assignment_mixed_quotas(df_test):
-    """
-    Test with mixed quotas where items have different capacities.
+    """Test with mixed quotas where items have different capacities.
     Expected: Items filled according to their quotas in rank order.
     """
     item_quotas = {'A': 1, 'B': 3, 'C': 2}
@@ -345,8 +338,7 @@ def test_greedy_assignment_mixed_quotas(df_test):
 
 
 def test_greedy_assignment_respects_rank_order():
-    """
-    Test that assignments strictly follow rank order.
+    """Test that assignments strictly follow rank order.
     """
     data = [
         ['A', 'user3', 1],

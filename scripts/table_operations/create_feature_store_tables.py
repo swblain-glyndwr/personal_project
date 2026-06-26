@@ -101,6 +101,29 @@ def validate_schema_exists(spark, catalog: str, schema: str) -> None:
         raise ValueError(f"Required schema does not exist: {catalog}.{schema}")
 
 
+def create_schema_if_missing(
+    spark,
+    catalog: str,
+    schema: str,
+    manage_principals: list[str] | None = None,
+    all_privileges_principals: list[str] | None = None,
+) -> None:
+    """Create the target schema and grant shared DEV access when requested."""
+    schema_path = f"{catalog}.{schema}"
+    LOGGER.info("Ensuring feature-store schema exists: %s", schema_path)
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema_path}")
+
+    for principal in manage_principals or []:
+        if principal:
+            spark.sql(f"GRANT MANAGE ON SCHEMA {schema_path} TO `{principal}`")
+
+    for principal in all_privileges_principals or []:
+        if principal:
+            spark.sql(
+                f"GRANT ALL PRIVILEGES ON SCHEMA {schema_path} TO `{principal}`"
+            )
+
+
 def create_feature_engineering_client():
     """Create the Databricks Feature Engineering client at runtime."""
     try:
@@ -167,6 +190,9 @@ def create_feature_store_tables(
     schema: str | None = None,
     dry_run: bool = False,
     feature_engineering_client=None,
+    create_schema: bool = True,
+    manage_principals: list[str] | None = None,
+    all_privileges_principals: list[str] | None = None,
 ) -> list[str]:
     """Create missing physical Databricks feature tables.
 
@@ -179,6 +205,14 @@ def create_feature_store_tables(
     created_tables = []
     fe_client = feature_engineering_client
 
+    if create_schema and not dry_run:
+        create_schema_if_missing(
+            spark,
+            target_catalog,
+            target_schema,
+            manage_principals=manage_principals,
+            all_privileges_principals=all_privileges_principals,
+        )
     validate_schema_exists(spark, target_catalog, target_schema)
     if not dry_run and fe_client is None:
         fe_client = create_feature_engineering_client()
@@ -275,6 +309,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--catalog", default=None)
     parser.add_argument("--schema", default=None)
     parser.add_argument("--dry_run", default="False")
+    parser.add_argument("--create_schema", default="True")
+    parser.add_argument("--manage_principal", action="append", default=[])
+    parser.add_argument("--all_privileges_principal", action="append", default=[])
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -291,6 +328,9 @@ def main() -> None:
         catalog=args.catalog,
         schema=args.schema,
         dry_run=args.dry_run.lower() == "true",
+        create_schema=args.create_schema.lower() == "true",
+        manage_principals=args.manage_principal,
+        all_privileges_principals=args.all_privileges_principal,
     )
     LOGGER.info("Feature-store table setup complete: %s", created_tables)
 

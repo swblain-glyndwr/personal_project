@@ -42,7 +42,9 @@ class _FakeSpark:
         self.sql_calls.append(query)
         if query.startswith("SHOW SCHEMAS"):
             return _FakeSchemaQuery()
-        assert query.startswith("CREATE OR REPLACE VIEW")
+        assert query.startswith(
+            ("CREATE SCHEMA", "GRANT ", "CREATE OR REPLACE VIEW")
+        )
         return None
 
 
@@ -350,7 +352,7 @@ def test_feature_engineering_argument_filter_ignores_extra_variants_for_kwargs_s
     assert captured["kwargs"] == {}
 
 
-def test_feature_store_job_is_development_only_and_unscheduled():
+def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
     libraries_config = yaml.safe_load(
         (PROJECT_ROOT / "resources" / "variables" / "libraries.yml").read_text()
@@ -386,6 +388,12 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         == "marketingdata_prod"
     )
     assert (
+        bundle_config["variables"]["feature_store_theme_source_schema"][
+            "default"
+        ]
+        == "ds_sandbox"
+    )
+    assert (
         bundle_config["variables"]["feature_store_theme_table_prefix"][
             "default"
         ]
@@ -402,21 +410,56 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         == "${var.git_last_commit_user_name}"
     )
     assert (
+        bundle_config["targets"]["DEV"]["variables"][
+            "theme_affinity_training_input_table"
+        ]
+        == (
+            "marketingdata_dev.nextads_feature_store."
+            "next_uk_nextads_fs_theme_affinity_model_input"
+        )
+    )
+    assert (
         bundle_config["targets"]["DEV_INTEGRATION"]["variables"][
             "feature_store_schema"
         ]
         == "nextads_integration"
     )
     assert (
-        bundle_config["targets"]["PREPROD"]["variables"][
+        bundle_config["targets"]["DEV_INTEGRATION"]["variables"][
+            "feature_store_theme_source_catalog"
+        ]
+        == "marketingdata_dev"
+    )
+    assert (
+        bundle_config["targets"]["DEV_INTEGRATION"]["variables"][
+            "feature_store_theme_source_schema"
+        ]
+        == "nextads_integration"
+    )
+    assert (
+        bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
             "feature_store_schema"
         ]
         == "nextads_feature_store"
     )
     assert (
-        bundle_config["targets"]["PROD"]["variables"]["feature_store_schema"]
-        == "nextads_feature_store"
+        bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
+            "feature_store_theme_source_catalog"
+        ]
+        == "marketingdata_dev"
     )
+    assert (
+        bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
+            "feature_store_theme_source_schema"
+        ]
+        == "nextads_integration"
+    )
+    assert "feature_store_schema" not in bundle_config["targets"]["PREPROD"][
+        "variables"
+    ]
+    assert "feature_store_schema" not in bundle_config["targets"]["PROD"][
+        "variables"
+    ]
     feature_store_libraries = libraries_config["variables"][
         "feature_store_libraries"
     ]["default"]
@@ -441,15 +484,32 @@ def test_feature_store_job_is_development_only_and_unscheduled():
         == "17.3.x-cpu-ml-scala2.13"
     )
     assert feature_store_cluster["new_cluster"]["runtime_engine"] == "STANDARD"
-    assert set(job_config["targets"]) == {"SANDBOX", "DEV", "DEV_INTEGRATION"}
+    assert set(job_config["targets"]) == {
+        "SANDBOX",
+        "DEV",
+        "DEV_INTEGRATION",
+        "DEV_FEATURE_STORE",
+    }
 
     job = job_config["nextads_feature_store_config"][
         "mktg_next_uk_nextads_feature_store"
     ]
     assert "schedule" not in job
+    scheduled_job = job_config["targets"]["DEV_FEATURE_STORE"]["resources"][
+        "jobs"
+    ]["mktg_next_uk_nextads_feature_store"]
+    assert scheduled_job["schedule"] == {
+        "quartz_cron_expression": "0 0 21 * * ?",
+        "timezone_id": "Europe/London",
+        "pause_status": "UNPAUSED",
+    }
     assert job["job_clusters"] == "${var.feature_store_job_clusters_config}"
     assert job["tags"]["domain"] == "feature_store"
     assert job["tasks"][0]["task_key"] == "create_feature_store_tables"
+    create_parameters = job["tasks"][0]["spark_python_task"]["parameters"]
+    assert "--manage_principal" in create_parameters
+    assert "${var.run_as_SPN_name}" in create_parameters
+    assert create_parameters.count("--all_privileges_principal") == 2
     assert any(
         "${var.feature_store_reference_date}"
         in task["spark_python_task"]["parameters"]
@@ -476,6 +536,10 @@ def test_feature_store_job_is_development_only_and_unscheduled():
             == "${var.feature_store_theme_source_catalog}"
         )
         assert "--theme_source_schema" in parameters
+        assert (
+            parameters[parameters.index("--theme_source_schema") + 1]
+            == "${var.feature_store_theme_source_schema}"
+        )
         assert "--theme_table_prefix" in parameters
         assert (
             parameters[parameters.index("--theme_table_prefix") + 1]

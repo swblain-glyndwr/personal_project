@@ -68,7 +68,7 @@ The engine is built around a central config that aims to make management of the 
 The idea is that parameters and resources are _defined_ in the config, and the code _applies_ what has been defined in the config.
 
 #### Client-wise structure
-Configs are kept as JSON in the `config/` directory, with the file being named after the client (e.g. `config/next_uk.json`). The intent is that this client-wise config structure will enable easier horizontal scaling of the process to other countries/TP clients in future, however the process of personalising ads is currently only active for Next UK.
+Client configs are kept as JSON in `configs/clients/`, with the file being named after the client (e.g. `configs/clients/next_uk.json`). The intent is that this client-wise config structure will enable easier horizontal scaling of the process to other countries/TP clients in future, however the process of personalising ads is currently only active for Next UK.
 
 It is worth noting that the current structure is predicated on the idea that the control sheet and all tables will be mirrored for each new client. This may be feasible for a few clients, however consideration should be given to scaling beyond this, as managing such large numbers of tables may become difficult.
 

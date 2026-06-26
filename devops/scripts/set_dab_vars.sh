@@ -21,7 +21,7 @@ LAST_COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae' 2>/dev/null || echo "unknow
 export BUNDLE_VAR_git_last_commit_user_name="${LAST_COMMIT_EMAIL%@*}"
 
 if [ "${TARGET}" = "DEV" ]; then
-  export BUNDLE_VAR_user_schema="${BUNDLE_VAR_git_last_commit_user_name}"
+  export BUNDLE_VAR_user_schema=$(printf '%s' "${BUNDLE_VAR_git_last_commit_user_name}" | tr '[:upper:]' '[:lower:]')
 fi
 
 # Get deployed by (user or CI/CD)

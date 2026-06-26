@@ -10,6 +10,9 @@ from dsutils.dbc import configure_spark
 from dsutils.etl import build_spark_schema
 
 
+pytestmark = pytest.mark.databricks
+
+
 def test_old_and_new_attribute_import_paths_match():
     assert parse_ad_attributes is new_parse_ad_attributes
     assert collect_attribute_set is new_collect_attribute_set

@@ -6,7 +6,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 ## Migration Principles
 
 - Keep existing operational outputs unchanged until output equivalence is proven.
-- Register and populate small, reusable feature tables in DEV before wiring model jobs to them.
+- Register and populate small, reusable feature tables in the shared DEV feature store before wiring model jobs to them.
 - Move consumers through compatibility views first, then native feature-store reads.
 - Keep feature materialisation separate from model training, scoring and assignment jobs.
 - Keep candidate similarity out of production model contracts until a separate offline diagnostics story is agreed.
@@ -15,16 +15,16 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
 | Priority | Migration | Target tables/views | Notes |
 | --- | --- | --- | --- |
-| 1 | Confirm DEV schema, permissions and Feature Engineering Client registration | All setup tables | Run the paused DEV/SANDBOX setup job against `${var.feature_store_schema}` and confirm table registration. |
-| 2 | Populate Theme Affinity feature-store slice | Theme affinity feature tables, labels and model input | First populated slice; reads the operationalised Theme Affinity runtime tables and leaves operational outputs unchanged. |
+| 1 | Confirm shared DEV schema, permissions and Feature Engineering Client registration | All setup tables | Run the shared DEV feature-store job against `marketingdata_dev.nextads_feature_store` and confirm table registration. |
+| 2 | Populate Theme Affinity feature-store slice | Theme affinity feature tables, labels and model input | First populated slice; reads the operationalised Theme Affinity DEV Integration runtime tables and leaves operational outputs unchanged. |
 | 3 | Validate Theme Affinity compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Preserve current `hackathon_model/config.py` feature list while proving output equivalence. |
 | 4 | Populate first customer feature table | `next_uk_nextads_fs_account_profile` | Start with account descriptors and reference-date metadata. Validate key uniqueness and row counts. |
 | 5 | Populate first advert/embedding table | `next_uk_nextads_fs_advert_core_daily` or `next_uk_nextads_fs_product_embeddings_latest` | Choose advert core first for lower risk, or embeddings first if the DEV validation focuses on vector metadata. |
 | 6 | Wire CWB analytics pCTR source contract | `next_uk_nextads_fs_account_advert_affinity_daily`, `next_uk_nextads_fs_pctr_model_input`, `next_uk_nextads_pctr_features_latest` | CWB analytics pCTR remains an external dependency until its source tables/notebooks are migrated into this route. |
 | 7 | Add offline candidate similarity diagnostics | Separate diagnostics table | New follow-up story only; no production model or scoring job reads this output. |
 | 8 | Add labels and backfill training snapshots | `next_uk_nextads_fs_labels_clicks`, `next_uk_nextads_fs_labels_theme_response` | Preserve point-in-time correctness for repeatable training and validation. |
-| 9 | Introduce shared integration schema | `marketingdata_dev.nextads_integration` | Use after feature branch validation, before production promotion. |
-| 10 | Prepare PROD governed schema | `marketingdata_prod.nextads_feature_store` | Requires explicit permission, ownership and release sign-off. |
+| 9 | Keep shared DEV feature store refreshed | `marketingdata_dev.nextads_feature_store` | Scheduled daily from DEV Integration Theme Affinity outputs for model-building use. |
+| 10 | Prepare production feature publication | Curated production feature tables only | Separate PR; requires explicit consumer need, permissions, ownership and release sign-off. |
 
 ## Remaining Feature Migrations
 

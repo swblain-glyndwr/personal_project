@@ -16,9 +16,12 @@ The executable contract lives in `configs/features/nextads_feature_store.yaml` a
 | Branch/SANDBOX smoke | `marketingdata_dev` | `${workspace.current_user.short_name}` via `feature_store_schema` |
 | DEV pipeline | `marketingdata_dev` | Normalised `${var.git_last_commit_user_name}` via `feature_store_schema`, e.g. `Stephen_Blain` becomes `stephen_blain` |
 | DEV integration | `marketingdata_dev` | `nextads_integration` via `feature_store_schema` |
-| Future PREPROD/PROD | `marketingdata_prod` | `nextads_feature_store`, after permission and migration sign-off |
+| Shared DEV feature store | `marketingdata_dev` | `nextads_feature_store` via `DEV_FEATURE_STORE` |
+| Future production publication | `marketingdata_prod` | Dedicated feature-store schema only after specific feature contracts need production runtime or monitoring use |
 
 The branch includes `feature_store_schema` as an explicit bundle variable per target so development runs follow the repo pattern and shared environments use governed schemas. Feature-store paths normalise user schema values to the repo's lower-case Databricks schema convention before validation or writes. The registry fallback is `nextads_feature_store` for manual use, but DAB jobs should always pass the target-specific schema value.
+
+The shared DEV feature-store job is scheduled daily at 21:00 Europe/London. It uses `marketingdata_dev.nextads_integration` as the first Theme Affinity source and writes reusable model-building features to `marketingdata_dev.nextads_feature_store`.
 
 ## Initial Customer Feature Tables
 
@@ -73,7 +76,7 @@ DEV validation requires:
 - Ability for the job cluster service principal/user to read source tables and write Delta feature tables.
 - No writes to PROD targets or existing operational Next Ads output tables.
 
-The branch creates a paused, opt-in DAB job only for `SANDBOX`, `DEV` and `DEV_INTEGRATION`.
+The branch creates manual feature-store jobs for `SANDBOX`, `DEV` and `DEV_INTEGRATION`, plus a scheduled shared DEV job for `DEV_FEATURE_STORE`.
 
 ## Acceptance Criteria Mapping
 

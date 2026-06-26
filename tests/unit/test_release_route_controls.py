@@ -47,6 +47,8 @@ def test_bundle_sync_explicitly_includes_transitional_package_roots():
     bundle = load_yaml("databricks.yml")
     sync_includes = bundle["sync"]["include"]
 
+    assert "configs/**" in sync_includes
+    assert "sql/**" in sync_includes
     assert "next_ads/**" in sync_includes
     assert "next_ads/data/**" in sync_includes
     assert "src/next_ads/**" in sync_includes
@@ -149,6 +151,34 @@ def test_dev_integration_setup_job_is_target_specific():
         "--altertables",
         "True",
     ]
+
+
+def test_personal_dev_setup_job_populates_current_user_schema():
+    bundle = load_yaml("databricks.yml")
+    setup = load_yaml("resources/jobs/dev_setup.yml")
+    jobs = setup["targets"]["DEV"]["resources"]["jobs"]
+    setup_job = jobs["mktg_next_uk_nextads_dev_setup"]
+    setup_task = setup_job["tasks"][0]
+
+    assert "resources/jobs/dev_setup.yml" in bundle["include"]
+    assert set(setup["targets"]) == {"DEV"}
+    assert "schedule" not in setup_job
+    assert setup_job["job_clusters"] == "${var.job_clusters_config}"
+    assert setup_task["task_key"] == "populate_dev_tables"
+    assert (
+        setup_task["spark_python_task"]["python_file"]
+        == "../../scripts/table_operations/setup_dev_tables.py"
+    )
+    assert setup_task["spark_python_task"]["parameters"] == ["--standard"]
+    assert setup_task["libraries"] == "${var.shared_libraries}"
+
+
+def test_dev_deploy_schema_variable_is_normalised_to_lower_case():
+    script = (PROJECT_ROOT / "devops/scripts/set_dab_vars.sh").read_text()
+
+    assert 'if [ "${TARGET}" = "DEV" ]; then' in script
+    assert "BUNDLE_VAR_user_schema" in script
+    assert "tr '[:upper:]' '[:lower:]'" in script
 
 
 def test_preprod_route_is_release_branch_only():
@@ -341,17 +371,19 @@ def test_production_release_documentation_defines_tagged_route_and_evidence():
 
 def test_preprod_and_prod_output_routes_are_separate():
     bundle = load_yaml("databricks.yml")
-    settings = load_yaml("config/settings.yaml")
+    settings = load_yaml("configs/runtime/settings.yaml")
 
     preprod_vars = bundle["targets"]["PREPROD"]["variables"]
     prod_vars = bundle["targets"]["PROD"]["variables"]
 
     assert preprod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert preprod_vars["job_parameter_environment_name"] == "preprod"
+    assert preprod_vars["user_schema"] == "ds_sandbox"
     assert settings["preprod"]["catalog_write"] == "marketingdata_prod"
     assert settings["preprod"]["schema_write"] == "ds_sandbox"
 
     assert prod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert prod_vars["job_parameter_environment_name"] == "prod"
+    assert prod_vars["user_schema"] == "warehouse"
     assert settings["prod"]["catalog_write"] == "marketingdata_prod"
     assert settings["prod"]["schema_write"] == "warehouse"

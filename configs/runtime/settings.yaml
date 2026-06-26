@@ -20,6 +20,7 @@ default:
     input_warnings: "https://chat.googleapis.com/v1/spaces/AAAA_rFP3_s/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MhMWyk0iva0jwnyeH5pfkVd5m4SVy306sqj4hDqLAhU"
 
 dev:
+  job_env: dev
   catalog_write: marketingdata_dev
   schema_write: "@format {env[USER_SCHEMA]}"
   az_st_account: adsstecmdeveun
@@ -29,6 +30,7 @@ dev:
 
 # PREPROD runs in the PROD Databricks workspace but writes validation output to ds_sandbox, not warehouse.
 preprod:
+  job_env: preprod
   catalog_write: marketingdata_prod
   schema_write: ds_sandbox
   az_st_account: adsstecmppeuw
@@ -37,6 +39,7 @@ preprod:
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
 
 prod:
+  job_env: prod
   catalog_write: marketingdata_prod
   schema_write: warehouse
   az_st_account: adsstecmprodeuw
