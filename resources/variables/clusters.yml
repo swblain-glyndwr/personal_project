@@ -138,9 +138,13 @@ variables:
           policy_id: ${var.job_cluster_policy_id}
           kind: CLASSIC_PREVIEW
           spark_version: 18.1.x-scala2.13
+          runtime_engine: STANDARD
           use_ml_runtime: true
-          is_single_node: true
+          is_single_node: false
           node_type_id: Standard_NV36ads_A10_v5
+          autoscale:
+            min_workers: 1
+            max_workers: 1
           spark_conf:
             spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
           spark_env_vars:

@@ -245,11 +245,12 @@ def test_theme_affinity_gpu_train_job_uses_requested_gpu_ml_cluster():
     assert new_cluster["policy_id"] == "${var.job_cluster_policy_id}"
     assert new_cluster["kind"] == "CLASSIC_PREVIEW"
     assert new_cluster["spark_version"] == "18.1.x-scala2.13"
+    assert new_cluster["runtime_engine"] == "STANDARD"
     assert new_cluster["use_ml_runtime"] is True
-    assert new_cluster["is_single_node"] is True
+    assert new_cluster["is_single_node"] is False
     assert new_cluster["node_type_id"] == "Standard_NV36ads_A10_v5"
     assert "driver_node_type_id" not in new_cluster
-    assert "autoscale" not in new_cluster
+    assert new_cluster["autoscale"] == {"min_workers": 1, "max_workers": 1}
     assert (
         "spark.databricks.cluster.profile"
         not in new_cluster["spark_conf"]
