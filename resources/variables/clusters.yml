@@ -44,7 +44,8 @@ _feature_store_ml_cluster_config: &feature_store_ml_cluster
   <<: *base_cluster
   spark_version: 17.3.x-cpu-ml-scala2.13
   runtime_engine: STANDARD
-  data_security_mode: USER_ISOLATION
+  # Access mode is fixed by the workspace cluster policy. Do not override it here:
+  # DEV policies currently enforce SINGLE_USER and reject USER_ISOLATION.
 
 variables:
   job_clusters_config:
@@ -134,35 +135,18 @@ variables:
     default:
       - job_cluster_key: next_ads_job_cluster_theme_affinity_gpu_xgboost_train
         new_cluster:
-          spark_version: 17.3.x-gpu-ml-scala2.13
           policy_id: ${var.job_cluster_policy_id}
+          kind: CLASSIC_PREVIEW
+          spark_version: 18.1.x-scala2.13
+          use_ml_runtime: true
+          is_single_node: true
           node_type_id: Standard_NV36ads_A10_v5
-          driver_node_type_id: Standard_NV36ads_A10_v5
-          autoscale:
-            min_workers: 1
-            max_workers: 1
           spark_conf:
-            spark.hadoop.fs.gs.auth.service.account.private.key.id: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key-id}}"
-            spark.hadoop.fs.gs.auth.service.account.private.key: "{{secrets/mktg_gcp/mktg-gcp-service-account-private-key}}"
-            spark.hadoop.google.cloud.auth.service.account.enable: "true"
-            spark.hadoop.fs.gs.project.id: firebasereiss-dmk-prod
-            spark.hadoop.fs.gs.auth.service.account.email: azure-databricks@big-query-156009.iam.gserviceaccount.com
             spark.databricks.sql.initial.catalog.name: ${var.mktgdata_catalog}
-            credentials: "{{secrets/mktg_gcp/mktg-gcp-service-account-b64-encoded}}"
-          azure_attributes:
-            first_on_demand: 1
-            availability: SPOT_WITH_FALLBACK_AZURE
-            spot_bid_max_price: -1
           spark_env_vars:
             CURRENT_ENV: ${var.environment_name}
             GOOGLE_CLOUD_PROJECT: big-query-156009
-            USER_SCHEMA: ${var.user_schema}
-          enable_elastic_disk: true
-          runtime_engine: STANDARD
-          workload_type:
-            clients:
-              notebooks: true
-              jobs: true
+            PYSPARK_PYTHON: /databricks/python3/bin/python3
   pipeline_clusters_config:
     description: Cluster configuration for Lakeflow pipelines
     default:

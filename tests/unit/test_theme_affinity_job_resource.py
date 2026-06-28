@@ -242,11 +242,14 @@ def test_theme_affinity_gpu_train_job_uses_requested_gpu_ml_cluster():
         "next_ads_job_cluster_theme_affinity_gpu_xgboost_train"
     )
     new_cluster = cluster["new_cluster"]
-    assert new_cluster["spark_version"] == "17.3.x-gpu-ml-scala2.13"
+    assert new_cluster["policy_id"] == "${var.job_cluster_policy_id}"
+    assert new_cluster["kind"] == "CLASSIC_PREVIEW"
+    assert new_cluster["spark_version"] == "18.1.x-scala2.13"
+    assert new_cluster["use_ml_runtime"] is True
+    assert new_cluster["is_single_node"] is True
     assert new_cluster["node_type_id"] == "Standard_NV36ads_A10_v5"
-    assert new_cluster["driver_node_type_id"] == "Standard_NV36ads_A10_v5"
-    assert new_cluster["autoscale"] == {"min_workers": 1, "max_workers": 1}
-    assert "is_single_node" not in new_cluster
+    assert "driver_node_type_id" not in new_cluster
+    assert "autoscale" not in new_cluster
     assert (
         "spark.databricks.cluster.profile"
         not in new_cluster["spark_conf"]
@@ -254,6 +257,11 @@ def test_theme_affinity_gpu_train_job_uses_requested_gpu_ml_cluster():
     assert "spark.master" not in new_cluster["spark_conf"]
     assert "custom_tags" not in new_cluster
     assert "num_workers" not in new_cluster
+    assert new_cluster["spark_env_vars"] == {
+        "CURRENT_ENV": "${var.environment_name}",
+        "GOOGLE_CLOUD_PROJECT": "big-query-156009",
+        "PYSPARK_PYTHON": "/databricks/python3/bin/python3",
+    }
 
 
 def test_theme_affinity_promote_job_is_prod_only_and_parameterised():

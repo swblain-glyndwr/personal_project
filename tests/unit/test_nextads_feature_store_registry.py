@@ -513,8 +513,8 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     )
     assert feature_store_cluster["new_cluster"]["runtime_engine"] == "STANDARD"
     assert (
-        feature_store_cluster["new_cluster"]["data_security_mode"]
-        == "USER_ISOLATION"
+        "data_security_mode"
+        not in feature_store_cluster["new_cluster"]
     )
     assert set(job_config["targets"]) == {
         "SANDBOX",
