@@ -22,11 +22,16 @@ def train_and_register_gpu_xgboost_model(
     from next_ads.ranking.theme_affinity.spark_model import (
         build_spark_model_signature,
     )
+    from next_ads.ranking.theme_affinity.mlflow_evidence import (
+        log_training_evidence_artifacts,
+    )
     from next_ads.ranking.theme_affinity.training_data import (
         build_bounded_training_frame,
         resolve_training_frame_config,
+        split_label_stats,
         split_counts,
         split_training_frame,
+        validate_split_label_stats,
         validate_split_counts,
     )
 
@@ -76,6 +81,8 @@ def train_and_register_gpu_xgboost_model(
     base_with_split = split_training_frame(training_frame, train_end, test_ratio)
     counts_by_split = split_counts(base_with_split)
     validate_split_counts(counts_by_split)
+    label_stats_by_split = split_label_stats(base_with_split)
+    validate_split_label_stats(label_stats_by_split)
 
     train_df = base_with_split.filter(F.col("split") == "train").toPandas()
     validation_df = base_with_split.filter(
@@ -89,7 +96,7 @@ def train_and_register_gpu_xgboost_model(
         mlflow_module.log_params(resolved_params)
         mlflow_module.log_param("input_table", table_name)
         mlflow_module.log_param("training_backend", "local_xgboost_gpu")
-        mlflow_module.log_params(training_frame_stats)
+        mlflow_module.log_params(_scalar_params(training_frame_stats))
         mlflow_module.log_param("max_pandas_rows", pandas_row_limit)
         mlflow_module.log_param("num_boost_round", resolved_num_boost_round)
         mlflow_module.log_param(
@@ -98,8 +105,20 @@ def train_and_register_gpu_xgboost_model(
         )
         mlflow_module.log_param("feature_cols", selected_features)
         mlflow_module.log_param("train_count", len(train_df))
+        mlflow_module.log_param(
+            "train_positive_rows",
+            label_stats_by_split.get("train", {}).get("positive_rows", 0),
+        )
         mlflow_module.log_param("validation_count", len(validation_df))
+        mlflow_module.log_param(
+            "validation_positive_rows",
+            label_stats_by_split.get("validation", {}).get("positive_rows", 0),
+        )
         mlflow_module.log_param("test_count", len(test_df))
+        mlflow_module.log_param(
+            "test_positive_rows",
+            label_stats_by_split.get("test", {}).get("positive_rows", 0),
+        )
 
         model = XGBoostRankingModel(feature_cols=selected_features).fit(
             df_train=train_df,
@@ -111,6 +130,11 @@ def train_and_register_gpu_xgboost_model(
         metrics = model.evaluate(test_df)
         mlflow_module.log_metrics(
             {f"test_{key}": value for key, value in metrics.items()}
+        )
+        log_training_evidence_artifacts(
+            mlflow_module,
+            training_frame_stats.get("training_frame_sample_profile", {}),
+            label_stats_by_split,
         )
         model_info = mlflow_module.pyfunc.log_model(
             artifact_path="model",
@@ -145,3 +169,11 @@ def _to_plain_dict(value):
     if hasattr(value, "to_dict"):
         return value.to_dict()
     return dict(value)
+
+
+def _scalar_params(values: dict):
+    return {
+        key: value
+        for key, value in values.items()
+        if isinstance(value, (str, int, float, bool)) or value is None
+    }

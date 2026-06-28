@@ -1,6 +1,8 @@
 import sys
 import types
 
+import pytest
+
 from next_ads.common.config_manager import load_config
 from next_ads.ml.lifecycle.spec import ModelLifecycleSpec
 from next_ads.ranking.theme_affinity.mlflow_lifecycle import (
@@ -45,6 +47,10 @@ def test_lifecycle_config_resolves_dev_registered_model(monkeypatch):
     assert config.ranking_model.training_frame.max_rows == 15000000
     assert config.ranking_model.training_frame.max_pandas_rows == 15000000
     assert config.ranking_model.training_frame.rank_filter_threshold == 256
+    assert config.ranking_model.training_frame.min_positive_group_fraction == 1.0
+    assert config.ranking_model.training_frame.activity_bucket_count == 4
+    assert config.ranking_model.training_frame.retrieval_bucket_count == 4
+    assert list(config.ranking_model.training_frame.rank_band_edges) == [20, 100, 256]
     assert config.ranking_model.xgb_params.tree_method == "hist"
     assert config.ranking_model.xgb_params.device == "cpu"
 
@@ -291,6 +297,8 @@ def test_train_lifecycle_uses_spark_xgboost_not_pandas_collection():
     assert "build_bounded_training_frame" in lifecycle_source
     assert "training_frame_stats" in lifecycle_source
     assert "fit_spark_xgb_ranker" in lifecycle_source
+    assert "prediction_evidence_stats" in lifecycle_source
+    assert "log_training_evidence_artifacts" in lifecycle_source
     assert "mlflow_module.spark.log_model" in lifecycle_source
     assert "signature=build_spark_model_signature" in lifecycle_source
     assert '_spark_xgboost"' in lifecycle_source
@@ -313,6 +321,7 @@ def test_gpu_xgboost_lifecycle_uses_cuda_pyfunc_and_challenger_alias():
     assert 'alias_suffix: str = "gpu_xgboost"' in gpu_source
     assert "mlflow_module.pyfunc.log_model" in gpu_source
     assert "signature=build_spark_model_signature" in gpu_source
+    assert "validate_split_label_stats" in gpu_source
 
 
 def test_spark_model_signature_declares_features_and_prediction(monkeypatch):
@@ -377,9 +386,79 @@ def test_training_frame_builder_bounds_operational_ranked_table():
 
     assert "class TrainingFrameConfig" in source
     assert "rank_filter_threshold" in source
+    assert "min_positive_group_fraction" in source
+    assert "sample_strata_columns" in source
+    assert "candidate_rank_band_fractions" in source
+    assert "sampleBy(" in source
     assert "(F.col(RANK_COL) <= F.lit(rank_filter_threshold))" in source
     assert "| (F.col(LABEL_COL) > F.lit(0))" in source
     assert "frame_config.max_accounts" in source
     assert "frame_config.max_candidates_per_account" in source
     assert "exceeds configured max_rows" in source
     assert "training_frame_row_count" in source
+    assert "F.col(\"stratify_label\").desc()" not in source
+
+
+def test_training_frame_validation_rejects_unlabelled_scoring_input():
+    from next_ads.ranking.theme_affinity.training_data import (
+        validate_training_frame_stats,
+    )
+
+    with pytest.raises(ValueError, match="no positive labels"):
+        validate_training_frame_stats(
+            {
+                "training_frame_row_count": 12800000,
+                "training_frame_positive_rows": 0,
+            }
+        )
+
+
+def test_training_frame_validation_rejects_positive_only_input():
+    from next_ads.ranking.theme_affinity.training_data import (
+        validate_training_frame_stats,
+    )
+
+    with pytest.raises(ValueError, match="no negative labels"):
+        validate_training_frame_stats(
+            {
+                "training_frame_row_count": 100,
+                "training_frame_positive_rows": 100,
+            }
+        )
+
+
+def test_split_label_validation_requires_each_split_to_be_trainable():
+    from next_ads.ranking.theme_affinity.training_data import (
+        validate_split_label_stats,
+    )
+
+    with pytest.raises(ValueError, match="validation has no positive labels"):
+        validate_split_label_stats(
+            {
+                "train": {"row_count": 10, "positive_rows": 1},
+                "validation": {"row_count": 10, "positive_rows": 0},
+                "test": {"row_count": 10, "positive_rows": 1},
+            }
+        )
+
+
+def test_spark_metrics_and_artifacts_are_ranking_specific():
+    spark_model_source = (
+        __import__("pathlib").Path(__file__).resolve().parents[2]
+        / "src/next_ads/ranking/theme_affinity/spark_model.py"
+    ).read_text()
+    evidence_source = (
+        __import__("pathlib").Path(__file__).resolve().parents[2]
+        / "src/next_ads/ranking/theme_affinity/mlflow_evidence.py"
+    ).read_text()
+
+    assert "recall_at_5" in spark_model_source
+    assert "precision_at_5" in spark_model_source
+    assert "top_k_confusion_matrices" in spark_model_source
+    assert "sample_distribution_pre_post.png" in evidence_source
+    assert "label_distribution_by_split.png" in evidence_source
+    assert "rank_band_distribution.png" in evidence_source
+    assert "score_distribution_pos_neg.png" in evidence_source
+    assert "lift_by_decile.png" in evidence_source
+    assert "top_k_confusion_matrix_k" in evidence_source
+    assert "sample_profile.json" in evidence_source

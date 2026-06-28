@@ -45,13 +45,19 @@ def train_and_register_model(
         build_spark_model_signature,
         evaluate_ranked_predictions,
         fit_spark_xgb_ranker,
+        prediction_evidence_stats,
         prepare_spark_ranker_frame,
+    )
+    from next_ads.ranking.theme_affinity.mlflow_evidence import (
+        log_training_evidence_artifacts,
     )
     from next_ads.ranking.theme_affinity.training_data import (
         build_bounded_training_frame,
         resolve_training_frame_config,
+        split_label_stats,
         split_counts,
         split_training_frame,
+        validate_split_label_stats,
         validate_split_counts,
     )
 
@@ -106,6 +112,8 @@ def train_and_register_model(
     )
     counts_by_split = split_counts(base_with_split)
     validate_split_counts(counts_by_split)
+    label_stats_by_split = split_label_stats(base_with_split)
+    validate_split_label_stats(label_stats_by_split)
 
     mlflow_module.set_experiment(lifecycle_config.experiment_path)
     with mlflow_module.start_run() as run:
@@ -113,7 +121,7 @@ def train_and_register_model(
         mlflow_module.log_param("input_table", table_name)
         mlflow_module.log_param("training_backend", training_backend)
         mlflow_module.log_param("model_alias", alias)
-        mlflow_module.log_params(training_frame_stats)
+        mlflow_module.log_params(_scalar_params(training_frame_stats))
         mlflow_module.log_param("spark_num_workers", spark_num_workers)
         mlflow_module.log_param("num_boost_round", resolved_num_boost_round)
         mlflow_module.log_param(
@@ -124,10 +132,22 @@ def train_and_register_model(
         mlflow_module.log_param("categorical_cols", categorical_cols)
         mlflow_module.log_param("train_count", counts_by_split.get("train", 0))
         mlflow_module.log_param(
+            "train_positive_rows",
+            label_stats_by_split.get("train", {}).get("positive_rows", 0),
+        )
+        mlflow_module.log_param(
             "validation_count",
             counts_by_split.get("validation", 0),
         )
+        mlflow_module.log_param(
+            "validation_positive_rows",
+            label_stats_by_split.get("validation", {}).get("positive_rows", 0),
+        )
         mlflow_module.log_param("test_count", counts_by_split.get("test", 0))
+        mlflow_module.log_param(
+            "test_positive_rows",
+            label_stats_by_split.get("test", {}).get("positive_rows", 0),
+        )
 
         model = fit_spark_xgb_ranker(
             train_validation_sdf,
@@ -138,9 +158,17 @@ def train_and_register_model(
             early_stopping_rounds=resolved_early_stopping_rounds,
             num_workers=spark_num_workers,
         )
-        metrics = evaluate_ranked_predictions(model.transform(test_sdf))
+        test_predictions = model.transform(test_sdf)
+        metrics = evaluate_ranked_predictions(test_predictions)
+        prediction_evidence = prediction_evidence_stats(test_predictions)
         mlflow_module.log_metrics(
             {f"test_{key}": value for key, value in metrics.items()}
+        )
+        log_training_evidence_artifacts(
+            mlflow_module,
+            training_frame_stats.get("training_frame_sample_profile", {}),
+            label_stats_by_split,
+            prediction_evidence,
         )
         model_info = mlflow_module.spark.log_model(
             spark_model=model,
@@ -174,3 +202,11 @@ def _to_plain_dict(value):
     if hasattr(value, "to_dict"):
         return value.to_dict()
     return dict(value)
+
+
+def _scalar_params(values: dict):
+    return {
+        key: value
+        for key, value in values.items()
+        if isinstance(value, (str, int, float, bool)) or value is None
+    }

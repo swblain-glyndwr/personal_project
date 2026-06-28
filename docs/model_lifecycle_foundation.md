@@ -123,19 +123,45 @@ bounded, deterministic training frame before splitting:
 
 - keep rows up to `ranking_model.training_frame.rank_filter_threshold`, while
   retaining positive labels even when their rules rank is outside that cutoff;
-- deterministically cap sampled accounts with
+- build account/reference-date strata from label availability, repurchase
+  stage, `GmaName`, activity buckets and retrieval-method buckets;
+- use Spark `sampleBy()` with configured fractions and a fixed seed so the
+  sample is representative of normal customer/theme behaviour across the
+  underlying millions of rows, rather than being the first accounts that fit
+  on the cluster;
+- retain positive rows for selected ranking groups, then sample normal
+  negative candidates across simple-rules rank bands;
+- cap selected account/reference-date groups with
   `ranking_model.training_frame.max_accounts`;
-- cap candidates per account with
+- cap candidates per account/reference-date group with
   `ranking_model.training_frame.max_candidates_per_account`;
 - fail fast if the resulting frame exceeds
   `ranking_model.training_frame.max_rows`;
 - fail the GPU/local XGBoost path before `.toPandas()` if it exceeds
-  `ranking_model.training_frame.max_pandas_rows`.
+  `ranking_model.training_frame.max_pandas_rows`;
+- fail before model fitting if the training frame, or any train/validation/test
+  split, has no positive or no negative labels.
 
 The default values are aligned to the original notebook training scale rather
 than to the full operational scoring table. Any future change to these limits
 should be treated as a modelling decision and validated through challenger
 metrics, not as a Databricks plumbing tweak.
+
+The sampled frame is not a classifier dataset with a single global threshold.
+Theme Affinity is a ranking problem, so MLflow evidence is ranking-specific:
+`hit@k`, `recall@k`, `precision@k`, `MRR`, `NDCG@k`, top-k confusion matrices,
+score/label separation, lift by score decile and pre/post sample distribution
+plots. These artifacts are logged alongside a machine-readable
+`sample_profile.json` that records the source table, sample config and
+population-versus-sample strata counts.
+
+A successful Databricks job run is not sufficient evidence of a valid model.
+For example, a stale DEV Spark train job once ran against
+`marketingdata_dev.stephen_blain.next_uk_nextads_theme_affinity_predict_ranked`
+without an explicit `--input_table` override and produced
+`training_frame_positive_rows = 0`. That run completed technically, but all
+ranking metrics were zero because it trained on an unlabeled scoring snapshot.
+The current trainers now fail that input before fitting or registering a model.
 
 The standard challenger route is the GPU/local XGBoost trainer. It uses the
 existing Python `XGBoostRankingModel`, collects the train/validation/test splits
