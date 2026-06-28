@@ -43,6 +43,13 @@ def parse_common_args() -> argparse.Namespace:
         default="next_uk_nextads_theme_affinity_predict",
     )
     parser.add_argument("--replace_reference_date", default="true")
+    parser.add_argument("--job_env", default="dev")
+    parser.add_argument("--client", default="next_uk")
+    parser.add_argument("--theme_training_reference_date", default="skip")
+    parser.add_argument(
+        "--theme_training_table_prefix",
+        default="next_uk_nextads_theme_affinity_training",
+    )
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 

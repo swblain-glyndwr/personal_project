@@ -5,6 +5,9 @@ nextads_feature_store_job: &nextads_feature_store_job
   name: mktg_next_uk_nextads_feature_store
   queue:
     enabled: true
+  parameters:
+    - name: theme_training_reference_date
+      default: ${var.feature_store_theme_training_reference_date}
   job_clusters: ${var.feature_store_job_clusters_config}
   tags:
     deployed_at: ${var.deploy_timestamp}
@@ -62,6 +65,37 @@ nextads_feature_store_job: &nextads_feature_store_job
       job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 900
+    - task_key: build_theme_affinity_training_input
+      depends_on:
+        - task_key: create_feature_store_tables
+      spark_python_task:
+        python_file: ../../jobs/features/nextads/build_theme_affinity_training_input.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --reference_date
+          - ${var.feature_store_reference_date}
+          - --source_catalog
+          - ${var.feature_store_source_catalog}
+          - --source_schema
+          - ${var.feature_store_source_schema}
+          - --job_env
+          - ${var.job_parameter_environment_name}
+          - --client
+          - next_uk
+          - --theme_training_reference_date
+          - "{{job.parameters.theme_training_reference_date}}"
+          - --theme_training_table_prefix
+          - ${var.feature_store_theme_training_table_prefix}
+          - --replace_reference_date
+          - "true"
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_feature_store_ml_cluster_D4ads_v5_1_1
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 7200
     - task_key: build_advert_features
       depends_on:
         - task_key: create_feature_store_tables

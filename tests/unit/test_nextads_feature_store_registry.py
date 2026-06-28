@@ -98,7 +98,7 @@ def test_feature_store_registry_loads_physical_tables_and_views():
     assert registry.name == "nextads_feature_store"
     assert registry.default_catalog == "marketingdata_dev"
     assert registry.default_schema == "nextads_feature_store"
-    assert len(registry.physical_tables) == 19
+    assert len(registry.physical_tables) == 20
     assert {
         view["name"] for view in registry.compatibility_views
     } == {
@@ -158,6 +158,13 @@ def test_theme_affinity_model_input_preserves_current_feature_columns():
     assert set(_theme_affinity_model_features()).issubset(
         THEME_AFFINITY_MODEL_FEATURE_COLUMNS
     )
+
+
+def test_theme_affinity_training_input_preserves_current_feature_columns():
+    columns = _sql_columns("next_uk_nextads_fs_theme_affinity_training_input")
+
+    assert set(_theme_affinity_model_features()).issubset(columns)
+    assert {"label", "model_score"}.issubset(columns)
 
 
 def test_feature_store_write_helpers_validate_required_columns():
@@ -408,6 +415,18 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         == "next_uk_nextads_theme_affinity_predict"
     )
     assert (
+        bundle_config["variables"]["feature_store_theme_training_reference_date"][
+            "default"
+        ]
+        == "skip"
+    )
+    assert (
+        bundle_config["variables"]["feature_store_theme_training_table_prefix"][
+            "default"
+        ]
+        == "next_uk_nextads_theme_affinity_training"
+    )
+    assert (
         bundle_config["targets"]["SANDBOX"]["variables"][
             "feature_store_schema"
         ]
@@ -431,7 +450,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         ]
         == (
             "marketingdata_dev.nextads_feature_store."
-            "next_uk_nextads_fs_theme_affinity_model_input"
+            "next_uk_nextads_fs_theme_affinity_training_input"
         )
     )
     assert (
@@ -536,8 +555,18 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         "pause_status": "UNPAUSED",
     }
     assert job["job_clusters"] == "${var.feature_store_job_clusters_config}"
+    assert job["parameters"] == [
+        {
+            "name": "theme_training_reference_date",
+            "default": "${var.feature_store_theme_training_reference_date}",
+        }
+    ]
     assert job["tags"]["domain"] == "feature_store"
     assert job["tasks"][0]["task_key"] == "create_feature_store_tables"
+    assert any(
+        task["task_key"] == "build_theme_affinity_training_input"
+        for task in job["tasks"]
+    )
     create_parameters = job["tasks"][0]["spark_python_task"]["parameters"]
     assert "--manage_principal" in create_parameters
     assert "${var.run_as_SPN_name}" in create_parameters
@@ -583,6 +612,31 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
             parameters[parameters.index("--theme_table_prefix") + 1]
             == "${var.feature_store_theme_table_prefix}"
         )
+    training_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "build_theme_affinity_training_input"
+    )
+    training_parameters = training_task["spark_python_task"]["parameters"]
+    assert "--job_env" in training_parameters
+    assert (
+        training_parameters[training_parameters.index("--job_env") + 1]
+        == "${var.job_parameter_environment_name}"
+    )
+    assert "--theme_training_reference_date" in training_parameters
+    assert (
+        training_parameters[
+            training_parameters.index("--theme_training_reference_date") + 1
+        ]
+        == "{{job.parameters.theme_training_reference_date}}"
+    )
+    assert "--theme_training_table_prefix" in training_parameters
+    assert (
+        training_parameters[
+            training_parameters.index("--theme_training_table_prefix") + 1
+        ]
+        == "${var.feature_store_theme_training_table_prefix}"
+    )
     assert all(
         "${var.feature_store_schema}"
         in task["spark_python_task"]["parameters"]

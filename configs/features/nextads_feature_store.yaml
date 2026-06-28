@@ -153,6 +153,16 @@ feature_store:
       freshness: daily
       training_safe: true
       consumers: [theme_affinity, ltr]
+    - name: next_uk_nextads_fs_theme_affinity_training_input
+      entity: account_theme
+      grain: one labelled historical row per account, theme, and reference date
+      primary_keys: [account_number, theme, reference_date]
+      timestamp_key: reference_date
+      source_job: build_theme_affinity_training_input
+      owner: marketing_data
+      freshness: on_demand
+      training_safe: true
+      consumers: [theme_affinity]
     - name: next_uk_nextads_fs_pctr_model_input
       entity: account_advert
       grain: one row per account, advert, location, session date, and reference date

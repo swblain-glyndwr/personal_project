@@ -328,4 +328,22 @@ def build_theme_affinity_model_input_df(
     return model_input_df.select(
         "base.*",
         F.col("pred.model_score"),
+        F.current_timestamp().alias("created_at"),
+        F.current_timestamp().alias("updated_at"),
     ).dropDuplicates(["account_number", "theme", "reference_date"])
+
+
+def build_theme_affinity_training_input_df(ranked_df, reference_date: str):
+    """Build labelled historical training rows from ranked prep output."""
+    from pyspark.sql import functions as F
+
+    empty_prediction_df = (
+        ranked_df.select("account_number", "theme_clean")
+        .limit(0)
+        .withColumn("prediction", F.lit(None).cast("double"))
+    )
+    return build_theme_affinity_model_input_df(
+        ranked_df,
+        empty_prediction_df,
+        reference_date,
+    )

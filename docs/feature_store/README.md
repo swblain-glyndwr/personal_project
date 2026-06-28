@@ -30,7 +30,7 @@ The repo-owned executable contract is split across:
 
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
 
-The first populated feature-store slice now materialises customer/account features, web activity, advert metadata, item attributes, advert attribute rollups, Theme Affinity model inputs, Theme response labels and Shopping Bag click labels from stable production source tables through the Databricks Feature Engineering client. Embedding-derived advert/product tables, pCTR model input and candidate-similarity diagnostics remain scaffolded until their model/source contracts are promoted into this route.
+The first populated feature-store slice now materialises customer/account features, web activity, advert metadata, item attributes, advert attribute rollups, Theme Affinity latest model-input features, Theme Affinity labelled historical training input, Theme response labels and Shopping Bag click labels from stable production source tables through the Databricks Feature Engineering client. Embedding-derived advert/product tables, pCTR model input and candidate-similarity diagnostics remain scaffolded until their model/source contracts are promoted into this route.
 
 ## Feature Catalogue
 
@@ -50,7 +50,8 @@ The first populated feature-store slice now materialises customer/account featur
 | Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | Theme Affinity, LTR |
 | Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/location/reference date | pCTR, LTR |
 | Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | pCTR |
-| Theme model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity, LTR |
+| Theme latest model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity, LTR |
+| Theme labelled training input | `next_uk_nextads_fs_theme_affinity_training_input` | Account/theme/reference date | Theme Affinity |
 | pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/location/session/reference date | pCTR |
 | Click labels | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | pCTR, LTR |
 | Theme labels | `next_uk_nextads_fs_labels_theme_response` | Account/theme/reference date/label | Theme Affinity, LTR |
@@ -64,7 +65,9 @@ Initial owner is `marketing_data` for all feature tables. Most feature groups ar
 
 The first development deployments target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema normalised to the repo's lower-case user schema convention, DEV_INTEGRATION uses `nextads_integration`, and DEV_FEATURE_STORE uses the shared `nextads_feature_store` schema.
 
-`DEV_FEATURE_STORE` is scheduled daily at 21:00 Europe/London and reads Theme Affinity source tables from `marketingdata_prod.warehouse`. It writes reusable model-building features to `marketingdata_dev.nextads_feature_store`. Theme Affinity training jobs read `marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_model_input` as their model-building input. Production feature-store publication is intentionally deferred to a later curated PR for specific stable feature contracts that need production runtime or monitoring use.
+`DEV_FEATURE_STORE` is scheduled daily at 21:00 Europe/London and reads latest Theme Affinity source tables from `marketingdata_prod.warehouse`. It writes reusable latest features to `marketingdata_dev.nextads_feature_store`. Theme Affinity training jobs read `marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input`, which is populated only from an explicit historical run where the existing Theme Affinity prep builds a 31-day future-window basket target via `2_target.sql` and joins it back through `6_master_assoc.sql`.
+
+The labelled training-input build is controlled by `feature_store_theme_training_reference_date`. The default is `skip` so the daily latest-feature refresh does not silently build or overwrite training data. To create or refresh training data, run the feature-store route with a historical date at least 28 days old; the task stages historical Theme Affinity prep tables with `feature_store_theme_training_table_prefix`, validates that positives and negatives exist, then writes `next_uk_nextads_fs_theme_affinity_training_input`. Production feature-store publication is intentionally deferred to a later curated PR for specific stable feature contracts that need production runtime or monitoring use.
 
 ## Dependencies
 
@@ -73,6 +76,7 @@ The feature-store route depends on:
 - DEV Feature Engineering Client availability and write permissions.
 - Existing source jobs remaining stable while compatibility views are proven.
 - Existing production Theme Affinity outputs being available before the shared feature-store materialisation job runs for `reference_date=predict`.
+- Historical Theme Affinity prep sources having enough future-window basket data for the requested `feature_store_theme_training_reference_date`.
 - Existing production customer, control-sheet, item-attribute, assignment and BigQuery web/action tables being available for the same resolved feature-store reference date.
 - CWB analytics pCTR source contracts being brought into the branch before pCTR feature tables are populated.
 - Challenger testing before feature-store model inputs affect production ranking.
