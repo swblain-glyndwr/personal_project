@@ -38,7 +38,10 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     job = _theme_affinity_job()
 
     assert job["name"] == "mktg_next_uk_nextads_theme_affinity"
-    assert "schedule" not in job
+    assert job["schedule"] == {
+        "quartz_cron_expression": "0 0 9 * * ?",
+        "timezone_id": "Europe/London",
+    }
     assert job["job_clusters"] == "${var.job_clusters_config}"
 
     tasks = {task["task_key"]: task for task in job["tasks"]}

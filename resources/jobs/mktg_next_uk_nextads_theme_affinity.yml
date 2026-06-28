@@ -18,6 +18,9 @@ resources:
       notification_settings:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
+      schedule:
+        quartz_cron_expression: 0 0 9 * * ?
+        timezone_id: Europe/London
       timeout_seconds: 21600
       tasks:
         - task_key: predict_data_prep
