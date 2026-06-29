@@ -208,10 +208,7 @@
     },
 
     "transient_cells": {
-        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"],
-        "Audiences": [
-            ["fathers_day_audience", {"account_col":"AccountNumber", "label_col":"Label"}]
-        ]
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
     },
     "payload_experiment_id": {
         "experiments": {
@@ -332,34 +329,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -397,34 +366,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_Mens"}
                 },
                 {
                     "when": [
@@ -729,34 +670,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -771,34 +684,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -817,34 +702,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -859,34 +716,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -905,34 +734,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -947,34 +748,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -993,34 +766,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1035,34 +780,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1081,34 +798,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1123,34 +812,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1169,34 +830,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1211,34 +844,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1257,34 +862,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1299,34 +876,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1345,34 +894,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1387,34 +908,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1433,34 +926,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1475,34 +940,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1521,34 +958,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1563,34 +972,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1609,34 +990,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1651,34 +1004,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1697,34 +1022,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1739,34 +1036,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1785,34 +1054,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1827,34 +1068,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1873,34 +1086,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -1915,34 +1100,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -1961,34 +1118,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -2003,34 +1132,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -2049,34 +1150,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -2091,34 +1164,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -2137,34 +1182,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -2179,34 +1196,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -2225,34 +1214,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -2267,34 +1228,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -2313,34 +1246,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -2355,34 +1260,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -2401,34 +1278,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -2445,34 +1294,6 @@
                     "then": {"col": "UniqueAdIDBasic"}
                 },
                 {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
                     "when": [
                         {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
                     ],
@@ -2487,34 +1308,6 @@
                 {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_D"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_E"}],
-                    "then": {"lit": "P151_C2190_Campaign_FathersDay_FoodandDrink_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_F"}],
-                    "then": {"lit": "P151_C145_Next_Beauty_MensGrooming_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_G"}],
-                    "then": {"lit": "P151_C224_Next_Beauty_FragranceForHim_FD_PLP_Beauty"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_A"}],
-                    "then": {"lit": "P151_C406_Next_Campaigns_PremiumGifts_FathersDay_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_B"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
-                },
-                {
-                    "when": [{"col": "Audience", "op": "eq", "val": "FD_C"}],
-                    "then": {"lit": "P151_C2189_Campaign_FathersDay_Generic_PLP_Mens"}
                 },
                 {
                     "when": [
@@ -2992,7 +1785,6 @@
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
             "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
             "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest",
-            "fathers_day_audience":"marketingdata_prod.ds_sandbox.nextads_fd_2026",
             "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest"
         },
         "write": {
