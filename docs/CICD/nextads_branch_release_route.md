@@ -40,6 +40,7 @@ The branch route controls code promotion. The deployment target controls where t
 | Stage | Branch source | Deployment purpose | Output expectation |
 | --- | --- | --- | --- |
 | Development or integration validation | `develop` | Check combined changes before creating a release candidate | Write to `marketingdata_dev.nextads_integration`, not production outputs |
+| Shared DEV feature store | `develop` | Keep model-building features refreshed from stable production sources | Write to `marketingdata_dev.nextads_feature_store`; read Theme Affinity sources from `marketingdata_prod.warehouse` |
 | Formal preproduction validation | `release/*` | Validate the release candidate before approval | Write validation outputs to `marketingdata_prod.ds_sandbox`, not `warehouse` |
 | Production | Tagged commit on `main` | Run approved production code | Write approved production outputs to `marketingdata_prod.warehouse` |
 
@@ -69,6 +70,18 @@ The smoke workflow for this route is:
 5. Confirm no `marketingdata_prod.ds_sandbox` or `marketingdata_prod.warehouse` outputs changed.
 
 If a merged change alters DEV integration table definitions, rerun the setup stage with `Recreate DEV integration tables` enabled. This drops and recreates configured write tables in `marketingdata_dev.nextads_integration` only; do not use it as a routine smoke step because it clears shared DEV integration outputs.
+
+## DEV Feature Store Route
+
+`DEV_FEATURE_STORE` is the shared DEV model-building feature-store target for code that has already merged to `develop`.
+
+```text
+marketingdata_prod.warehouse -> DEV_FEATURE_STORE -> marketingdata_dev.nextads_feature_store
+```
+
+Use this route to deploy only the scheduled feature-store job. It is not a replacement for `DEV_INTEGRATION`: DEV Integration checks merged repo changes together, while DEV Feature Store keeps reusable model-building features refreshed from stable production Theme Affinity source outputs.
+
+The deployment pipeline stage is intended to run from `develop`. After deployment, run `mktg_next_uk_nextads_feature_store` manually when immediate validation or repair evidence is needed; otherwise the scheduled job keeps the shared DEV feature store current.
 
 ## Feature Route
 

@@ -30,7 +30,7 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
       - name: granularities
         default: 1 day
       - name: slicing_exprs
-        default: repurchase_stage,GmaName
+        default: repurchase_stage,GmaName,theme_clean
       - name: run_refresh
         default: "false"
       - name: problem_type
@@ -87,19 +87,7 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
         timeout_seconds: 1800
 
 targets:
-  SANDBOX:
-    resources:
-      jobs:
-        <<: *theme_affinity_quality_monitor_setup_config
-  DEV:
-    resources:
-      jobs:
-        <<: *theme_affinity_quality_monitor_setup_config
-  DEV_INTEGRATION:
-    resources:
-      jobs:
-        <<: *theme_affinity_quality_monitor_setup_config
-  PREPROD:
+  PROD:
     resources:
       jobs:
         <<: *theme_affinity_quality_monitor_setup_config

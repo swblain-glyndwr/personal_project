@@ -23,6 +23,8 @@ theme_affinity_model_train_spark_config: &theme_affinity_model_train_spark_confi
             - next_uk
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --input_table
+            - ${var.theme_affinity_training_input_table}
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

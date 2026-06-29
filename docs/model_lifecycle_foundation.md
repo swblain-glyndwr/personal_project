@@ -123,19 +123,45 @@ bounded, deterministic training frame before splitting:
 
 - keep rows up to `ranking_model.training_frame.rank_filter_threshold`, while
   retaining positive labels even when their rules rank is outside that cutoff;
-- deterministically cap sampled accounts with
+- build account/reference-date strata from label availability, repurchase
+  stage, `GmaName`, activity buckets and retrieval-method buckets;
+- use Spark `sampleBy()` with configured fractions and a fixed seed so the
+  sample is representative of normal customer/theme behaviour across the
+  underlying millions of rows, rather than being the first accounts that fit
+  on the cluster;
+- retain positive rows for selected ranking groups, then sample normal
+  negative candidates across simple-rules rank bands;
+- cap selected account/reference-date groups with
   `ranking_model.training_frame.max_accounts`;
-- cap candidates per account with
+- cap candidates per account/reference-date group with
   `ranking_model.training_frame.max_candidates_per_account`;
 - fail fast if the resulting frame exceeds
   `ranking_model.training_frame.max_rows`;
 - fail the GPU/local XGBoost path before `.toPandas()` if it exceeds
-  `ranking_model.training_frame.max_pandas_rows`.
+  `ranking_model.training_frame.max_pandas_rows`;
+- fail before model fitting if the training frame, or any train/validation/test
+  split, has no positive or no negative labels.
 
 The default values are aligned to the original notebook training scale rather
 than to the full operational scoring table. Any future change to these limits
 should be treated as a modelling decision and validated through challenger
 metrics, not as a Databricks plumbing tweak.
+
+The sampled frame is not a classifier dataset with a single global threshold.
+Theme Affinity is a ranking problem, so MLflow evidence is ranking-specific:
+`hit@k`, `recall@k`, `precision@k`, `MRR`, `NDCG@k`, top-k confusion matrices,
+score/label separation, lift by score decile and pre/post sample distribution
+plots. These artifacts are logged alongside a machine-readable
+`sample_profile.json` that records the source table, sample config and
+population-versus-sample strata counts.
+
+A successful Databricks job run is not sufficient evidence of a valid model.
+For example, a stale DEV Spark train job once ran against
+`marketingdata_dev.stephen_blain.next_uk_nextads_theme_affinity_predict_ranked`
+without an explicit `--input_table` override and produced
+`training_frame_positive_rows = 0`. That run completed technically, but all
+ranking metrics were zero because it trained on an unlabeled scoring snapshot.
+The current trainers now fail that input before fitting or registering a model.
 
 The standard challenger route is the GPU/local XGBoost trainer. It uses the
 existing Python `XGBoostRankingModel`, collects the train/validation/test splits
@@ -195,23 +221,21 @@ operational constraints are documented.
 Theme Affinity now has two monitoring layers:
 
 - `resources/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml`
-  creates, refreshes or deletes a Databricks quality monitor over a supplied
-  Unity Catalog table. By default it creates or updates the existing
-  time-series monitor over `next_uk_nextads_theme_affinity_predict_ranked`.
-  This is target-scoped to SANDBOX, DEV, DEV_INTEGRATION, PREPROD and PROD and
-  is intentionally unscheduled. Run it only after the monitored table exists in
-  the target schema, because Databricks creates the monitor against an existing
-  Unity Catalog table.
+  creates or updates a Databricks quality monitor over
+  `next_uk_nextads_theme_affinity_predict_ranked`. This is target-scoped to
+  PROD only and is intentionally unscheduled. Run it only after the production
+  ranked table exists, because Databricks creates the monitor against an
+  existing Unity Catalog table and requires production table permissions.
 - `scripts/theme_affinity/monitor_model.py` remains the Theme Affinity MLflow evidence job. It
   compares baseline and candidate tables, logs metrics and writes retrain /
-  promotion-blocking tags that can be used in review.
+  promotion-blocking tags that can be used in review. The deployed monitor job
+  is also PROD-only; DEV validates the code path and table contracts, not the
+  Databricks monitor operation.
 
 The monitor setup is a job rather than a direct Declarative Automation Bundle
-`quality_monitors` resource because the current DEV and PREPROD bundle targets
-use target-level service-principal `run_as`. Databricks quality monitor
-resources cannot be deployed when the resource owner differs from the target
-`run_as` identity, so the job creates the native monitor under the identity that
-runs the setup task and avoids blocking normal bundle validation.
+`quality_monitors` resource because Databricks quality monitor resources are
+sensitive to the owning identity and table privileges. The setup task creates
+the native monitor under the production identity that runs the job.
 
 For Theme Affinity production, the current table to monitor for time-series
 distribution drift is

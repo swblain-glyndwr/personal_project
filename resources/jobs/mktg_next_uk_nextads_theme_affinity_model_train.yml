@@ -23,6 +23,8 @@ theme_affinity_model_train_config: &theme_affinity_model_train_config
             - next_uk
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --input_table
+            - ${var.theme_affinity_training_input_table}
             - --log_level
             - INFO
             - --alias_suffix

@@ -1,4 +1,5 @@
 import pandas as pd
+from pathlib import Path
 
 from next_ads.ml.lifecycle.drift import (
     DriftMetric,
@@ -8,6 +9,9 @@ from next_ads.ml.lifecycle.drift import (
     numeric_psi,
     to_mlflow_metrics,
 )
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_numeric_psi_detects_distribution_shift():
@@ -78,3 +82,15 @@ def test_to_mlflow_metrics_prefixes_metric_names():
     metrics = to_mlflow_metrics([DriftMetric("feature.score.psi", 0.12)])
 
     assert metrics == {"drift.feature.score.psi": 0.12}
+
+
+def test_table_monitoring_derives_theme_affinity_population_buckets():
+    monitoring_source = (
+        PROJECT_ROOT / "src/next_ads/ml/lifecycle/monitoring.py"
+    ).read_text()
+
+    assert "with_monitoring_derived_columns" in monitoring_source
+    assert "simple_rules_rank_band" in monitoring_source
+    assert "user_total_views_bucket" in monitoring_source
+    assert "num_retrieval_methods_bucket" in monitoring_source
+    assert '"theme_clean" not in columns and "theme" in columns' in monitoring_source

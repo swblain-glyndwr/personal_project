@@ -9,6 +9,59 @@ from next_ads.ml.lifecycle.registry import configure_mlflow
 from next_ads.ml.lifecycle.spec import DriftThresholds
 
 
+def with_monitoring_derived_columns(df):
+    columns = set(df.columns)
+
+    if "theme_clean" not in columns and "theme" in columns:
+        df = df.withColumn("theme_clean", df["theme"].cast("string"))
+        columns.add("theme_clean")
+
+    if "simple_rules_rank" in columns and "simple_rules_rank_band" not in columns:
+        from pyspark.sql import functions as F
+
+        df = df.withColumn(
+            "simple_rules_rank_band",
+            F.when(F.col("simple_rules_rank").isNull(), F.lit("rank_missing"))
+            .when(F.col("simple_rules_rank") <= F.lit(20), F.lit("rank_001_020"))
+            .when(F.col("simple_rules_rank") <= F.lit(100), F.lit("rank_021_100"))
+            .when(F.col("simple_rules_rank") <= F.lit(256), F.lit("rank_101_256"))
+            .otherwise(F.lit("rank_gt_256")),
+        )
+        columns.add("simple_rules_rank_band")
+
+    if "user_total_views" in columns and "user_total_views_bucket" not in columns:
+        from pyspark.sql import functions as F
+
+        df = df.withColumn(
+            "user_total_views_bucket",
+            F.when(F.col("user_total_views").isNull(), F.lit("views_missing"))
+            .when(F.col("user_total_views") <= F.lit(0), F.lit("views_000"))
+            .when(F.col("user_total_views") <= F.lit(5), F.lit("views_001_005"))
+            .when(F.col("user_total_views") <= F.lit(20), F.lit("views_006_020"))
+            .when(F.col("user_total_views") <= F.lit(100), F.lit("views_021_100"))
+            .otherwise(F.lit("views_gt_100")),
+        )
+        columns.add("user_total_views_bucket")
+
+    if (
+        "num_retrieval_methods" in columns
+        and "num_retrieval_methods_bucket" not in columns
+    ):
+        from pyspark.sql import functions as F
+
+        df = df.withColumn(
+            "num_retrieval_methods_bucket",
+            F.when(F.col("num_retrieval_methods").isNull(), F.lit("retrieval_missing"))
+            .when(F.col("num_retrieval_methods") <= F.lit(0), F.lit("retrieval_0"))
+            .when(F.col("num_retrieval_methods") == F.lit(1), F.lit("retrieval_1"))
+            .when(F.col("num_retrieval_methods") == F.lit(2), F.lit("retrieval_2"))
+            .when(F.col("num_retrieval_methods") == F.lit(3), F.lit("retrieval_3"))
+            .otherwise(F.lit("retrieval_4_plus")),
+        )
+
+    return df
+
+
 def table_drift_metrics(
     spark,
     baseline_table: str,
@@ -20,20 +73,17 @@ def table_drift_metrics(
 ):
     categorical_cols = categorical_cols or []
     numeric_cols = [column for column in feature_cols if column not in categorical_cols]
-    selected_cols = sorted(set(feature_cols + categorical_cols + _optional(prediction_col)))
 
-    baseline = (
-        spark.table(baseline_table)
-        .select(*selected_cols)
-        .limit(sample_limit)
-        .toPandas()
+    baseline_df = with_monitoring_derived_columns(spark.table(baseline_table))
+    candidate_df = with_monitoring_derived_columns(spark.table(candidate_table))
+    selected_cols = _common_selected_columns(
+        baseline_df,
+        candidate_df,
+        feature_cols + categorical_cols + _optional(prediction_col),
     )
-    candidate = (
-        spark.table(candidate_table)
-        .select(*selected_cols)
-        .limit(sample_limit)
-        .toPandas()
-    )
+
+    baseline = baseline_df.select(*selected_cols).limit(sample_limit).toPandas()
+    candidate = candidate_df.select(*selected_cols).limit(sample_limit).toPandas()
     return drift_metrics(
         baseline=baseline,
         candidate=candidate,
@@ -107,3 +157,13 @@ def log_table_drift_to_mlflow(
 
 def _optional(value: str | None) -> list[str]:
     return [value] if value else []
+
+
+def _common_selected_columns(baseline_df, candidate_df, requested_cols):
+    baseline_cols = set(baseline_df.columns)
+    candidate_cols = set(candidate_df.columns)
+    return sorted(
+        column
+        for column in set(requested_cols)
+        if column in baseline_cols and column in candidate_cols
+    )

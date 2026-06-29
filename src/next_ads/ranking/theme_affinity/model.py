@@ -73,10 +73,11 @@ class XGBoostRankingModel(mlflow_pyfunc.PythonModel):
                 df[column] = encoder.transform(safe_values)
                 df.loc[~valid, column] = -1
 
-        df_sorted = df.sort_values("account_number").reset_index(drop=True)
+        group_cols = _ranking_group_columns(df)
+        df_sorted = df.sort_values(group_cols).reset_index(drop=True)
         X = df_sorted[feature_cols].values.astype(np.float32)
         y = df_sorted["label"].values.astype(np.float32)
-        groups = df_sorted.groupby("account_number").size().values
+        groups = df_sorted.groupby(group_cols, sort=False).size().values
         return X, y, groups, feature_cols, fitted_encoders
 
     @staticmethod
@@ -206,6 +207,12 @@ class XGBoostRankingModel(mlflow_pyfunc.PythonModel):
         hit1_scores = []
         hit3_scores = []
         hit5_scores = []
+        recall1_scores = []
+        recall3_scores = []
+        recall5_scores = []
+        precision1_scores = []
+        precision3_scores = []
+        precision5_scores = []
 
         for index in range(len(group_ptr) - 1):
             start, end = group_ptr[index], group_ptr[index + 1]
@@ -229,6 +236,12 @@ class XGBoostRankingModel(mlflow_pyfunc.PythonModel):
             hit1_scores.append(_hit_at(first_positive, 1))
             hit3_scores.append(_hit_at(first_positive, 3))
             hit5_scores.append(_hit_at(first_positive, 5))
+            recall1_scores.append(_recall_at(ranked_labels, group_true, 1))
+            recall3_scores.append(_recall_at(ranked_labels, group_true, 3))
+            recall5_scores.append(_recall_at(ranked_labels, group_true, 5))
+            precision1_scores.append(_precision_at(ranked_labels, 1))
+            precision3_scores.append(_precision_at(ranked_labels, 3))
+            precision5_scores.append(_precision_at(ranked_labels, 5))
 
         return {
             "mrr": _mean(mrr_scores),
@@ -237,6 +250,12 @@ class XGBoostRankingModel(mlflow_pyfunc.PythonModel):
             "hit_at_1": _mean(hit1_scores),
             "hit_at_3": _mean(hit3_scores),
             "hit_at_5": _mean(hit5_scores),
+            "recall_at_1": _mean(recall1_scores),
+            "recall_at_3": _mean(recall3_scores),
+            "recall_at_5": _mean(recall5_scores),
+            "precision_at_1": _mean(precision1_scores),
+            "precision_at_3": _mean(precision3_scores),
+            "precision_at_5": _mean(precision5_scores),
         }
 
 
@@ -251,6 +270,26 @@ def _hit_at(first_positive_index, cutoff):
     if first_positive_index is None:
         return 0.0
     return float(first_positive_index < cutoff)
+
+
+def _recall_at(ranked_labels, group_true, cutoff):
+    total_positive = np.sum(group_true)
+    if total_positive <= 0:
+        return 0.0
+    return float(np.sum(ranked_labels[:cutoff]) / total_positive)
+
+
+def _precision_at(ranked_labels, cutoff):
+    if cutoff <= 0:
+        return 0.0
+    return float(np.sum(ranked_labels[:cutoff]) / cutoff)
+
+
+def _ranking_group_columns(df):
+    columns = ["account_number"]
+    if "reference_date" in df.columns:
+        columns.append("reference_date")
+    return columns
 
 
 def _mean(values):

@@ -3,6 +3,13 @@ variables:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
       - requirements: ../../requirements.txt
+  feature_store_libraries:
+    default:
+      - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
+      - pypi:
+          package: databricks-feature-engineering==0.12.1
+      - pypi:
+          package: dynaconf[yaml]==3.2.12
   shared_libraries_wheel_only:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.13-py3-none-any.whl

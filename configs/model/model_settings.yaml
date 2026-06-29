@@ -17,6 +17,26 @@ default:
       max_pandas_rows: 15000000
       rank_filter_threshold: 256
       random_seed: 42
+      min_positive_group_fraction: 1.0
+      activity_bucket_count: 4
+      retrieval_bucket_count: 4
+      rank_band_edges:
+        - 20
+        - 100
+        - 256
+      sample_strata_columns:
+        - label_bucket
+        - repurchase_stage
+        - GmaName
+        - user_total_views_bucket
+        - num_retrieval_methods_bucket
+      candidate_rank_band_fractions:
+        rank_001_020: 1.0
+        rank_021_100: 0.75
+        rank_101_256: 0.5
+        rank_gt_256: 0.25
+        rank_missing: 0.5
+      profile_top_n: 25
     monitoring:
       sample_limit: 100000
       numeric_psi_warn_threshold: 0.1
@@ -26,6 +46,10 @@ default:
       categorical_cols:
         - repurchase_stage
         - GmaName
+        - theme_clean
+        - simple_rules_rank_band
+        - user_total_views_bucket
+        - num_retrieval_methods_bucket
     predict_rank_filter_threshold: 100
     xgb_params:
       objective: rank:pairwise

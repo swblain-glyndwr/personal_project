@@ -105,6 +105,23 @@ def test_deployment_pipeline_has_develop_only_dev_integration_route():
     )
 
 
+def test_deployment_pipeline_has_develop_only_dev_feature_store_route():
+    config = load_yaml("azure-pipelines.yml")
+    stages = {stage["stage"]: stage for stage in config["stages"]}
+
+    deploy_stage = stages["DeployDEVFeatureStore"]
+
+    assert deploy_stage["displayName"] == "Deploy DEV Feature Store"
+    assert "refs/heads/develop" in deploy_stage["condition"]
+    assert "IntegrationTests" not in deploy_stage["dependsOn"]
+    assert deploy_stage["dependsOn"] == ["CI"]
+
+    deploy_job = deploy_stage["jobs"][0]["parameters"]
+    assert deploy_job["target"] == "DEV_FEATURE_STORE"
+    assert deploy_job["AzureBuildAgentPool"] == "$(agentpool_dev)"
+    assert deploy_job["azureSubscription"] == "$(serviceConnectionName_dev)"
+
+
 def test_dev_integration_setup_job_is_target_specific():
     setup = load_yaml("resources/jobs/dev_integration_setup.yml")
     jobs = setup["targets"]["DEV_INTEGRATION"]["resources"]["jobs"]

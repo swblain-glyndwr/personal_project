@@ -37,6 +37,26 @@ databricks workspace list /root -t DEV
 databricks workspace list /root -t PROD
 ```
 
+If local Databricks auth has expired, refresh the named CLI profiles used by
+the bundle:
+
+```bash
+databricks auth login --host https://adb-6694370232251359.19.azuredatabricks.net/ -p SANDBOX
+databricks auth login --host https://adb-6694370232251359.19.azuredatabricks.net/ -p DEV
+databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net/ -p PREPROD
+databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net/ -p PROD
+```
+
+`DEV` and `SANDBOX` share the same workspace host, and `PREPROD` and `PROD`
+share the same production host. For bundle commands, pass an explicit profile
+to avoid ambiguous-profile resolution:
+
+```bash
+databricks bundle validate --target DEV --profile DEV
+databricks bundle plan --target DEV --profile DEV
+databricks bundle deploy --target DEV --profile DEV
+```
+
 ---
 
 ## Complete Workflow: Development to Production
@@ -80,13 +100,13 @@ source devops/scripts/set_tags.sh
 poetry export -f requirements.txt --output requirements.txt --without-hashes
 
 # Step 3: Validate bundle
-databricks bundle validate -t DEV
+databricks bundle validate -t DEV --profile DEV
 
 # Step 4: Plan bundle to see changes
-databricks bundle plan -t DEV
+databricks bundle plan -t DEV --profile DEV
 
 # Step 5: Deploy to DEV
-databricks bundle deploy -t DEV
+databricks bundle deploy -t DEV --profile DEV
 ```
 
 Run the job manually in Databricks UI and verify successful completion.
@@ -122,7 +142,7 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 
 3. Important: Select your feature/your-feature-name branch from the dropdown.
 
-4. (Optional) Select specific stages in the pipeline you want to run. For feature branch testing select `Deploy to DEV`; for merged `develop` integration testing select `Deploy DEV Integration`.
+4. (Optional) Select specific stages in the pipeline you want to run. For feature branch testing select `Deploy to DEV`; for merged `develop` integration testing select `Deploy DEV Integration`; for the shared DEV model-building feature store select `Deploy DEV Feature Store` from `develop`.
 
 5. Click Run Pipeline.
 
@@ -137,6 +157,7 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | **Integration Tests** | Runs integration tests using the configured production-side route |
 | **Deploy DEV** | Deploys to DEV workspace, tags jobs with git info |
 | **Deploy DEV Integration** | Deploys `develop` to the shared `DEV_INTEGRATION` target |
+| **Deploy DEV Feature Store** | Deploys the scheduled shared DEV feature-store target only |
 | **(Optional) Destroy DEV** | Deletes DEV DABs (helps with DAB development) |
 | **Deploy PREPROD** | Deploys only from `release/*` using the PREPROD route |
 | **Smoke PREPROD Dependencies** | Runs a metadata-only PREPROD dependency check without reading rows or altering tables |
@@ -156,6 +177,14 @@ After feature PRs have merged to `develop`, run the deployment pipeline from `de
 Leave `Recreate DEV integration tables` unticked for normal runs. Tick it only when a merged change intentionally changes table definitions and the shared DEV integration tables need to be dropped and recreated.
 
 For smoke evidence, run `load_control_sheet`, and run `load_control_sheet_v2` when v2 control sheet changes are in scope. Confirm the output tables are created or updated in `marketingdata_dev.nextads_integration` and that no PREPROD or PROD outputs have changed.
+
+#### DEV Feature Store
+
+After the feature-store route has merged to `develop`, run the deployment pipeline from `develop` and select `Deploy DEV Feature Store`. This deploys only the `DEV_FEATURE_STORE` target to the DEV Databricks workspace.
+
+The shared feature-store job writes reusable model-building features to `marketingdata_dev.nextads_feature_store` and reads stable Theme Affinity source outputs from `marketingdata_prod.warehouse`. It is scheduled daily at 21:00 Europe/London; run it manually after deployment when immediate validation or repair evidence is needed.
+
+Personal `DEV` deployments can still smoke-test the feature-store job in the developer schema, but they should not be used as the persistent shared model-building store.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 

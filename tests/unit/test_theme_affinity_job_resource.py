@@ -246,6 +246,8 @@ def test_theme_affinity_train_job_is_dev_gpu_xgboost_challenger():
     assert task["libraries"] == "${var.theme_affinity_libraries}"
     parameters = task["spark_python_task"]["parameters"]
     assert "${var.job_parameter_environment_name}" in parameters
+    assert "--input_table" in parameters
+    assert "${var.theme_affinity_training_input_table}" in parameters
     assert "gpu_xgboost" in parameters
 
 
@@ -268,9 +270,10 @@ def test_theme_affinity_spark_train_job_is_dev_cpu_spark_challenger():
     )
     assert task["job_cluster_key"] == "next_ads_job_cluster_D32ads_v5_1_4"
     assert task["libraries"] == "${var.theme_affinity_libraries}"
-    assert "${var.job_parameter_environment_name}" in task["spark_python_task"][
-        "parameters"
-    ]
+    parameters = task["spark_python_task"]["parameters"]
+    assert "${var.job_parameter_environment_name}" in parameters
+    assert "--input_table" in parameters
+    assert "${var.theme_affinity_training_input_table}" in parameters
 
 
 def test_theme_affinity_spark_train_job_uses_existing_cpu_spark_cluster():
@@ -302,11 +305,15 @@ def test_theme_affinity_gpu_train_job_uses_requested_gpu_ml_cluster():
         "next_ads_job_cluster_theme_affinity_gpu_xgboost_train"
     )
     new_cluster = cluster["new_cluster"]
-    assert new_cluster["spark_version"] == "17.3.x-gpu-ml-scala2.13"
+    assert new_cluster["policy_id"] == "${var.job_cluster_policy_id}"
+    assert new_cluster["kind"] == "CLASSIC_PREVIEW"
+    assert new_cluster["spark_version"] == "18.1.x-scala2.13"
+    assert new_cluster["runtime_engine"] == "STANDARD"
+    assert new_cluster["use_ml_runtime"] is True
+    assert new_cluster["is_single_node"] is False
     assert new_cluster["node_type_id"] == "Standard_NV36ads_A10_v5"
-    assert new_cluster["driver_node_type_id"] == "Standard_NV36ads_A10_v5"
+    assert "driver_node_type_id" not in new_cluster
     assert new_cluster["autoscale"] == {"min_workers": 1, "max_workers": 1}
-    assert "is_single_node" not in new_cluster
     assert (
         "spark.databricks.cluster.profile"
         not in new_cluster["spark_conf"]
@@ -314,6 +321,11 @@ def test_theme_affinity_gpu_train_job_uses_requested_gpu_ml_cluster():
     assert "spark.master" not in new_cluster["spark_conf"]
     assert "custom_tags" not in new_cluster
     assert "num_workers" not in new_cluster
+    assert new_cluster["spark_env_vars"] == {
+        "CURRENT_ENV": "${var.environment_name}",
+        "GOOGLE_CLOUD_PROJECT": "big-query-156009",
+        "PYSPARK_PYTHON": "/databricks/python3/bin/python3",
+    }
 
 
 def test_theme_affinity_promote_job_is_prod_only_and_parameterised():
@@ -409,15 +421,21 @@ def test_theme_affinity_monitor_job_is_unscheduled_and_parameterised():
     job_config = _load_yaml(
         "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml"
     )
-    assert set(job_config["targets"]) == {"SANDBOX", "DEV", "PREPROD", "PROD"}
+    assert set(job_config["targets"]) == {"PROD"}
 
     job = job_config["theme_affinity_model_monitor_config"][
         "mktg_next_uk_nextads_theme_affinity_model_monitor"
     ]
     assert "schedule" not in job
     assert job["parameters"] == [
-        {"name": "baseline_table", "default": ""},
-        {"name": "candidate_table", "default": ""},
+        {
+            "name": "baseline_table",
+            "default": "${var.theme_affinity_monitor_baseline_table}",
+        },
+        {
+            "name": "candidate_table",
+            "default": "${var.theme_affinity_monitor_candidate_table}",
+        },
         {"name": "sample_limit", "default": "100000"},
     ]
     task = job["tasks"][0]
@@ -433,18 +451,12 @@ def test_theme_affinity_monitor_job_is_unscheduled_and_parameterised():
     assert "{{job.parameters.sample_limit}}" in parameters
 
 
-def test_theme_affinity_quality_monitor_setup_job_is_native_and_unscheduled():
+def test_theme_affinity_quality_monitor_setup_job_is_native_and_prod_only():
     job_config = _load_yaml(
         "resources/jobs/"
         "mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml"
     )
-    assert set(job_config["targets"]) == {
-        "SANDBOX",
-        "DEV",
-        "DEV_INTEGRATION",
-        "PREPROD",
-        "PROD",
-    }
+    assert set(job_config["targets"]) == {"PROD"}
 
     job = job_config["theme_affinity_quality_monitor_setup_config"][
         "mktg_next_uk_nextads_theme_affinity_quality_monitor_setup"
@@ -473,7 +485,7 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_unscheduled():
         },
         {"name": "timestamp_col", "default": "reference_date"},
         {"name": "granularities", "default": "1 day"},
-        {"name": "slicing_exprs", "default": "repurchase_stage,GmaName"},
+        {"name": "slicing_exprs", "default": "repurchase_stage,GmaName,theme_clean"},
         {"name": "run_refresh", "default": "false"},
         {"name": "problem_type", "default": "classification"},
         {"name": "prediction_col", "default": "prediction"},

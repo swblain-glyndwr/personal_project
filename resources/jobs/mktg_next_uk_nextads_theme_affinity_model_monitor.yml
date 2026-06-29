@@ -16,9 +16,9 @@ theme_affinity_model_monitor_config: &theme_affinity_model_monitor_config
     timeout_seconds: 1800
     parameters:
       - name: baseline_table
-        default: ""
+        default: ${var.theme_affinity_monitor_baseline_table}
       - name: candidate_table
-        default: ""
+        default: ${var.theme_affinity_monitor_candidate_table}
       - name: sample_limit
         default: "100000"
     tasks:
@@ -43,18 +43,6 @@ theme_affinity_model_monitor_config: &theme_affinity_model_monitor_config
         timeout_seconds: 1800
 
 targets:
-  SANDBOX:
-    resources:
-      jobs:
-        <<: *theme_affinity_model_monitor_config
-  DEV:
-    resources:
-      jobs:
-        <<: *theme_affinity_model_monitor_config
-  PREPROD:
-    resources:
-      jobs:
-        <<: *theme_affinity_model_monitor_config
   PROD:
     resources:
       jobs:
