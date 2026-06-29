@@ -22,15 +22,49 @@ resources:
         quartz_cron_expression: 0 0 9 * * ?
         timezone_id: Europe/London
       timeout_seconds: 21600
+      parameters:
+        - name: publish_source_namespace
+          default: ${var.mktgdata_catalog}.${var.theme_affinity_pipeline_schema}
+        - name: publish_target_namespace
+          default: ${var.mktgdata_catalog}.${var.user_schema}
+        - name: publish_source_table_prefix
+          default: next_uk_nextads_theme_affinity_predict
+        - name: publish_target_table_prefix
+          default: next_uk_nextads_theme_affinity_predict
+        - name: publish_table_suffixes
+          default: ${var.theme_affinity_publish_table_suffixes}
       tasks:
         - task_key: predict_data_prep
           pipeline_task:
             pipeline_id: ${resources.pipelines.nextads_theme_affinity_predict_data_prep.id}
             full_refresh: false
           timeout_seconds: 14400
-        - task_key: model_predict
+        - task_key: publish_dlt_outputs
           depends_on:
             - task_key: predict_data_prep
+          spark_python_task:
+            python_file: ../../jobs/model/theme_affinity/publish_outputs.py
+            parameters:
+              - --source_namespace
+              - "{{job.parameters.publish_source_namespace}}"
+              - --target_namespace
+              - "{{job.parameters.publish_target_namespace}}"
+              - --table_prefix
+              - "{{job.parameters.publish_source_table_prefix}}"
+              - --target_table_prefix
+              - "{{job.parameters.publish_target_table_prefix}}"
+              - --table_suffixes
+              - "{{job.parameters.publish_table_suffixes}}"
+              - --log_level
+              - INFO
+          job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+          libraries: ${var.theme_affinity_libraries}
+          max_retries: 1
+          min_retry_interval_millis: 60000
+          timeout_seconds: 5400
+        - task_key: model_predict
+          depends_on:
+            - task_key: publish_dlt_outputs
           spark_python_task:
             python_file: ../../jobs/model/theme_affinity/model_predict.py
             parameters:
@@ -63,6 +97,8 @@ resources:
               - marketingdata_prod.ds_sandbox
               - --baseline_intermediate_prefix
               - next_uk_nextAds_predict_prod
+              - --candidate_intermediate_namespace
+              - ${var.mktgdata_catalog}.${var.theme_affinity_pipeline_schema}
               - --summary_table
               - ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_dlt_sense_check_summary
               - --log_level

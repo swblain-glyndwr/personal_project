@@ -2,7 +2,7 @@ mktg_next_uk_nextads_predict_data_prep_config: &mktg_next_uk_nextads_predict_dat
   nextads_theme_affinity_predict_data_prep:
     name: nextads_theme_affinity_predict_data_prep
     configuration:
-      pipeline.schema: ${var.user_schema}
+      pipeline.schema: ${var.theme_affinity_pipeline_schema}
       pipeline.job_env: ${var.job_parameter_environment_name}
       pipeline.reference_date: ${var.theme_affinity_reference_date}
       pipeline.table_prefix: next_uk_nextads_theme_affinity_predict
@@ -11,7 +11,7 @@ mktg_next_uk_nextads_predict_data_prep_config: &mktg_next_uk_nextads_predict_dat
     libraries:
       - glob:
           include: ${workspace.file_path}/src/next_ads/ranking/theme_affinity/dlt_pipeline.py
-    schema: ${var.user_schema}
+    schema: ${var.theme_affinity_pipeline_schema}
     edition: CORE
     catalog: ${var.mktgdata_catalog}
     root_path: ${workspace.file_path}

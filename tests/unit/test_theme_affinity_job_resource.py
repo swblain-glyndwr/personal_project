@@ -43,10 +43,36 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         "timezone_id": "Europe/London",
     }
     assert job["job_clusters"] == "${var.job_clusters_config}"
+    assert job["parameters"] == [
+        {
+            "name": "publish_source_namespace",
+            "default": (
+                "${var.mktgdata_catalog}."
+                "${var.theme_affinity_pipeline_schema}"
+            ),
+        },
+        {
+            "name": "publish_target_namespace",
+            "default": "${var.mktgdata_catalog}.${var.user_schema}",
+        },
+        {
+            "name": "publish_source_table_prefix",
+            "default": "next_uk_nextads_theme_affinity_predict",
+        },
+        {
+            "name": "publish_target_table_prefix",
+            "default": "next_uk_nextads_theme_affinity_predict",
+        },
+        {
+            "name": "publish_table_suffixes",
+            "default": "${var.theme_affinity_publish_table_suffixes}",
+        },
+    ]
 
     tasks = {task["task_key"]: task for task in job["tasks"]}
     assert set(tasks) == {
         "predict_data_prep",
+        "publish_dlt_outputs",
         "model_predict",
         "sense_check_dlt_data",
         "clean_output",
@@ -58,6 +84,40 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         == "${resources.pipelines.nextads_theme_affinity_predict_data_prep.id}"
     )
 
+    publish_task = tasks["publish_dlt_outputs"]
+    assert publish_task["depends_on"] == [{"task_key": "predict_data_prep"}]
+    assert "notebook_task" not in publish_task
+    assert "spark_python_task" in publish_task
+    assert (
+        publish_task["spark_python_task"]["python_file"]
+        == "../../jobs/model/theme_affinity/publish_outputs.py"
+    )
+    assert publish_task["libraries"] == "${var.theme_affinity_libraries}"
+    publish_parameters = publish_task["spark_python_task"]["parameters"]
+    assert (
+        publish_parameters[publish_parameters.index("--source_namespace") + 1]
+        == "{{job.parameters.publish_source_namespace}}"
+    )
+    assert (
+        publish_parameters[publish_parameters.index("--target_namespace") + 1]
+        == "{{job.parameters.publish_target_namespace}}"
+    )
+    assert (
+        publish_parameters[publish_parameters.index("--table_prefix") + 1]
+        == "{{job.parameters.publish_source_table_prefix}}"
+    )
+    assert (
+        publish_parameters[publish_parameters.index("--target_table_prefix") + 1]
+        == "{{job.parameters.publish_target_table_prefix}}"
+    )
+    assert (
+        publish_parameters[publish_parameters.index("--table_suffixes") + 1]
+        == "{{job.parameters.publish_table_suffixes}}"
+    )
+
+    assert tasks["model_predict"]["depends_on"] == [
+        {"task_key": "publish_dlt_outputs"}
+    ]
     for task_key in ["model_predict", "clean_output"]:
         task = tasks[task_key]
         assert "notebook_task" not in task
@@ -463,6 +523,9 @@ def test_theme_affinity_script_bootstrap_handles_workspace_paths():
     script_paths = {
         "jobs/model/theme_affinity/model_predict.py": "Path(notebook_path).parents[3]",
         "jobs/model/theme_affinity/clean_output.py": "Path(notebook_path).parents[3]",
+        "jobs/model/theme_affinity/publish_outputs.py": (
+            "Path(notebook_path).parents[3]"
+        ),
         "jobs/model/theme_affinity/sense_check.py": "Path(notebook_path).parents[3]",
         "scripts/theme_affinity/rules_rank.py": "Path(notebook_path).parents[2]",
         "scripts/theme_affinity/run_pipeline.py": "Path(notebook_path).parents[2]",
@@ -504,6 +567,13 @@ def test_theme_affinity_sense_check_compares_dev_to_prod_sandbox():
         "next_uk_nextads_theme_affinity_dlt_sense_check_summary"
         in data_parameters
     )
+    assert "--candidate_intermediate_namespace" in data_parameters
+    assert (
+        data_parameters[
+            data_parameters.index("--candidate_intermediate_namespace") + 1
+        ]
+        == "${var.mktgdata_catalog}.${var.theme_affinity_pipeline_schema}"
+    )
     assert (
         "${var.mktgdata_catalog}.${var.user_schema}."
         "next_uk_nextads_theme_affinity_model_sense_check_summary"
@@ -521,11 +591,29 @@ def test_theme_affinity_sense_check_compares_dev_to_prod_sandbox():
     )
 
 
-def test_theme_affinity_pipeline_uses_target_schema_variable():
+def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
     pipeline = _load_yaml(
         "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     )
+    bundle = _load_yaml("databricks.yml")
     targets = pipeline["targets"]
+
+    assert (
+        bundle["variables"]["theme_affinity_pipeline_schema"]["default"]
+        == "${var.user_schema}"
+    )
+    assert (
+        bundle["variables"]["theme_affinity_publish_table_suffixes"]["default"]
+        == (
+            "ranked,complete,advanced_features,customer_features,"
+            "customer_segments,popularity_metrics"
+        )
+    )
+    assert (
+        bundle["targets"]["PROD"]["variables"]["theme_affinity_pipeline_schema"]
+        == "ds_sandbox"
+    )
+    assert bundle["targets"]["PROD"]["variables"]["user_schema"] == "warehouse"
 
     assert set(targets) == {"SANDBOX", "DEV", "DEV_INTEGRATION", "PREPROD", "PROD"}
     for target in targets.values():
@@ -533,10 +621,10 @@ def test_theme_affinity_pipeline_uses_target_schema_variable():
             "nextads_theme_affinity_predict_data_prep"
         ]
         assert pipeline_config["catalog"] == "${var.mktgdata_catalog}"
-        assert pipeline_config["schema"] == "${var.user_schema}"
+        assert pipeline_config["schema"] == "${var.theme_affinity_pipeline_schema}"
         assert (
             pipeline_config["configuration"]["pipeline.schema"]
-            == "${var.user_schema}"
+            == "${var.theme_affinity_pipeline_schema}"
         )
         assert (
             pipeline_config["configuration"]["pipeline.job_env"]

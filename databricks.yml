@@ -76,6 +76,12 @@ variables:
   theme_affinity_reference_date:
     description: Reference date for Theme Affinity data prep. Use current for the operational daily run, or YYYY-MM-DD for an explicit backfill date.
     default: current
+  theme_affinity_pipeline_schema:
+    description: Schema used by the Theme Affinity Lakeflow pipeline outputs before optional warehouse publication
+    default: ${var.user_schema}
+  theme_affinity_publish_table_suffixes:
+    description: Comma-separated Theme Affinity Lakeflow output suffixes to publish as normal Delta tables
+    default: ranked,complete,advanced_features,customer_features,customer_segments,popularity_metrics
   deploy_timestamp:
     description: Deployment timestamp
     default: "unknown"
@@ -276,6 +282,7 @@ targets:
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
       user_schema: warehouse
+      theme_affinity_pipeline_schema: ds_sandbox
       data_team_notification_emails:
         - edward_taylor@next.co.uk
         - adrienne_lowe@next.co.uk

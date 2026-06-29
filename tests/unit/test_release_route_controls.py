@@ -385,5 +385,6 @@ def test_preprod_and_prod_output_routes_are_separate():
     assert prod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert prod_vars["job_parameter_environment_name"] == "prod"
     assert prod_vars["user_schema"] == "warehouse"
+    assert prod_vars["theme_affinity_pipeline_schema"] == "ds_sandbox"
     assert settings["prod"]["catalog_write"] == "marketingdata_prod"
     assert settings["prod"]["schema_write"] == "warehouse"

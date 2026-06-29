@@ -52,6 +52,7 @@ BASELINE_FINAL_TABLE = (
     jobparser.get_arg("--baseline_final_table")
     or "marketingdata_prod.ds_sandbox.next_uk_next_ads_hackathon_model_full"
 )
+CANDIDATE_NAMESPACE = jobparser.get_arg("--candidate_intermediate_namespace")
 SUMMARY_TABLE = jobparser.get_arg("--summary_table")
 CHECK_SCOPE = jobparser.get_arg("--check_scope") or "all"
 
@@ -71,6 +72,7 @@ summary_df = run_sense_checks(
         baseline_final_table=BASELINE_FINAL_TABLE,
         summary_table=summary_table,
         check_scope=CHECK_SCOPE,
+        candidate_intermediate_namespace=CANDIDATE_NAMESPACE,
     ),
 )
 
