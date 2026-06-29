@@ -12,6 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def _load_job(path, key):
     job_config = yaml.safe_load((PROJECT_ROOT / path).read_text())
+    for value in job_config.values():
+        if isinstance(value, dict) and key in value:
+            return value[key]
     return job_config["resources"]["jobs"][key]
 
 

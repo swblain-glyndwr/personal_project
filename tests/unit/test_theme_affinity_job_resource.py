@@ -14,7 +14,7 @@ def _theme_affinity_job():
     job_config = _load_yaml(
         "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml"
     )
-    return job_config["resources"]["jobs"][
+    return job_config["mktg_next_uk_nextads_theme_affinity_config"][
         "mktg_next_uk_nextads_theme_affinity_cicd"
     ]
 
@@ -32,6 +32,20 @@ def test_theme_affinity_resources_are_included_in_bundle():
         in bundle_config["include"]
     )
     assert "hackathon_model/**" not in bundle_config["sync"]["include"]
+
+
+def test_theme_affinity_job_targets_match_pipeline_targets():
+    job_config = _load_yaml(
+        "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml"
+    )
+    pipeline_config = _load_yaml(
+        "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
+    )
+
+    expected_targets = {"SANDBOX", "DEV", "DEV_INTEGRATION", "PREPROD", "PROD"}
+    assert set(job_config["targets"]) == expected_targets
+    assert set(pipeline_config["targets"]) == expected_targets
+    assert "DEV_FEATURE_STORE" not in job_config["targets"]
 
 
 def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
