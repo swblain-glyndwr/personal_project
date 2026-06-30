@@ -116,6 +116,9 @@ default:
     nextads_payload_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload_latest"
     nextads_payload: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_payload"
     results_underperforming_ads: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_results_underperforming_ads"
+    # data_pull
+    sort_order_v2: "@format {this.catalog_write}.{this.schema_write}.nextads_sort_order_v2"
+    sort_order_v2_latest: "@format {this.catalog_write}.{this.schema_write}.nextads_sort_order_v2_latest"
 
   ranking_model_table_prefix: "@format {this.client}_nextads_theme_affinity_predict"
   ranking_model_tables:

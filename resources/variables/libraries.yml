@@ -17,3 +17,9 @@ variables:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
       - requirements: ../../requirements-theme-affinity.txt
+  pipeline_libraries:
+    default:
+      dependencies:
+        - /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
+        - "python-dotenv==1.2.1"
+        - "dynaconf==3.2.12"

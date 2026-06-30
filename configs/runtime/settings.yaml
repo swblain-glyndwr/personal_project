@@ -13,6 +13,8 @@ default:
   az_tenant_id: "f009f285-5242-433a-9365-daa1edf145c3"
   secret_key_spn_clientid: "Databricks-Spn-MarketingData-ClientId"
   secret_key_spn_secret: "Databricks-Spn-MarketingData-ClientSecret"
+  next_search_endpoint: "https://ci-test.next.co.uk/api/search/next/gb/en/v1/item-numbers"
+  next_search_wrapper: "https://preprod-search-provider.platform.next/api/v1/core/?account_id"
   gcp:
     scope: mktg_gcp
     key: mktg-gcp-service-account-b64-encoded
@@ -27,6 +29,7 @@ dev:
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Dev-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktdeveuw.dfs.core.windows.net"
+  search_volume_path: "/Volumes/marketingdata_dev/search_sandbox/search_volume/PF/next_ads"
 
 # PREPROD runs in the PROD Databricks workspace but writes validation output to ds_sandbox, not warehouse.
 preprod:
@@ -37,6 +40,7 @@ preprod:
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
+  search_volume_path: "/Volumes/marketingdata_preprod/search_sandbox/search_volume/PF/next_ads"
 
 prod:
   job_env: prod
@@ -46,3 +50,4 @@ prod:
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
+  search_volume_path: "/Volumes/marketingdata_prod/search_sandbox/search_volume/PF/next_ads"
