@@ -159,6 +159,22 @@ stages:
               fi
             displayName: 'Create or alter DEV integration tables'
 
+  - stage: DeployDEVFeatureStore
+    displayName: 'Deploy DEV Feature Store'
+    dependsOn:
+      - CI
+    condition: and(not(failed()), not(canceled()), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    variables:
+    - group: Development
+    jobs:
+      - template: devops/templates/deploy-dab.yml
+        parameters:
+          target: 'DEV_FEATURE_STORE'
+          pythonVersion: $(PYTHON_VERSION)
+          AzureBuildAgentPool: $(agentpool_dev)
+          azureSubscription: $(serviceConnectionName_dev)
+          KeyVaultName: $(strKeyVaultName)
+
   - stage: DestroyPREPROD
     displayName: 'Destroy PREPROD'
     dependsOn:

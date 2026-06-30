@@ -149,8 +149,19 @@ validation evidence.
 
 ### New Configuration
 
-New settings should eventually move toward `configs/`, but the current `config/`
-folder remains active during transition.
+Operational settings now live under `configs/`, grouped by purpose:
+
+```text
+configs/runtime/
+configs/control/
+configs/adsv2/
+configs/model/
+configs/delivery/
+configs/clients/
+```
+
+The config loader keeps compatibility fallbacks for legacy flat `config/`
+paths during transition.
 
 Do not move or rename config files without checking:
 
@@ -238,15 +249,20 @@ and should not become a second source of truth.
   entry points move, as long as old imports keep working.
 - Existing Databricks job entry points remain in `scripts/` until moved by a
   specific story.
+- When a story explicitly scopes a domain move, the package code and matching
+  Databricks entry points can move together in one PR, provided compatibility
+  wrappers remain and job paths are validated.
 - Existing Databricks job definitions remain in `resources/jobs/` until the
   deployment layout is changed by a specific story.
-- The current `config/` folder is not renamed in the foundation work.
+- Operational config now lives under grouped `configs/` folders, with loader
+  fallbacks retained for legacy flat `config/` paths during the transition.
 - Existing imports from the top-level `next_ads` package must keep working
   during the transition.
 - Decision-affecting logic should move only in follow-up stories with output
   equivalence checks.
-- Databricks job entry-point changes should be handled separately from package
-  structure foundation work.
+- Databricks job entry-point changes should normally be isolated from broad
+  foundation work, but can be included in the same PR as the package move when
+  the branch is domain-scoped and preserves output contracts.
 - `src/next_ads/features` is the target home for reusable feature definitions,
   grains, keys, and checks.
 - Release-control changes should follow the route in
@@ -257,14 +273,37 @@ and should not become a second source of truth.
 1. Move low-risk reusable utilities before output-affecting logic.
 2. Keep compatibility wrappers while old imports remain in scripts/jobs.
 3. Add tests that prove old and new import paths behave the same.
-4. Do not move Databricks job entry points and core business logic in the same
-   PR unless the story explicitly calls for it.
+4. Move Databricks job entry points with core business logic only when the PR is
+   explicitly domain-scoped, keeps compatibility wrappers where needed, and
+   updates DAB paths and tests in the same change.
 5. Treat assignment, scoring, delivery, model and table-definition changes as
    output-affecting until proven otherwise.
 6. Use DEV Integration and PREPROD validation where the release route requires
    it.
 7. Record evidence on the PR and work item when a change affects outputs,
    deployment, schemas or release flow.
+
+## Current Domain Migration Order
+
+Story `5128910` is now following a more direct domain-by-domain migration plan.
+The order is:
+
+1. `feature/SWB/5128910-control-domain-move`
+2. `feature/SWB/5128910-main-job-entrypoint-move`
+3. `feature/SWB/5128910-ranking-domain-move`
+4. `feature/SWB/5128910-decisioning-domain-move`
+5. `feature/SWB/5128910-delivery-domain-move`
+6. `feature/SWB/5128910-features-models-foundation`
+7. `feature/SWB/5128910-adsv2-domain-move`
+8. `feature/SWB/5128910-realtime-reporting-move`
+9. `feature/SWB/5128910-config-sql-layout`
+10. `feature/SWB/5128910-cleanup-legacy-paths`
+
+The first branch is represented by draft PR `246383`. The feature/model
+foundation is also active through the Theme Affinity MLflow lifecycle and
+Feature Store foundation PRs. That work links the DLT/Lakeflow feature prep,
+Feature Store direction, MLflow model lifecycle, and future pCTR/challenger
+algorithms to the 1%+ incrementality objective.
 
 ## Relationship To The Wiki
 

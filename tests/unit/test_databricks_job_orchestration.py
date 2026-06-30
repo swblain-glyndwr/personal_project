@@ -32,7 +32,7 @@ def test_main_job_submits_qa_without_waiting_for_qa_result():
         {"task_key": "map_theme_scores_to_ads_v2"},
     ]
     assert trigger_task["spark_python_task"]["python_file"] == (
-        "../../scripts/trigger_databricks_job.py"
+        "../../jobs/nextads_main/trigger_databricks_job.py"
     )
     assert trigger_task["spark_python_task"]["parameters"] == [
         "--job-id",

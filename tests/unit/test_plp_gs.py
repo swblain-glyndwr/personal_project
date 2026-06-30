@@ -1,6 +1,20 @@
 import pytest
 from unittest.mock import patch
+from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType
+
+
+@pytest.fixture
+def local_spark():
+    try:
+        spark = (
+            SparkSession.builder.master("local[1]")
+            .appName("next-ads-plp-gs-tests")
+            .getOrCreate()
+        )
+    except RuntimeError as exc:
+        pytest.skip(f"Local Spark unavailable: {exc}")
+    yield spark
 
 
 # @pytest.fixture
@@ -15,7 +29,7 @@ from pyspark.sql.types import StructType, StructField, StringType
 
 
 @pytest.fixture
-def mock_control_sheet_data(spark):
+def mock_control_sheet_data(local_spark):
     """Mock control sheet data."""
     schema = StructType([
         StructField("UniqueAdID", StringType(), True),
@@ -73,11 +87,11 @@ def mock_control_sheet_data(spark):
         ),
     ]
 
-    return spark.createDataFrame(data, schema)
+    return local_spark.createDataFrame(data, schema)
 
 
 @pytest.fixture
-def mock_plp_placements_data(spark):
+def mock_plp_placements_data(local_spark):
     """Mock PLP placements data."""
     schema = StructType([
         StructField("Location", StringType(), True),
@@ -92,11 +106,11 @@ def mock_plp_placements_data(spark):
         ("PL3", "/page3", "Cart", "GroupC"),
     ]
 
-    return spark.createDataFrame(data, schema)
+    return local_spark.createDataFrame(data, schema)
 
 
 @pytest.fixture
-def mock_plx_placements_data(spark):
+def mock_plx_placements_data(local_spark):
     """Mock PLX additional placements data."""
     schema = StructType([
         StructField("Location", StringType(), True),
@@ -109,11 +123,11 @@ def mock_plx_placements_data(spark):
         ("PLX", "/plx-page2", "PLP"),
     ]
 
-    return spark.createDataFrame(data, schema)
+    return local_spark.createDataFrame(data, schema)
 
 
 @pytest.fixture
-def mock_control_sheet_table_df(spark):
+def mock_control_sheet_table_df(local_spark):
     """Create mock control sheet DataFrame with correct schema."""
     control_sheet_table_schema = StructType([
         StructField("Realm", StringType(), True),
@@ -174,18 +188,17 @@ def mock_control_sheet_table_df(spark):
         ),
     ]
 
-    return spark.createDataFrame(data, control_sheet_table_schema)
+    return local_spark.createDataFrame(data, control_sheet_table_schema)
 
 
 def test_process_control_sheet_basic(
-    spark,
+    local_spark,
     config_dev,
     mock_control_sheet_data,
     mock_plp_placements_data,
     mock_plx_placements_data
 ):
     """Test basic processing of control sheet data."""
-
     with patch("scripts.plp_gs.spark") as mock_spark:
         # Setup mock spark.table() to return our test data
         def spark_table_side_effect(table_name):
@@ -200,7 +213,7 @@ def test_process_control_sheet_basic(
 
         mock_spark.table.side_effect = spark_table_side_effect
         # Keep the real SQL operations
-        mock_spark.sql = spark.sql
+        mock_spark.sql = local_spark.sql
 
         # Import after patching
         from scripts.plp_gs import process_control_sheet
@@ -268,14 +281,13 @@ def test_process_control_sheet_basic(
 
 
 def test_process_control_sheet_filters_active_plp(
-    spark,
+    local_spark,
     config_dev,
     mock_control_sheet_data,
     mock_plp_placements_data,
     mock_plx_placements_data
 ):
     """Test basic processing of control sheet data."""
-
     with patch("scripts.plp_gs.spark") as mock_spark:
         # Setup mock spark.table() to return our test data
         def spark_table_side_effect(table_name):
@@ -290,7 +302,7 @@ def test_process_control_sheet_filters_active_plp(
 
         mock_spark.table.side_effect = spark_table_side_effect
         # Keep the real SQL operations
-        mock_spark.sql = spark.sql
+        mock_spark.sql = local_spark.sql
 
         # Import after patching
         from scripts.plp_gs import process_control_sheet

@@ -13,6 +13,12 @@ include:
   - resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
   - resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
+  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - resources/jobs/mktg_next_uk_nextads_qa.yml
   - resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
   - resources/variables/clusters.yml
@@ -20,16 +26,21 @@ include:
   - resources/jobs/mktg_next_uk_nextads_results.yml
   - resources/jobs/mktg_next_uk_nextads_realtime_results.yml
   - resources/jobs/table_size_monitoring.yml
+  - resources/jobs/dev_setup.yml
   - resources/jobs/dev_integration_setup.yml
   - resources/jobs/preprod_setup.yml
   - resources/jobs/preprod_dependency_smoke.yml
   - resources/jobs/prod_table_contract_smoke.yml
+  - resources/jobs/mktg_next_uk_nextads_feature_store.yml
 
 sync:
   include:
+    - configs/**
+    - jobs/**
     - next_ads/**
     - next_ads/data/**
     - scripts/**
+    - sql/**
     - src/next_ads/**
     - src/next_ads/data/**
   exclude:
@@ -66,6 +77,12 @@ variables:
   theme_affinity_reference_date:
     description: Reference date for Theme Affinity data prep. Use current for the operational daily run, or YYYY-MM-DD for an explicit backfill date.
     default: current
+  theme_affinity_pipeline_schema:
+    description: Schema used by the Theme Affinity Lakeflow pipeline outputs before optional warehouse publication
+    default: ${var.user_schema}
+  theme_affinity_publish_table_suffixes:
+    description: Comma-separated Theme Affinity Lakeflow output suffixes to publish as normal Delta tables
+    default: ranked,complete,advanced_features,customer_features,customer_segments,popularity_metrics
   deploy_timestamp:
     description: Deployment timestamp
     default: "unknown"
@@ -90,6 +107,42 @@ variables:
   data_and_downstream_notification_emails:
     description: Combined data team and downstream recipients for handoff and export failure notifications
     default: []
+  feature_store_reference_date:
+    description: Reference date for opt-in feature-store smoke/materialisation jobs
+    default: predict
+  feature_store_schema:
+    description: Schema for opt-in Next Ads Feature Store tables
+    default: nextads_feature_store
+  feature_store_source_catalog:
+    description: Catalog for stable Next Ads source tables consumed by feature-store materialisation
+    default: marketingdata_prod
+  feature_store_source_schema:
+    description: Schema for stable Next Ads source tables consumed by feature-store materialisation
+    default: warehouse
+  feature_store_theme_source_catalog:
+    description: Catalog for existing Theme Affinity source tables consumed by feature-store materialisation
+    default: marketingdata_prod
+  feature_store_theme_source_schema:
+    description: Schema for existing Theme Affinity source tables consumed by feature-store materialisation
+    default: warehouse
+  feature_store_theme_table_prefix:
+    description: Table prefix for Theme Affinity runtime source tables consumed by feature-store materialisation
+    default: next_uk_nextads_theme_affinity_predict
+  feature_store_theme_training_reference_date:
+    description: Historical reference date for labelled Theme Affinity training input materialisation; set to skip for normal latest-feature refreshes
+    default: skip
+  feature_store_theme_training_table_prefix:
+    description: Staging table prefix used when creating labelled Theme Affinity training input from historical prep
+    default: next_uk_nextads_theme_affinity_training
+  theme_affinity_training_input_table:
+    description: Theme Affinity labelled training input table for DEV model-building jobs
+    default: ""
+  theme_affinity_monitor_baseline_table:
+    description: Baseline table used by the Theme Affinity MLflow drift monitor
+    default: ${var.theme_affinity_training_input_table}
+  theme_affinity_monitor_candidate_table:
+    description: Candidate table used by the Theme Affinity MLflow drift monitor
+    default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_predict_ranked
 
 targets:
   SANDBOX:
@@ -120,6 +173,9 @@ targets:
       job_cluster_lp_policy_id: 000CC98093ABF8DC
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
+      feature_store_schema: ${workspace.current_user.short_name}
+      theme_affinity_monitor_baseline_table: marketingdata_dev.${workspace.current_user.short_name}.next_uk_nextads_theme_affinity_predict_ranked
+      theme_affinity_monitor_candidate_table: marketingdata_dev.${workspace.current_user.short_name}.next_uk_nextads_theme_affinity_predict_ranked
 
   # deployed with cicd SPN but with user schema derived from last git commit author to avoid collision of user schemas in dev when multiple developers are deploying
   DEV:
@@ -148,6 +204,12 @@ targets:
       job_cluster_lp_policy_id: 000CC98093ABF8DC
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
+      # override user schema to last git commit author for dev environment, this is because for DEV deployment the SP would be the user and we want to avoid collision of user schemas in dev when multiple developers are deploying.
+      user_schema: ${var.git_last_commit_user_name}
+      feature_store_schema: ${var.git_last_commit_user_name}
+      theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
+      theme_affinity_monitor_baseline_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
+      theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
 
   # Shared integration target for code merged to develop.
   # This validates combined team changes in marketingdata_dev.nextads_integration.
@@ -179,6 +241,50 @@ targets:
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
       user_schema: nextads_integration
+      feature_store_schema: nextads_integration
+      feature_store_theme_source_catalog: marketingdata_dev
+      feature_store_theme_source_schema: nextads_integration
+      theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
+      theme_affinity_monitor_baseline_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
+      theme_affinity_monitor_candidate_table: marketingdata_dev.nextads_integration.next_uk_nextads_theme_affinity_predict_ranked
+
+  # Shared DEV feature-store target for scheduled model-building features.
+  DEV_FEATURE_STORE:
+    mode: production
+    presets:
+      name_prefix: "[${bundle.target}] "
+      trigger_pause_status: PAUSED
+    workspace:
+      host: https://adb-6694370232251359.19.azuredatabricks.net/
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - level: CAN_MANAGE
+        group_name: AzUsers-DBK-MarketingData-Contributor-Dev
+      - level: CAN_MANAGE
+        group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
+      - level: CAN_MANAGE
+        service_principal_name: ${var.run_as_SPN_name}
+      - level: CAN_RUN
+        group_name: AzUsers-DBK-MarketingData-DSSchemaContributor-Dev
+    run_as:
+      service_principal_name: ${var.run_as_SPN_name}
+    variables:
+      mktgdata_catalog: marketingdata_dev
+      environment_name: dev
+      job_cluster_policy_id: 00076A5E6270EA99
+      job_cluster_policy_id_fixed: 00094FE740FAEA3D
+      job_cluster_lp_policy_id: 000CC98093ABF8DC
+      run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
+      job_parameter_environment_name: dev
+      user_schema: nextads_feature_store
+      feature_store_schema: nextads_feature_store
+      feature_store_source_catalog: marketingdata_prod
+      feature_store_source_schema: warehouse
+      feature_store_theme_source_catalog: marketingdata_prod
+      feature_store_theme_source_schema: warehouse
+      theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
+      theme_affinity_monitor_baseline_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
+      theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
 
   # PREPROD:
   #   # intended to deploy as in prod simulating prod, in prod mode etc.
@@ -226,6 +332,8 @@ targets:
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: preprod
       user_schema: ds_sandbox
+      theme_affinity_monitor_baseline_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
+      theme_affinity_monitor_candidate_table: marketingdata_prod.ds_sandbox.next_uk_nextads_theme_affinity_predict_ranked
 
   PROD:
     mode: production
@@ -266,6 +374,9 @@ targets:
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: prod
       user_schema: warehouse
+      theme_affinity_pipeline_schema: ds_sandbox
+      theme_affinity_monitor_baseline_table: marketingdata_prod.ds_sandbox.next_uk_nextads_theme_affinity_predict_ranked
+      theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
       data_team_notification_emails:
         - edward_taylor@next.co.uk
         - adrienne_lowe@next.co.uk

@@ -2,6 +2,7 @@ import os
 import pytest
 from unittest.mock import patch
 from next_ads.common import config_manager as new_config_manager
+from next_ads.common import paths as common_paths
 from next_ads.common.config_manager import load_config as new_load_config
 from next_ads.utils.config_manager import load_config
 
@@ -41,23 +42,72 @@ def test_old_and_new_config_import_paths_match():
 def test_config_paths_prefer_current_config_folder():
     settings_files = new_config_manager._settings_files()
 
-    assert "config/settings.yaml" in settings_files
-    assert "config/load_control_sheet_v2_settings.yaml" in settings_files
-    assert "config/tables_settings.yaml" in settings_files
+    assert "configs/runtime/settings.yaml" in settings_files
+    assert "configs/adsv2/load_control_sheet_v2_settings.yaml" in settings_files
+    assert "configs/runtime/tables_settings.yaml" in settings_files
     assert "adsv2/load_control_sheet_v2_settings.yaml" not in settings_files
     assert "adsv2/tables_settings.yaml" not in settings_files
 
 
-def test_config_paths_fall_back_to_configs_folder(monkeypatch, tmp_path):
+def test_config_paths_fall_back_to_legacy_config_folder(monkeypatch, tmp_path):
     monkeypatch.setattr(new_config_manager, "PROJECT_ROOT", tmp_path)
 
     settings_files = new_config_manager._settings_files()
 
-    assert "configs/settings.yaml" in settings_files
-    assert "configs/tables_settings.yaml" in settings_files
-    assert "configs/adsv2/load_control_sheet_v2_settings.yaml" in settings_files
-    assert "configs/adsv2/tables_settings.yaml" not in settings_files
-    assert "configs/adsv2/load_control_sheet_settings.yaml" not in settings_files
+    assert "config/settings.yaml" in settings_files
+    assert "config/tables_settings.yaml" in settings_files
+    assert "config/load_control_sheet_v2_settings.yaml" in settings_files
+
+
+def test_client_config_path_prefers_configs_clients_folder():
+    path = common_paths.resolve_client_config_path("next_uk")
+
+    assert path.as_posix().endswith("configs/clients/next_uk.json")
+
+
+def test_sql_contract_resolver_finds_grouped_sql_files():
+    assert common_paths.resolve_sql_contract_path(
+        "control_sheet_raw"
+    ).as_posix().endswith(
+        "sql/control/create_table_control_sheet_raw.sql"
+    )
+    assert common_paths.resolve_sql_contract_path(
+        "results_topline"
+    ).as_posix().endswith(
+        "sql/reporting/create_table_results_topline.sql"
+    )
+    assert common_paths.resolve_sql_contract_path(
+        "viewed_bought_latest"
+    ).as_posix().endswith(
+        "sql/realtime/create_table_viewed_bought_latest.sql"
+    )
+
+
+def test_configured_write_tables_have_sql_contracts(clean_env, mock_dotenv):
+    os.environ["JOB_ENV"] = "dev"
+    config = load_config("dev")
+    table_refs = _extract_table_refs(config.tables_write.to_dict())
+
+    assert table_refs
+    missing_contracts = [
+        table_ref
+        for table_ref in table_refs
+        if not common_paths.resolve_sql_contract_path(table_ref).exists()
+    ]
+
+    assert missing_contracts == []
+
+
+def _extract_table_refs(value, parent_key=""):
+    if isinstance(value, dict):
+        refs = []
+        for key, child in value.items():
+            full_key = f"{parent_key}.{key}" if parent_key else key
+            refs.extend(_extract_table_refs(child, full_key))
+        return refs
+    if isinstance(value, str):
+        return [parent_key]
+    return []
 
 
 class TestLoadConfigSchemaWrite:

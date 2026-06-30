@@ -10,7 +10,7 @@ This guide walks new developers through setting up the required tables for the p
 ### Setup Instructions
 
 1. **Set your Databricks user schema**
-    Create a .env.local file in config/ folder:
+    Create a `.env.local` file in `configs/runtime/`:
     ```
     USER_SCHEMA=your_user_name_on_databricks
     ```

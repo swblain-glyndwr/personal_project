@@ -22,11 +22,11 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import json
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.utils import config_manager
+from next_ads.common.paths import load_client_config, resolve_sql_contract_path
 from next_ads.utils import etl
 
 
@@ -221,8 +221,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
         use_dynaconf = False
 
         # Fallback to legacy JSON config
-        with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-            cfg = json.load(f)
+        cfg = load_client_config(CLIENT)
 
         tbls = cfg["tables"]["write"]
         SCHEMA = cfg["schema"][JOB_ENV]
@@ -287,8 +286,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
     # Check for missing SQL scripts before proceeding
     missing_scripts = []
     for table_ref in tbls:
-        sql_script_path = PROJECT_ROOT / \
-            f"sql/create_table_{table_ref.replace('.', '_')}.sql"
+        sql_script_path = resolve_sql_contract_path(table_ref)
         if not sql_script_path.exists():
             missing_scripts.append(str(sql_script_path))
 
@@ -311,7 +309,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
 
         logger.info(f"Checking existence of table {table}")
         # replace . with "_" for nested dynaconf table refs
-        with open(PROJECT_ROOT / f"sql/create_table_{table_ref.replace('.', '_')}.sql") as f:
+        with open(resolve_sql_contract_path(table_ref)) as f:
             query = etl.map_tbl("".join(f.readlines()), **tbl_args)
 
         if spark.catalog.tableExists(table):

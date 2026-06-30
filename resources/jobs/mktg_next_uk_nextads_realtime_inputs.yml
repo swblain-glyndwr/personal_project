@@ -24,7 +24,7 @@ resources:
       tasks:
         - task_key: viewed_bought
           spark_python_task:
-            python_file: ../../scripts/viewed_bought.py
+            python_file: ../../jobs/realtime/viewed_bought.py
             parameters:
               - --client
               - "next_uk"

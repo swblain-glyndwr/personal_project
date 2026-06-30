@@ -26,7 +26,7 @@ resources:
             task:
               task_key: nextads_plp_gs_iteration
               spark_python_task:
-                python_file: ../../scripts/plp_gs.py
+                python_file: ../../jobs/nextads_delivery/plp_gs.py
                 parameters:
                   - --client
                   - "{{input.client}}"
