@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import logging
+import sys
+from pathlib import Path
 
 from pyspark.sql import SparkSession
 
-from scripts.table_operations import create_tables
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 SUPPORTED_OPERATIONS = {
     "drop_tables",
@@ -13,6 +17,10 @@ SUPPORTED_OPERATIONS = {
     "alter_tables",
     "recreate_tables",
 }
+
+
+def load_create_tables_module():
+    return importlib.import_module("scripts.table_operations.create_tables")
 
 
 def parse_bool(value: str | bool) -> bool:
@@ -148,6 +156,7 @@ def run_configured_table_operation(
         )
 
     logger.info("Running %s for client=%s job_env=%s", operation, client, job_env)
+    create_tables = load_create_tables_module()
     create_tables.main(
         JOB_ENV=job_env,
         CLIENT=client,

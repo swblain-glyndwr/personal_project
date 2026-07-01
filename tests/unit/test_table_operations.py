@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from jobs.table_operations.table_operations import (
@@ -19,6 +21,14 @@ class FakeSpark:
 
     def sql(self, statement):
         self.sql_calls.append(statement)
+
+
+class FakeCreateTablesModule:
+    def __init__(self):
+        self.calls = []
+
+    def main(self, **kwargs):
+        self.calls.append(kwargs)
 
 
 def test_split_table_names_ignores_empty_values():
@@ -120,6 +130,21 @@ def test_drop_tables_executes_confirmed_drop_statements():
     assert spark.sql_calls == statements
 
 
+def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
+    monkeypatch.delitem(sys.modules, "scripts.table_operations.create_tables", raising=False)
+
+    drop_tables(
+        FakeSpark(),
+        catalog="marketingdata_prod",
+        schema="warehouse",
+        tables="next_uk_nextads_theme_affinity_predict_ranked",
+        confirm_destructive=True,
+        dry_run=False,
+    )
+
+    assert "scripts.table_operations.create_tables" not in sys.modules
+
+
 def test_drop_tables_rejects_empty_tables_when_executing():
     with pytest.raises(ValueError, match="--tables"):
         drop_tables(
@@ -166,14 +191,10 @@ def test_recreate_tables_requires_destructive_confirmation_when_executing():
 
 
 def test_configured_operations_are_dry_run_by_default(monkeypatch):
-    calls = []
-
-    def fake_main(**kwargs):
-        calls.append(kwargs)
-
+    create_tables = FakeCreateTablesModule()
     monkeypatch.setattr(
-        "jobs.table_operations.table_operations.create_tables.main",
-        fake_main,
+        "jobs.table_operations.table_operations.load_create_tables_module",
+        lambda: create_tables,
     )
 
     assert (
@@ -188,18 +209,14 @@ def test_configured_operations_are_dry_run_by_default(monkeypatch):
         )
         == []
     )
-    assert calls == []
+    assert create_tables.calls == []
 
 
 def test_create_missing_tables_delegates_to_create_tables(monkeypatch):
-    calls = []
-
-    def fake_main(**kwargs):
-        calls.append(kwargs)
-
+    create_tables = FakeCreateTablesModule()
     monkeypatch.setattr(
-        "jobs.table_operations.table_operations.create_tables.main",
-        fake_main,
+        "jobs.table_operations.table_operations.load_create_tables_module",
+        lambda: create_tables,
     )
 
     create_missing_tables(
@@ -210,7 +227,7 @@ def test_create_missing_tables_delegates_to_create_tables(monkeypatch):
         dry_run=False,
     )
 
-    assert calls == [
+    assert create_tables.calls == [
         {
             "JOB_ENV": "preprod",
             "CLIENT": "next_uk",
@@ -224,14 +241,10 @@ def test_create_missing_tables_delegates_to_create_tables(monkeypatch):
 
 
 def test_alter_tables_delegates_with_non_dev_alter_enabled(monkeypatch):
-    calls = []
-
-    def fake_main(**kwargs):
-        calls.append(kwargs)
-
+    create_tables = FakeCreateTablesModule()
     monkeypatch.setattr(
-        "jobs.table_operations.table_operations.create_tables.main",
-        fake_main,
+        "jobs.table_operations.table_operations.load_create_tables_module",
+        lambda: create_tables,
     )
 
     alter_tables(
@@ -242,20 +255,16 @@ def test_alter_tables_delegates_with_non_dev_alter_enabled(monkeypatch):
         dry_run=False,
     )
 
-    assert calls[0]["ALTER_TABLES"] is True
-    assert calls[0]["ALLOW_NON_DEV_ALTER"] is True
-    assert calls[0]["DROP_TABLES"] is False
+    assert create_tables.calls[0]["ALTER_TABLES"] is True
+    assert create_tables.calls[0]["ALLOW_NON_DEV_ALTER"] is True
+    assert create_tables.calls[0]["DROP_TABLES"] is False
 
 
 def test_recreate_tables_delegates_with_non_dev_drop_enabled(monkeypatch):
-    calls = []
-
-    def fake_main(**kwargs):
-        calls.append(kwargs)
-
+    create_tables = FakeCreateTablesModule()
     monkeypatch.setattr(
-        "jobs.table_operations.table_operations.create_tables.main",
-        fake_main,
+        "jobs.table_operations.table_operations.load_create_tables_module",
+        lambda: create_tables,
     )
 
     recreate_tables(
@@ -266,9 +275,9 @@ def test_recreate_tables_delegates_with_non_dev_drop_enabled(monkeypatch):
         dry_run=False,
     )
 
-    assert calls[0]["DROP_TABLES"] is True
-    assert calls[0]["ALLOW_NON_DEV_DROP"] is True
-    assert calls[0]["ALTER_TABLES"] is False
+    assert create_tables.calls[0]["DROP_TABLES"] is True
+    assert create_tables.calls[0]["ALLOW_NON_DEV_DROP"] is True
+    assert create_tables.calls[0]["ALTER_TABLES"] is False
 
 
 def test_parse_bool_accepts_expected_values():
