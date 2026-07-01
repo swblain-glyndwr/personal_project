@@ -25,14 +25,16 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
         default: ${var.mktgdata_catalog}.${var.user_schema}
       - name: assets_dir
         default: ${workspace.root_path}/quality_monitors/theme_affinity_predict_ranked
+      - name: warehouse_id
+        default: b1a8731a9174e392
       - name: timestamp_col
         default: reference_date
       - name: granularities
         default: 1 day
       - name: slicing_exprs
         default: repurchase_stage,GmaName,theme_clean
-      - name: run_refresh
-        default: "false"
+      - name: custom_metrics_profile
+        default: theme_affinity_ranked
       - name: problem_type
         default: classification
       - name: prediction_col
@@ -62,14 +64,16 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
             - "{{job.parameters.output_schema_name}}"
             - --assets_dir
             - "{{job.parameters.assets_dir}}"
+            - --warehouse_id
+            - "{{job.parameters.warehouse_id}}"
             - --timestamp_col
             - "{{job.parameters.timestamp_col}}"
             - --granularities
             - "{{job.parameters.granularities}}"
             - --slicing_exprs
             - "{{job.parameters.slicing_exprs}}"
-            - --run_refresh
-            - "{{job.parameters.run_refresh}}"
+            - --custom_metrics_profile
+            - "{{job.parameters.custom_metrics_profile}}"
             - --problem_type
             - "{{job.parameters.problem_type}}"
             - --prediction_col
@@ -87,10 +91,6 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
         timeout_seconds: 1800
 
 targets:
-  PROD:
-    resources:
-      jobs:
-        <<: *theme_affinity_quality_monitor_setup_config
   PROD:
     resources:
       jobs:

@@ -11,6 +11,8 @@ class TimeSeriesQualityMonitorSpec:
     timestamp_col: str
     granularities: tuple[str, ...]
     slicing_exprs: tuple[str, ...] = ()
+    custom_metrics: tuple[object, ...] = ()
+    warehouse_id: str | None = None
     skip_builtin_dashboard: bool = False
 
 
@@ -27,6 +29,8 @@ class InferenceLogQualityMonitorSpec:
     label_col: str | None = None
     prediction_proba_col: str | None = None
     slicing_exprs: tuple[str, ...] = ()
+    custom_metrics: tuple[object, ...] = ()
+    warehouse_id: str | None = None
     skip_builtin_dashboard: bool = False
 
 
@@ -48,6 +52,8 @@ def ensure_time_series_quality_monitor(client, spec: TimeSeriesQualityMonitorSpe
             assets_dir=spec.assets_dir,
             time_series=time_series,
             slicing_exprs=list(spec.slicing_exprs),
+            custom_metrics=list(spec.custom_metrics),
+            warehouse_id=spec.warehouse_id,
             skip_builtin_dashboard=spec.skip_builtin_dashboard,
         )
 
@@ -56,6 +62,7 @@ def ensure_time_series_quality_monitor(client, spec: TimeSeriesQualityMonitorSpe
         output_schema_name=spec.output_schema_name,
         time_series=time_series,
         slicing_exprs=list(spec.slicing_exprs),
+        custom_metrics=list(spec.custom_metrics),
     )
 
 
@@ -87,6 +94,8 @@ def ensure_inference_log_quality_monitor(
             assets_dir=spec.assets_dir,
             inference_log=inference_log,
             slicing_exprs=list(spec.slicing_exprs),
+            custom_metrics=list(spec.custom_metrics),
+            warehouse_id=spec.warehouse_id,
             skip_builtin_dashboard=spec.skip_builtin_dashboard,
         )
 
@@ -95,6 +104,7 @@ def ensure_inference_log_quality_monitor(
         output_schema_name=spec.output_schema_name,
         inference_log=inference_log,
         slicing_exprs=list(spec.slicing_exprs),
+        custom_metrics=list(spec.custom_metrics),
     )
 
 

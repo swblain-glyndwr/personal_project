@@ -497,10 +497,14 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_prod_only():
                 "theme_affinity_predict_ranked"
             ),
         },
+        {"name": "warehouse_id", "default": "b1a8731a9174e392"},
         {"name": "timestamp_col", "default": "reference_date"},
         {"name": "granularities", "default": "1 day"},
         {"name": "slicing_exprs", "default": "repurchase_stage,GmaName,theme_clean"},
-        {"name": "run_refresh", "default": "false"},
+        {
+            "name": "custom_metrics_profile",
+            "default": "theme_affinity_ranked",
+        },
         {"name": "problem_type", "default": "classification"},
         {"name": "prediction_col", "default": "prediction"},
         {"name": "model_id_col", "default": "model_id"},
@@ -518,8 +522,9 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_prod_only():
     assert "{{job.parameters.action}}" in parameters
     assert "{{job.parameters.monitor_type}}" in parameters
     assert "{{job.parameters.table_name}}" in parameters
+    assert "{{job.parameters.warehouse_id}}" in parameters
     assert "{{job.parameters.timestamp_col}}" in parameters
-    assert "{{job.parameters.run_refresh}}" in parameters
+    assert "{{job.parameters.custom_metrics_profile}}" in parameters
     assert "{{job.parameters.problem_type}}" in parameters
     assert "{{job.parameters.prediction_col}}" in parameters
     assert "{{job.parameters.model_id_col}}" in parameters
