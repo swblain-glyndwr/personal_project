@@ -30,6 +30,11 @@ dev:
   dbutils_secret_scope: "DataIng-KV-MKT-Dev-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktdeveuw.dfs.core.windows.net"
   search_volume_path: "/Volumes/marketingdata_dev/search_sandbox/search_volume/PF/next_ads"
+  cosmos_url: "https://adscosmos-ecm-dev-eun.documents.azure.com:443/" # "https://adscosmos-ecm-sbx-eun.documents.azure.com:443/"
+  cosmos_resource_group: "ADS-RG-ECM-DEV-EUN" # "ADS-RG-ECM-SBX-EUN"
+  cosmos_database: "ecmadsconfigcdbdev" # "ecmadsconfigcdbsbx"
+  cosmos_container: "adverts-exclusions"
+  cosmos_subscriptionId: "c10b49dd-b454-432a-98a0-410a238d5d07"
 
 # PREPROD runs in the PROD Databricks workspace but writes validation output to ds_sandbox, not warehouse.
 preprod:

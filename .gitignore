@@ -19,6 +19,8 @@ typings/
 .ruff_cache
 /data/*
 
+
 # local dynaconf config
 config/settings.local.yaml 
 config/.env.local
+configs/runtime/.env.local
