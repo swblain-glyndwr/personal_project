@@ -204,8 +204,7 @@ while preserving existing output contracts during the restructure.
 | `resources/jobs/mktg_next_uk_nextads_results.yml` | Results job definition. | `pipelines/databricks/jobs/mktg_next_uk_nextads_results.yml` | Production | Medium | With results job move. | DAB validate and results job run/smoke. | Active results route. |
 | `resources/jobs/mktg_next_uk_nextads_realtime_results.yml` | Realtime results job definition. | `pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml` | Production | High | With realtime move. | DAB validate and realtime smoke. | Active realtime route. |
 | `resources/jobs/table_size_monitoring.yml` | Table size monitoring job. | `pipelines/databricks/jobs/table_size_monitoring.yml` | Production | Medium | With table operation move. | DAB validate and job smoke. | Monitoring/support route. |
-| `resources/jobs/dev_integration_setup.yml` | DEV Integration setup/migration job. | `pipelines/databricks/jobs/dev_integration_setup.yml` | Deployment | High | After table operation path update. | DEV Integration setup validation. | Can create/drop dev integration tables. |
-| `resources/jobs/preprod_setup.yml` | PREPROD setup job. | `pipelines/databricks/jobs/preprod_setup.yml` | Deployment | High | After table operation path update. | PREPROD setup validation if run. | Creates missing PREPROD tables in `ds_sandbox`. |
+| `resources/jobs/table_operations.yml` | Manual table operations plus target-scoped DEV Integration/PREPROD setup jobs. | `pipelines/databricks/jobs/table_operations.yml` | Deployment | High | After table operation path update. | DAB validate, DEV Integration setup validation, PREPROD setup validation if run. | Central table-operations resource; manual job defaults to dry-run. |
 | `resources/jobs/preprod_dependency_smoke.yml` | PREPROD dependency smoke job. | `pipelines/databricks/jobs/preprod_dependency_smoke.yml` | Deployment | Medium | With smoke path update. | PREPROD smoke run. | Must stay read-only by default. |
 | `resources/variables/clusters.yml` | DAB cluster config. | `pipelines/databricks/variables/clusters.yml` | Deployment | Medium | With DAB include update. | DAB validate. | Controls compute. |
 | `resources/variables/libraries.yml` | DAB shared libraries. | `pipelines/databricks/variables/libraries.yml` | Deployment | Medium | With DAB include update. | DAB validate and job cluster library check. | Controls runtime deps. |
@@ -415,8 +414,7 @@ Do not move these until their contracts and validation are agreed:
 - `databricks.yml`
 - `resources/jobs/mktg_next_uk_nextads.yml`
 - `resources/jobs/mktg_next_uk_nextads_realtime_results.yml`
-- `resources/jobs/dev_integration_setup.yml`
-- `resources/jobs/preprod_setup.yml`
+- `resources/jobs/table_operations.yml`
 - `azure-pipelines.yml`
 - `azure-pipelines-validation.yml`
 

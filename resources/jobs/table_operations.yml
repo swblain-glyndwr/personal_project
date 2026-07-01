@@ -1,0 +1,231 @@
+# Manual table maintenance job. Defaults are inert; mutating/destructive runs
+# must override dry_run and the relevant confirmation parameter at run time.
+nextads_table_operations_config: &nextads_table_operations_config
+  mktg_next_uk_nextads_table_operations:
+    name: mktg_next_uk_nextads_table_operations
+    queue:
+      enabled: true
+    parameters:
+      - name: operation
+        default: create_missing_tables
+      - name: client
+        default: next_uk
+      - name: job_env
+        default: ${var.job_parameter_environment_name}
+      - name: catalog
+        default: ${var.mktgdata_catalog}
+      - name: schema
+        default: ${var.user_schema}
+      - name: tables
+        default: ""
+      - name: confirm_mutating
+        default: "false"
+      - name: confirm_destructive
+        default: "false"
+      - name: dry_run
+        default: "true"
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      purpose: table_operations
+    timeout_seconds: 3600
+    tasks:
+      - task_key: table_operations
+        spark_python_task:
+          python_file: ../../jobs/table_operations/table_operations.py
+          parameters:
+            - --operation
+            - "{{job.parameters.operation}}"
+            - --client
+            - "{{job.parameters.client}}"
+            - --job_env
+            - "{{job.parameters.job_env}}"
+            - --catalog
+            - "{{job.parameters.catalog}}"
+            - --schema
+            - "{{job.parameters.schema}}"
+            - --tables
+            - "{{job.parameters.tables}}"
+            - --confirm_mutating
+            - "{{job.parameters.confirm_mutating}}"
+            - --confirm_destructive
+            - "{{job.parameters.confirm_destructive}}"
+            - --dry_run
+            - "{{job.parameters.dry_run}}"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 3600
+
+# Environment setup/migration jobs are kept here because they are table
+# operations. They remain target-scoped below; the manual maintenance job is
+# the only table-operations job deployed to every active target.
+nextads_dev_integration_setup_config: &nextads_dev_integration_setup_config
+  mktg_next_uk_nextads_dev_integration_setup:
+    name: mktg_next_uk_nextads_dev_integration_setup
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+    timeout_seconds: 3600
+    tasks:
+      - task_key: create_tables
+        spark_python_task:
+          python_file: ../../jobs/table_operations/table_operations.py
+          parameters:
+            - --operation
+            - create_missing_tables
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --confirm_mutating
+            - "true"
+            - --dry_run
+            - "false"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 3600
+
+  mktg_next_uk_nextads_dev_integration_migrate:
+    name: mktg_next_uk_nextads_dev_integration_migrate
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+    timeout_seconds: 3600
+    tasks:
+      - task_key: recreate_tables
+        spark_python_task:
+          python_file: ../../jobs/table_operations/table_operations.py
+          parameters:
+            - --operation
+            - recreate_tables
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --confirm_destructive
+            - "true"
+            - --dry_run
+            - "false"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 3600
+
+  mktg_next_uk_nextads_dev_integration_alter:
+    name: mktg_next_uk_nextads_dev_integration_alter
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+    timeout_seconds: 3600
+    tasks:
+      - task_key: alter_tables
+        spark_python_task:
+          python_file: ../../jobs/table_operations/table_operations.py
+          parameters:
+            - --operation
+            - alter_tables
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --confirm_mutating
+            - "true"
+            - --dry_run
+            - "false"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 3600
+
+nextads_preprod_setup_config: &nextads_preprod_setup_config
+  mktg_next_uk_nextads_preprod_setup:
+    name: mktg_next_uk_nextads_preprod_setup
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+    timeout_seconds: 3600
+    tasks:
+      - task_key: create_tables
+        spark_python_task:
+          python_file: ../../jobs/table_operations/table_operations.py
+          parameters:
+            - --operation
+            - create_missing_tables
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --confirm_mutating
+            - "true"
+            - --dry_run
+            - "false"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        timeout_seconds: 3600
+
+targets:
+  SANDBOX:
+    resources:
+      jobs:
+        <<: *nextads_table_operations_config
+  DEV:
+    resources:
+      jobs:
+        <<: *nextads_table_operations_config
+  DEV_INTEGRATION:
+    resources:
+      jobs:
+        <<:
+          - *nextads_table_operations_config
+          - *nextads_dev_integration_setup_config
+  PREPROD:
+    resources:
+      jobs:
+        <<:
+          - *nextads_table_operations_config
+          - *nextads_preprod_setup_config
+  PROD:
+    resources:
+      jobs:
+        <<: *nextads_table_operations_config

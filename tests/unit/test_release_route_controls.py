@@ -123,7 +123,8 @@ def test_deployment_pipeline_has_develop_only_dev_feature_store_route():
 
 
 def test_dev_integration_setup_job_is_target_specific():
-    setup = load_yaml("resources/jobs/dev_integration_setup.yml")
+    bundle = load_yaml("databricks.yml")
+    setup = load_yaml("resources/jobs/table_operations.yml")
     jobs = setup["targets"]["DEV_INTEGRATION"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_dev_integration_setup"]
     migrate_job = jobs["mktg_next_uk_nextads_dev_integration_migrate"]
@@ -132,41 +133,70 @@ def test_dev_integration_setup_job_is_target_specific():
     migrate_task = migrate_job["tasks"][0]
     alter_task = alter_job["tasks"][0]
 
-    assert set(setup["targets"]) == {"DEV_INTEGRATION"}
+    assert "resources/jobs/table_operations.yml" in bundle["include"]
+    assert "resources/jobs/dev_integration_setup.yml" not in bundle["include"]
+    assert "mktg_next_uk_nextads_dev_integration_setup" not in (
+        setup["targets"]["DEV"]["resources"]["jobs"]
+    )
+    assert "mktg_next_uk_nextads_dev_integration_setup" not in (
+        setup["targets"]["PREPROD"]["resources"]["jobs"]
+    )
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../scripts/table_operations/create_tables.py"
+        == "../../jobs/table_operations/table_operations.py"
     )
     assert setup_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "create_missing_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_mutating",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
     ]
     assert migrate_task["task_key"] == "recreate_tables"
+    assert (
+        migrate_task["spark_python_task"]["python_file"]
+        == "../../jobs/table_operations/table_operations.py"
+    )
     assert migrate_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "recreate_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_destructive",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
-        "--droptables",
-        "True",
     ]
     assert alter_task["task_key"] == "alter_tables"
+    assert (
+        alter_task["spark_python_task"]["python_file"]
+        == "../../jobs/table_operations/table_operations.py"
+    )
     assert alter_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "alter_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_mutating",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
-        "--altertables",
-        "True",
     ]
 
 
@@ -188,6 +218,70 @@ def test_personal_dev_setup_job_populates_current_user_schema():
     )
     assert setup_task["spark_python_task"]["parameters"] == ["--standard"]
     assert setup_task["libraries"] == "${var.shared_libraries}"
+
+
+def test_table_operations_job_is_manual_and_target_scoped():
+    bundle = load_yaml("databricks.yml")
+    resource = load_yaml("resources/jobs/table_operations.yml")
+
+    assert "resources/jobs/table_operations.yml" in bundle["include"]
+    assert "resources/jobs/dev_integration_setup.yml" not in bundle["include"]
+    assert "resources/jobs/preprod_setup.yml" not in bundle["include"]
+    assert set(resource["targets"]) == {
+        "SANDBOX",
+        "DEV",
+        "DEV_INTEGRATION",
+        "PREPROD",
+        "PROD",
+    }
+
+    for target in resource["targets"].values():
+        jobs = target["resources"]["jobs"]
+        job = jobs["mktg_next_uk_nextads_table_operations"]
+        task = job["tasks"][0]
+
+        assert "schedule" not in job
+        assert job["parameters"] == [
+            {"name": "operation", "default": "create_missing_tables"},
+            {"name": "client", "default": "next_uk"},
+            {
+                "name": "job_env",
+                "default": "${var.job_parameter_environment_name}",
+            },
+            {"name": "catalog", "default": "${var.mktgdata_catalog}"},
+            {"name": "schema", "default": "${var.user_schema}"},
+            {"name": "tables", "default": ""},
+            {"name": "confirm_mutating", "default": "false"},
+            {"name": "confirm_destructive", "default": "false"},
+            {"name": "dry_run", "default": "true"},
+        ]
+        assert task["task_key"] == "table_operations"
+        assert (
+            task["spark_python_task"]["python_file"]
+            == "../../jobs/table_operations/table_operations.py"
+        )
+        parameters = task["spark_python_task"]["parameters"]
+        assert parameters[parameters.index("--operation") + 1] == (
+            "{{job.parameters.operation}}"
+        )
+        assert parameters[parameters.index("--catalog") + 1] == (
+            "{{job.parameters.catalog}}"
+        )
+        assert parameters[parameters.index("--schema") + 1] == (
+            "{{job.parameters.schema}}"
+        )
+        assert parameters[parameters.index("--tables") + 1] == (
+            "{{job.parameters.tables}}"
+        )
+        assert parameters[parameters.index("--confirm_mutating") + 1] == (
+            "{{job.parameters.confirm_mutating}}"
+        )
+        assert parameters[parameters.index("--confirm_destructive") + 1] == (
+            "{{job.parameters.confirm_destructive}}"
+        )
+        assert parameters[parameters.index("--dry_run") + 1] == (
+            "{{job.parameters.dry_run}}"
+        )
 
 
 def test_dev_deploy_schema_variable_is_normalised_to_lower_case():
@@ -234,22 +328,36 @@ def test_preprod_route_is_release_branch_only():
 
 
 def test_preprod_setup_job_is_target_specific_and_non_destructive():
-    setup = load_yaml("resources/jobs/preprod_setup.yml")
+    bundle = load_yaml("databricks.yml")
+    setup = load_yaml("resources/jobs/table_operations.yml")
     jobs = setup["targets"]["PREPROD"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_preprod_setup"]
     setup_task = setup_job["tasks"][0]
 
-    assert set(setup["targets"]) == {"PREPROD"}
+    assert "resources/jobs/table_operations.yml" in bundle["include"]
+    assert "resources/jobs/preprod_setup.yml" not in bundle["include"]
+    assert "mktg_next_uk_nextads_preprod_setup" not in (
+        setup["targets"]["DEV"]["resources"]["jobs"]
+    )
+    assert "mktg_next_uk_nextads_preprod_setup" not in (
+        setup["targets"]["DEV_INTEGRATION"]["resources"]["jobs"]
+    )
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../scripts/table_operations/create_tables.py"
+        == "../../jobs/table_operations/table_operations.py"
     )
     assert setup_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "create_missing_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_mutating",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
     ]
