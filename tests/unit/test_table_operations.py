@@ -1,7 +1,10 @@
 import sys
+import types
+from pathlib import Path
 
 import pytest
 
+import jobs.table_operations.table_operations as table_operations_module
 from jobs.table_operations.table_operations import (
     alter_tables,
     build_drop_table_statement,
@@ -9,6 +12,7 @@ from jobs.table_operations.table_operations import (
     drop_tables,
     parse_bool,
     recreate_tables,
+    resolve_project_root,
     resolve_table_name,
     run_configured_table_operation,
     split_table_names,
@@ -132,6 +136,11 @@ def test_drop_tables_executes_confirmed_drop_statements():
 
 def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
     monkeypatch.delitem(sys.modules, "scripts.table_operations.create_tables", raising=False)
+    monkeypatch.setattr(
+        table_operations_module,
+        "bootstrap_project_imports",
+        lambda: pytest.fail("drop_tables must not bootstrap project imports"),
+    )
 
     drop_tables(
         FakeSpark(),
@@ -143,6 +152,48 @@ def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
     )
 
     assert "scripts.table_operations.create_tables" not in sys.modules
+
+
+def test_resolve_project_root_handles_databricks_exec_without_file(monkeypatch):
+    class FakeNotebookPath:
+        def get(self):
+            return (
+                "/Workspace/root/MarketingData/DABs/next-ads/.bundle/files/"
+                "jobs/table_operations/table_operations.py"
+            )
+
+    class FakeContext:
+        def notebookPath(self):  # noqa: N802 - mirrors Databricks dbutils API
+            return FakeNotebookPath()
+
+    class FakeNotebook:
+        def getContext(self):  # noqa: N802 - mirrors Databricks dbutils API
+            return FakeContext()
+
+    class FakeEntryPoint:
+        def getDbutils(self):  # noqa: N802 - mirrors Databricks dbutils API
+            return FakeDbutilsApi()
+
+    class FakeNotebookAccessor:
+        entry_point = FakeEntryPoint()
+
+    class FakeDbutilsApi:
+        def notebook(self):
+            return FakeNotebook()
+
+    class FakeDbutils:
+        notebook = FakeNotebookAccessor()
+
+    dsutils_module = types.ModuleType("dsutils")
+    dbc_module = types.ModuleType("dsutils.dbc")
+    dbc_module.get_dbutils = lambda: FakeDbutils()
+    monkeypatch.setitem(sys.modules, "dsutils", dsutils_module)
+    monkeypatch.setitem(sys.modules, "dsutils.dbc", dbc_module)
+    monkeypatch.delattr(table_operations_module, "__file__", raising=False)
+
+    assert resolve_project_root() == Path(
+        "/Workspace/root/MarketingData/DABs/next-ads/.bundle/files"
+    )
 
 
 def test_drop_tables_rejects_empty_tables_when_executing():
