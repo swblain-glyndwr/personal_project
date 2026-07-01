@@ -8,9 +8,6 @@ from pathlib import Path
 
 from pyspark.sql import SparkSession
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
-
 SUPPORTED_OPERATIONS = {
     "drop_tables",
     "create_missing_tables",
@@ -19,7 +16,36 @@ SUPPORTED_OPERATIONS = {
 }
 
 
+def resolve_project_root() -> Path:
+    try:
+        return Path(__file__).resolve().parents[2]
+    except NameError:
+        from dsutils.dbc import get_dbutils
+
+        dbutils = get_dbutils()
+        notebook_path = (
+            dbutils.notebook.entry_point.getDbutils()
+            .notebook()
+            .getContext()
+            .notebookPath()
+            .get()
+        )
+        if not notebook_path.startswith("/Workspace"):
+            notebook_path = "/Workspace" + notebook_path
+        return Path(notebook_path).parents[2]
+
+
+def bootstrap_project_imports() -> None:
+    project_root = resolve_project_root()
+    src_root = project_root / "src"
+    if src_root.exists() and str(src_root) not in sys.path:
+        sys.path.insert(0, str(src_root))
+    if str(project_root) not in sys.path:
+        sys.path.insert(1, str(project_root))
+
+
 def load_create_tables_module():
+    bootstrap_project_imports()
     return importlib.import_module("scripts.table_operations.create_tables")
 
 
