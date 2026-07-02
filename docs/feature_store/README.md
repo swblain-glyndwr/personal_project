@@ -25,7 +25,7 @@ The repo-owned executable contract is split across:
 - `configs/features/nextads_feature_store.yaml` for table names, grain, primary keys, owner, freshness and consumers.
 - `sql/features/nextads/` for table schemas consumed by the setup script.
 - `scripts/table_operations/create_feature_store_tables.py` for Databricks Feature Engineering table creation.
-- `resources/jobs/mktg_next_uk_nextads_feature_store.yml` for personal, integration and shared DEV feature-store DAB jobs.
+- `resources/jobs/mktg_next_uk_nextads_feature_store.yml` for the shared DEV feature-store DAB job.
 - `jobs/features/nextads/` for build-entrypoint scaffolds.
 
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
@@ -63,13 +63,15 @@ The first populated feature-store slice now materialises customer/account featur
 
 Initial owner is `marketing_data` for all feature tables. Most feature groups are daily refreshes keyed by `reference_date`, `feature_date` or `session_date`; product embeddings are weekly/latest until a source-change-driven refresh is introduced; quality events are per run.
 
-The first development deployments target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema normalised to the repo's lower-case user schema convention, DEV_INTEGRATION uses `nextads_integration`, and DEV_FEATURE_STORE uses the shared `nextads_feature_store` schema.
+The shared development deployment target is `DEV_FEATURE_STORE`, which writes to `marketingdata_dev.nextads_feature_store`. Personal `SANDBOX`, `DEV` and `DEV_INTEGRATION` bundle targets are not the persistent feature-store route.
 
 `DEV_FEATURE_STORE` is scheduled daily at 21:00 Europe/London and reads latest Theme Affinity source tables from `marketingdata_prod.warehouse`. It writes reusable latest features to `marketingdata_dev.nextads_feature_store`. Theme Affinity training jobs read `marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input`, which is populated only from an explicit historical run where the existing Theme Affinity prep builds a 31-day future-window basket target via `2_target.sql` and joins it back through `6_master_assoc.sql`.
 
-The feature-store job exposes source-table job parameters so DEV runs can be pointed at DEV-owned Theme Affinity outputs while production source access is being agreed. For example, a manual DEV run can override `theme_source_catalog=marketingdata_dev`, `theme_source_schema=<user_schema_or_nextads_integration>`, and `theme_table_prefix=next_uk_nextads_theme_affinity_predict`. This keeps the feature-store table creation and write path testable without requiring the DEV service principal to read production materialized-view storage.
+The feature-store job exposes source-table job parameters so manual repair or validation runs can be pointed at DEV-owned Theme Affinity outputs while production source access is being agreed. For example, a run can override `theme_source_catalog=marketingdata_dev`, `theme_source_schema=<user_schema_or_nextads_integration>`, and `theme_table_prefix=next_uk_nextads_theme_affinity_predict`. This keeps the feature-store table creation and write path testable without requiring the DEV service principal to read production materialized-view storage.
 
 The labelled training-input build is controlled by `feature_store_theme_training_reference_date`. The default is `skip` so the daily latest-feature refresh does not silently build or overwrite training data. To create or refresh training data, run the feature-store route with a historical date at least 28 days old; the task stages historical Theme Affinity prep tables with `feature_store_theme_training_table_prefix`, validates that positives and negatives exist, then writes `next_uk_nextads_fs_theme_affinity_training_input`. Production feature-store publication is intentionally deferred to a later curated PR for specific stable feature contracts that need production runtime or monitoring use.
+
+For the full Databricks target/job matrix, see [`../CICD/nextads_databricks_job_environment_matrix.md`](../CICD/nextads_databricks_job_environment_matrix.md).
 
 ## Dependencies
 

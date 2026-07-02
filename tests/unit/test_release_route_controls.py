@@ -4,10 +4,50 @@ import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+NORMAL_OPERATIONAL_TARGETS = {"SANDBOX", "DEV", "DEV_INTEGRATION", "PREPROD", "PROD"}
 
 
 def load_yaml(path):
     return yaml.safe_load((PROJECT_ROOT / path).read_text())
+
+
+def _resource_job_files():
+    return sorted((PROJECT_ROOT / "resources/jobs").glob("*.yml")) + sorted(
+        (PROJECT_ROOT / "resources/jobs").glob("*.yaml")
+    )
+
+
+def _target_jobs():
+    jobs_by_target = {}
+    for path in _resource_job_files():
+        config = load_yaml(path.relative_to(PROJECT_ROOT))
+        for target_name, target in (config.get("targets") or {}).items():
+            jobs = target.get("resources", {}).get("jobs", {})
+            jobs_by_target.setdefault(target_name, {}).update(jobs)
+    return jobs_by_target
+
+
+def _pipeline_targets_by_key():
+    pipeline_targets = {}
+    pipeline_files = sorted((PROJECT_ROOT / "resources/pipelines").glob("*.yml"))
+    pipeline_files += sorted((PROJECT_ROOT / "resources/pipelines").glob("*.yaml"))
+    for path in pipeline_files:
+        config = load_yaml(path.relative_to(PROJECT_ROOT))
+        for target_name, target in (config.get("targets") or {}).items():
+            pipelines = target.get("resources", {}).get("pipelines", {})
+            for pipeline_key in pipelines:
+                pipeline_targets.setdefault(pipeline_key, set()).add(target_name)
+    return pipeline_targets
+
+
+def _walk(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _walk(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk(child)
 
 
 def test_validation_pipeline_is_non_deploying_dev_gate():
@@ -120,6 +160,86 @@ def test_deployment_pipeline_has_develop_only_dev_feature_store_route():
     assert deploy_job["target"] == "DEV_FEATURE_STORE"
     assert deploy_job["AzureBuildAgentPool"] == "$(agentpool_dev)"
     assert deploy_job["azureSubscription"] == "$(serviceConnectionName_dev)"
+
+
+def test_dev_feature_store_target_only_contains_feature_store_job():
+    jobs_by_target = _target_jobs()
+
+    assert set(jobs_by_target["DEV_FEATURE_STORE"]) == {
+        "mktg_next_uk_nextads_feature_store"
+    }
+    feature_store = load_yaml("resources/jobs/mktg_next_uk_nextads_feature_store.yml")
+    assert set(feature_store["targets"]) == {"DEV_FEATURE_STORE"}
+    for target_name in NORMAL_OPERATIONAL_TARGETS:
+        assert "mktg_next_uk_nextads_feature_store" not in jobs_by_target[target_name]
+
+
+def test_databricks_jobs_are_target_scoped_not_global():
+    allowed_global_resource_files = set()
+    for path in _resource_job_files():
+        config = load_yaml(path.relative_to(PROJECT_ROOT))
+        if path.name not in allowed_global_resource_files:
+            assert "jobs" not in (config.get("resources") or {}), path.name
+
+
+def test_normal_operational_jobs_exclude_dev_feature_store():
+    expected_normal_jobs = {
+        "mktg_next_uk_nextads_cicd",
+        "mktg_next_uk_nextads_data_pull",
+        "mktg_next_uk_nextads_masid_handoff_cicd",
+        "mktg_next_uk_nextads_page_build_cicd",
+        "mktg_next_uk_nextads_payload_export_cicd",
+        "mktg_next_uk_nextads_plp_gs_delivery_cicd",
+        "mktg_next_uk_nextads_qa_cicd",
+        "mktg_next_uk_nextads_realtime_inputs_cicd",
+        "mktg_next_uk_nextads_realtime_results_cicd",
+        "mktg_next_uk_nextads_results_cicd",
+        "mktg_next_uk_nextads_theme_affinity_cicd",
+    }
+    jobs_by_target = _target_jobs()
+
+    for target_name in NORMAL_OPERATIONAL_TARGETS:
+        assert expected_normal_jobs <= set(jobs_by_target[target_name])
+    assert expected_normal_jobs.isdisjoint(jobs_by_target["DEV_FEATURE_STORE"])
+
+
+def test_jobs_with_pipeline_tasks_only_exist_where_pipeline_exists():
+    pipeline_targets = _pipeline_targets_by_key()
+
+    for path in _resource_job_files():
+        config = load_yaml(path.relative_to(PROJECT_ROOT))
+        for target_name, target in (config.get("targets") or {}).items():
+            jobs = target.get("resources", {}).get("jobs", {})
+            for job_key, job in jobs.items():
+                for node in _walk(job):
+                    pipeline_task = node.get("pipeline_task")
+                    if not pipeline_task:
+                        continue
+                    pipeline_id = pipeline_task["pipeline_id"]
+                    prefix = "${resources.pipelines."
+                    suffix = ".id}"
+                    assert pipeline_id.startswith(prefix), job_key
+                    assert pipeline_id.endswith(suffix), job_key
+                    pipeline_key = pipeline_id[len(prefix) : -len(suffix)]
+                    assert target_name in pipeline_targets[pipeline_key], (
+                        job_key,
+                        target_name,
+                        pipeline_key,
+                    )
+
+
+def test_page_build_downstream_jobs_exist_in_every_page_build_target():
+    jobs_by_target = _target_jobs()
+    required_downstream_jobs = {
+        "mktg_next_uk_nextads_qa_cicd",
+        "mktg_next_uk_nextads_masid_handoff_cicd",
+        "mktg_next_uk_nextads_payload_export_cicd",
+        "mktg_next_uk_nextads_plp_gs_delivery_cicd",
+    }
+
+    for target_name, jobs in jobs_by_target.items():
+        if "mktg_next_uk_nextads_page_build_cicd" in jobs:
+            assert required_downstream_jobs <= set(jobs), target_name
 
 
 def test_dev_integration_setup_job_is_target_specific():

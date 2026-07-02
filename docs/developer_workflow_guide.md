@@ -170,6 +170,9 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 
 > NOTE: The deployment pipeline is still manually queued. Select the intended branch or tag explicitly; branch conditions prevent PREPROD from running outside `release/*` and PROD from running outside tags.
 
+For the Databricks jobs expected in each bundle target, see
+[`CICD/nextads_databricks_job_environment_matrix.md`](CICD/nextads_databricks_job_environment_matrix.md).
+
 #### DEV Integration Smoke Check
 
 After feature PRs have merged to `develop`, run the deployment pipeline from `develop` and select `Deploy DEV Integration` and `Initialize DEV Integration Tables`. This deploys the `DEV_INTEGRATION` target to the DEV Databricks workspace, creates any missing shared DEV tables, and writes through `USER_SCHEMA=nextads_integration`.
@@ -184,7 +187,7 @@ After the feature-store route has merged to `develop`, run the deployment pipeli
 
 The shared feature-store job writes reusable model-building features to `marketingdata_dev.nextads_feature_store` and reads stable Theme Affinity source outputs from `marketingdata_prod.warehouse`. It is scheduled daily at 21:00 Europe/London; run it manually after deployment when immediate validation or repair evidence is needed.
 
-Personal `DEV` deployments can still smoke-test the feature-store job in the developer schema, but they should not be used as the persistent shared model-building store.
+Use `DEV_FEATURE_STORE` for feature-store deployment validation. Personal `DEV` deployments should not carry the shared feature-store job.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 

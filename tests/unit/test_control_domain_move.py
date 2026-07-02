@@ -16,6 +16,7 @@ from next_ads.control.theme_mapping import (
     normalise_theme_mapping,
     rank_item_themes,
 )
+from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -158,10 +159,10 @@ def test_theme_mapping_filters_and_ranks_item_themes(local_spark):
 
 
 def test_main_job_uses_control_domain_entrypoints():
-    job_config = yaml.safe_load(
-        (PROJECT_ROOT / "resources/jobs/mktg_next_uk_nextads.yml").read_text()
+    job = load_job(
+        "resources/jobs/mktg_next_uk_nextads.yml",
+        "mktg_next_uk_nextads_cicd",
     )
-    job = job_config["resources"]["jobs"]["mktg_next_uk_nextads_cicd"]
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
     assert tasks_by_key["load_control_sheet"]["spark_python_task"][

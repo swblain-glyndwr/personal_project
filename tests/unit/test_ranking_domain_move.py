@@ -1,21 +1,16 @@
 import importlib
 from pathlib import Path
 
-import yaml
-
 from next_ads.ranking import scoring
 from next_ads import Scoring
+from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _load_job(path, key):
-    job_config = yaml.safe_load((PROJECT_ROOT / path).read_text())
-    for value in job_config.values():
-        if isinstance(value, dict) and key in value:
-            return value[key]
-    return job_config["resources"]["jobs"][key]
+    return load_job(path, key)
 
 
 def test_scoring_legacy_wrapper_exports_moved_functions():

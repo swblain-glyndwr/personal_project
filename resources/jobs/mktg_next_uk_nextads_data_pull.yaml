@@ -1,44 +1,65 @@
-resources:
-  jobs:
-    mktg_next_uk_nextads_data_pull:
-      name: mktg_next_uk_nextads_data_pull
-      queue:
-        enabled: true
-      job_clusters: ${var.job_clusters_config}
-      tags:
-        deployed_at: ${var.deploy_timestamp}
-        git_commit: ${var.git_commit_sha}
-        git_branch: ${var.git_branch}
-        deployed_by: ${var.deployed_by}
-        department: marketing
-        project: nextads
-        domain: theme_affinity
-      email_notifications:
-        on_failure: ${var.data_team_notification_emails}
-      notification_settings:
-        no_alert_for_skipped_runs: true
-        no_alert_for_canceled_runs: true
-      timeout_seconds: 21600
-      tasks:
-        - task_key: pull_sort_order_data_for_today
-          pipeline_task:
-            pipeline_id: ${resources.pipelines.mktg_next_uk_nextads_data_pull.id}
-            full_refresh: true
-          timeout_seconds: 14400
-        - task_key: archive_sort_order_data
-          depends_on:
-            - task_key: pull_sort_order_data_for_today
-          spark_python_task:
-            python_file: ../../scripts/data_pull.py
-            parameters:
-              - --client
-              - next_uk
-              - --job_env
-              - ${var.job_parameter_environment_name}
-              - --log_level
-              - INFO
-          job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-          libraries: ${var.shared_libraries}
-          max_retries: 1
-          min_retry_interval_millis: 60000
-          timeout_seconds: 10800
+mktg_next_uk_nextads_data_pull_config: &mktg_next_uk_nextads_data_pull_config
+  mktg_next_uk_nextads_data_pull:
+    name: mktg_next_uk_nextads_data_pull
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: theme_affinity
+    email_notifications:
+      on_failure: ${var.data_team_notification_emails}
+    notification_settings:
+      no_alert_for_skipped_runs: true
+      no_alert_for_canceled_runs: true
+    timeout_seconds: 21600
+    tasks:
+      - task_key: pull_sort_order_data_for_today
+        pipeline_task:
+          pipeline_id: ${resources.pipelines.mktg_next_uk_nextads_data_pull.id}
+          full_refresh: true
+        timeout_seconds: 14400
+      - task_key: archive_sort_order_data
+        depends_on:
+          - task_key: pull_sort_order_data_for_today
+        spark_python_task:
+          python_file: ../../scripts/data_pull.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
+        libraries: ${var.shared_libraries}
+        max_retries: 1
+        min_retry_interval_millis: 60000
+        timeout_seconds: 10800
+
+targets:
+  SANDBOX:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_data_pull_config
+  DEV:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_data_pull_config
+  DEV_INTEGRATION:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_data_pull_config
+  PREPROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_data_pull_config
+  PROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_data_pull_config

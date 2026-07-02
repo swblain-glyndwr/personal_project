@@ -76,7 +76,7 @@ DEV validation requires:
 - Ability for the job cluster service principal/user to read source tables and write Delta feature tables.
 - No writes to PROD targets or existing operational Next Ads output tables.
 
-The branch creates manual feature-store jobs for `SANDBOX`, `DEV` and `DEV_INTEGRATION`, plus a scheduled shared DEV job for `DEV_FEATURE_STORE`.
+The bundle route deploys the feature-store job only to `DEV_FEATURE_STORE`. That target is the scheduled shared DEV feature-store route and writes to `marketingdata_dev.nextads_feature_store`.
 
 ## Acceptance Criteria Mapping
 

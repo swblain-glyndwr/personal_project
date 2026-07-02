@@ -574,12 +574,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     }
     assert "feature_store_job_clusters_config" not in clusters_config["variables"]
     assert "next_ads_job_cluster_D32ads_v5_1_4" in shared_cluster_keys
-    assert set(job_config["targets"]) == {
-        "SANDBOX",
-        "DEV",
-        "DEV_INTEGRATION",
-        "DEV_FEATURE_STORE",
-    }
+    assert set(job_config["targets"]) == {"DEV_FEATURE_STORE"}
 
     job = job_config["nextads_feature_store_config"][
         "mktg_next_uk_nextads_feature_store"
@@ -589,6 +584,9 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     scheduled_job = job_config["targets"]["DEV_FEATURE_STORE"]["resources"][
         "jobs"
     ]["mktg_next_uk_nextads_feature_store"]
+    assert "mktg_next_uk_nextads_feature_store" not in (
+        job_config.get("resources", {}).get("jobs", {})
+    )
     assert scheduled_job["schedule"] == {
         "quartz_cron_expression": "0 0 21 * * ?",
         "timezone_id": "Europe/London",

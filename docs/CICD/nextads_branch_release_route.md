@@ -17,6 +17,9 @@ The route keeps these stages separate:
 
 This is a delivery control for NextAds v2, not only a Git convention. It should make it clear which code is running in production, which changes have been integrated but not released, what has been validated outside production outputs, who agreed the release, and what version should be restored if a release causes an issue.
 
+For the Databricks jobs available in each bundle target, see
+[`nextads_databricks_job_environment_matrix.md`](nextads_databricks_job_environment_matrix.md).
+
 ## Standard Route
 
 ```text

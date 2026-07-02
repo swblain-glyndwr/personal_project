@@ -1,10 +1,9 @@
 import importlib
 from pathlib import Path
 
-import yaml
-
 from next_ads.reporting import results as reporting_results
 from next_ads.realtime import unknown as realtime_unknown
+from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -15,7 +14,7 @@ def _read(path: str) -> str:
 
 
 def _load_job(path: str, key: str) -> dict:
-    return yaml.safe_load((PROJECT_ROOT / path).read_text())["resources"]["jobs"][key]
+    return load_job(path, key)
 
 
 def test_reporting_results_imports_work_from_new_and_legacy_paths():
