@@ -1,0 +1,42 @@
+theme_affinity_model_train_spark_config: &theme_affinity_model_train_spark_config
+  mktg_next_uk_nextads_theme_affinity_model_train_spark:
+    name: mktg_next_uk_nextads_theme_affinity_model_train_spark
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: theme_affinity
+      job_type: model_train_spark_xgboost
+    timeout_seconds: 7200
+    tasks:
+      - task_key: train_spark_xgboost_model
+        spark_python_task:
+          python_file: ../../scripts/theme_affinity/train_model.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --input_table
+            - ${var.theme_affinity_training_input_table}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.theme_affinity_libraries}
+        timeout_seconds: 7200
+
+targets:
+  DEV:
+    resources:
+      jobs:
+        <<: *theme_affinity_model_train_spark_config
+  DEV_INTEGRATION:
+    resources:
+      jobs:
+        <<: *theme_affinity_model_train_spark_config

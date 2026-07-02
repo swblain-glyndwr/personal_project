@@ -1,0 +1,45 @@
+mktg_next_uk_nextads_data_pull: &mktg_next_uk_nextads_data_pull
+  mktg_next_uk_nextads_data_pull: &mktg_next_uk_nextads_data_pull_definition
+    name: mktg_next_uk_nextads_data_pull
+    configuration: &mktg_next_uk_nextads_data_pull_configuration
+      pipeline.schema: ${var.user_schema}
+      pipeline.client: next_uk
+      pipeline.job_env: ${var.job_parameter_environment_name}
+      pipeline.table_prefix: nextads
+    clusters: ${var.pipeline_clusters_config}
+    libraries:
+      - glob:
+          include: ${workspace.file_path}/src/next_ads/data/sort_order/data_pull.py
+    schema: ${var.user_schema}
+    edition: CORE
+    catalog: ${var.mktgdata_catalog}
+    root_path: ${workspace.file_path}
+    environment: ${var.pipeline_libraries}
+
+
+targets:
+  SANDBOX:
+    resources:
+      pipelines:
+        mktg_next_uk_nextads_data_pull:
+          <<: *mktg_next_uk_nextads_data_pull_definition
+          configuration:
+            <<: *mktg_next_uk_nextads_data_pull_configuration
+            pipeline.user_schema: ${var.user_schema}
+
+  DEV:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_data_pull
+  DEV_INTEGRATION:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_data_pull
+  PREPROD:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_data_pull
+  PROD:
+    resources:
+      pipelines:
+        <<: *mktg_next_uk_nextads_data_pull

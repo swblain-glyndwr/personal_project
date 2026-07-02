@@ -312,12 +312,15 @@ def run_layers(spark, runtime, layer: str, reference_date: str, dry_run=False):
         write_complete_table(spark, runtime)
 
 
+def _runtime_table(runtime, suffix: str) -> str:
+    return f"{runtime.namespace}.{runtime.table_prefix}_{suffix}"
+
+
 def write_complete_table(spark, runtime):
     from pyspark.sql import functions as F
 
-    model_tables = runtime.config.ranking_model_tables
     predict_df = (
-        spark.read.table(model_tables.predict_master)
+        spark.read.table(_runtime_table(runtime, "master"))
         .filter(F.col("rundate") == F.current_date())
         .distinct()
     )
@@ -342,14 +345,15 @@ def write_complete_table(spark, runtime):
     (
         base.write.mode("overwrite")
         .option("overwriteSchema", "true")
-        .saveAsTable(model_tables.predict_complete)
+        .saveAsTable(_runtime_table(runtime, "complete"))
     )
 
 
 def rank_complete_table(spark, runtime):
-    model_tables = runtime.config.ranking_model_tables
+    predict_complete = _runtime_table(runtime, "complete")
+    predict_input_table = _runtime_table(runtime, "ranked")
     sql = f"""
-CREATE OR REPLACE TABLE {model_tables.predict_input_table} AS
+CREATE OR REPLACE TABLE {predict_input_table} AS
 WITH t0 AS (
   SELECT *,
   CASE WHEN theme_clean LIKE '%women%'
@@ -369,7 +373,7 @@ WITH t0 AS (
       THEN 1
   ELSE 0
   END AS same_dept
-  FROM {model_tables.predict_complete}
+  FROM {predict_complete}
 ),
 t1 AS (
   SELECT *,

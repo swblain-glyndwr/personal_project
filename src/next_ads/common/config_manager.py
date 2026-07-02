@@ -5,23 +5,13 @@ from dotenv import load_dotenv
 from dsutils.logtools import get_logger
 from dynaconf import Dynaconf
 
+from next_ads.common.paths import PROJECT_ROOT
 
 logger = get_logger(__name__)
 
 
-def _find_project_root() -> Path:
-    """Find the repo root from either legacy or src package locations."""
-    for parent in Path(__file__).resolve().parents:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    return Path(__file__).resolve().parents[3]
-
-
-PROJECT_ROOT = _find_project_root()
-
-
 def _existing_path(primary: str, fallback: str) -> str:
-    """Prefer current paths while allowing the future target path."""
+    """Prefer target paths while allowing legacy flat config paths."""
     if (PROJECT_ROOT / primary).exists():
         return primary
     return fallback
@@ -29,35 +19,35 @@ def _existing_path(primary: str, fallback: str) -> str:
 
 def _settings_files() -> list[str]:
     return [
-        _existing_path("config/settings.yaml", "configs/settings.yaml"),
+        _existing_path("configs/runtime/settings.yaml", "config/settings.yaml"),
         _existing_path(
+            "configs/delivery/global_solution_settings.yaml",
             "config/global_solution_settings.yaml",
-            "configs/global_solution_settings.yaml",
         ),
         _existing_path(
+            "configs/control/load_control_sheet_settings.yaml",
             "config/load_control_sheet_settings.yaml",
-            "configs/load_control_sheet_settings.yaml",
         ),
         _existing_path(
-            "config/load_control_sheet_v2_settings.yaml",
             "configs/adsv2/load_control_sheet_v2_settings.yaml",
+            "config/load_control_sheet_v2_settings.yaml",
         ),
         _existing_path(
+            "configs/runtime/tables_settings.yaml",
             "config/tables_settings.yaml",
-            "configs/tables_settings.yaml",
         ),
         _existing_path(
+            "configs/model/model_settings.yaml",
             "config/model_settings.yaml",
-            "configs/model_settings.yaml",
         ),
-        _existing_path("config/users.yaml", "configs/users.yaml"),
+        _existing_path("configs/runtime/users.yaml", "config/users.yaml"),
     ]
 
 
-def _env_local_files() -> list[Path]:
+def _env_local_files():
     return [
         PROJECT_ROOT
-        / _existing_path("config/.env.local", "configs/.env.local")
+        / _existing_path("configs/runtime/.env.local", "config/.env.local")
     ]
 
 

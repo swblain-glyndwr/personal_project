@@ -33,7 +33,13 @@ def _configure_mlflow_for_model_uri(mlflow, model_uri: str) -> None:
         mlflow.set_registry_uri("databricks-uc")
 
 
-def _load_mlflow_model(mlflow, model_uri: str):
+def _load_mlflow_model(mlflow, model_uri: str, allow_spark: bool = False):
+    if allow_spark:
+        try:
+            return "spark", mlflow.spark.load_model(model_uri)
+        except Exception:
+            pass
+
     try:
         return "xgboost", mlflow.xgboost.load_model(model_uri)
     except Exception as xgboost_error:
@@ -68,8 +74,10 @@ def _predict_with_model(model_kind, model, raw_feature_pdf, encoders, model_inpu
 
 
 def run_prediction(spark, runtime):
+    import mlflow
     from pyspark.sql import functions as F
 
+    _configure_mlflow_for_model_uri(mlflow, runtime.model_uri)
     model_config = runtime.config.ranking_model
     model_tables = runtime.config.ranking_model_tables
     model_input_cols = list(model_config.model_input_cols)
@@ -97,6 +105,27 @@ def run_prediction(spark, runtime):
             F.lit(0.0).cast("float").alias("prediction"),
         ).schema
     )
+    model_kind, model = _load_mlflow_model(
+        mlflow,
+        runtime.model_uri,
+        allow_spark=True,
+    )
+    if model_kind == "spark":
+        predictions = model.transform(predict_input).select(
+            F.col("account_number"),
+            F.col("theme"),
+            F.col("month"),
+            F.col("baskets_behavior__recency_rank"),
+            F.col("prediction").cast("float").alias("prediction"),
+        )
+        (
+            predictions.select(*output_cols)
+            .write.mode("overwrite")
+            .option("overwriteSchema", "true")
+            .saveAsTable(model_tables.predict_output_table)
+        )
+        return
+
     encoder_path = (
         runtime.project_root
         / "src"
@@ -143,7 +172,10 @@ def _predict_partition(model_uri: str, encoder_path: Path, model_input_cols):
         try:
             model_kind, model = _theme_affinity_predict_model
         except NameError:
-            _theme_affinity_predict_model = _load_mlflow_model(mlflow, model_uri)
+            _theme_affinity_predict_model = _load_mlflow_model(
+                mlflow,
+                model_uri,
+            )
             model_kind, model = _theme_affinity_predict_model
 
         encoders = {}

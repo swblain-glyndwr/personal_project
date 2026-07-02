@@ -27,6 +27,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.utils import config_manager
+from next_ads.common.paths import resolve_sql_contract_path
 from scripts.table_operations.create_tables import (
     extract_create_table_columns,
     extract_table_paths,
@@ -127,9 +128,7 @@ def collect_contract_failures(
             failures.append(f"{table_ref}: expected fully qualified table, found {table}")
             continue
 
-        sql_script_path = (
-            PROJECT_ROOT / f"sql/create_table_{table_ref.replace('.', '_')}.sql"
-        )
+        sql_script_path = resolve_sql_contract_path(table_ref)
         if not sql_script_path.exists():
             failures.append(f"{table_ref}: missing SQL contract {sql_script_path}")
             continue

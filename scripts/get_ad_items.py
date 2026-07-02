@@ -19,6 +19,7 @@ import pyspark.sql.types as T
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
+from next_ads.common.paths import load_client_config
 from dsutils.etl import map_tbl, post_to_webhook, delete_from_and_load
 
 
@@ -39,8 +40,7 @@ if not CLIENT:
     logger.warning(f'Client not specified (defaulting to {CLIENT})')
 
 logger.info(f"Configuring run for client: {CLIENT}")
-with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-    cfg = json.load(f)
+cfg = load_client_config(CLIENT)
 
 tbls = cfg["tables"]["write"]
 SCHEMA = cfg["schema"][JOB_ENV]

@@ -1,0 +1,65 @@
+theme_affinity_model_promote_config: &theme_affinity_model_promote_config
+  mktg_next_uk_nextads_theme_affinity_model_promote:
+    name: mktg_next_uk_nextads_theme_affinity_model_promote
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: theme_affinity
+      job_type: model_promote
+    timeout_seconds: 1800
+    parameters:
+      - name: source_model_name
+        default: marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker
+      - name: source_model_version
+        default: ""
+      - name: source_alias
+        default: preprod
+      - name: target_model_name
+        default: marketingdata_prod.warehouse.nextads_theme_affinity_ranker
+      - name: target_alias
+        default: prod
+    tasks:
+      - task_key: promote_model
+        spark_python_task:
+          python_file: ../../jobs/model/lifecycle/promote_model.py
+          parameters:
+            - --client
+            - next_uk
+            - --model_family
+            - theme_affinity
+            - --source_environment
+            - preprod
+            - --target_environment
+            - prod
+            - --source_model_name
+            - "{{job.parameters.source_model_name}}"
+            - --source_model_version
+            - "{{job.parameters.source_model_version}}"
+            - --source_alias
+            - "{{job.parameters.source_alias}}"
+            - --target_model_name
+            - "{{job.parameters.target_model_name}}"
+            - --target_alias
+            - "{{job.parameters.target_alias}}"
+            - --allowed_source_model_prefix
+            - marketingdata_prod.ds_sandbox.
+            - --allowed_target_model_prefix
+            - marketingdata_prod.warehouse.
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.theme_affinity_libraries}
+        timeout_seconds: 1800
+
+targets:
+  PROD:
+    resources:
+      jobs:
+        <<: *theme_affinity_model_promote_config

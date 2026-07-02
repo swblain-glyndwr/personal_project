@@ -1,7 +1,7 @@
-import json
 from pathlib import Path
 
 import pytest
+from next_ads.common.paths import load_client_config
 
 
 @pytest.fixture
@@ -11,8 +11,7 @@ def project_root():
 
 @pytest.fixture
 def json_config(project_root):
-    with open(project_root / "config/next_uk.json") as f:
-        return json.load(f)
+    return load_client_config("next_uk")
 
 
 @pytest.fixture

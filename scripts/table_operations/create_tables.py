@@ -22,11 +22,11 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import json
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.utils import config_manager
+from next_ads.common.paths import load_client_config, resolve_sql_contract_path
 from next_ads.utils import etl
 
 
@@ -171,14 +171,22 @@ def build_add_missing_columns_query(
     return f"ALTER TABLE {table} ADD COLUMNS ({columns_sql})"
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    DROP_TABLES=False,
+    ALTER_TABLES=False,
+    ALLOW_NON_DEV_DROP=False,
+    ALLOW_NON_DEV_ALTER=False,
+):
     configure_logging(
         log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
 
     logger.info(f"Running in job environment: {JOB_ENV}")
-    if ALTER_TABLES and JOB_ENV.lower() != "dev":
+    if ALTER_TABLES and JOB_ENV.lower() != "dev" and not ALLOW_NON_DEV_ALTER:
         raise ValueError("--altertables is only supported for dev table setup")
 
     if not CLIENT:
@@ -221,8 +229,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
         use_dynaconf = False
 
         # Fallback to legacy JSON config
-        with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-            cfg = json.load(f)
+        cfg = load_client_config(CLIENT)
 
         tbls = cfg["tables"]["write"]
         SCHEMA = cfg["schema"][JOB_ENV]
@@ -287,8 +294,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
     # Check for missing SQL scripts before proceeding
     missing_scripts = []
     for table_ref in tbls:
-        sql_script_path = PROJECT_ROOT / \
-            f"sql/create_table_{table_ref.replace('.', '_')}.sql"
+        sql_script_path = resolve_sql_contract_path(table_ref)
         if not sql_script_path.exists():
             missing_scripts.append(str(sql_script_path))
 
@@ -304,14 +310,14 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
             # Legacy: use map_tbl to substitute placeholders
             table = etl.map_tbl(tbls[table_ref], **tbl_args)
 
-        if DROP_TABLES and JOB_ENV.lower() == "dev":
+        if DROP_TABLES and (JOB_ENV.lower() == "dev" or ALLOW_NON_DEV_DROP):
             logger.info(f"Dropping table {table} as --droptables is 'True'")
             logger.info(f"Running drop table if exists {table}")
             spark.sql(f"drop table if exists {table}")
 
         logger.info(f"Checking existence of table {table}")
         # replace . with "_" for nested dynaconf table refs
-        with open(PROJECT_ROOT / f"sql/create_table_{table_ref.replace('.', '_')}.sql") as f:
+        with open(resolve_sql_contract_path(table_ref)) as f:
             query = etl.map_tbl("".join(f.readlines()), **tbl_args)
 
         if spark.catalog.tableExists(table):

@@ -1,0 +1,1973 @@
+{
+    "domain": "next.co.uk",
+    "osa_url_substring": "0-osalink",
+
+    "dbfs_base_path": "dbfs:/datascience/next-ads",
+
+    "fallow_control": {
+        "proportion": 0.1,
+        "seed": 111,
+        "true_label": "NoAds",
+        "false_label": "Ads",
+        "cycle": 1
+    },
+
+    "fixed_cells": {
+        "HomePageTest1": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 0.5}],
+                    "then": {"lit": "Basic"}
+                },
+                {
+                    "when": [{"col": "RandomHomePageTest1", "op": "le", "val": 1.0}],
+                    "then": {"lit": "Best"}
+                }
+            ],
+            "seed": 211
+        },
+        "ShoppingBagTest1": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 0.1}],
+                    "then": {"lit": "Basic"}
+                },
+                {
+                    "when": [{"col": "RandomShoppingBagTest1", "op": "le", "val": 1.0}],
+                    "then": {"lit": "Best"}
+                }
+            ],
+            "seed": 212
+        },
+        "OrderCompleteTest1": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 0.5}],
+                    "then": {"lit": "Basic"}
+                },
+                {
+                    "when": [{"col": "RandomOrderCompleteTest1", "op": "le", "val": 1.0}],
+                    "then": {"lit": "Best"}
+                }
+            ],
+            "seed": 213
+        },
+        "LandingPageTest1": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 0.5}],
+                    "then": {"lit": "Basic"}
+                },
+                {
+                    "when": [{"col": "RandomLandingPageTest1", "op": "le", "val": 1.0}],
+                    "then": {"lit": "Best"}
+                }
+            ],
+            "seed": 214
+        },
+        "AdHocABTest1": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 0.1}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest1", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 311
+        },
+        "AdHocABTest2": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest2", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest2", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 312
+        },
+        "AdHocABTest3": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest3", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest3", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 313
+        },
+        "AdHocABTest4": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest4", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest4", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 314
+        },
+        "AdHocABTest5": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest5", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest5", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 315
+        },
+        "AdHocABTest6": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest6", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest6", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 316
+        },
+        "AdHocABTest7": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest7", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest7", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 317
+        },
+        "AdHocABTest8": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest8", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest8", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 318
+        },
+        "AdHocABTest9": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomAdHocABTest9", "op": "le", "val": 0.5}],
+                    "then": {"lit": "A"}
+                },
+                {
+                    "when": [{"col": "RandomAdHocABTest9", "op": "le", "val": 1.0}],
+                    "then": {"lit": "B"}
+                }
+            ],
+            "seed": 319
+        },
+        "ChampionChallenger": {
+            "cells": [
+                {
+                    "when": [{"col": "RandomChampionChallenger", "op": "le", "val": 0.5}],
+                    "then": {"lit": "Champion"}
+                },
+                {
+                    "when": [{"col": "RandomChampionChallenger", "op": "le", "val": 1.0}],
+                    "then": {"lit": "Challenger"}
+                }
+            ],
+            "seed": 411
+        },
+        "PageTypeIsolation": {
+            "cells": [
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.05}], "then": {"lit": "HP_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.10}], "then": {"lit": "PLP_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.15}], "then": {"lit": "SB_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 0.20}], "then": {"lit": "OC_Only"}},
+                {"when": [{"col": "RandomPageTypeIsolation", "op": "le", "val": 1.00}], "then": {"lit": "AllPages"}}
+            ],
+            "seed": 501
+        }
+    },
+
+    "transient_cells": {
+        "AlgoDivision": ["Womens", "Mens", "Girls", "Boys", "Baby", "Home", "Beauty"]
+    },
+    "payload_experiment_id": {
+        "experiments": {
+            "Test_Exp_1": "AdHocABTest6",
+            "Test_Exp_2": "AdHocABTest1"
+        },
+        "audience_experiment": {
+            "enabled": true,
+            "name": "fathers_day_audience",
+            "split_col": "Audience",
+            "sample": ["Best"]
+        }
+    },
+    "page_types": {
+        "HomePage": {
+            "basic_within": "AlgoDivision",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "ShoppingBagPage": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "CheckoutPage": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "ProductListingPage": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "ForYouPage": {
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        }
+    },
+
+    "locations": {
+        "HN1": {
+            "pf_col": "HN_slot_1",
+            "basic_within": "AlgoDivision",
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "SB1": {
+            "pf_col": "SB_slot_1",
+            "basic_within": "AlgoDivision",
+            "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "SB1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "SB2": {
+            "pf_col": "SB_slot_2",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "SB1",
+            "inherit_basic_from": "SB1",
+            "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "SB1"},
+            "constraints": {
+                "targeting_within_division": "AlgoDivision"
+            },
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "OC1": {
+            "pf_col": "OC_slot_1",
+            "basic_within": "AlgoDivision",
+            "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "OC1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "OC2": {
+            "pf_col": "OC_slot_2",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "OC1",
+            "inherit_basic_from": "OC1",
+            "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "OC1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "LP1": {
+            "pf_col": "LP_slot_1",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP2": {
+            "pf_col": "LP_slot_2",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP3": {
+            "pf_col": "LP_slot_3",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP4": {
+            "pf_col": "LP_slot_4",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP5": {
+            "pf_col": "LP_slot_5",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP6": {
+            "pf_col": "LP_slot_6",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP7": {
+            "pf_col": "LP_slot_7",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP8": {
+            "pf_col": "LP_slot_8",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP9": {
+            "pf_col": "LP_slot_9",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP10": {
+            "pf_col": "LP_slot_10",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "LP11": {
+            "pf_col": "LP_slot_11",
+            "basic_within": "global",
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                }
+            ]
+        },
+        "PH3": {
+            "pf_col": "hp_slot_3",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "HN1"},
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PH4": {
+            "pf_col": "hp_slot_4",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "HN1"},
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PH5": {
+            "pf_col": "hp_slot_5",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "HN1",
+            "best_kwargs": {"return_ranks": [3], "inherit_rank_from_location": "HN1"},
+            "map": [
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PLX": {
+            "pf_col": "PL_slot_X",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [
+                        {"col": "AdHocABTest1", "op": "eq", "val": "A"},
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDNextGenAds"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}
+                    ],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL1": {
+            "pf_col": "PL_slot_1",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL2": {
+            "pf_col": "PL_slot_2",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL3": {
+            "pf_col": "PL_slot_3",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL4": {
+            "pf_col": "PL_slot_4",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL5": {
+            "pf_col": "PL_slot_5",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL6": {
+            "pf_col": "PL_slot_6",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL7": {
+            "pf_col": "PL_slot_7",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL8": {
+            "pf_col": "PL_slot_8",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL9": {
+            "pf_col": "PL_slot_9",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL10": {
+            "pf_col": "PL_slot_10",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL11": {
+            "pf_col": "PL_slot_11",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL12": {
+            "pf_col": "PL_slot_12",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL13": {
+            "pf_col": "PL_slot_13",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL14": {
+            "pf_col": "PL_slot_14",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL15": {
+            "pf_col": "PL_slot_15",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL16": {
+            "pf_col": "PL_slot_16",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL17": {
+            "pf_col": "PL_slot_17",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL18": {
+            "pf_col": "PL_slot_18",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL19": {
+            "pf_col": "PL_slot_19",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL20": {
+            "pf_col": "PL_slot_20",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL21": {
+            "pf_col": "PL_slot_21",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL22": {
+            "pf_col": "PL_slot_22",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL23": {
+            "pf_col": "PL_slot_23",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL24": {
+            "pf_col": "PL_slot_24",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL25": {
+            "pf_col": "PL_slot_25",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL26": {
+            "pf_col": "PL_slot_26",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL27": {
+            "pf_col": "PL_slot_27",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL28": {
+            "pf_col": "PL_slot_28",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL29": {
+            "pf_col": "PL_slot_29",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL30": {
+            "pf_col": "PL_slot_30",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL31": {
+            "pf_col": "PL_slot_31",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL32": {
+            "pf_col": "PL_slot_32",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL33": {
+            "pf_col": "PL_slot_33",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL34": {
+            "pf_col": "PL_slot_34",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL35": {
+            "pf_col": "PL_slot_35",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL36": {
+            "pf_col": "PL_slot_36",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL37": {
+            "pf_col": "PL_slot_37",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL38": {
+            "pf_col": "PL_slot_38",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL39": {
+            "pf_col": "PL_slot_39",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "PL40": {
+            "pf_col": "PL_slot_40",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBasic"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY1": {
+            "pf_col": "FY_slot_1",
+            "basic_within": "AlgoDivision",
+            "best_kwargs": {"return_ranks": [1], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY2": {
+            "pf_col": "FY_slot_2",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [2], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY3": {
+            "pf_col": "FY_slot_3",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [3], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY4": {
+            "pf_col": "FY_slot_4",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [4], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY5": {
+            "pf_col": "FY_slot_5",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [5], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY6": {
+            "pf_col": "FY_slot_6",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [6], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY7": {
+            "pf_col": "FY_slot_7",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [7], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY8": {
+            "pf_col": "FY_slot_8",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [8], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY9": {
+            "pf_col": "FY_slot_9",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [9], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY10": {
+            "pf_col": "FY_slot_10",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [10], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY11": {
+            "pf_col": "FY_slot_11",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [11], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY12": {
+            "pf_col": "FY_slot_12",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [12], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY13": {
+            "pf_col": "FY_slot_13",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [13], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY14": {
+            "pf_col": "FY_slot_14",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [14], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY15": {
+            "pf_col": "FY_slot_15",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [15], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY16": {
+            "pf_col": "FY_slot_16",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [16], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY17": {
+            "pf_col": "FY_slot_17",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [17], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY18": {
+            "pf_col": "FY_slot_18",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [18], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY19": {
+            "pf_col": "FY_slot_19",
+            "basic_within": "AlgoDivision",
+            "inherit_ads_from": "FY1",
+            "best_kwargs": {"return_ranks": [19], "inherit_rank_from_location": "FY1"},
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDBest"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDBest"}
+                }
+            ]
+        },
+        "FY20": {
+            "pf_col": "FY_slot_20",
+            "basic_within": "AlgoDivision",
+            "map": [
+                {
+                    "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
+                    "then": {"col": "UniqueAdIDNextGenAds"}
+                },
+                {
+                    "when": [
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDNextGenAds"}
+                }
+            ]
+        }
+    },
+
+    "gcp": {
+        "scope": "mktg_gcp",
+        "key": "mktg-gcp-service-account-b64-encoded"
+    },
+
+    "control_sheet": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
+        "sheet": "Control Sheet UK",
+        "date_format": "dd/MM/yyyy",
+        "date_regex": "([1-2][0-9]|[0][1-9]|[3][0-1])\/([0][1-9]|[1][0-2])\/([1-9][0-9][0-9]{2})",
+        "read_schema": [
+            ["UniqueAdID", "string", "null"],
+            ["UniqueAdIDPremium", "string", "null"],
+            ["CMSPageID", "string", "null"],
+            ["Realm", "string", "null"],
+            ["Territory", "string", "null"],
+            ["PotNumber", "string", "null"],
+            ["CampaignNumber", "string", "null"],
+            ["Title", "string", "null"],
+            ["AlgoDivision", "string", "null"],
+            ["TradeDivision", "string", "null"],
+            ["Brand", "string", "null"],
+            ["MASIDToken", "string", "null"],
+            ["Segment", "string", "null"],
+            ["AdDriver", "string", "null"],
+            ["TemplateName", "string", "null"],
+            ["StartDate", "string", "null"],
+            ["EndDate", "string", "null"],
+            ["Status", "string", "null"],
+            ["AudienceOnly", "string", "null"],
+            ["Models", "string", "null"],
+            ["ModelCombination", "string", "null"],
+            ["URL", "string", "null"],
+            ["ProductURLs", "string", "null"],
+            ["Items", "string", "null"],
+            ["AdCategory", "string", "null"],
+            ["AdMission", "string", "null"],
+            ["AdTrend", "string", "null"],
+            ["AdSubcategory", "string", "null"],
+            ["AdBrandName", "string", "null"],
+            ["AdCampaign", "string", "null"],
+            ["Headline", "string", "null"],
+            ["Subtext", "string", "null"],
+            ["CTA", "string", "null"],
+            ["HeaderColour", "string", "null"],
+            ["TextColour", "string", "null"],
+            ["BackGroundColour", "string", "null"],
+            ["ButtonTextColour", "string", "null"],
+            ["ButtonColour", "string", "null"],
+            ["BrandsLogos", "string", "null"],
+            ["BackgroundImage", "string", "null"],
+            ["MobileImage", "string", "null"],
+            ["FlatJPG", "string", "null"],
+            ["Tags", "string", "null"],
+            ["TargetingAttributes", "string", "null"],
+            ["Themes", "string", "null"],
+            ["AdVariant", "string", "null"],
+            ["ClusterID", "string", "null"]
+        ]
+    },
+
+    "placements_sheet": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
+        "sheet": "Placements",
+        "read_schema": [
+            ["Location", "string", "null"],
+            ["Page", "string", "null"],
+            ["Screen", "string", "null"],
+            ["PageGroup", "string", "null"]
+        ]
+    },
+
+    "plx_urls_sheet": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
+        "sheet": "PLX aditional PLPs",
+        "read_schema": [
+            ["URL", "string", "null"]
+        ]
+    },
+
+    "schema": {
+        "dev": "ds_sandbox",
+        "preprod": "ds_sandbox",
+        "prod": "warehouse"
+    },
+     "sql_files":{
+        "account_department_scores": "next_uk_nextads_account_department_scores.sql"
+    },
+    "tables": {
+        "read": {
+            "svoc_cust": "marketingdata_prod.warehouse.svoccust_hist",
+            "rpid_with_accounts": "marketingdata_prod.warehouse.rpid_with_accounts",
+            "bq_sessions": "marketingdata_prod.warehouse.bq_sessions_next_uk",
+            "bq_actions": "marketingdata_prod.warehouse.bq_actions_next_uk",
+            "bq_sessions_with_accounts": "marketingdata_prod.warehouse.bq_views_sessions_next_uk_with_accounts",
+            "bq_pages": "marketingdata_prod.warehouse.bq_pages_next_uk",
+            "bq_views": "marketingdata_prod.warehouse.bq_views_next_uk",
+            "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
+            "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
+            "bq_views_app": "marketingdata_prod.warehouse.bq_views_next_uk_app",
+            "baskets": "marketingdata_prod.warehouse.baskets_uk_3y",
+            "preference_framework": "marketingdata_prod.warehouse.uk_pf",
+            "product_catalog": "marketingdata_prod.warehouse.product_catalog_history",
+            "product_catalog_latest": "marketingdata_prod.warehouse.product_catalog",
+            "model_scores_latest": "marketingdata_prod.warehouse.next_uk_nextads_model_scores_latest",
+            "premium_customers": "marketingdata_prod.warehouse.next_uk_lowpricepremium_model_latest",
+            "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
+            "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
+            "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest",
+            "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest"
+        },
+        "write": {
+            "ad_items": "{catalog}.{schema}.{client}_nextads_ad_items",
+            "control_sheet": "{catalog}.{schema}.{client}_nextads_control_sheet",
+            "control_sheet_latest": "{catalog}.{schema}.{client}_nextads_control_sheet_latest",
+            "multipage_locations": "{catalog}.{schema}.{client}_nextads_multipage_locations",
+            "multipage_locations_latest": "{catalog}.{schema}.{client}_nextads_multipage_locations_latest",
+            "customer_cells_fixed_latest": "{catalog}.{schema}.{client}_nextads_customer_cells_fixed_latest",
+            "customer_cells_fixed_history": "{catalog}.{schema}.{client}_nextads_customer_cells_fixed_history",
+            "customer_cells_transient": "{catalog}.{schema}.{client}_nextads_customer_cells_transient",
+            "customer_cells_transient_latest": "{catalog}.{schema}.{client}_nextads_customer_cells_transient_latest",
+            "customer_cells_latest": "{catalog}.{schema}.{client}_nextads_customer_cells_latest",
+            "targeting_scores_latest": "{catalog}.{schema}.{client}_nextads_targeting_scores_latest",
+            "assignments": "{catalog}.{schema}.{client}_nextads_assignments",
+            "assignments_v2": "{catalog}.{schema}.{client}_nextads_assignments_v2",
+            "assignments_latest": "{catalog}.{schema}.{client}_nextads_assignments_latest",
+            "assignments_v2_latest": "{catalog}.{schema}.{client}_nextads_assignments_v2_latest",
+            "nextads_payload": "{catalog}.{schema}.{client}_nextads_payload",
+            "nextads_payload_latest": "{catalog}.{schema}.{client}_nextads_payload_latest",
+            "attribute_set": "{catalog}.{schema}.{client}_nextads_attribute_set",
+            "attribute_set_latest": "{catalog}.{schema}.{client}_nextads_attribute_set_latest",
+            "item_attributes_latest": "{catalog}.{schema}.{client}_nextads_item_attributes_latest",
+            "item_themes_latest": "{catalog}.{schema}.{client}_nextads_item_themes_latest",
+            "item_themes": "{catalog}.{schema}.{client}_nextads_item_themes",
+            "theme_mapping": "{catalog}.{schema}.{client}_nextads_theme_mapping",
+            "theme_mapping_latest": "{catalog}.{schema}.{client}_nextads_theme_mapping_latest",
+            "theme_transitions": "{catalog}.{schema}.{client}_nextads_theme_transitions",
+            "theme_transitions_latest": "{catalog}.{schema}.{client}_nextads_theme_transitions_latest",
+            "next_theme_scores": "{catalog}.{schema}.{client}_nextads_next_theme_scores",
+            "next_theme_scores_latest": "{catalog}.{schema}.{client}_nextads_next_theme_scores_latest",
+            "theme_score_components": "{catalog}.{schema}.{client}_nextads_theme_score_components",
+            "theme_score_components_latest": "{catalog}.{schema}.{client}_nextads_theme_score_components_latest",
+            "theme_score_components_hackathon": "{catalog}.ds_sandbox.{client}_nextads_theme_score_components_hackathon",
+            "theme_score_components_hackathon_latest": "{catalog}.ds_sandbox.{client}_nextads_theme_score_components_hackathon_latest",
+            "theme_scoring_events_latest": "{catalog}.{schema}.{client}_nextads_theme_scoring_events_latest",
+            "preranked_ads_from_themes_latest": "{catalog}.{schema}.{client}_nextads_preranked_ads_from_themes_latest",
+            "preranked_ads_from_themes_v2_latest": "{catalog}.{schema}.{client}_nextads_preranked_ads_from_themes_v2_latest",
+            "preranked_ads_from_themes_hackathon_latest": "{catalog}.ds_sandbox.{client}_nextads_preranked_ads_from_themes_hackathon_latest",
+            "results_topline": "{catalog}.{schema}.{client}_nextads_results_topline",
+            "results_aggregated": "{catalog}.{schema}.{client}_nextads_results_aggregated",
+            "results_ab": "{catalog}.{schema}.{client}_nextads_results_ab",
+            "results_ads": "{catalog}.{schema}.{client}_nextads_results_ads",
+            "results_ads_location": "{catalog}.{schema}.{client}_nextads_results_ads_location",
+            "results_ads_page": "{catalog}.{schema}.{client}_nextads_results_ads_page",
+            "results_div_page": "{catalog}.{schema}.{client}_nextads_results_div_page",
+            "results_tdiv_page": "{catalog}.{schema}.{client}_nextads_results_tdiv_page",
+            "results_ads_targeting": "{catalog}.{schema}.{client}_nextads_results_ads_targeting",
+            "results_page_targeting": "{catalog}.{schema}.{client}_nextads_results_page_targeting",
+            "results_ad_metadata": "{catalog}.{schema}.{client}_nextads_results_ad_metadata",
+            "results_ads_top_by_location": "{catalog}.{schema}.{client}_nextads_results_ads_top_by_location",
+            "results_underperforming_ads": "{catalog}.{schema}.{client}_nextads_results_underperforming_ads",
+            "conditional_probability_scores": "{catalog}.{schema}.{client}_nextads_conditional_probability_scores",
+            "conditional_probability_scores_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_scores_latest",
+            "conditional_probability_item_themes_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_item_themes_latest",
+            "conditional_probability_customer_item_interactions_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_customer_item_interactions_latest",
+            "conditional_probability_customer_theme_interactions_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_customer_theme_interactions_latest",
+            "conditional_probability_theme_associations_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_theme_associations_latest",
+            "viewed_bought_latest": "{catalog}.{schema}.{client}_nextads_viewed_bought_latest"
+        }
+    },
+
+    "webhooks": {
+        "Input Warnings": "https://chat.googleapis.com/v1/spaces/AAAA_rFP3_s/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=MhMWyk0iva0jwnyeH5pfkVd5m4SVy306sqj4hDqLAhU",
+        "DS Warnings": "https://chat.googleapis.com/v1/spaces/AAAADGikagU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=jlfcwjyQE5cp6mM91yZswSsyG-6JFnt401G0eRNC4bw",
+        "Results Warnings": "https://chat.googleapis.com/v1/spaces/AAAARUglEZU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=4SCef6fR-CuhJntPgdGS_lslDsACOjDsrMVTrYxLfnc"
+    },
+
+    "apis": {
+        "search_endpoint": "https://ci-test.next.co.uk/api/search/next/gb/en/v1/item-numbers",
+        "search_type": "category"
+    },
+
+    "top_n_lister_items": 12,
+
+    "big_query": {
+        "temporaryGcsBucket": "to_discovery/tableau",
+        "parentProject": "big-query-156009",
+        "tables": {
+            "results_topline": "big-query-156009.Misc_eu.{client}_nextads_results_topline",
+            "results_aggregated": "big-query-156009.Misc_eu.{client}_nextads_results_aggregated",
+            "results_div_page": "big-query-156009.Misc_eu.{client}_nextads_results_div_page",
+            "results_tdiv_page": "big-query-156009.Misc_eu.{client}_nextads_results_tdiv_page",
+            "results_ads": "big-query-156009.Misc_eu.{client}_nextads_results_ads",
+            "results_ads_location": "big-query-156009.Misc_eu.{client}_nextads_results_ads_location",
+            "results_ads_page": "big-query-156009.Misc_eu.{client}_nextads_results_ads_page",
+            "results_ads_targeting": "big-query-156009.Misc_eu.{client}_nextads_results_ads_targeting",
+            "results_ad_metadata": "big-query-156009.Misc_eu.{client}_nextads_results_ad_metadata"
+        },
+        "item_attributes_dashboard": "Misc_eu.{client}_nextads_item_popularity_by_nov"
+    },
+
+    "results_processing": {
+        "session_level_cols": ["SessionDate", "Device", "OS"]
+    },
+
+    "results_prm": {
+        "default_offset_start": 3,
+        "default_offset_end": 2,
+        "valid_assignment_threshold": 0.9,
+        "masid_refresh_hour": 4,
+        "min_c_sessions": 15000,
+        "lookback_days": 14
+    },
+
+    "ctrl_ratio_checks": {
+        "table_refs" : ["results_topline", "results_aggregated", "results_ads"],
+        "lookback_days": 3,
+        "tolerance": 0.1,
+        "min_c_sessions": 1000
+    },
+
+    "results_realtime_ads": {
+        "lookback_days": 14
+    },
+
+    "attributes": {
+        "active": ["gender", "department", "category", "brand", "use", "style", "pattern", "fit", "room", "activity","material", "collaboration","neckline"],
+        "lookback_days": 365,
+        "frequency_cutoff_pc": 0.0,
+        "pc_cutoff_col": "pc_orders_total",
+        "nov_scores_csv": "/Volumes/marketingdata_prod/search_sandbox/search_volume/ml_nov/UK_NOV_OUTPUT/next_order_extract.csv"
+    },
+
+    "theme_mapping": {
+        "url": "https://docs.google.com/spreadsheets/d/1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI/edit?gid=0#gid=0",
+        "sheet": "Theme Mapping",
+        "read_schema": [
+            ["Theme", "string", "null"],
+            ["TargetingAttributes", "string", "null"],
+            ["ThemeType", "string", "null"],
+            ["ThemeTypeRank", "string", "null"],
+            ["AdType", "string", "null"],
+            ["AdTypeRank", "string", "null"]
+        ]
+    },
+
+    "themes_qa": {
+        "max_themes_per_pid": 5,
+        "min_theme_pids": 500000,
+        "max_zero_themes_pc": 0.20,
+        "max_multi_themes_pc": 0.02
+    },
+
+    "real_time_unknown":{
+        "backfill": {
+            "lookback_days": 14,
+            "exclude_locations_like": ["PH","HN","PL"]
+        },
+        "viewed_bought": {
+            "time_window_days": 90,
+            "revenue_percentile": 0.90,
+            "min_co_occurrences": 5,
+            "top_n_per_item": 150,
+            "min_conversion_rate": 0.001,
+            "purchase_window_days": 1,
+            "decay_half_life_ratio": 3
+        }
+    },
+
+    "incrementality": {
+        "incrementality_ads_suppression_switch": false,
+        "auto_trading_switch": true,
+        "incremental_lookback": 14,
+        "incremental_value_threshold": -20000,
+        "min_c_session": 15000,
+        "ads_switch_label": "NegativeIncAdRemoved",
+        "locations": ["SB1","SB2"],
+        "treatments": ["Best"],
+        "masid_test_token": "Z",
+        "incremental_ads_suffix": "_r2"
+    },
+
+    "page_type_isolation": {
+        "enabled": true,
+        "page_type_map": {
+            "HP_Only": ["PH3", "PH4", "PH5"],
+            "PLP_Only": ["PLX", "PL1", "PL2", "PL3", "PL4", "PL5", "PL6", "PL7", "PL8", "PL9", "PL10", 
+                "PL11", "PL12", "PL13", "PL14", "PL15", "PL16", "PL17", "PL18", "PL19", "PL20", 
+                "PL21", "PL22", "PL23", "PL24", "PL25", "PL26", "PL27", "PL28", "PL29", "PL30", 
+                "PL31", "PL32", "PL33", "PL34", "PL35", "PL36", "PL37", "PL38", "PL39", "PL40"],
+            "SB_Only": ["SB1", "SB2"],
+            "OC_Only": ["OC1", "OC2"]
+        }
+    }
+}

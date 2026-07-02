@@ -1,4 +1,3 @@
-import json
 from datetime import date
 from pathlib import Path
 
@@ -26,6 +25,7 @@ from next_ads.control.load_control_sheet import (
     normalise_active_control_ads,
     resolve_duplicate_masid_conflicts,
 )
+from next_ads.common.paths import load_client_config, resolve_sql_contract_path
 from next_ads.utils.config_manager import load_config
 
 
@@ -102,7 +102,7 @@ def test_build_control_sheet_read_schema_adds_read_locations_without_mutating_ba
 
 
 def test_next_uk_raw_table_sql_matches_effective_read_schema():
-    client_config = json.loads((PROJECT_ROOT / "config/next_uk.json").read_text())
+    client_config = load_client_config("next_uk")
     location_config = resolve_control_sheet_locations(client_config["locations"])
     read_schema = build_control_sheet_read_schema(
         client_config["control_sheet"]["read_schema"],
@@ -117,8 +117,8 @@ def test_next_uk_raw_table_sql_matches_effective_read_schema():
     assert "TemplateName" in expected_columns
 
     for sql_file in [
-        PROJECT_ROOT / "sql/create_table_control_sheet_raw.sql",
-        PROJECT_ROOT / "sql/create_table_control_sheet_raw_latest.sql",
+        resolve_sql_contract_path("control_sheet_raw"),
+        resolve_sql_contract_path("control_sheet_raw_latest"),
     ]:
         assert _create_table_sql_columns(sql_file) == expected_columns
 

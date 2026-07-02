@@ -1,17 +1,14 @@
 import pytest
-from pathlib import Path
-import json
+from next_ads.common.paths import iter_client_config_paths, load_client_config
 
 
-root_dir = Path(__file__).parent.parent.parent
-clients = [f.name.split('.')[0] for f in root_dir.glob('config/*.json')]
+clients = [path.stem for path in iter_client_config_paths()]
 
 
 @pytest.mark.parametrize('client', clients)
 def test_audiences_required(client):
 
-    with open(f'config/{client}.json') as f:
-        cfg = json.load(f)
+    cfg = load_client_config(client)
 
     if 'Audiences' in cfg['transient_cells']:
         audiences_required = [

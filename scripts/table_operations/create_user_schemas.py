@@ -27,10 +27,8 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import json
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
-from next_ads.utils import etl
 from next_ads.utils import config_manager
 from dsutils.dbc import configure_spark, get_dbutils
 

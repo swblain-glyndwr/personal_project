@@ -1,5 +1,29 @@
 import argparse
+import sys
 from datetime import datetime
+from pathlib import Path
+
+try:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+except NameError:
+    # __file__ is not defined when running as a Databricks notebook.
+    from dsutils.dbc import get_dbutils
+
+    dbutils = get_dbutils()
+    notebook_path = (
+        dbutils.notebook.entry_point.getDbutils()
+        .notebook()
+        .getContext()
+        .notebookPath()
+        .get()
+    )  # type: ignore # noqa
+    if not notebook_path.startswith("/Workspace"):
+        notebook_path = "/Workspace" + notebook_path
+    PROJECT_ROOT = Path(notebook_path).parent.parent.parent
+finally:
+    print(f"Project root resolved to: {PROJECT_ROOT}")
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from scripts.table_operations import create_tables, init_starting_tables
 from scripts import parse_attributes, parse_theme_mapping, build_markov_chain
 

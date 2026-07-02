@@ -1,0 +1,24 @@
+CREATE OR REPLACE VIEW {catalog}.{schema}.next_uk_nextads_pctr_features_latest AS
+SELECT
+  account_number,
+  advert_id,
+  location,
+  session_date,
+  reference_date,
+  treatment_type,
+  click_label,
+  device_simple,
+  channel_simple,
+  geocountry_simple,
+  session_hour,
+  session_dayofweek,
+  session_month,
+  all_ctr,
+  device_ctr,
+  channel_ctr,
+  geo_ctr,
+  viewed_latest_advert_catid_affinity,
+  purchased_latest_advert_catid_affinity,
+  customer_advert_impressions_30d,
+  rules_based_pctr
+FROM {catalog}.{schema}.next_uk_nextads_fs_pctr_model_input

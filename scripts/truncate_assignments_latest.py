@@ -12,11 +12,11 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import json
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.utils import config_manager
+from next_ads.common.paths import load_client_config
 from next_ads.utils import etl
 
 
@@ -39,8 +39,7 @@ if not CLIENT:
 # load configuration
 config = config_manager.load_config(JOB_ENV)
 logger.info(f"Configuring run for client: {CLIENT}")
-with open(PROJECT_ROOT / f"config/{CLIENT}.json") as f:
-    cfg = json.load(f)
+cfg = load_client_config(CLIENT)
 
 tbls = cfg["tables"]["write"]
 SCHEMA = config.schema_write
