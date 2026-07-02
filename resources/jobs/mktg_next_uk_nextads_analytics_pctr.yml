@@ -18,6 +18,10 @@ resources:
       notification_settings:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
+      schedule:
+        quartz_cron_expression: 01 0 10 * * ?
+        timezone_id: Europe/London
+        pause_status: "PAUSED"
       tasks:
         - task_key: base_sessions
           notebook_task:
