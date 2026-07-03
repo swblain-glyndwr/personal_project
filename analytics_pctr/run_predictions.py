@@ -23,6 +23,7 @@ spark.conf.set("spark.sql.shuffle.partitions", "auto")
 spark.conf.set("spark.sql.adaptive.enabled", "true")
 spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 
+
 # COMMAND ----------
 def get_widget_value(name, default):
     try:
@@ -40,6 +41,7 @@ def validate_positive_int(name, value):
             f"Invalid widget value for {name}: {value}. Value must be a positive integer."
         )
     return parsed_value
+
 
 # COMMAND ----------
 dbutils.widgets.text(
@@ -234,7 +236,12 @@ global_ads_table = (
 )
 
 # COMMAND ----------
-median_impressions=global_ads_table.filter(F.col("median_impressions").isNotNull()).dropDuplicates(["median_impressions"]).select("median_impressions").collect()[0][0]
+median_impressions = (
+    global_ads_table.filter(F.col("median_impressions").isNotNull())
+    .dropDuplicates(["median_impressions"])
+    .select("median_impressions")
+    .collect()[0][0]
+)
 
 # COMMAND ----------
 ## Addition of items from adverts revenue as a tiebreaker if necessary
@@ -250,11 +257,24 @@ ads_item_revenue_last_30days = (
 )
 
 # COMMAND ----------
-combined_data=affinity_scored_df.join(
+combined_data = (
+    affinity_scored_df.join(
         global_ads_table, how="left", on=["rundate", "uniqueAdID"]
-    ).join(ads_item_revenue_last_30days, how="left", on=["uniqueAdID"]).withColumn("advert_impressions_30days", F.coalesce(F.col("advert_impressions_30days"), F.lit(0))).withColumn("advert_item_revenue", F.coalesce(F.col("advert_item_revenue"),F.lit(0))).withColumn("median_impressions", F.lit(median_impressions))
+    )
+    .join(ads_item_revenue_last_30days, how="left", on=["uniqueAdID"])
+    .withColumn(
+        "advert_impressions_30days",
+        F.coalesce(F.col("advert_impressions_30days"), F.lit(0)),
+    )
+    .withColumn(
+        "advert_item_revenue",
+        F.coalesce(F.col("advert_item_revenue"), F.lit(0)),
+    )
+    .withColumn("median_impressions", F.lit(median_impressions))
+)
 
-predictions = (combined_data.withColumn(
+predictions = (
+    combined_data.withColumn(
         "popularity_scoring_multiplier",
         F.coalesce(
             (
@@ -267,21 +287,26 @@ predictions = (combined_data.withColumn(
             ),
             F.lit(0),
         ),
-    ).withColumn(
+    )
+    .withColumn(
         popularity_click_prob_col,
         vector_to_array(F.col(popularity_probability_col))[1],
-    ).withColumn(
+    )
+    .withColumn(
         popularity_smoothed_score_col,
         F.col(popularity_click_prob_col)
         * F.col("popularity_scoring_multiplier"),
-    ).withColumn(
+    )
+    .withColumn(
         regression_weighted_score_col,
         F.col(regressor_predictions_col) * affinity_weighting_factor,
-    ).withColumn(
+    )
+    .withColumn(
         combined_score_col,
         F.col(regression_weighted_score_col)
         + F.col(popularity_smoothed_score_col),
-    ).withColumn(
+    )
+    .withColumn(
         weighted_ranking_col,
         F.dense_rank().over(
             Window.partitionBy("rundate", "account_number").orderBy(
@@ -418,5 +443,3 @@ if errors:
     final_errors = "\n".join(errors)
     print(final_errors)
     raise AssertionError(final_errors)
-
-

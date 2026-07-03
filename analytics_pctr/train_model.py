@@ -1,11 +1,11 @@
 # COMMAND ---------- [markdown]
 # # Two Stage Model
-# 
+#
 # * Primary Classification model is a high level 'popularity' model based on advert and customer features
-# * Secondary Regression Model is a customer-advert 'affinity' model minimising the residuals from the first model using only affinity features 
-# 
-# 
-# 
+# * Secondary Regression Model is a customer-advert 'affinity' model minimising the residuals from the first model using only affinity features
+#
+#
+#
 
 # COMMAND ----------
 import json
@@ -43,6 +43,7 @@ spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 # COMMAND ---------- [markdown]
 # ## General Functions
 
+
 # COMMAND ----------
 def get_widget_value(name, default):
     try:
@@ -60,6 +61,7 @@ def validate_positive_int(name, value):
             f"Invalid widget value for {name}: {value}. Value must be a positive integer."
         )
     return parsed_value
+
 
 # COMMAND ----------
 dbutils.widgets.text(
@@ -349,6 +351,7 @@ rmse_eval = RegressionEvaluator(
 # COMMAND ---------- [markdown]
 # ## Model Functions
 
+
 # COMMAND ----------
 def create_sample_weight(df, input_col, output_col, percentile_split, alpha):
 
@@ -375,6 +378,7 @@ def create_sample_weight(df, input_col, output_col, percentile_split, alpha):
     )
     return df
 
+
 # COMMAND ----------
 def classification_eval(df, include_weighting=True):
 
@@ -395,6 +399,7 @@ def classification_eval(df, include_weighting=True):
 def regression_eval(df):
     rmse = rmse_eval.evaluate(df)
     return {"rmse": rmse}
+
 
 # COMMAND ----------
 def run_model_training(
@@ -516,9 +521,10 @@ def run_model_training(
             mlflow.end_run()
     return best_model_run_id
 
+
 # COMMAND ---------- [markdown]
 # ## Training
-# 
+#
 
 # COMMAND ----------
 # Core training dataset
@@ -712,6 +718,7 @@ final_validation_df_affinity_scored.write.mode("overwrite").format(
 # COMMAND ---------- [markdown]
 # ## Feature Importance
 
+
 # COMMAND ----------
 # Feature importance
 def feature_imortances_append_names(importances, feature_names):
@@ -753,7 +760,8 @@ plt.title("Affinity Feature Importance")
 plt.xlabel
 
 # COMMAND ---------- [markdown]
-# ## Ranking Evaluation Functions 
+# ## Ranking Evaluation Functions
+
 
 # COMMAND ----------
 def rank_n_and_above_lift_metrics(df, n=2):
@@ -778,6 +786,7 @@ def rank_n_and_above_lift_metrics(df, n=2):
     )
     return lift, top_n_ctr
 
+
 # COMMAND ----------
 def ctr_at_all_ranks(df):
     filtered_df = df.filter(F.col(popularity_target_col).isNotNull())
@@ -795,6 +804,7 @@ def ctr_at_all_ranks(df):
     )
     return all_rankdf
 
+
 # COMMAND ----------
 def rank1_advert_distribution(df):
     fitered_df = df.filter((F.col(weighted_ranking_col) == 1))
@@ -811,6 +821,7 @@ def rank1_advert_distribution(df):
         .orderBy("number_rank1")
     )
     return aggregated_advert_rank1_distribution
+
 
 # COMMAND ---------- [markdown]
 # ## Ranking Evaluation
@@ -967,7 +978,7 @@ display(advert_rank1_distribution.orderBy(F.desc("perc_total")))
 
 # COMMAND ---------- [markdown]
 # ## Register Best Models
-# 
+#
 
 # COMMAND ----------
 classifier_model = f"runs:/{classifier_model_run_id}/model"
@@ -983,5 +994,3 @@ regressor_registered_model = mlflow.register_model(
     model_uri=regressor_model,
     name=regresssor_registered_model_name,
 )
-
-
