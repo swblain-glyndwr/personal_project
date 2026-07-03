@@ -27,8 +27,8 @@ analytics_pctr_model_config: &analytics_pctr_model_config
           notebook_path: ${workspace.file_path}/analytics_pctr/SQL/00_base_sessions
           base_parameters:
             catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
-            start_date: "{{start_date}}"
-            end_date : "{{start_date}}"
+            start_date: "{{job.start_time.iso_date}}"
+            end_date : "{{job.start_time.iso_date}}"
             lookback_period: 30
             year_lookback_period : 365
             table_prefix: next_uk_nextAds_analytics_pctr
@@ -43,8 +43,8 @@ analytics_pctr_model_config: &analytics_pctr_model_config
           notebook_path: ${workspace.file_path}/analytics_pctr/SQL/01_core_datasets
           base_parameters:
             catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
-            start_date: "{{start_date}}"
-            end_date : "{{start_date}}"
+            start_date: "{{job.start_time.iso_date}}"
+            end_date : "{{job.start_time.iso_date}}"
             lookback_period: 30
             year_lookback_period : 365
             table_prefix: next_uk_nextAds_analytics_pctr
@@ -61,8 +61,8 @@ analytics_pctr_model_config: &analytics_pctr_model_config
             catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
             lookback_period: 30
             year_lookback_period : 365
-            start_date: "{{start_date}}"
-            end_date : "{{start_date}}"
+            start_date: "{{job.start_time.iso_date}}"
+            end_date : "{{job.start_time.iso_date}}"
             table_prefix: next_uk_nextAds_analytics_pctr
           source: WORKSPACE
         job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
