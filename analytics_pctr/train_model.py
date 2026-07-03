@@ -317,7 +317,7 @@ models_dict = {
 # COMMAND ----------
 ### Popularity Classifier Model Evaluators
 # Training Evaluators build
-areaunderPR_eval = BinaryClassificationEvaluator(
+areaunderpr_eval = BinaryClassificationEvaluator(
     labelCol=popularity_target_col,
     metricName="areaUnderPR",
     weightCol=weighting_column,
@@ -330,7 +330,7 @@ areaunderroc_eval = BinaryClassificationEvaluator(
     weightCol=weighting_column,
 )
 ## Validation Evaluators Build
-unweighted_areaunderPR_eval = BinaryClassificationEvaluator(
+unweighted_areaunderpr_eval = BinaryClassificationEvaluator(
     labelCol=popularity_target_col,
     metricName="areaUnderPR",
     rawPredictionCol=popularity_raw_prediction_col,
@@ -382,14 +382,14 @@ def create_sample_weight(df, input_col, output_col, percentile_split, alpha):
 # COMMAND ----------
 def classification_eval(df, include_weighting=True):
 
-    auPR = unweighted_areaunderPR_eval.evaluate(df)
+    auPR = unweighted_areaunderpr_eval.evaluate(df)
     auroc = unweighted_areaunderroc_eval.evaluate(df)
     results = {
         "auPR": auPR,
         "auROC": auroc,
     }
     if include_weighting:
-        auPRweighted = areaunderPR_eval.evaluate(df)
+        auPRweighted = areaunderpr_eval.evaluate(df)
         aurocweighted = areaunderroc_eval.evaluate(df)
         results["auPR_weighted"] = auPRweighted
         results["auROC_weighted"] = aurocweighted
@@ -777,10 +777,10 @@ def rank_n_and_above_lift_metrics(df, n=2):
         .withColumn("ctr", F.col("clicks") / F.col("all_impressions"))
     )
     lift = (
-        top_n_ctr.filter(F.col(ranking_above_col) == True)
+        top_n_ctr.filter(F.col(ranking_above_col) )
         .select("ctr")
         .collect()[0][0]
-        / top_n_ctr.filter(F.col(ranking_above_col) == False)
+        / top_n_ctr.filter(not F.col(ranking_above_col))
         .select("ctr")
         .collect()[0][0]
     )
