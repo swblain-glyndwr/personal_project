@@ -334,9 +334,9 @@ def test_personal_dev_setup_job_populates_current_user_schema():
     assert setup_task["task_key"] == "populate_dev_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../scripts/table_operations/setup_dev_tables.py"
+        == "../../jobs/table_operations/setup_dev_tables.py"
     )
-    assert setup_task["spark_python_task"]["parameters"] == ["--standard"]
+    assert setup_task["spark_python_task"]["parameters"] == ["--create-only"]
     assert setup_task["libraries"] == "${var.shared_libraries}"
 
 
@@ -633,3 +633,19 @@ def test_preprod_and_prod_output_routes_are_separate():
     assert prod_vars["theme_affinity_pipeline_schema"] == "ds_sandbox"
     assert settings["prod"]["catalog_write"] == "marketingdata_prod"
     assert settings["prod"]["schema_write"] == "warehouse"
+
+
+def test_databricks_job_settings_doc_covers_declared_jobs():
+    docs = (
+        PROJECT_ROOT / "docs/CICD/nextads_databricks_job_settings.md"
+    ).read_text()
+    jobs_by_target = _target_jobs()
+    job_names = {
+        job["name"]
+        for jobs in jobs_by_target.values()
+        for job in jobs.values()
+    }
+
+    missing = sorted(job for job in job_names if job not in docs)
+
+    assert missing == []
