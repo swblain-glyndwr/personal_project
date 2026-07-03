@@ -15,6 +15,7 @@ The implementation is intentionally batch/offline first. It creates governed Dat
 | --- | --- | --- |
 | `reusable_feature_inventory.md` | 5111856 | Existing reusable signals and first migration candidates. |
 | `initial_table_design.md` | 5111861 | Initial customer, advert, embedding, model-input and quality table design. |
+| `adding_sql_built_feature.md` | 5111869 | DS-facing process for adding a reusable SQL-built feature to the feature store. |
 | `candidate_similarity.md` | Follow-up | Offline candidate similarity diagnostics concept; not part of current production model inputs. |
 | `migration_backlog.md` | 5111881 | Prioritised migration backlog and dependencies. |
 
