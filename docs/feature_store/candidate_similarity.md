@@ -5,7 +5,7 @@ Status: follow-up story concept, not part of the current feature-store productio
 
 ## Purpose
 
-Candidate similarity should be treated as an offline diagnostic capability. It should help analysts understand whether existing Next Ads candidate adverts look similar to a customer's product interests, but it must not feed production pCTR, Theme Affinity, LTR, scoring, ranking, assignment, or compatibility-view outputs in this feature-store slice.
+Candidate similarity should be treated as an offline diagnostic capability. It should help analysts understand whether existing Next Ads candidate adverts look similar to a customer's product interests, but it must not feed production Shopping Bag pCTR, Theme Affinity, future ranking/challenger models, scoring, ranking, assignment, or compatibility-view outputs in this feature-store slice.
 
 This keeps the feature-store foundation focused on governed reusable tables while leaving similarity as a separately scoped experiment/analysis route.
 
