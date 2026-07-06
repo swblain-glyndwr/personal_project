@@ -7,10 +7,7 @@ target. The rule is that a target should only receive jobs that belong to that
 route. `DEV_FEATURE_STORE` is deliberately single-purpose and should not receive
 normal operational jobs.
 
-For the DS-facing runtime shape, task graphs and observed run durations, see
-[nextads_databricks_runtime_map.md](nextads_databricks_runtime_map.md). For
-job parameters, task settings, and supported options, see
-[nextads_databricks_job_settings.md](nextads_databricks_job_settings.md).
+For the DS-facing runtime shape, task graphs and observed run durations, see [nextads_databricks_runtime_map.md](nextads_databricks_runtime_map.md).
 
 ## Target Policy
 
