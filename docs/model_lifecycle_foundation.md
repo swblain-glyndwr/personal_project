@@ -5,6 +5,8 @@ Affinity is the first implementation, but the reusable code lives under
 `src/next_ads/ml/lifecycle` so pCTR, direct-ad challengers and later models can
 use the same promotion and monitoring contracts.
 
+For the step-by-step DS operating procedure, see `docs/model_lifecycle_runbook.md`.
+
 The foundation is:
 
 - `ModelLifecycleSpec`: model identity, Unity Catalog registered model name,
@@ -53,8 +55,7 @@ candidates or writes serving outputs.
 Lifecycle movement jobs should call generic scripts and pass model-specific
 registered model names, versions, aliases and guardrail prefixes as parameters.
 For example, `jobs/model/lifecycle/promote_model.py` can move a fixed model
-version from DEV integration to PREPROD or from PREPROD to PROD. The Databricks
-job resource may still be model-specific so it can set safe defaults, libraries,
+version from DEV integration to PREPROD or from PREPROD to PROD. It can also resolve a supplied source alias to a concrete model version before copying, but release evidence should prefer explicit source versions. The Databricks job resource may still be model-specific so it can set safe defaults, libraries,
 clusters and target scoping for that model.
 
 ## Required New Model Shape
@@ -195,10 +196,13 @@ The controlled flow is:
 
 - Personal DEV: run the GPU or Spark challenger train job to prove the branch,
   data contract and metrics in a user schema.
-- DEV integration: after merge to `develop`, run the reviewed GPU or Spark
-  challenger train job in `DEV_INTEGRATION`. This registers into
-  `marketingdata_dev.nextads_integration.nextads_theme_affinity_ranker` with a
-  `dev_gpu_xgboost` or `dev_spark_xgboost` alias.
+- DEV integration: after merge to `develop`, copy the reviewed DEV model version
+  into `marketingdata_dev.nextads_integration.nextads_theme_affinity_ranker`
+  with a `dev_gpu_xgboost` or `dev_spark_xgboost` alias. Do not routinely
+  retrain the same model in DEV Integration; retraining creates a new artifact
+  that needs a fresh evidence review. The shared `nextads_integration`
+  namespace gives release owners a stable source for PREPROD import without
+  depending on a personal DEV schema.
 - DEV integration to PREPROD: from the PREPROD target, run
   `mktg_next_uk_nextads_theme_affinity_model_import_dev` with the reviewed
   DEV integration model version. This copies that exact model artifact into
@@ -210,6 +214,8 @@ The controlled flow is:
   version, registers it into
   `marketingdata_prod.warehouse.nextads_theme_affinity_ranker` and sets the
   `prod` alias.
+
+The generic promotion job accepts either `source_model_version` or `source_alias`. If only `source_alias` is provided, it resolves that alias to a fixed source version before copying. For controlled releases, pass the reviewed model version explicitly and use aliases only as selection labels.
 
 For future models, prefer a Spark-native or distributed trainer when the
 training table is already a Spark/Delta contract. Use a local pandas trainer

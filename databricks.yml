@@ -17,6 +17,7 @@ include:
   - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
+  - resources/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - resources/jobs/mktg_next_uk_nextads_qa.yml

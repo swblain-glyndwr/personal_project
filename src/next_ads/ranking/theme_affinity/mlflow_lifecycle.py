@@ -4,6 +4,7 @@ from next_ads.ml.lifecycle.registry import (
     copy_model_version_to_registered_model,
     model_uri_for_alias,
     model_uri_for_version,
+    resolve_model_version_for_alias,
     set_model_alias,
 )
 from next_ads.ml.lifecycle.spec import (
@@ -20,6 +21,7 @@ __all__ = [
     "copy_model_version_to_registered_model",
     "model_uri_for_alias",
     "model_uri_for_version",
+    "resolve_model_version_for_alias",
     "resolve_lifecycle_config",
     "set_model_alias",
     "train_and_register_model",
