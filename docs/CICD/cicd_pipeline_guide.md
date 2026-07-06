@@ -4,14 +4,19 @@
 
 ```md
 next-ads/
-├── azure-pipelines.yml          # Main pipeline
-├── databricks.yml               # DAB configuration
-├── devops/                      # DevOps resources
-│   ├── scripts/
-│   ├── templates/
-│   └── variables/
-├── resources/                   # DAB resources
-│   └── jobs/
+|-- azure-pipelines.yml          # Main pipeline
+|-- databricks.yml               # DAB configuration
+|-- devops/                      # Azure DevOps resources
+|   |-- scripts/
+|   |-- templates/
+|   `-- variables/
+|-- pipelines/
+|   `-- databricks/              # Databricks Asset Bundle resources
+|       |-- jobs/
+|       |-- pipelines/
+|       `-- variables/
+|-- jobs/                        # Databricks Python entrypoints
+`-- src/next_ads/                # Reusable package code
 ```
 
 ## Setup AZ CLI and DevOps Pipelines
@@ -64,7 +69,7 @@ az pipelines create \
   --repository-type tfsgit
 ```
 
-3. Grant the DevOps pipeline permissions 
+3. Grant the DevOps pipeline permissions
     1. to access DevOps variable groups
     2. to access Agent Pool
 

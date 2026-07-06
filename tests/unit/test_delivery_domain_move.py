@@ -17,7 +17,7 @@ def _load_job(path: str, key: str) -> dict:
     return yaml.safe_load((PROJECT_ROOT / path).read_text())["resources"]["jobs"][key]
 
 
-def test_delivery_job_entrypoints_exist_with_legacy_wrappers():
+def test_delivery_job_entrypoints_live_under_jobs():
     entrypoints = [
         "plp_gs",
         "masid_handoff_check",
@@ -27,32 +27,31 @@ def test_delivery_job_entrypoints_exist_with_legacy_wrappers():
         assert (
             PROJECT_ROOT / "jobs" / "nextads_delivery" / f"{entrypoint}.py"
         ).is_file()
-        assert (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").is_file()
+        assert not (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").exists()
 
 
-def test_legacy_delivery_wrappers_are_importable_without_running_jobs():
+def test_delivery_job_modules_are_importable_without_running_jobs():
     for module_name in [
-        "scripts.plp_gs",
-        "scripts.masid_handoff_check",
+        "jobs.nextads_delivery.plp_gs",
+        "jobs.nextads_delivery.masid_handoff_check",
     ]:
         module = importlib.import_module(module_name)
         assert hasattr(module, "main")
 
 
-def test_plp_gs_wrapper_delegates_processing_to_delivery_package():
-    legacy = importlib.import_module("scripts.plp_gs")
+def test_plp_gs_job_delegates_processing_to_delivery_package():
+    job_module = importlib.import_module("jobs.nextads_delivery.plp_gs")
 
-    assert legacy._process_control_sheet is google_sheets.process_control_sheet
-    assert "next_ads.delivery.google_sheets" in _read("scripts/plp_gs.py")
+    assert job_module.run_plp_gs_delivery is google_sheets.run_plp_gs_delivery
+    assert "next_ads.delivery.google_sheets" in _read("jobs/nextads_delivery/plp_gs.py")
     assert "process_control_sheet" in _read("src/next_ads/delivery/google_sheets.py")
     assert "run_plp_gs_delivery" in _read("src/next_ads/delivery/google_sheets.py")
 
 
-def test_masid_handoff_wrapper_delegates_to_delivery_job_entrypoint():
-    legacy = importlib.import_module("scripts.masid_handoff_check")
+def test_masid_handoff_job_delegates_to_delivery_package():
     moved = importlib.import_module("jobs.nextads_delivery.masid_handoff_check")
 
-    assert legacy.main is moved.main
+    assert hasattr(moved, "main")
     assert "next_ads.delivery.masid_handoff" in _read(
         "jobs/nextads_delivery/masid_handoff_check.py"
     )
@@ -60,33 +59,33 @@ def test_masid_handoff_wrapper_delegates_to_delivery_job_entrypoint():
 
 def test_delivery_jobs_use_delivery_entrypoints():
     masid_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_masid_handoff.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml",
         "mktg_next_uk_nextads_masid_handoff_cicd",
     )
     plp_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml",
         "mktg_next_uk_nextads_plp_gs_delivery_cicd",
     )
 
     assert masid_job["tasks"][0]["spark_python_task"]["python_file"] == (
-        "../../jobs/nextads_delivery/masid_handoff_check.py"
+        "../../../jobs/nextads_delivery/masid_handoff_check.py"
     )
     assert plp_job["tasks"][0]["for_each_task"]["task"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/nextads_delivery/plp_gs.py"
+    ] == "../../../jobs/nextads_delivery/plp_gs.py"
 
 
 def test_v2_payload_export_routes_stay_on_scripts():
     payload_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_payload_export.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml",
         "mktg_next_uk_nextads_payload_export_cicd",
     )
     page_build_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_page_build.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml",
         "mktg_next_uk_nextads_page_build_cicd",
     )
     main_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
     )
 
@@ -94,14 +93,14 @@ def test_v2_payload_export_routes_stay_on_scripts():
     main_tasks = {task["task_key"]: task for task in main_job["tasks"]}
 
     assert payload_job["tasks"][0]["spark_python_task"]["python_file"] == (
-        "../../scripts/build_v2_payload.py"
+        "../../../jobs/nextads_delivery/build_v2_payload.py"
     )
     assert page_tasks["build_page_v2"]["for_each_task"]["task"][
         "spark_python_task"
-    ]["python_file"] == "../../scripts/build_page_v2.py"
+    ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
     assert main_tasks["load_control_sheet_v2"]["spark_python_task"][
         "python_file"
-    ] == "../../scripts/load_control_sheet_v2.py"
+    ] == "../../../jobs/nextads_control/load_control_sheet_v2.py"
     assert main_tasks["map_theme_scores_to_ads_v2"]["spark_python_task"][
         "python_file"
-    ] == "../../scripts/map_theme_scores_to_ads_v2.py"
+    ] == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"

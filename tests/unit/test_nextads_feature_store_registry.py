@@ -9,7 +9,7 @@ from next_ads.features.materialization import validate_required_columns
 from next_ads.features.theme_affinity import (
     THEME_AFFINITY_MODEL_FEATURE_COLUMNS,
 )
-from scripts.table_operations.create_feature_store_tables import (
+from jobs.table_operations.create_feature_store_tables import (
     create_feature_store_tables,
     create_databricks_feature_table,
     schema_from_contract,
@@ -88,14 +88,21 @@ def _sql_columns(table_name):
 
 
 def _theme_affinity_model_features():
-    config_path = PROJECT_ROOT / "hackathon_model" / "config.py"
+    config_path = (
+        PROJECT_ROOT
+        / "experiments"
+        / "hackathon_theme_affinity_model"
+        / "config.py"
+    )
     module_ast = ast.parse(config_path.read_text())
     for node in module_ast.body:
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == "features":
                     return ast.literal_eval(node.value)
-    raise AssertionError("hackathon_model/config.py does not define features")
+    raise AssertionError(
+        "experiments/hackathon_theme_affinity_model/config.py does not define features"
+    )
 
 
 def test_feature_store_registry_loads_physical_tables_and_views():
@@ -413,22 +420,27 @@ def test_feature_engineering_argument_filter_ignores_extra_variants_for_kwargs_s
 def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
     libraries_config = yaml.safe_load(
-        (PROJECT_ROOT / "resources" / "variables" / "libraries.yml").read_text()
+        (
+            PROJECT_ROOT / "pipelines" / "databricks" / "variables" / "libraries.yml"
+        ).read_text()
     )
     clusters_config = yaml.safe_load(
-        (PROJECT_ROOT / "resources" / "variables" / "clusters.yml").read_text()
+        (
+            PROJECT_ROOT / "pipelines" / "databricks" / "variables" / "clusters.yml"
+        ).read_text()
     )
     job_config = yaml.safe_load(
         (
             PROJECT_ROOT
-            / "resources"
+            / "pipelines"
+            / "databricks"
             / "jobs"
             / "mktg_next_uk_nextads_feature_store.yml"
         ).read_text()
     )
 
     assert (
-        "resources/jobs/mktg_next_uk_nextads_feature_store.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml"
         in bundle_config["include"]
     )
     assert (
@@ -736,7 +748,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     )
     assert all(
         task["spark_python_task"]["python_file"].startswith(
-            ("../../jobs/features/nextads/", "../../scripts/table_operations/")
+            ("../../../jobs/features/nextads/", "../../../jobs/table_operations/")
         )
         for task in job["tasks"]
     )
@@ -783,7 +795,10 @@ def test_feature_store_creation_avoids_timestamp_partition_conflict():
         PROJECT_ROOT / "src" / "next_ads" / "features" / "materialization.py"
     ).read_text()
     create_tables = (
-        PROJECT_ROOT / "scripts" / "table_operations" / "create_feature_store_tables.py"
+        PROJECT_ROOT
+        / "jobs"
+        / "table_operations"
+        / "create_feature_store_tables.py"
     ).read_text()
 
     assert "client.write_table(name=table_path, df=aligned_df, mode=\"merge\")" in materialization

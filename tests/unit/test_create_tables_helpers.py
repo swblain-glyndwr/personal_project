@@ -1,4 +1,4 @@
-from scripts.table_operations.create_tables import (
+from jobs.table_operations.create_tables import (
     build_add_missing_columns_query,
     extract_create_table_columns,
     get_unsupported_missing_columns,

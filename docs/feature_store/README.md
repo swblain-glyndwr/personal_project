@@ -24,8 +24,8 @@ The repo-owned executable contract is split across:
 
 - `configs/features/nextads_feature_store.yaml` for table names, grain, primary keys, owner, freshness and consumers.
 - `sql/features/nextads/` for table schemas consumed by the setup script.
-- `scripts/table_operations/create_feature_store_tables.py` for Databricks Feature Engineering table creation.
-- `resources/jobs/mktg_next_uk_nextads_feature_store.yml` for personal, integration and shared DEV feature-store DAB jobs.
+- `jobs/table_operations/create_feature_store_tables.py` for Databricks Feature Engineering table creation.
+- `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` for personal, integration and shared DEV feature-store DAB jobs.
 - `jobs/features/nextads/` for build-entrypoint scaffolds.
 
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.

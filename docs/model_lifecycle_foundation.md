@@ -40,9 +40,9 @@ For a new model, add model-specific code in its own domain package, for example:
 - `jobs/model/<model_name>/` for thin Databricks model entrypoints.
 - `jobs/model/lifecycle/` for generic lifecycle movement entrypoints shared by
   all model families.
-- `resources/jobs/mktg_next_uk_nextads_<model_name>_model_train.yml`.
-- `resources/jobs/mktg_next_uk_nextads_<model_name>_model_monitor.yml`.
-- `resources/jobs/mktg_next_uk_nextads_<model_name>_model_promote.yml`.
+- `pipelines/databricks/jobs/mktg_next_uk_nextads_<model_name>_model_train.yml`.
+- `pipelines/databricks/jobs/mktg_next_uk_nextads_<model_name>_model_monitor.yml`.
+- `pipelines/databricks/jobs/mktg_next_uk_nextads_<model_name>_model_promote.yml`.
 
 The shared lifecycle package should stay model-agnostic. It should know how to
 configure MLflow, register model versions, set aliases, copy reviewed versions
@@ -220,13 +220,13 @@ operational constraints are documented.
 
 Theme Affinity now has two monitoring layers:
 
-- `resources/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml`
+- `pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml`
   creates or updates a Databricks quality monitor over
   `next_uk_nextads_theme_affinity_predict_ranked`. This is target-scoped to
   PROD only and is intentionally unscheduled. Run it only after the production
   ranked table exists, because Databricks creates the monitor against an
   existing Unity Catalog table and requires production table permissions.
-- `scripts/theme_affinity/monitor_model.py` remains the Theme Affinity MLflow evidence job. It
+- `jobs/model/theme_affinity/monitor_model.py` remains the Theme Affinity MLflow evidence job. It
   compares baseline and candidate tables, logs metrics and writes retrain /
   promotion-blocking tags that can be used in review. The deployed monitor job
   is also PROD-only; DEV validates the code path and table contracts, not the

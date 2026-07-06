@@ -5,7 +5,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
 ## Purpose
 
-This inventory maps reusable signals from the existing Theme Affinity/LTR-style pipeline, hackathon jobs, response-model/pCTR jobs, and CWB analytics pCTR work into the first Next Ads feature-store contracts.
+This inventory maps reusable signals from the existing Theme Affinity/LTR-style pipeline, retained pCTR experiment work, and CWB analytics pCTR work into the first Next Ads feature-store contracts.
 
 The target shape is model-neutral. The feature store is for Next Ads-wide reusable batch features, not a pCTR-specific store. Current pCTR and LTR/theme affinity work should consume these governed feature tables instead of rebuilding source-specific feature joins inline.
 
@@ -13,7 +13,7 @@ The target shape is model-neutral. The feature store is for Next Ads-wide reusab
 
 | Source area | Current reusable signals | Current grain | Feature-store target |
 | --- | --- | --- | --- |
-| Theme Affinity/hackathon model | Month, basket/view behaviour, recency/frequency, theme retrieval counts, repurchase stage, user totals, theme seasonal demand, simple rules rank | Account, theme, model reference date | `next_uk_nextads_fs_account_theme_affinity_daily`, `next_uk_nextads_fs_theme_affinity_model_input` |
+| Theme Affinity model | Month, basket/view behaviour, recency/frequency, theme retrieval counts, repurchase stage, user totals, theme seasonal demand, simple rules rank | Account, theme, model reference date | `next_uk_nextads_fs_account_theme_affinity_daily`, `next_uk_nextads_fs_theme_affinity_model_input` |
 | Theme interaction SQL | Views, baskets, add-to-bag, repurchase and derived theme interactions | Account, theme, reference date | `next_uk_nextads_fs_account_theme_interactions_daily` |
 | Theme/global popularity SQL | Theme demand, trend, yearly comparison and global popularity signals | Theme, reference date | `next_uk_nextads_fs_theme_popularity_daily` |
 | Analytics pCTR | Viewed/purchased advert category affinity, customer-ad impressions, rule-based affinity features | Account, advert, location, reference date | `next_uk_nextads_fs_account_advert_affinity_daily`, `next_uk_nextads_fs_pctr_model_input` |
@@ -63,7 +63,7 @@ The first registration/population candidates should be small enough to validate 
 
 The following stay out of the first feature-store slice:
 
-- Existing production output tables, including `next_uk_next_ads_hackathon_model_latest`, `next_uk_next_ads_hackathon_model_full`, hackathon prerank/theme score outputs, and current pCTR score outputs.
+- Existing production output tables, including legacy `next_uk_next_ads_hackathon_model_latest`, `next_uk_next_ads_hackathon_model_full`, legacy hackathon-named prerank/theme score outputs, and current pCTR score outputs.
 - Full online serving store support.
 - Candidate similarity diagnostics. That work is a separate offline follow-up and is not part of the first production model contracts.
 

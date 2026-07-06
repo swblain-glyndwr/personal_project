@@ -2,7 +2,7 @@ import pytest
 from typing import Generator
 
 from pyspark.sql import DataFrame
-from scripts import plp_gs
+from next_ads.delivery import google_sheets as plp_gs
 
 
 class TestProcessControlSheetFromTableIntegration:

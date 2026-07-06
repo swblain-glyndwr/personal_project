@@ -12,7 +12,7 @@ def _load_yaml(path):
 
 def _theme_affinity_job():
     job_config = _load_yaml(
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml"
     )
     return job_config["mktg_next_uk_nextads_theme_affinity_config"][
         "mktg_next_uk_nextads_theme_affinity_cicd"
@@ -23,12 +23,12 @@ def test_theme_affinity_resources_are_included_in_bundle():
     bundle_config = _load_yaml("databricks.yml")
 
     assert (
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml"
         in bundle_config["include"]
     )
     assert "jobs/**" in bundle_config["sync"]["include"]
     assert (
-        "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
+        "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
         in bundle_config["include"]
     )
     assert "hackathon_model/**" not in bundle_config["sync"]["include"]
@@ -36,10 +36,10 @@ def test_theme_affinity_resources_are_included_in_bundle():
 
 def test_theme_affinity_job_targets_match_pipeline_targets():
     job_config = _load_yaml(
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml"
     )
     pipeline_config = _load_yaml(
-        "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
+        "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     )
 
     expected_targets = {"SANDBOX", "DEV", "DEV_INTEGRATION", "PREPROD", "PROD"}
@@ -104,7 +104,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert "spark_python_task" in publish_task
     assert (
         publish_task["spark_python_task"]["python_file"]
-        == "../../jobs/model/theme_affinity/publish_outputs.py"
+        == "../../../jobs/model/theme_affinity/publish_outputs.py"
     )
     assert publish_task["libraries"] == "${var.theme_affinity_libraries}"
     publish_parameters = publish_task["spark_python_task"]["parameters"]
@@ -149,7 +149,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert "spark_python_task" in dlt_sense_check
     assert (
         dlt_sense_check["spark_python_task"]["python_file"]
-        == "../../jobs/model/theme_affinity/sense_check.py"
+        == "../../../jobs/model/theme_affinity/sense_check.py"
     )
     assert dlt_sense_check["libraries"] == "${var.theme_affinity_libraries}"
     assert "data" in dlt_sense_check["spark_python_task"]["parameters"]
@@ -160,14 +160,14 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert "spark_python_task" in model_sense_check
     assert (
         model_sense_check["spark_python_task"]["python_file"]
-        == "../../jobs/model/theme_affinity/sense_check.py"
+        == "../../../jobs/model/theme_affinity/sense_check.py"
     )
     assert model_sense_check["libraries"] == "${var.theme_affinity_libraries}"
     assert "model_outputs" in model_sense_check["spark_python_task"]["parameters"]
 
 
 def test_theme_affinity_libraries_avoid_full_runtime_requirements():
-    variables = _load_yaml("resources/variables/libraries.yml")["variables"]
+    variables = _load_yaml("pipelines/databricks/variables/libraries.yml")["variables"]
 
     assert variables["theme_affinity_libraries"]["default"] == [
         {
@@ -176,7 +176,7 @@ def test_theme_affinity_libraries_avoid_full_runtime_requirements():
                 "dslib/dsutils-0.1.13-py3-none-any.whl"
             )
         },
-        {"requirements": "../../requirements-theme-affinity.txt"},
+        {"requirements": "../../../requirements-theme-affinity.txt"},
     ]
 
     requirements = (
@@ -196,41 +196,41 @@ def test_theme_affinity_mlflow_lifecycle_resources_are_included():
     bundle_config = _load_yaml("databricks.yml")
 
     assert (
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml"
         in bundle_config["include"]
     )
     assert (
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml"
         in bundle_config["include"]
     )
     assert (
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml"
         in bundle_config["include"]
     )
     assert (
-        "resources/jobs/"
+        "pipelines/databricks/jobs/"
         "mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml"
         in bundle_config["include"]
     )
     assert (
-        "resources/jobs/"
+        "pipelines/databricks/jobs/"
         "mktg_next_uk_nextads_theme_affinity_model_import_dev.yml"
         in bundle_config["include"]
     )
     assert (
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml"
         in bundle_config["include"]
     )
-    assert "resources/jobs/mktg_next_uk_nextads_model_train.yml" not in bundle_config[
+    assert "pipelines/databricks/jobs/mktg_next_uk_nextads_model_train.yml" not in bundle_config[
         "include"
     ]
     assert (
-        "resources/jobs/mktg_next_uk_nextads_model_predict.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_model_predict.yml"
         not in bundle_config["include"]
     )
     assert (
         bundle_config["include"].count(
-            "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
+            "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
         )
         == 1
     )
@@ -238,7 +238,7 @@ def test_theme_affinity_mlflow_lifecycle_resources_are_included():
 
 def test_theme_affinity_train_job_is_dev_gpu_xgboost_challenger():
     job_config = _load_yaml(
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml"
     )
     assert set(job_config["targets"]) == {"DEV", "DEV_INTEGRATION"}
 
@@ -251,7 +251,7 @@ def test_theme_affinity_train_job_is_dev_gpu_xgboost_challenger():
     assert task["task_key"] == "train_gpu_xgboost_model"
     assert (
         task["spark_python_task"]["python_file"]
-        == "../../scripts/theme_affinity/train_gpu_xgboost_model.py"
+        == "../../../jobs/model/theme_affinity/train_gpu_xgboost_model.py"
     )
     assert (
         task["job_cluster_key"]
@@ -267,7 +267,7 @@ def test_theme_affinity_train_job_is_dev_gpu_xgboost_challenger():
 
 def test_theme_affinity_spark_train_job_is_dev_cpu_spark_challenger():
     job_config = _load_yaml(
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml"
     )
     assert set(job_config["targets"]) == {"DEV", "DEV_INTEGRATION"}
 
@@ -280,7 +280,7 @@ def test_theme_affinity_spark_train_job_is_dev_cpu_spark_challenger():
     assert task["task_key"] == "train_spark_xgboost_model"
     assert (
         task["spark_python_task"]["python_file"]
-        == "../../scripts/theme_affinity/train_model.py"
+        == "../../../jobs/model/theme_affinity/train_model.py"
     )
     assert task["job_cluster_key"] == "next_ads_job_cluster_D32ads_v5_1_4"
     assert task["libraries"] == "${var.theme_affinity_libraries}"
@@ -291,7 +291,7 @@ def test_theme_affinity_spark_train_job_is_dev_cpu_spark_challenger():
 
 
 def test_theme_affinity_spark_train_job_uses_existing_cpu_spark_cluster():
-    variables = _load_yaml("resources/variables/clusters.yml")["variables"]
+    variables = _load_yaml("pipelines/databricks/variables/clusters.yml")["variables"]
 
     shared_clusters = variables["job_clusters_config"]["default"]
     cluster = next(
@@ -308,7 +308,7 @@ def test_theme_affinity_spark_train_job_uses_existing_cpu_spark_cluster():
 
 
 def test_theme_affinity_gpu_train_job_uses_requested_gpu_ml_cluster():
-    variables = _load_yaml("resources/variables/clusters.yml")["variables"]
+    variables = _load_yaml("pipelines/databricks/variables/clusters.yml")["variables"]
     train_clusters = variables["theme_affinity_gpu_train_job_clusters_config"][
         "default"
     ]
@@ -344,7 +344,7 @@ def test_theme_affinity_gpu_train_job_uses_requested_gpu_ml_cluster():
 
 def test_theme_affinity_promote_job_is_prod_only_and_parameterised():
     job_config = _load_yaml(
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml"
     )
     assert set(job_config["targets"]) == {"PROD"}
 
@@ -374,7 +374,7 @@ def test_theme_affinity_promote_job_is_prod_only_and_parameterised():
     assert task["task_key"] == "promote_model"
     assert (
         task["spark_python_task"]["python_file"]
-        == "../../jobs/model/lifecycle/promote_model.py"
+        == "../../../jobs/model/lifecycle/promote_model.py"
     )
     assert task["libraries"] == "${var.theme_affinity_libraries}"
     parameters = task["spark_python_task"]["parameters"]
@@ -389,7 +389,7 @@ def test_theme_affinity_promote_job_is_prod_only_and_parameterised():
 
 def test_theme_affinity_import_dev_model_job_is_preprod_only_and_version_based():
     job_config = _load_yaml(
-        "resources/jobs/"
+        "pipelines/databricks/jobs/"
         "mktg_next_uk_nextads_theme_affinity_model_import_dev.yml"
     )
     assert set(job_config["targets"]) == {"PREPROD"}
@@ -418,7 +418,7 @@ def test_theme_affinity_import_dev_model_job_is_preprod_only_and_version_based()
     assert task["task_key"] == "promote_model"
     assert (
         task["spark_python_task"]["python_file"]
-        == "../../jobs/model/lifecycle/promote_model.py"
+        == "../../../jobs/model/lifecycle/promote_model.py"
     )
     assert task["libraries"] == "${var.theme_affinity_libraries}"
     parameters = task["spark_python_task"]["parameters"]
@@ -433,7 +433,7 @@ def test_theme_affinity_import_dev_model_job_is_preprod_only_and_version_based()
 
 def test_theme_affinity_monitor_job_is_unscheduled_and_parameterised():
     job_config = _load_yaml(
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml"
     )
     assert set(job_config["targets"]) == {"PROD"}
 
@@ -456,7 +456,7 @@ def test_theme_affinity_monitor_job_is_unscheduled_and_parameterised():
     assert task["task_key"] == "monitor_model"
     assert (
         task["spark_python_task"]["python_file"]
-        == "../../scripts/theme_affinity/monitor_model.py"
+        == "../../../jobs/model/theme_affinity/monitor_model.py"
     )
     assert task["libraries"] == "${var.theme_affinity_libraries}"
     parameters = task["spark_python_task"]["parameters"]
@@ -467,7 +467,7 @@ def test_theme_affinity_monitor_job_is_unscheduled_and_parameterised():
 
 def test_theme_affinity_quality_monitor_setup_job_is_native_and_prod_only():
     job_config = _load_yaml(
-        "resources/jobs/"
+        "pipelines/databricks/jobs/"
         "mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml"
     )
     assert set(job_config["targets"]) == {"PROD"}
@@ -511,7 +511,7 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_prod_only():
     assert task["task_key"] == "setup_quality_monitor"
     assert (
         task["spark_python_task"]["python_file"]
-        == "../../scripts/theme_affinity/setup_quality_monitor.py"
+        == "../../../jobs/model/theme_affinity/setup_quality_monitor.py"
     )
     assert task["libraries"] == "${var.theme_affinity_libraries}"
     parameters = task["spark_python_task"]["parameters"]
@@ -535,9 +535,9 @@ def test_theme_affinity_mlflow_lifecycle_excludes_old_branch_artifacts():
     checked_paths = [
         PROJECT_ROOT / "pyproject.toml",
         PROJECT_ROOT / "requirements-theme-affinity.txt",
-        PROJECT_ROOT / "resources/variables/libraries.yml",
-        PROJECT_ROOT / "scripts/theme_affinity",
+        PROJECT_ROOT / "pipelines/databricks/variables/libraries.yml",
         PROJECT_ROOT / "src/next_ads/ranking/theme_affinity",
+        PROJECT_ROOT / "jobs/model/theme_affinity",
     ]
     for path in checked_paths:
         files = [path] if path.is_file() else list(path.rglob("*.py"))
@@ -553,16 +553,16 @@ def test_theme_affinity_script_bootstrap_handles_workspace_paths():
             "Path(notebook_path).parents[3]"
         ),
         "jobs/model/theme_affinity/sense_check.py": "Path(notebook_path).parents[3]",
-        "scripts/theme_affinity/rules_rank.py": "Path(notebook_path).parents[2]",
-        "scripts/theme_affinity/run_pipeline.py": "Path(notebook_path).parents[2]",
-        "scripts/theme_affinity/monitor_model.py": "Path(notebook_path).parents[2]",
-        "scripts/theme_affinity/setup_quality_monitor.py": (
-            "Path(notebook_path).parents[2]"
+        "jobs/model/theme_affinity/rules_rank.py": "Path(notebook_path).parents[3]",
+        "jobs/model/theme_affinity/run_pipeline.py": "Path(notebook_path).parents[3]",
+        "jobs/model/theme_affinity/monitor_model.py": "Path(notebook_path).parents[3]",
+        "jobs/model/theme_affinity/setup_quality_monitor.py": (
+            "Path(notebook_path).parents[3]"
         ),
-        "scripts/theme_affinity/train_gpu_xgboost_model.py": (
-            "Path(notebook_path).parents[2]"
+        "jobs/model/theme_affinity/train_gpu_xgboost_model.py": (
+            "Path(notebook_path).parents[3]"
         ),
-        "scripts/theme_affinity/train_model.py": "Path(notebook_path).parents[2]",
+        "jobs/model/theme_affinity/train_model.py": "Path(notebook_path).parents[3]",
         "jobs/model/lifecycle/promote_model.py": "Path(notebook_path).parents[3]",
     }
     for script_path, project_root_expression in script_paths.items():
@@ -619,7 +619,7 @@ def test_theme_affinity_sense_check_compares_dev_to_prod_sandbox():
 
 def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
     pipeline = _load_yaml(
-        "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
+        "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     )
     bundle = _load_yaml("databricks.yml")
     targets = pipeline["targets"]
@@ -672,9 +672,8 @@ def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
 
 def test_theme_affinity_runtime_files_do_not_use_legacy_write_paths():
     checked_paths = [
-        PROJECT_ROOT / "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml",
-        PROJECT_ROOT / "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml",
-        PROJECT_ROOT / "scripts/theme_affinity",
+        PROJECT_ROOT / "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml",
+        PROJECT_ROOT / "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml",
         PROJECT_ROOT / "jobs/model/theme_affinity",
         PROJECT_ROOT / "src/next_ads/ranking/theme_affinity",
     ]
@@ -727,7 +726,7 @@ def test_theme_affinity_pipeline_helpers_are_private():
 
 def test_theme_affinity_dlt_uses_operational_reference_date_variable():
     pipeline = _load_yaml(
-        "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
+        "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     )
     bundle = _load_yaml("databricks.yml")
     dlt_source = (
@@ -749,7 +748,7 @@ def test_theme_affinity_dlt_uses_operational_reference_date_variable():
 
     assert 'REFERENCE_DATE = datetime.today().strftime("%Y-%m-%d")' not in dlt_source
     assert "pipeline.reference_date: predict" not in (
-        PROJECT_ROOT / "resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
+        PROJECT_ROOT / "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     ).read_text()
 
 

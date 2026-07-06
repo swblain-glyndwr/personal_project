@@ -123,7 +123,7 @@ def test_deployment_pipeline_has_develop_only_dev_feature_store_route():
 
 
 def test_dev_integration_setup_job_is_target_specific():
-    setup = load_yaml("resources/jobs/dev_integration_setup.yml")
+    setup = load_yaml("pipelines/databricks/jobs/dev_integration_setup.yml")
     jobs = setup["targets"]["DEV_INTEGRATION"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_dev_integration_setup"]
     migrate_job = jobs["mktg_next_uk_nextads_dev_integration_migrate"]
@@ -136,7 +136,7 @@ def test_dev_integration_setup_job_is_target_specific():
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../scripts/table_operations/create_tables.py"
+        == "../../../jobs/table_operations/create_tables.py"
     )
     assert setup_task["spark_python_task"]["parameters"] == [
         "--client",
@@ -172,19 +172,19 @@ def test_dev_integration_setup_job_is_target_specific():
 
 def test_personal_dev_setup_job_populates_current_user_schema():
     bundle = load_yaml("databricks.yml")
-    setup = load_yaml("resources/jobs/dev_setup.yml")
+    setup = load_yaml("pipelines/databricks/jobs/dev_setup.yml")
     jobs = setup["targets"]["DEV"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_dev_setup"]
     setup_task = setup_job["tasks"][0]
 
-    assert "resources/jobs/dev_setup.yml" in bundle["include"]
+    assert "pipelines/databricks/jobs/dev_setup.yml" in bundle["include"]
     assert set(setup["targets"]) == {"DEV"}
     assert "schedule" not in setup_job
     assert setup_job["job_clusters"] == "${var.job_clusters_config}"
     assert setup_task["task_key"] == "populate_dev_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../scripts/table_operations/setup_dev_tables.py"
+        == "../../../jobs/table_operations/setup_dev_tables.py"
     )
     assert setup_task["spark_python_task"]["parameters"] == ["--standard"]
     assert setup_task["libraries"] == "${var.shared_libraries}"
@@ -234,7 +234,7 @@ def test_preprod_route_is_release_branch_only():
 
 
 def test_preprod_setup_job_is_target_specific_and_non_destructive():
-    setup = load_yaml("resources/jobs/preprod_setup.yml")
+    setup = load_yaml("pipelines/databricks/jobs/preprod_setup.yml")
     jobs = setup["targets"]["PREPROD"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_preprod_setup"]
     setup_task = setup_job["tasks"][0]
@@ -243,7 +243,7 @@ def test_preprod_setup_job_is_target_specific_and_non_destructive():
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../scripts/table_operations/create_tables.py"
+        == "../../../jobs/table_operations/create_tables.py"
     )
     assert setup_task["spark_python_task"]["parameters"] == [
         "--client",
@@ -257,7 +257,7 @@ def test_preprod_setup_job_is_target_specific_and_non_destructive():
 
 
 def test_preprod_dependency_smoke_job_is_metadata_only_and_target_specific():
-    setup = load_yaml("resources/jobs/preprod_dependency_smoke.yml")
+    setup = load_yaml("pipelines/databricks/jobs/preprod_dependency_smoke.yml")
     jobs = setup["targets"]["PREPROD"]["resources"]["jobs"]
     smoke_job = jobs["mktg_next_uk_nextads_preprod_dependency_smoke"]
     smoke_task = smoke_job["tasks"][0]
@@ -266,7 +266,7 @@ def test_preprod_dependency_smoke_job_is_metadata_only_and_target_specific():
     assert smoke_task["task_key"] == "dependency_smoke"
     assert (
         smoke_task["spark_python_task"]["python_file"]
-        == "../../scripts/smoke/preprod_dependency_smoke.py"
+        == "../../../jobs/smoke/preprod_dependency_smoke.py"
     )
     assert smoke_task["spark_python_task"]["parameters"] == [
         "--job_env",
@@ -277,7 +277,7 @@ def test_preprod_dependency_smoke_job_is_metadata_only_and_target_specific():
         "INFO",
     ]
 
-    script = (PROJECT_ROOT / "scripts/smoke/preprod_dependency_smoke.py").read_text()
+    script = (PROJECT_ROOT / "jobs/smoke/preprod_dependency_smoke.py").read_text()
     banned_write_operations = [
         "saveAsTable",
         "write.",
@@ -295,17 +295,17 @@ def test_preprod_dependency_smoke_job_is_metadata_only_and_target_specific():
 
 def test_prod_table_contract_smoke_job_is_read_only_and_target_specific():
     bundle = load_yaml("databricks.yml")
-    setup = load_yaml("resources/jobs/prod_table_contract_smoke.yml")
+    setup = load_yaml("pipelines/databricks/jobs/prod_table_contract_smoke.yml")
     jobs = setup["targets"]["PROD"]["resources"]["jobs"]
     smoke_job = jobs["mktg_next_uk_nextads_prod_table_contract_smoke"]
     smoke_task = smoke_job["tasks"][0]
 
-    assert "resources/jobs/prod_table_contract_smoke.yml" in bundle["include"]
+    assert "pipelines/databricks/jobs/prod_table_contract_smoke.yml" in bundle["include"]
     assert set(setup["targets"]) == {"PROD"}
     assert smoke_task["task_key"] == "table_contract_smoke"
     assert (
         smoke_task["spark_python_task"]["python_file"]
-        == "../../scripts/smoke/prod_table_contract_smoke.py"
+        == "../../../jobs/smoke/prod_table_contract_smoke.py"
     )
     assert smoke_job["email_notifications"]["on_failure"] == (
         "${var.data_team_notification_emails}"
@@ -319,7 +319,7 @@ def test_prod_table_contract_smoke_job_is_read_only_and_target_specific():
         "INFO",
     ]
 
-    script = (PROJECT_ROOT / "scripts/smoke/prod_table_contract_smoke.py").read_text()
+    script = (PROJECT_ROOT / "jobs/smoke/prod_table_contract_smoke.py").read_text()
     banned_write_operations = [
         "saveAsTable",
         "write.",

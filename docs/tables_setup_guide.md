@@ -5,7 +5,7 @@ This guide walks new developers through setting up the required tables for the p
 ### Prerequisites
 - Access to Databricks workspace
 - Python environment configured
-- Setup script available in `scripts/table_operations/` directory
+- Setup scripts are available in the `jobs/table_operations/` directory.
 
 ### Setup Instructions
 
@@ -19,18 +19,18 @@ This guide walks new developers through setting up the required tables for the p
 2. **Run the table creation script**
     ```bash
     # sample mode
-    bash setup_dev_tables.sh --sample # this creates starting tables with limited data
+    bash jobs/table_operations/setup_dev_tables.sh --sample # this creates starting tables with limited data
 
     # OR use full init
-    bash setup_dev_tables.sh
+    bash jobs/table_operations/setup_dev_tables.sh
 
     # Tip - the dev tables setup requires a correctly configured environment. It runs commands against python, if your python in shell is not your virtual environment interpreter, it won't work. But you can use poetry to run it and that will ensure the script is running correctly in your virtual env:
 
-    poetry run setup_dev_tables.sh
+    poetry run bash jobs/table_operations/setup_dev_tables.sh
 
     # ORRRR.... use the python version, then you will likely not have any env issues as your venv should be active and you can optionally run it in the python debugger
 
-    poetry run setup_dev_tables.py
+    poetry run python jobs/table_operations/setup_dev_tables.py
     ```
 
 ### Next Steps
@@ -39,7 +39,7 @@ Once the script completes successfully, your project tables will be created in y
 
 For troubleshooting or questions, refer to the main project README.
 export USER_SCHEMA="your_user_name_on_databricks" # e.g. john_doe
-python scripts/create_tables.py --job_env dev --log_level INFO
+python jobs/table_operations/create_tables.py --job_env dev --log_level INFO
 
 ### Environment Modes
 

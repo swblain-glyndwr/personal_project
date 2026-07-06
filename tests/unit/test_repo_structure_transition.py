@@ -32,7 +32,7 @@ def test_target_package_structure_exists_and_imports():
 
 def test_existing_databricks_job_entrypoints_stay_on_scripts_or_jobs():
     job_config = yaml.safe_load(
-        (PROJECT_ROOT / "resources/jobs/mktg_next_uk_nextads.yml").read_text()
+        (PROJECT_ROOT / "pipelines/databricks/jobs/mktg_next_uk_nextads.yml").read_text()
     )
     job = job_config["resources"]["jobs"]["mktg_next_uk_nextads_cicd"]
 
@@ -51,11 +51,14 @@ def test_existing_databricks_job_entrypoints_stay_on_scripts_or_jobs():
     python_files = list(python_files_by_task.values())
 
     assert python_files
-    assert all(
-        path.startswith("../../scripts/")
-        or path.startswith("../../jobs/nextads_main/")
-        for path in python_files
+    allowed_job_roots = (
+        "../../../jobs/nextads_control/",
+        "../../../jobs/nextads_cells/",
+        "../../../jobs/nextads_candidates/",
+        "../../../jobs/nextads_assignment/",
+        "../../../jobs/orchestration/",
     )
+    assert all(path.startswith(allowed_job_roots) for path in python_files)
     assert not any(path.startswith("../../src/") for path in python_files)
 
 
@@ -63,10 +66,10 @@ def test_repo_structure_documentation_describes_transition_rules():
     doc = (PROJECT_ROOT / "docs/repo_structure.md").read_text()
 
     assert "src/next_ads" in doc
-    assert "Existing Databricks job entry points remain in `scripts/`" in doc
+    assert "New or moved Databricks job entry points should live under route-oriented" in doc
     assert "When a story explicitly scopes a domain move" in doc
     assert (
-        "Existing Databricks job definitions remain in `resources/jobs/`"
+        "Existing Databricks job definitions remain in `pipelines/databricks/jobs/`"
         in doc
     )
     assert (

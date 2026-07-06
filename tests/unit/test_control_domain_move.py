@@ -159,20 +159,20 @@ def test_theme_mapping_filters_and_ranks_item_themes(local_spark):
 
 def test_main_job_uses_control_domain_entrypoints():
     job_config = yaml.safe_load(
-        (PROJECT_ROOT / "resources/jobs/mktg_next_uk_nextads.yml").read_text()
+        (PROJECT_ROOT / "pipelines/databricks/jobs/mktg_next_uk_nextads.yml").read_text()
     )
     job = job_config["resources"]["jobs"]["mktg_next_uk_nextads_cicd"]
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
     assert tasks_by_key["load_control_sheet"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/nextads_main/load_control_sheet.py"
+    ] == "../../../jobs/nextads_control/load_control_sheet.py"
     assert tasks_by_key["parse_attributes"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/nextads_main/parse_attributes.py"
+    ] == "../../../jobs/nextads_control/parse_attributes.py"
     assert tasks_by_key["parse_theme_mapping"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/nextads_main/parse_theme_mapping.py"
+    ] == "../../../jobs/nextads_control/parse_theme_mapping.py"
 
 
 def test_databricks_sync_includes_job_entrypoints():
