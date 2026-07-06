@@ -29,7 +29,7 @@ The target structure separates:
 
 This makes it easier to understand what a change can affect. A move into
 `src/next_ads` means code is becoming reusable production package logic. A
-change to `resources/jobs` or `azure-pipelines.yml` means deployment behaviour
+change to `pipelines/databricks/jobs` or `azure-pipelines.yml` means deployment behaviour
 may change. A change under `experiments` should not be treated as production
 logic unless a later story promotes it.
 
@@ -57,7 +57,7 @@ release evidence where needed.
 | Folder | Purpose | What belongs here | What should not be placed here |
 | --- | --- | --- | --- |
 | `src/` | Reusable production package code. | Python modules used by scripts, jobs, tests and future Databricks entry points. | One-off notebooks, ad hoc scripts, generated files or deployment YAML. |
-| `pipelines/` | Process-flow definitions, if introduced. | Higher-level pipeline orchestration or flow definitions that are not Databricks bundle resource YAML. | Python business logic or Databricks job YAML currently owned by `resources/jobs`. |
+| `pipelines/` | Process-flow definitions, if introduced. | Higher-level pipeline orchestration or flow definitions that are not Databricks bundle resource YAML. | Python business logic or Databricks job YAML currently owned by `pipelines/databricks/jobs`. |
 | `jobs/` | Databricks job entry points. | Thin executable scripts that parse job parameters and call reusable package code. | Shared business logic that should be testable in `src/next_ads`. |
 | `configs/` | Settings, policy and environment configuration. | YAML/JSON settings, model settings, route config and policy-like config. | Secrets, credentials or generated runtime files. |
 | `sql/` | Table, view and reporting SQL. | DDL, view definitions, SQL checks and reporting SQL grouped by functional area. | Python transformations or notebook-only exploration. |

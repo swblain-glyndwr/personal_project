@@ -38,16 +38,15 @@ from next_ads.ml.lifecycle.databricks_monitoring import (
     refresh_quality_monitor,
 )
 from next_ads.ranking.theme_affinity.lifecycle_spec import resolve_lifecycle_config
+from next_ads.ranking.theme_affinity.quality_monitoring import (
+    custom_metrics_for_profile,
+)
 
 
 def _split_csv(value: str | None) -> tuple[str, ...]:
     if not value:
         return ()
     return tuple(part.strip() for part in value.split(",") if part.strip())
-
-
-def _bool_arg(value: str | None) -> bool:
-    return str(value or "").strip().lower() in {"1", "true", "yes", "y"}
 
 
 def _optional_arg(value: str | None) -> str | None:
@@ -65,10 +64,11 @@ MONITOR_TYPE = (jobparser.get_arg("--monitor_type") or "time_series").strip().lo
 TABLE_NAME = jobparser.get_arg("--table_name")
 OUTPUT_SCHEMA_NAME = jobparser.get_arg("--output_schema_name")
 ASSETS_DIR = jobparser.get_arg("--assets_dir")
+WAREHOUSE_ID = _optional_arg(jobparser.get_arg("--warehouse_id"))
 TIMESTAMP_COL = jobparser.get_arg("--timestamp_col") or "reference_date"
 GRANULARITIES = _split_csv(jobparser.get_arg("--granularities") or "1 day")
 SLICING_EXPRS = _split_csv(jobparser.get_arg("--slicing_exprs"))
-RUN_REFRESH = _bool_arg(jobparser.get_arg("--run_refresh"))
+CUSTOM_METRICS_PROFILE = jobparser.get_arg("--custom_metrics_profile")
 PROBLEM_TYPE = jobparser.get_arg("--problem_type") or "classification"
 PREDICTION_COL = jobparser.get_arg("--prediction_col") or "prediction"
 MODEL_ID_COL = jobparser.get_arg("--model_id_col") or "model_id"
@@ -84,6 +84,7 @@ lifecycle_config = resolve_lifecycle_config(config)
 table_name = TABLE_NAME or lifecycle_config.train_table
 output_schema_name = OUTPUT_SCHEMA_NAME or ".".join(table_name.split(".")[:2])
 assets_dir = ASSETS_DIR or f"/Shared/nextads/quality_monitors/{CLIENT}"
+custom_metrics = custom_metrics_for_profile(CUSTOM_METRICS_PROFILE)
 workspace_client = WorkspaceClient()
 
 if ACTION == "delete":
@@ -109,6 +110,8 @@ if ACTION == "setup":
             timestamp_col=TIMESTAMP_COL,
             granularities=GRANULARITIES,
             slicing_exprs=SLICING_EXPRS,
+            custom_metrics=custom_metrics,
+            warehouse_id=WAREHOUSE_ID,
         )
         logger.info("Creating or updating time-series quality monitor for %s", table_name)
         monitor = ensure_time_series_quality_monitor(workspace_client, spec)
@@ -125,6 +128,8 @@ if ACTION == "setup":
             label_col=LABEL_COL,
             prediction_proba_col=PREDICTION_PROBA_COL,
             slicing_exprs=SLICING_EXPRS,
+            custom_metrics=custom_metrics,
+            warehouse_id=WAREHOUSE_ID,
         )
         logger.info("Creating or updating inference-log quality monitor for %s", table_name)
         monitor = ensure_inference_log_quality_monitor(workspace_client, spec)
@@ -132,8 +137,3 @@ if ACTION == "setup":
         raise ValueError("monitor_type must be time_series or inference_log")
 
     logger.info("Quality monitor ready for %s: %s", table_name, monitor)
-
-if ACTION == "setup" and RUN_REFRESH:
-    logger.info("Starting quality monitor refresh for %s", table_name)
-    refresh = refresh_quality_monitor(workspace_client, table_name)
-    logger.info("Quality monitor refresh started: %s", refresh)

@@ -21,7 +21,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 | 4 | Confirm first customer and advert materialisations | `next_uk_nextads_fs_account_profile`, `next_uk_nextads_fs_account_web_activity_90d`, `next_uk_nextads_fs_advert_core_daily`, `next_uk_nextads_fs_advert_attribute_profile_daily` | Validate key uniqueness, row counts, source freshness and expected non-null coverage. |
 | 5 | Confirm first label materialisations | `next_uk_nextads_fs_labels_clicks`, `next_uk_nextads_fs_labels_theme_response` | Preserve point-in-time correctness for repeatable training and validation. |
 | 6 | Populate embedding-derived feature tables | `next_uk_nextads_fs_product_embeddings_latest`, `next_uk_nextads_fs_advert_semantic_profile_daily`, `next_uk_nextads_fs_advert_product_profile_daily`, `next_uk_nextads_fs_seasonal_product_demand_daily` | Requires a promoted embedding model/source contract before this route should write vectors. |
-| 7 | Wire CWB analytics pCTR source contract | `next_uk_nextads_fs_account_advert_affinity_daily`, `next_uk_nextads_fs_pctr_model_input`, `next_uk_nextads_pctr_features_latest` | CWB analytics pCTR remains an external dependency until its source tables/notebooks are migrated into this route. |
+| 7 | Wire Shopping Bag pCTR source contract and any explicitly approved CWB analytics dependency | `next_uk_nextads_fs_account_advert_affinity_daily`, `next_uk_nextads_fs_pctr_model_input`, `next_uk_nextads_pctr_features_latest` | Shopping Bag pCTR is the repo-owned model route. CWB analytics pCTR remains a separate external dependency unless its source tables/notebooks are explicitly migrated into this route. |
 | 8 | Add offline candidate similarity diagnostics | Separate diagnostics table | New follow-up story only; no production model or scoring job reads this output. |
 | 9 | Keep shared DEV feature store refreshed | `marketingdata_dev.nextads_feature_store` | Scheduled daily from production Theme Affinity outputs for model-building use. |
 | 10 | Prepare production feature publication | Curated production feature tables only | Separate PR; requires explicit consumer need, permissions, ownership and release sign-off. |
@@ -36,7 +36,7 @@ Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 | Semantic advert features | Promote advert semantic embeddings and neighbour signals after embedding cache behaviour is stable. | Medium |
 | Seasonal demand | Move same-month-last-year, 7-day, 30-day and trend features into seasonal feature tables. | Medium |
 | Theme Affinity features | Move current Theme Affinity runtime outputs behind the compatibility view and then into native feature-store tables. | High |
-| CWB pCTR affinity | Map CWB analytics pCTR affinity features into account-advert and pCTR model-input contracts. | High |
+| Shopping Bag pCTR affinity | Map repo-owned Shopping Bag pCTR affinity features into account-advert and pCTR model-input contracts; only include CWB analytics pCTR inputs where explicitly approved as external source dependencies. | High |
 | Labels | Standardise click/impression and theme response labels with horizons and point-in-time metadata. | Medium |
 | Quality checks | Extend scaffolded checks into row-count, key uniqueness, null-rate and freshness writes to quality events. | High |
 | Candidate similarity diagnostics | Define a bounded offline candidate source and vector dependencies before creating any diagnostics output. | Later |
@@ -49,7 +49,7 @@ Before any feature-store-driven model input affects current production decisioni
 
 1. Run DEV smoke on feature branch tables.
 2. Prove table registration and schema/key contracts.
-3. Compare compatibility-view outputs with current Theme Affinity and pCTR model inputs.
+3. Compare compatibility-view outputs with current Theme Affinity and Shopping Bag pCTR model inputs.
 4. Run challenger model tests using feature-store inputs.
 5. Agree where any challenger model score would join the existing ranking and assignment path.
 6. Capture an explicit release/rollback path before production writes are enabled.

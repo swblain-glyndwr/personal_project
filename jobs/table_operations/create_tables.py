@@ -171,14 +171,22 @@ def build_add_missing_columns_query(
     return f"ALTER TABLE {table} ADD COLUMNS ({columns_sql})"
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    DROP_TABLES=False,
+    ALTER_TABLES=False,
+    ALLOW_NON_DEV_DROP=False,
+    ALLOW_NON_DEV_ALTER=False,
+):
     configure_logging(
         log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
 
     logger.info(f"Running in job environment: {JOB_ENV}")
-    if ALTER_TABLES and JOB_ENV.lower() != "dev":
+    if ALTER_TABLES and JOB_ENV.lower() != "dev" and not ALLOW_NON_DEV_ALTER:
         raise ValueError("--altertables is only supported for dev table setup")
 
     if not CLIENT:
@@ -302,7 +310,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES=False, ALTER_TABLES=False):
             # Legacy: use map_tbl to substitute placeholders
             table = etl.map_tbl(tbls[table_ref], **tbl_args)
 
-        if DROP_TABLES and JOB_ENV.lower() == "dev":
+        if DROP_TABLES and (JOB_ENV.lower() == "dev" or ALLOW_NON_DEV_DROP):
             logger.info(f"Dropping table {table} as --droptables is 'True'")
             logger.info(f"Running drop table if exists {table}")
             spark.sql(f"drop table if exists {table}")

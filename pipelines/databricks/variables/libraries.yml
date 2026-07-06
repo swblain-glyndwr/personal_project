@@ -13,7 +13,22 @@ variables:
   shared_libraries_wheel_only:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils/dsutils-0.1.13-py3-none-any.whl
+  model_lifecycle_libraries:
+    default:
+      - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
+      - pypi:
+          package: mlflow==3.11.1
   theme_affinity_libraries:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
       - requirements: ../../../requirements-theme-affinity.txt
+  pipeline_libraries:
+    default:
+      dependencies:
+        - /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
+        - "python-dotenv==1.2.1"
+        - "dynaconf==3.2.12"  
+  analytics_pctr_libraries:
+    default:
+      - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
+      - requirements: ../../../requirements-analytics-pctr.txt

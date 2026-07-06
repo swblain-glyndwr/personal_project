@@ -17,18 +17,21 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml
   - pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
+  - pipelines/databricks/pipelines/mktg_next_uk_nextads_data_pull.yml
   - pipelines/databricks/variables/clusters.yml
   - pipelines/databricks/variables/libraries.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_results.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml
   - pipelines/databricks/jobs/table_size_monitoring.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml
   - pipelines/databricks/jobs/dev_setup.yml
-  - pipelines/databricks/jobs/dev_integration_setup.yml
-  - pipelines/databricks/jobs/preprod_setup.yml
+  - pipelines/databricks/jobs/table_operations.yml
   - pipelines/databricks/jobs/preprod_dependency_smoke.yml
   - pipelines/databricks/jobs/prod_table_contract_smoke.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml
@@ -98,7 +101,7 @@ variables:
     description: Deployed by user, e.g. 'Doe, John'
     default: ${workspace.current_user.userName}
   data_team_notification_emails:
-    description: Internal data team owners for core build and assignment validation failure notifications
+    description: Internal data team owners for core build and QA failure notifications
     default: []
   reporting_notification_emails:
     description: Reporting owners for results job failure notifications
@@ -346,7 +349,7 @@ targets:
     permissions:
     - level: CAN_MANAGE
       service_principal_name: ${var.run_as_SPN_name}
-    - level: CAN_RUN      
+    - level: CAN_RUN
       group_name: AzUsers-DBK-MarketingData-Contributor-Prod
     - level: CAN_MANAGE
       group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Prod

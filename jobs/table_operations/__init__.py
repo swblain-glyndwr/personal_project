@@ -1,1 +1,1 @@
-"""Databricks table-operation entrypoints."""
+"""Databricks table operation entrypoints."""

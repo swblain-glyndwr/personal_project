@@ -53,6 +53,8 @@ def _spec():
         timestamp_col="reference_date",
         granularities=("1 day",),
         slicing_exprs=("segment",),
+        custom_metrics=("metric",),
+        warehouse_id="warehouse-id",
     )
 
 
@@ -69,6 +71,8 @@ def _inference_spec():
         label_col="label",
         prediction_proba_col="prediction_proba",
         slicing_exprs=("segment",),
+        custom_metrics=("metric",),
+        warehouse_id="warehouse-id",
     )
 
 
@@ -84,6 +88,8 @@ def test_ensure_time_series_quality_monitor_creates_missing_monitor():
     assert created["output_schema_name"] == "catalog.schema"
     assert created["assets_dir"] == "/Workspace/monitor"
     assert created["slicing_exprs"] == ["segment"]
+    assert created["custom_metrics"] == ["metric"]
+    assert created["warehouse_id"] == "warehouse-id"
     assert created["skip_builtin_dashboard"] is False
 
 
@@ -98,6 +104,7 @@ def test_ensure_time_series_quality_monitor_updates_existing_monitor():
     assert updated["table_name"] == "catalog.schema.table"
     assert updated["output_schema_name"] == "catalog.schema"
     assert updated["slicing_exprs"] == ["segment"]
+    assert updated["custom_metrics"] == ["metric"]
 
 
 def test_ensure_inference_log_quality_monitor_creates_missing_monitor():
@@ -115,6 +122,8 @@ def test_ensure_inference_log_quality_monitor_creates_missing_monitor():
     assert created["output_schema_name"] == "catalog.schema"
     assert created["assets_dir"] == "/Workspace/monitor"
     assert created["slicing_exprs"] == ["segment"]
+    assert created["custom_metrics"] == ["metric"]
+    assert created["warehouse_id"] == "warehouse-id"
     inference_log = created["inference_log"]
     assert inference_log.prediction_col == "prediction"
     assert inference_log.model_id_col == "model_version"
@@ -136,6 +145,7 @@ def test_ensure_inference_log_quality_monitor_updates_existing_monitor():
     assert updated["table_name"] == "catalog.schema.inference_log"
     assert updated["output_schema_name"] == "catalog.schema"
     assert updated["slicing_exprs"] == ["segment"]
+    assert updated["custom_metrics"] == ["metric"]
     assert updated["inference_log"].prediction_col == "prediction"
 
 
