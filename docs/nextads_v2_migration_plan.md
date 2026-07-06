@@ -6,7 +6,8 @@ logic and output contracts remain unchanged.
 
 ## Current Rule
 
-Current v2 runtime paths:
+Current v2 runtime paths are already route-oriented and should remain stable
+unless a specific file is clearly misplaced:
 
 - `jobs/nextads_control/load_control_sheet_v2.py`
 - `jobs/nextads_candidates/build_page_type_candidates_v2.py`
@@ -14,7 +15,10 @@ Current v2 runtime paths:
 - `jobs/nextads_delivery/build_v2_payload.py`
 - existing v2 DAB `python_file` references now point at these route folders
 
-Do not rewrite v2 behaviour until the active TL branches are reconciled.
+Do not rewrite v2 behaviour until the active TL branches are reconciled. Do not
+move all v2 files into `jobs/nextads_v2/` by default; `jobs/nextads_control`,
+`jobs/nextads_candidates`, and `jobs/nextads_delivery` are valid homes when the
+route role is clearer.
 
 ## TL Branch Findings
 
@@ -39,10 +43,9 @@ Cherry-pick or port the v2 changes after the restructure lands.
 
 ## Deferred Target Shape
 
-Once non-v2 restructure is complete, move v2 as a dedicated PR:
+Once non-v2 restructure is complete, move reusable v2 logic as a dedicated PR:
 
 ```text
-jobs/nextads_v2/
 src/next_ads/control/adsv2/
 src/next_ads/ranking/adsv2/
 src/next_ads/decisioning/adsv2/
@@ -54,15 +57,20 @@ sql/adsv2/
 Keep v2 output table names, config keys, and downstream payload contracts stable
 until a separate compatibility/cutover plan is approved.
 
+CMS/data-pull work is deferred to PR `249403` (`feature/TL/cmsdata`) and should
+not be absorbed into this structural cleanup.
+
 ## Suggested v2 Move Order
 
 1. Re-check active TL branches and open PRs.
 2. Port v2 control-sheet schema/load changes into `src/next_ads/control/adsv2`
-   and `jobs/nextads_v2/load_control_sheet.py`.
+   while keeping the current `jobs/nextads_control/load_control_sheet_v2.py`
+   route entrypoint unless the job boundary changes.
 3. Port v2 score/ad mapping into `src/next_ads/ranking/adsv2` and
-   `jobs/nextads_v2/map_theme_scores_to_ads.py`.
+   keep `jobs/nextads_candidates/build_page_type_candidates_v2.py` as the
+   route entrypoint unless the job boundary changes.
 4. Port v2 page/payload work into `src/next_ads/decisioning/adsv2`,
-   `src/next_ads/delivery/adsv2`, and matching `jobs/nextads_v2` entrypoints.
+   `src/next_ads/delivery/adsv2`, and the matching current route entrypoints.
 5. Add output contract checks comparing v1/v2 where relevant.
 6. Update DAB paths only after DEV Integration validation is ready.
 
