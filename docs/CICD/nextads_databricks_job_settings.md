@@ -98,7 +98,7 @@ Operational Theme Affinity publish, predict, clean, and sense-check graph.
 | `publish_source_namespace`, `publish_target_namespace` | Source and target namespaces for Lakeflow/DLT outputs. | `catalog.schema`. |
 | `publish_source_table_prefix`, `publish_target_table_prefix` | Table prefix for source/target publish. | Prefix string without suffix. |
 | `publish_table_suffixes` | Tables to publish by suffix. | Comma-separated suffix list from bundle variable. |
-| `model_uri` | Model used for prediction. | `${var.theme_affinity_model_uri}`; usually MLflow model URI or alias. |
+| `model_uri` | Model used for prediction. | Job parameter defaulting to `${var.theme_affinity_model_uri}`; override per validation run with the reviewed MLflow model URI or alias. |
 | `check_scope` | Sense-check scope. | `data` or `model_outputs`. |
 | Baseline/candidate settings | Baseline namespaces, prefixes, final table, and summary table. | Fully qualified namespaces/tables used for comparison evidence. |
 
@@ -108,9 +108,12 @@ Operational Theme Affinity publish, predict, clean, and sense-check graph.
 | --- | --- | --- |
 | `mktg_next_uk_nextads_theme_affinity_model_train` | `client`, `job_env`, `input_table`, `alias_suffix=gpu_xgboost`, `log_level` | GPU XGBoost training. `input_table` must be a readable training table. |
 | `mktg_next_uk_nextads_theme_affinity_model_train_spark` | `client`, `job_env`, `input_table`, `log_level` | Spark XGBoost training. |
-| `mktg_next_uk_nextads_theme_affinity_model_import_dev` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias` | Imports reviewed DEV Integration model into PREPROD namespace. Provide either a version or resolvable source alias. |
-| `mktg_next_uk_nextads_theme_affinity_model_promote` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias` | Promotes reviewed PREPROD model into PROD namespace. Provide either a version or resolvable source alias. |
+| `mktg_next_uk_nextads_model_import_dev_integration` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias`, `model_family` | Generic lifecycle copy from a reviewed personal DEV model namespace into `marketingdata_dev.nextads_integration` after the PR is completed. Provide the reviewed `source_model_version` where possible. |
+| `mktg_next_uk_nextads_theme_affinity_model_import_dev` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias` | Imports reviewed DEV Integration model into PREPROD namespace. Provide the reviewed `source_model_version` where possible. If it is blank, `source_alias` must resolve to the reviewed source version. |
+| `mktg_next_uk_nextads_theme_affinity_model_promote` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias` | Promotes reviewed PREPROD model into PROD namespace. Provide the reviewed `source_model_version` where possible. If it is blank, `source_alias` must resolve to the reviewed source version. |
 | `mktg_next_uk_nextads_theme_affinity_model_monitor` | `baseline_table`, `candidate_table`, `sample_limit`, `log_level` | Compares two model output tables. `sample_limit` is an integer row cap. |
+
+For the DS operating sequence, evidence to capture and stop conditions, see `docs/model_lifecycle_runbook.md`.
 
 ### `mktg_next_uk_nextads_theme_affinity_quality_monitor_setup`
 
