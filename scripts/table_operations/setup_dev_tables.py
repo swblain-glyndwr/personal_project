@@ -1,85 +1,19 @@
-import argparse
-import sys
-from datetime import datetime
-from pathlib import Path
+"""Compatibility wrapper for the moved personal DEV setup entrypoint."""
 
-try:
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-except NameError:
-    # __file__ is not defined when running as a Databricks notebook.
-    from dsutils.dbc import get_dbutils
-
-    dbutils = get_dbutils()
-    notebook_path = (
-        dbutils.notebook.entry_point.getDbutils()
-        .notebook()
-        .getContext()
-        .notebookPath()
-        .get()
-    )  # type: ignore # noqa
-    if not notebook_path.startswith("/Workspace"):
-        notebook_path = "/Workspace" + notebook_path
-    PROJECT_ROOT = Path(notebook_path).parent.parent.parent
-finally:
-    print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from scripts.table_operations import create_tables, init_starting_tables
-from scripts import parse_attributes, parse_theme_mapping, build_markov_chain
+from jobs.table_operations import setup_dev_tables as _setup_dev_tables
 
 
-def main(sample):
-    """Main function to set up dev tables."""
-    print("Creating tables...")
-    create_tables.main(
-        JOB_ENV="DEV", CLIENT="next_uk", LOG_LEVEL="INFO", DROP_TABLES=False
-    )
+parse_args = _setup_dev_tables.parse_args
+run_dev_setup = _setup_dev_tables.run_dev_setup
 
-    if sample:
-        print("Running in sample mode...")
-        init_starting_tables.main(CLIENT="next_uk", LOG_LEVEL="INFO")
-    else:
-        print("Running in standard mode...")
-        today = datetime.now().strftime("%Y-%m-%d")
-        print(f"Using date {today} for populating tables")
 
-        # print("Running parse_attributes...")
-        parse_attributes.main(
-            JOB_ENV="DEV",
-            CLIENT="next_uk",
-            LOG_LEVEL="INFO",
-            REFRESH_ATTRIBUTES_DATE=today,
-        )
+def main(sample=None):
+    if sample is None:
+        return _setup_dev_tables.main()
 
-        print("Running parse_theme_mapping...")
-        parse_theme_mapping.main(
-            JOB_ENV="DEV",
-            CLIENT="next_uk",
-            LOG_LEVEL="INFO",
-            REFRESH_THEMES_DATE=today,
-        )
-
-        print("Running build_markov_chain...")
-        build_markov_chain.main(
-            JOB_ENV="DEV", CLIENT="next_uk", LOG_LEVEL="INFO"
-        )
+    mode = "seed_latest" if sample else "create_only"
+    return run_dev_setup(mode=mode)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Set up development tables.")
-    mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument(
-        "--sample",
-        dest="sample",
-        action="store_true",
-        help="Run in sample mode with a small amount of data (default)",
-    )
-    mode_group.add_argument(
-        "--standard",
-        dest="sample",
-        action="store_false",
-        help="Run in standard mode with full processing",
-    )
-    parser.set_defaults(sample=True)
-    args = parser.parse_args()
-    main(args.sample)
+    main()

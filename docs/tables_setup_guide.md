@@ -18,20 +18,20 @@ This guide walks new developers through setting up the required tables for the p
 
 2. **Run the table creation script**
     ```bash
-    # sample mode
-    bash setup_dev_tables.sh --sample # this creates starting tables with limited data
+    # create missing personal DEV tables
+    python -m scripts.table_operations.setup_dev_tables --create-only
 
-    # OR use full init
-    bash setup_dev_tables.sh
+    # OR create tables and seed the small latest/reference table set
+    python -m scripts.table_operations.setup_dev_tables --seed-latest
 
     # Tip - the dev tables setup requires a correctly configured environment. It runs commands against python, if your python in shell is not your virtual environment interpreter, it won't work. But you can use poetry to run it and that will ensure the script is running correctly in your virtual env:
 
-    poetry run setup_dev_tables.sh
-
-    # ORRRR.... use the python version, then you will likely not have any env issues as your venv should be active and you can optionally run it in the python debugger
-
-    poetry run setup_dev_tables.py
+    poetry run python -m scripts.table_operations.setup_dev_tables --create-only
     ```
+
+    DEV setup does not run the candidate scoring pipeline. Run the candidate
+    build job, or the Markov chain task/script explicitly, when validating
+    scoring behaviour.
 
 ### Next Steps
 

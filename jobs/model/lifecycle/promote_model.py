@@ -30,6 +30,7 @@ from dsutils.logtools import configure_logging, get_logger
 from next_ads.ml.lifecycle import (
     configure_mlflow,
     copy_model_version_to_registered_model,
+    resolve_model_version_for_alias,
     set_model_alias,
 )
 
@@ -56,8 +57,8 @@ logging.getLogger("azure.core").setLevel(logging.WARNING)
 
 if not SOURCE_MODEL_NAME:
     raise ValueError("source_model_name must be provided")
-if not SOURCE_MODEL_VERSION:
-    raise ValueError("source_model_version must be provided")
+if not SOURCE_MODEL_VERSION and not SOURCE_ALIAS:
+    raise ValueError("source_model_version or source_alias must be provided")
 if not TARGET_MODEL_NAME:
     raise ValueError("target_model_name must be provided")
 if not TARGET_ALIAS:
@@ -79,6 +80,24 @@ import mlflow
 
 configure_mlflow(mlflow)
 client = mlflow.tracking.MlflowClient()
+
+if not SOURCE_MODEL_VERSION:
+    logger.info(
+        "Resolving source alias %s on %s",
+        SOURCE_ALIAS,
+        SOURCE_MODEL_NAME,
+    )
+    SOURCE_MODEL_VERSION = resolve_model_version_for_alias(
+        client,
+        SOURCE_MODEL_NAME,
+        SOURCE_ALIAS,
+    )
+    logger.info(
+        "Resolved source alias %s on %s to version %s",
+        SOURCE_ALIAS,
+        SOURCE_MODEL_NAME,
+        SOURCE_MODEL_VERSION,
+    )
 
 if SOURCE_ALIAS:
     logger.info(
@@ -114,6 +133,7 @@ for key, value in {
     "target_environment": TARGET_ENVIRONMENT,
     "client": CLIENT,
     "model_family": MODEL_FAMILY,
+    "source_alias": SOURCE_ALIAS,
 }.items():
     if value:
         client.set_model_version_tag(

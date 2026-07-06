@@ -30,7 +30,7 @@ The shared DEV feature-store job is scheduled daily at 21:00 Europe/London. It d
 | `next_uk_nextads_fs_account_profile` | One row per account and reference date | `account_number`, `reference_date` | `reference_date` | Daily | `marketing_data` |
 | `next_uk_nextads_fs_account_web_activity_90d` | One row per account and reference date | `account_number`, `reference_date` | `reference_date` | Daily | `marketing_data` |
 
-These are the preferred first customer tables to register and populate. They provide reusable account descriptors, account lifecycle fields, recency, browse activity, page views, add-to-bag activity and shopping-bag context needed by current models (LTR/theme affinity, pCTR, etc.) and any future models.
+These are the preferred first customer tables to register and populate. They provide reusable account descriptors, account lifecycle fields, recency, browse activity, page views, add-to-bag activity and shopping-bag context needed by Theme Affinity, the Shopping Bag pCTR route, and future ranking/challenger models.
 
 ## Initial Advert and Embedding Feature Tables
 
@@ -47,10 +47,10 @@ These tables separate stable advert metadata, rolled-up product attributes, sema
 
 | Table | Grain | Primary keys | Snapshot/date key | Consumer |
 | --- | --- | --- | --- | --- |
-| `next_uk_nextads_fs_theme_affinity_model_input` | Account, theme, reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Theme Affinity/LTR |
-| `next_uk_nextads_fs_pctr_model_input` | Account, advert, location, session date, reference date | `account_number`, `advert_id`, `location`, `session_date`, `reference_date` | `reference_date` | pCTR |
-| `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | pCTR/LTR |
-| `next_uk_nextads_fs_labels_theme_response` | Account, theme, reference date and label name | `account_number`, `theme`, `reference_date`, `label_name` | `reference_date` | Theme Affinity/LTR |
+| `next_uk_nextads_fs_theme_affinity_model_input` | Account, theme, reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Theme Affinity; future ranking/challenger models |
+| `next_uk_nextads_fs_pctr_model_input` | Account, advert, location, session date, reference date | `account_number`, `advert_id`, `location`, `session_date`, `reference_date` | `reference_date` | Shopping Bag pCTR |
+| `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | Shopping Bag pCTR; future ranking/challenger models |
+| `next_uk_nextads_fs_labels_theme_response` | Account, theme, reference date and label name | `account_number`, `theme`, `reference_date`, `label_name` | `reference_date` | Theme Affinity; future ranking/challenger models |
 
 Model assembly tables are intentionally separated from base feature tables. They can join reusable feature groups into current model-ready shapes while preserving compatibility for existing model consumers.
 
@@ -76,7 +76,7 @@ DEV validation requires:
 - Ability for the job cluster service principal/user to read source tables and write Delta feature tables.
 - No writes to PROD targets or existing operational Next Ads output tables.
 
-The branch creates manual feature-store jobs for `SANDBOX`, `DEV` and `DEV_INTEGRATION`, plus a scheduled shared DEV job for `DEV_FEATURE_STORE`.
+The bundle route deploys the feature-store job only to `DEV_FEATURE_STORE`. That target is the scheduled shared DEV feature-store route and writes to `marketingdata_dev.nextads_feature_store`.
 
 ## Acceptance Criteria Mapping
 

@@ -1,15 +1,14 @@
 import importlib
 from pathlib import Path
 
-import yaml
+from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _load_job(path, key):
-    job_config = yaml.safe_load((PROJECT_ROOT / path).read_text())
-    return job_config["resources"]["jobs"][key]
+    return load_job(path, key)
 
 
 def test_main_job_uses_moved_non_v2_entrypoints():

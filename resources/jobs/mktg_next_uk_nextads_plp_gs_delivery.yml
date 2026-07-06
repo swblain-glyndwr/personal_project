@@ -1,40 +1,61 @@
-resources:
-  jobs:
-    mktg_next_uk_nextads_plp_gs_delivery_cicd:
-      name: mktg_next_uk_nextads_plp_gs_delivery
-      queue:
-        enabled: true
-      job_clusters: ${var.job_clusters_config}
-      tags:
-        deployed_at: ${var.deploy_timestamp}
-        git_commit: ${var.git_commit_sha}
-        git_branch: ${var.git_branch}
-        deployed_by: ${var.deployed_by}
-        department: marketing
-        project: nextads
-      email_notifications:
-        on_failure: ${var.data_and_downstream_notification_emails}
-      notification_settings:
-        no_alert_for_skipped_runs: true
-        no_alert_for_canceled_runs: true
-      timeout_seconds: 1800
-      tasks:
-        - task_key: nextads_plp_gs
-          for_each_task:
-            inputs: '[{"client":"next", "territory":"GB"}]'
-            concurrency: 2
-            task:
-              task_key: nextads_plp_gs_iteration
-              spark_python_task:
-                python_file: ../../jobs/nextads_delivery/plp_gs.py
-                parameters:
-                  - --client
-                  - "{{input.client}}"
-                  - --job_env
-                  - ${var.job_parameter_environment_name}
-                  - --territory
-                  - "{{input.territory}}"
-              job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
-              libraries: ${var.shared_libraries}
-              max_retries: 2
-              timeout_seconds: 1800
+mktg_next_uk_nextads_plp_gs_delivery_config: &mktg_next_uk_nextads_plp_gs_delivery_config
+  mktg_next_uk_nextads_plp_gs_delivery_cicd:
+    name: mktg_next_uk_nextads_plp_gs_delivery
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+    email_notifications:
+      on_failure: ${var.data_and_downstream_notification_emails}
+    notification_settings:
+      no_alert_for_skipped_runs: true
+      no_alert_for_canceled_runs: true
+    timeout_seconds: 1800
+    tasks:
+      - task_key: nextads_plp_gs
+        for_each_task:
+          inputs: '[{"client":"next", "territory":"GB"}]'
+          concurrency: 2
+          task:
+            task_key: nextads_plp_gs_iteration
+            spark_python_task:
+              python_file: ../../jobs/nextads_delivery/plp_gs.py
+              parameters:
+                - --client
+                - "{{input.client}}"
+                - --job_env
+                - ${var.job_parameter_environment_name}
+                - --territory
+                - "{{input.territory}}"
+            job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
+            libraries: ${var.shared_libraries}
+            max_retries: 2
+            timeout_seconds: 1800
+
+targets:
+  SANDBOX:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_plp_gs_delivery_config
+  DEV:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_plp_gs_delivery_config
+  DEV_INTEGRATION:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_plp_gs_delivery_config
+  PREPROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_plp_gs_delivery_config
+  PROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_plp_gs_delivery_config

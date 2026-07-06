@@ -277,18 +277,6 @@ nextads_feature_store_config: &nextads_feature_store_config
     <<: *nextads_feature_store_job
 
 targets:
-  SANDBOX:
-    resources:
-      jobs:
-        <<: *nextads_feature_store_config
-  DEV:
-    resources:
-      jobs:
-        <<: *nextads_feature_store_config
-  DEV_INTEGRATION:
-    resources:
-      jobs:
-        <<: *nextads_feature_store_config
   DEV_FEATURE_STORE:
     resources:
       jobs:

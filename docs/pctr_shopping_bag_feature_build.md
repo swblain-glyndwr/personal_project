@@ -19,9 +19,9 @@ one customer
 -> predicted probability of click
 ```
 
-This is deliberately separate from the existing Hackathon/LTR theme model:
+This is deliberately separate from the existing Hackathon-derived Theme Affinity route:
 
-- Hackathon model: which themes does this customer like?
+- Theme Affinity model: which themes does this customer like?
 - pCTR model: which of these actual ads will this customer click here?
 - NextAds: given ranked ads, cells, rules, fallow control, premium logic, and MASID mapping, what do we assign?
 
@@ -522,7 +522,7 @@ Account A + Advert 2 + Shopping Bag -> predicted_pctr = 0.031
 Account A + Advert 3 + Shopping Bag -> predicted_pctr = 0.006
 ```
 
-Those probabilities can then be combined with the existing theme/LTR score before NextAds decides the final ranked advert order.
+Those probabilities can then be combined with the existing Theme Affinity score before NextAds decides the final ranked advert order.
 
 Outputs:
 

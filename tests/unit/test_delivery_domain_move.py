@@ -1,9 +1,8 @@
 import importlib
 from pathlib import Path
 
-import yaml
-
 from next_ads.delivery import google_sheets
+from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -14,7 +13,7 @@ def _read(path: str) -> str:
 
 
 def _load_job(path: str, key: str) -> dict:
-    return yaml.safe_load((PROJECT_ROOT / path).read_text())["resources"]["jobs"][key]
+    return load_job(path, key)
 
 
 def test_delivery_job_entrypoints_exist_with_legacy_wrappers():

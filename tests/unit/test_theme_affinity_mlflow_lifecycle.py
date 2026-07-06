@@ -11,6 +11,7 @@ from next_ads.ranking.theme_affinity.mlflow_lifecycle import (
     copy_model_version_to_registered_model,
     model_uri_for_alias,
     model_uri_for_version,
+    resolve_model_version_for_alias,
     resolve_lifecycle_config,
     set_model_alias,
 )
@@ -119,6 +120,32 @@ def test_set_model_alias_delegates_to_mlflow_client():
             "name": "catalog.schema.model",
             "alias": "preprod",
             "version": "12",
+        }
+    ]
+
+
+def test_resolve_model_version_for_alias_delegates_to_mlflow_client():
+    calls = []
+
+    class ModelVersion:
+        version = 23
+
+    class FakeClient:
+        def get_model_version_by_alias(self, **kwargs):
+            calls.append(kwargs)
+            return ModelVersion()
+
+    result = resolve_model_version_for_alias(
+        FakeClient(),
+        "catalog.schema.model",
+        "preprod",
+    )
+
+    assert result == "23"
+    assert calls == [
+        {
+            "name": "catalog.schema.model",
+            "alias": "preprod",
         }
     ]
 
@@ -286,6 +313,9 @@ def test_train_and_promote_scripts_use_native_mlflow_not_marketingdata_utils():
     assert "marketingdata_utils" not in monitor_script
     assert "mlflow.tracking.MlflowClient" in promote_script
     assert "copy_model_version_to_registered_model" in promote_script
+    assert "resolve_model_version_for_alias" in promote_script
+    assert "source_model_version or source_alias must be provided" in promote_script
+    assert '"source_alias": SOURCE_ALIAS' in promote_script
     assert "Theme Affinity" not in promote_script
     assert "log_table_drift_to_mlflow" in monitor_script
 
