@@ -1,6 +1,6 @@
 """Script to truncate tables in dev environment. This is useful for resetting state during development or testing.
 
-Usage guide: python scripts/table_operations/truncate_tables_in_dev.py
+Usage guide: python jobs/table_operations/truncate_tables_in_dev.py
 """
 
 import sys

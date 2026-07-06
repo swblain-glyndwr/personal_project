@@ -1,6 +1,6 @@
 """Script to setup minimal starting tables in dev environment.
 
-Usage guide: python scripts/table_operations/init_starting_tables.py
+Usage guide: python jobs/table_operations/create_user_schemas.py
 """
 
 import sys

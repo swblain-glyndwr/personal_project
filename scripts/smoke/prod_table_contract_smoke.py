@@ -28,7 +28,7 @@ from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.utils import config_manager
 from next_ads.common.paths import resolve_sql_contract_path
-from scripts.table_operations.create_tables import (
+from jobs.table_operations.create_tables import (
     extract_create_table_columns,
     extract_table_paths,
 )

@@ -24,8 +24,9 @@ finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.table_operations import create_tables, init_starting_tables
-from scripts import parse_attributes, parse_theme_mapping, build_markov_chain
+from jobs.nextads_candidates import build_theme_scores
+from jobs.nextads_control import parse_attributes, parse_theme_mapping
+from jobs.table_operations import create_tables, init_starting_tables
 
 
 def main(sample):
@@ -59,8 +60,8 @@ def main(sample):
             REFRESH_THEMES_DATE=today,
         )
 
-        print("Running build_markov_chain...")
-        build_markov_chain.main(
+        print("Running build_theme_scores...")
+        build_theme_scores.main(
             JOB_ENV="DEV", CLIENT="next_uk", LOG_LEVEL="INFO"
         )
 

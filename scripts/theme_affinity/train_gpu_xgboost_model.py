@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 try:
-    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    PROJECT_ROOT = Path(__file__).resolve().parents[3]
 except NameError:
     from dsutils.dbc import get_dbutils
 
@@ -17,7 +17,7 @@ except NameError:
     )
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
-    PROJECT_ROOT = Path(notebook_path).parents[2]
+    PROJECT_ROOT = Path(notebook_path).parents[3]
 finally:
     SRC_ROOT = PROJECT_ROOT / "src"
     if SRC_ROOT.exists():
