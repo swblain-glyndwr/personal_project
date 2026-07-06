@@ -114,6 +114,12 @@ def test_legacy_sample_flag_maps_to_seed_latest():
     assert args.mode == "seed_latest"
 
 
+def test_mode_argument_maps_to_requested_setup_mode():
+    args = setup_dev_tables.parse_args(["--mode", "seed_latest"])
+
+    assert args.mode == "seed_latest"
+
+
 def test_legacy_standard_flag_maps_to_create_only():
     args = setup_dev_tables.parse_args(["--standard"])
 

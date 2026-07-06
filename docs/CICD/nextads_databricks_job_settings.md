@@ -43,8 +43,9 @@ candidate scoring.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
-| `--create-only` | Create missing personal DEV tables. | Default DAB mode and recommended onboarding path. |
-| `--seed-latest` | Create missing tables and seed the small latest/reference table set. | Use only when a personal DEV schema needs seed data. |
+| `setup_mode` | Job run mode shown in the Databricks job parameters UI. | `create_only` by default; use `seed_latest` only when a personal DEV schema needs seed data. |
+| `--create-only` | Create missing personal DEV tables from terminal/manual CLI use. | Deprecated job flag alias for `setup_mode=create_only`. |
+| `--seed-latest` | Create missing tables and seed the small latest/reference table set from terminal/manual CLI use. | Deprecated job flag alias for `setup_mode=seed_latest`. |
 | `--sample` | Deprecated alias for `--seed-latest`. | Kept for old Databricks terminal commands. |
 | `--standard` | Deprecated alias for `--create-only`. | Kept to avoid abruptly breaking old job parameters. |
 | `job_env` | Environment guard. | Must be `dev`. Non-DEV values fail. |
