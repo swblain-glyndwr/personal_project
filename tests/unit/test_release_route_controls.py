@@ -331,12 +331,18 @@ def test_personal_dev_setup_job_populates_current_user_schema():
     assert set(setup["targets"]) == {"DEV"}
     assert "schedule" not in setup_job
     assert setup_job["job_clusters"] == "${var.job_clusters_config}"
+    assert setup_job["parameters"] == [
+        {"name": "setup_mode", "default": "create_only"}
+    ]
     assert setup_task["task_key"] == "populate_dev_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
         == "../../jobs/table_operations/setup_dev_tables.py"
     )
-    assert setup_task["spark_python_task"]["parameters"] == ["--create-only"]
+    assert setup_task["spark_python_task"]["parameters"] == [
+        "--mode",
+        "{{job.parameters.setup_mode}}",
+    ]
     assert setup_task["libraries"] == "${var.shared_libraries}"
 
 

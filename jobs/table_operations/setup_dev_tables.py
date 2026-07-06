@@ -81,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
+        "--mode",
+        choices=("create_only", "seed_latest"),
+        help="DEV setup mode. Used by Databricks job parameters.",
+    )
+    mode_group.add_argument(
         "--create-only",
         dest="mode",
         action="store_const",
