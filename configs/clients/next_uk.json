@@ -1843,7 +1843,12 @@
             "conditional_probability_customer_item_interactions_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_customer_item_interactions_latest",
             "conditional_probability_customer_theme_interactions_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_customer_theme_interactions_latest",
             "conditional_probability_theme_associations_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_theme_associations_latest",
-            "viewed_bought_latest": "{catalog}.{schema}.{client}_nextads_viewed_bought_latest"
+            "viewed_bought_latest": "{catalog}.{schema}.{client}_nextads_viewed_bought_latest",
+            "nextads_item_catid": "{catalog}.{schema}.{client}_nextads_item_catid",
+            "nextads_advert_item_profile_similarity": "{catalog}.{schema}.{client}_nextads_advert_item_profile_similarity",
+            "nextads_advert_advert_association":"{catalog}{schema}.{client}_nextads_advert_advert_association",
+            "nextads_advert_items_catid": "{catalog}.{schema}.{client}_nextads_advert_item_catid"
+  
         }
     },
 
