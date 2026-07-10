@@ -164,7 +164,8 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
       - task_key: trigger_page_build_job
         depends_on:
           - task_key: combine_customer_cells
-          - task_key: map_theme_scores_to_ads_v2
+          - task_key: map_theme_scores_to_ads
+          #- task_key: map_theme_scores_to_ads_v2
         spark_python_task:
           python_file: ../../jobs/nextads_main/trigger_databricks_job.py
           parameters:
