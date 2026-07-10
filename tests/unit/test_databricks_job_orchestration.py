@@ -30,7 +30,8 @@ def test_main_job_submits_qa_without_waiting_for_qa_result():
     assert not any("run_job_task" in task for task in job["tasks"])
     assert trigger_task["depends_on"] == [
         {"task_key": "combine_customer_cells"},
-        {"task_key": "map_theme_scores_to_ads_v2"},
+        {"task_key": "map_theme_scores_to_ads"},
+        # {"task_key": "map_theme_scores_to_ads_v2"},
     ]
     assert trigger_task["spark_python_task"]["python_file"] == (
         "../../jobs/nextads_main/trigger_databricks_job.py"
