@@ -78,11 +78,11 @@ def test_delivery_jobs_use_delivery_entrypoints():
 def test_v2_payload_export_routes_stay_on_scripts():
     payload_job = _load_job(
         "resources/jobs/mktg_next_uk_nextads_payload_export.yml",
-        "mktg_next_uk_nextads_payload_export_cicd",
+        "mktg_next_uk_nextads_payload_export_cicd_v2",
     )
     page_build_job = _load_job(
         "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
-        "mktg_next_uk_nextads_page_build_cicd",
+        "mktg_next_uk_nextads_page_build_cicd_v2",
     )
     main_job = _load_job(
         "resources/jobs/mktg_next_uk_nextads.yml",

@@ -74,7 +74,7 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
 def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
     job = _load_job(
         "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
-        "mktg_next_uk_nextads_page_build_cicd",
+        "mktg_next_uk_nextads_page_build_cicd_v2",
     )
 
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
