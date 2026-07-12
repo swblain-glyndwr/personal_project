@@ -81,7 +81,7 @@ def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
 
     assert job["name"] == "mktg_next_uk_nextads_page_build_v2"
     assert job["email_notifications"]["on_failure"] == (
-        "${var.data_team_notification_emails}"
+        "${var.data_and_downstream_notification_emails}"
     )#
 
     assert tasks_by_key["trigger_payload_export_job"]["run_if"] == "ALL_DONE"

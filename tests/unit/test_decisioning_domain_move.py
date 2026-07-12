@@ -53,7 +53,7 @@ def test_v1_job_entrypoints_import_decisioning_package():
 def test_v2_build_page_route_stays_on_legacy_script_and_wrapper_import():
     job = _load_job(
         "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
-        "mktg_next_uk_nextads_page_build_cicd",
+        "mktg_next_uk_nextads_page_build_cicd_v2",
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
