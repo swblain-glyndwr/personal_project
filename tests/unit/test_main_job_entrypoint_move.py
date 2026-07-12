@@ -67,7 +67,6 @@ def test_page_build_job_uses_moved_non_v2_entrypoints():
     trigger_tasks = [
         "trigger_qa_job",
         "trigger_masid_handoff_check_job",
-        "trigger_payload_export_job",
         "trigger_plp_gs_delivery_job",
     ]
     for task_key in trigger_tasks:
@@ -76,9 +75,31 @@ def test_page_build_job_uses_moved_non_v2_entrypoints():
         )
 
 
+def test_v2_page_build_job_uses_moved_non_v2_entrypoints():
+    job = _load_job(
+        "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "mktg_next_uk_nextads_page_build_cicd",
+    )
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+
+    assert tasks_by_key["build_page_primary"]["for_each_task"]["task"][
+        "spark_python_task"
+    ]["python_file"] == "../../jobs/nextads_main/build_page.py"
+    assert tasks_by_key["build_page_secondary"]["for_each_task"]["task"][
+        "spark_python_task"
+    ]["python_file"] == "../../jobs/nextads_main/build_page.py"
+
+    trigger_tasks = [
+        "trigger_payload_export_job",
+    ]
+    for task_key in trigger_tasks:
+        assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
+            "../../jobs/nextads_main/trigger_databricks_job.py"
+        )
+
 def test_v2_page_build_entrypoint_stays_on_scripts():
     job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_page_build.yml",
+        "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd",
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}

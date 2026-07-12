@@ -65,15 +65,29 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
     assert tasks_by_key["trigger_masid_handoff_check_job"]["depends_on"] == [
         {"task_key": "build_page_secondary"},
     ]
-    assert tasks_by_key["trigger_payload_export_job"]["run_if"] == "ALL_DONE"
-    assert tasks_by_key["trigger_payload_export_job"]["depends_on"] == [
-        {"task_key": "build_page_v2"},
-    ]
     assert tasks_by_key["trigger_plp_gs_delivery_job"]["run_if"] == "ALL_DONE"
     assert tasks_by_key["trigger_plp_gs_delivery_job"]["depends_on"] == [
         {"task_key": "build_page_secondary"},
     ]
 
+
+def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
+    job = _load_job(
+        "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "mktg_next_uk_nextads_page_build_cicd",
+    )
+
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+
+    assert job["name"] == "mktg_next_uk_nextads_page_build_v2"
+    assert job["email_notifications"]["on_failure"] == (
+        "${var.data_team_notification_emails}"
+    )#
+
+    assert tasks_by_key["trigger_payload_export_job"]["run_if"] == "ALL_DONE"
+    assert tasks_by_key["trigger_payload_export_job"]["depends_on"] == [
+        {"task_key": "build_page_v2"},
+    ]
 
 def test_qa_job_has_independent_definition_and_internal_notifications():
     job = _load_job(
