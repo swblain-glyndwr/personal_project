@@ -58,3 +58,4 @@ As a result of this change, the target tables were altered to accept the new sco
 
 ## 🛠️ Technical Debt & Backlog Items
 * **Tagging Consistency:** The Levenshtein fuzzy match join is a temporary fix. There is a open backlog item to standardize tracking tags between GA and the control sheets. Once consistency is achieved, this block should be refactored into a standard join.
+* **Challenger Models** The downweighting factors have been calculated for the current production Best model (LTR), if we wish to introduce a challenger or a different model we must run analysis (& potentially set different downweighting factors for the challenger model)
