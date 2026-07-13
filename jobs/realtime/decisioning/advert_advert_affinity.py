@@ -38,13 +38,13 @@ def main(
     CLIENT:str,
     LOG_LEVEL:str,
     reference_date:str= None,
-    prior_year_weighting_factor: float=1,
+    history_data_weighting: float=1,
     lift_threshold: float=1.1,
     ad_perc_coverage_threshold: float=0.95,    
 ):
     from pyspark.sql import functions as F
     from datetime import date 
-    
+
     configure_logging(
         log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
@@ -103,7 +103,7 @@ def main(
     logger.info("Building Advert:Advert affinity based on views:ad to baskets")
 
     build_advert_affinity(spark, CATALOG, SCHEMA, reference_date, AD_AD_ASSOCIATIONS_LATEST,
-                           prior_year_weighting_factor, 
+                           history_data_weighting, 
                            ad_perc_coverage_threshold, lift_threshold)
 
 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
         CLIENT,
         LOG_LEVEL,
         reference_date=jobparser.get_arg("--reference-date"),
-        prior_year_weighting_factor=jobparser.get_arg("--history-weighting"),
+        history_data_weighting=jobparser.get_arg("--history-data-weighting"),
         lift_threshold=jobparser.get_arg("--lift-threshold"),
         ad_perc_coverage_threshold=jobparser.get_arg("--ad-coverage-threshold")
     )
