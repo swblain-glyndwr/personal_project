@@ -73,11 +73,20 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
     )
 
     sort_order_latest = spark.table(config.tables_write.sort_order_v2_latest)
-    logger.info("Writing to history table..")
+    logger.info("Writing sort order history table..")
     # write the output to the payload tables
     write_history_table(
         sort_order_latest,
         config.tables_write.sort_order_v2,
+        logger,
+    )
+
+    cms_content_latest = spark.table(config.tables_write.cms_content_latest)
+    logger.info("Writing CMS content history table..")
+    # write the output to the payload tables
+    write_history_table(
+        cms_content_latest,
+        config.tables_write.cms_content,
         logger,
     )
 
