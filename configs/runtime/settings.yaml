@@ -15,6 +15,7 @@ default:
   secret_key_spn_secret: "Databricks-Spn-MarketingData-ClientSecret"
   next_search_endpoint: "https://ci-test.next.co.uk/api/search/next/gb/en/v1/item-numbers"
   next_search_wrapper: "https://preprod-search-provider.platform.next/api/v1/core/?account_id"
+  next_cms: "https://cms.platform.next/cms2/api/v1/next/gb/en/data-app/"
   gcp:
     scope: mktg_gcp
     key: mktg-gcp-service-account-b64-encoded

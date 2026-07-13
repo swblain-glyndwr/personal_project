@@ -32,6 +32,8 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
         default: next_uk_nextads_theme_affinity_predict
       - name: publish_table_suffixes
         default: ${var.theme_affinity_publish_table_suffixes}
+      - name: model_uri
+        default: ${var.theme_affinity_model_uri}
     tasks:
       - task_key: predict_data_prep
         pipeline_task:
@@ -72,7 +74,7 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
             - --job_env
             - ${var.job_parameter_environment_name}
             - --model_uri
-            - ${var.theme_affinity_model_uri}
+            - "{{job.parameters.model_uri}}"
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

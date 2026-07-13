@@ -81,6 +81,10 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
             "name": "publish_table_suffixes",
             "default": "${var.theme_affinity_publish_table_suffixes}",
         },
+        {
+            "name": "model_uri",
+            "default": "${var.theme_affinity_model_uri}",
+        },
     ]
 
     tasks = {task["task_key"]: task for task in job["tasks"]}
@@ -132,6 +136,15 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert tasks["model_predict"]["depends_on"] == [
         {"task_key": "publish_dlt_outputs"}
     ]
+    model_predict_parameters = tasks["model_predict"]["spark_python_task"][
+        "parameters"
+    ]
+    assert (
+        model_predict_parameters[
+            model_predict_parameters.index("--model_uri") + 1
+        ]
+        == "{{job.parameters.model_uri}}"
+    )
     for task_key in ["model_predict", "clean_output"]:
         task = tasks[task_key]
         assert "notebook_task" not in task
@@ -215,6 +228,11 @@ def test_theme_affinity_mlflow_lifecycle_resources_are_included():
     assert (
         "resources/jobs/"
         "mktg_next_uk_nextads_theme_affinity_model_import_dev.yml"
+        in bundle_config["include"]
+    )
+    assert (
+        "resources/jobs/"
+        "mktg_next_uk_nextads_model_import_dev_integration.yml"
         in bundle_config["include"]
     )
     assert (
@@ -429,6 +447,57 @@ def test_theme_affinity_import_dev_model_job_is_preprod_only_and_version_based()
     assert "{{job.parameters.target_alias}}" in parameters
     assert "marketingdata_dev.nextads_integration." in parameters
     assert "marketingdata_prod.ds_sandbox." in parameters
+
+
+def test_model_import_dev_integration_job_is_generic_copy_step():
+    job_config = _load_yaml(
+        "resources/jobs/"
+        "mktg_next_uk_nextads_model_import_dev_integration.yml"
+    )
+    assert set(job_config["targets"]) == {"DEV_INTEGRATION"}
+
+    job = job_config["model_import_dev_integration_config"][
+        "mktg_next_uk_nextads_model_import_dev_integration"
+    ]
+    assert "schedule" not in job
+    assert job["parameters"] == [
+        {"name": "source_model_name", "default": ""},
+        {"name": "source_model_version", "default": ""},
+        {"name": "source_alias", "default": ""},
+        {"name": "target_model_name", "default": ""},
+        {"name": "target_alias", "default": ""},
+        {"name": "model_family", "default": ""},
+    ]
+    assert job["tags"]["domain"] == "model_lifecycle"
+    task = job["tasks"][0]
+    assert task["task_key"] == "promote_model"
+    assert (
+        task["spark_python_task"]["python_file"]
+        == "../../jobs/model/lifecycle/promote_model.py"
+    )
+    assert task["libraries"] == "${var.model_lifecycle_libraries}"
+    parameters = task["spark_python_task"]["parameters"]
+    assert "{{job.parameters.source_model_name}}" in parameters
+    assert "{{job.parameters.source_model_version}}" in parameters
+    assert "{{job.parameters.source_alias}}" in parameters
+    assert "{{job.parameters.target_model_name}}" in parameters
+    assert "{{job.parameters.target_alias}}" in parameters
+    assert "{{job.parameters.model_family}}" in parameters
+    assert "marketingdata_dev." in parameters
+    assert "marketingdata_dev.nextads_integration." in parameters
+    assert "dev" in parameters
+    assert "dev_integration" in parameters
+
+    variables = _load_yaml("resources/variables/libraries.yml")["variables"]
+    assert variables["model_lifecycle_libraries"]["default"] == [
+        {
+            "whl": (
+                "/Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/"
+                "dslib/dsutils-0.1.13-py3-none-any.whl"
+            )
+        },
+        {"pypi": {"package": "mlflow==3.11.1"}},
+    ]
 
 
 def test_theme_affinity_monitor_job_is_unscheduled_and_parameterised():

@@ -23,6 +23,7 @@ from next_ads.ml.lifecycle.registry import (
     copy_model_version_to_registered_model,
     model_uri_for_alias,
     model_uri_for_version,
+    resolve_model_version_for_alias,
     set_model_alias,
 )
 from next_ads.ml.lifecycle.spec import (
@@ -53,6 +54,7 @@ __all__ = [
     "numeric_psi",
     "qualified_model_name",
     "refresh_quality_monitor",
+    "resolve_model_version_for_alias",
     "set_model_alias",
     "to_mlflow_metrics",
 ]

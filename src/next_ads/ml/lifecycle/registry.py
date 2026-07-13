@@ -19,6 +19,18 @@ def set_model_alias(mlflow_client, registered_model_name: str, version, alias: s
     )
 
 
+def resolve_model_version_for_alias(
+    mlflow_client,
+    registered_model_name: str,
+    alias: str,
+) -> str:
+    model_version = mlflow_client.get_model_version_by_alias(
+        name=registered_model_name,
+        alias=alias,
+    )
+    return str(model_version.version)
+
+
 def copy_model_alias_to_registered_model(
     mlflow_module,
     source_registered_model_name: str,

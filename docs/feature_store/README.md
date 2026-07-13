@@ -15,6 +15,7 @@ The implementation is intentionally batch/offline first. It creates governed Dat
 | --- | --- | --- |
 | `reusable_feature_inventory.md` | 5111856 | Existing reusable signals and first migration candidates. |
 | `initial_table_design.md` | 5111861 | Initial customer, advert, embedding, model-input and quality table design. |
+| `adding_sql_built_feature.md` | 5111869 | DS-facing process for adding a reusable SQL-built feature to the feature store. |
 | `candidate_similarity.md` | Follow-up | Offline candidate similarity diagnostics concept; not part of current production model inputs. |
 | `migration_backlog.md` | 5111881 | Prioritised migration backlog and dependencies. |
 
@@ -34,30 +35,36 @@ The first populated feature-store slice now materialises customer/account featur
 
 ## Feature Catalogue
 
+In this catalogue, `Theme Affinity` means the current operational
+Hackathon-derived `nextads_theme_affinity_ranker` route. `Shopping Bag pCTR`
+means the repo-documented Shopping Bag predicted click-through-rate model in
+`docs/pctr_shopping_bag_feature_build.md`. It is distinct from the external CWB
+analytics pCTR work referenced in the migration backlog.
+
 | Feature group | Physical table/view | Entity/grain | Primary consumers |
 | --- | --- | --- | --- |
-| Account profile | `next_uk_nextads_fs_account_profile` | Account/reference date | Theme Affinity, pCTR, LTR |
-| Account web activity | `next_uk_nextads_fs_account_web_activity_90d` | Account/reference date | pCTR, LTR |
-| Item attributes | `next_uk_nextads_fs_item_attributes_latest` | Item | pCTR, LTR |
-| Product embeddings | `next_uk_nextads_fs_product_embeddings_latest` | Item/model version | pCTR |
-| Advert core | `next_uk_nextads_fs_advert_core_daily` | Advert/location/feature date | pCTR, LTR |
-| Advert attribute profile | `next_uk_nextads_fs_advert_attribute_profile_daily` | Advert/feature date | pCTR, LTR |
-| Advert semantic profile | `next_uk_nextads_fs_advert_semantic_profile_daily` | Advert/feature date/model version | pCTR |
-| Advert product profile | `next_uk_nextads_fs_advert_product_profile_daily` | Advert/feature date | pCTR |
-| Seasonal product demand | `next_uk_nextads_fs_seasonal_product_demand_daily` | Entity/product/feature date | pCTR |
-| Account theme interactions | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/reference date | Theme Affinity, LTR |
-| Account theme affinity | `next_uk_nextads_fs_account_theme_affinity_daily` | Account/theme/reference date | Theme Affinity, LTR |
-| Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | Theme Affinity, LTR |
-| Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/location/reference date | pCTR, LTR |
-| Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | pCTR |
-| Theme latest model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity, LTR |
+| Account profile | `next_uk_nextads_fs_account_profile` | Account/reference date | Theme Affinity; Shopping Bag pCTR; future ranking/challenger models |
+| Account web activity | `next_uk_nextads_fs_account_web_activity_90d` | Account/reference date | Shopping Bag pCTR; future ranking/challenger models |
+| Item attributes | `next_uk_nextads_fs_item_attributes_latest` | Item | Shopping Bag pCTR; future ranking/challenger models |
+| Product embeddings | `next_uk_nextads_fs_product_embeddings_latest` | Item/model version | Shopping Bag pCTR |
+| Advert core | `next_uk_nextads_fs_advert_core_daily` | Advert/location/feature date | Shopping Bag pCTR; future ranking/challenger models |
+| Advert attribute profile | `next_uk_nextads_fs_advert_attribute_profile_daily` | Advert/feature date | Shopping Bag pCTR; future ranking/challenger models |
+| Advert semantic profile | `next_uk_nextads_fs_advert_semantic_profile_daily` | Advert/feature date/model version | Shopping Bag pCTR |
+| Advert product profile | `next_uk_nextads_fs_advert_product_profile_daily` | Advert/feature date | Shopping Bag pCTR |
+| Seasonal product demand | `next_uk_nextads_fs_seasonal_product_demand_daily` | Entity/product/feature date | Shopping Bag pCTR |
+| Account theme interactions | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/reference date | Theme Affinity; future ranking/challenger models |
+| Account theme affinity | `next_uk_nextads_fs_account_theme_affinity_daily` | Account/theme/reference date | Theme Affinity; future ranking/challenger models |
+| Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | Theme Affinity; future ranking/challenger models |
+| Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/location/reference date | Shopping Bag pCTR; future ranking/challenger models |
+| Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | Shopping Bag pCTR |
+| Theme latest model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity; future ranking/challenger models |
 | Theme labelled training input | `next_uk_nextads_fs_theme_affinity_training_input` | Account/theme/reference date | Theme Affinity |
-| pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/location/session/reference date | pCTR |
-| Click labels | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | pCTR, LTR |
-| Theme labels | `next_uk_nextads_fs_labels_theme_response` | Account/theme/reference date/label | Theme Affinity, LTR |
+| Shopping Bag pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/location/session/reference date | Shopping Bag pCTR |
+| Click labels | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | Shopping Bag pCTR; future ranking/challenger models |
+| Theme labels | `next_uk_nextads_fs_labels_theme_response` | Account/theme/reference date/label | Theme Affinity; future ranking/challenger models |
 | Quality events | `next_uk_nextads_fs_feature_quality_events` | Table/check/run timestamp | Feature-store operations |
-| Theme compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Current Theme Affinity model shape | Theme Affinity, LTR |
-| pCTR compatibility view | `next_uk_nextads_pctr_features_latest` | Current pCTR model shape | pCTR |
+| Theme compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Current Theme Affinity model shape | Theme Affinity; future ranking/challenger models |
+| Shopping Bag pCTR compatibility view | `next_uk_nextads_pctr_features_latest` | Current Shopping Bag pCTR model shape | Shopping Bag pCTR |
 
 ## Ownership and Refresh
 
@@ -82,7 +89,7 @@ The feature-store route depends on:
 - Existing production Theme Affinity outputs being available before the shared feature-store materialisation job runs for `reference_date=predict`.
 - Historical Theme Affinity prep sources having enough future-window basket data for the requested `feature_store_theme_training_reference_date`.
 - Existing production customer, control-sheet, item-attribute, assignment and BigQuery web/action tables being available for the same resolved feature-store reference date.
-- CWB analytics pCTR source contracts being brought into the branch before pCTR feature tables are populated.
+- Shopping Bag pCTR source contracts being brought into the branch before pCTR feature tables are populated. CWB analytics pCTR is a separate dependency/source contract where explicitly named in the backlog.
 - Challenger testing before feature-store model inputs affect production ranking.
 - Separate offline diagnostics stories before candidate-similarity work is added to the repo.
 

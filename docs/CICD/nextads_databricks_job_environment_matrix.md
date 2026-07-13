@@ -7,6 +7,8 @@ target. The rule is that a target should only receive jobs that belong to that
 route. `DEV_FEATURE_STORE` is deliberately single-purpose and should not receive
 normal operational jobs.
 
+For the DS-facing runtime shape, task graphs and observed run durations, see [nextads_databricks_runtime_map.md](nextads_databricks_runtime_map.md).
+
 ## Target Policy
 
 | Target | Purpose | Job availability rule |
@@ -35,6 +37,7 @@ normal operational jobs.
 | `mktg_next_uk_nextads_data_pull` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Sort-order data-pull pipeline and archive task. | It is an operational data route that can be validated through normal targets. | Must only exist where `mktg_next_uk_nextads_data_pull` pipeline also exists. |
 | `mktg_next_uk_nextads_feature_store` | `DEV_FEATURE_STORE` | Shared DEV model-building feature tables in `marketingdata_dev.nextads_feature_store`. | This target exists only to keep reusable model-building features refreshed from stable sources. | No other jobs should be deployed into `DEV_FEATURE_STORE`. |
 | `mktg_next_uk_nextads_theme_affinity_model_train` and `mktg_next_uk_nextads_theme_affinity_model_train_spark` | `DEV`, `DEV_INTEGRATION` | Theme Affinity challenger training jobs. | Training belongs in development/integration until a promoted model is selected. | Not scheduled production controls. |
+| `mktg_next_uk_nextads_model_import_dev_integration` | `DEV_INTEGRATION` | Copies a reviewed personal DEV model version into `marketingdata_dev.nextads_integration`. | The shared namespace is a stable source for PREPROD import after the PR is completed. | Generic lifecycle movement job. Does not retrain; source version must match the reviewed PR evidence. |
 | `mktg_next_uk_nextads_theme_affinity_model_import_dev` | `PREPROD` | Imports reviewed DEV model version into PREPROD model namespace. | It is a release-validation movement step, not a production promotion. | Requires explicit version parameters and release evidence. |
 | `mktg_next_uk_nextads_theme_affinity_model_promote` | `PROD` | Promotes reviewed model from PREPROD namespace to production namespace. | Production model movement should only happen on the PROD route. | Manual/explicit control; do not deploy to DEV feature-store. |
 | `mktg_next_uk_nextads_theme_affinity_model_monitor` | `PROD` | MLflow drift evidence for Theme Affinity model tables. | Production monitoring evidence belongs to the production route. | Separate from operational QA. |

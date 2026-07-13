@@ -14,13 +14,17 @@ nextads_dev_setup_config: &nextads_dev_setup_config
       deployed_by: ${var.deployed_by}
       department: marketing
       project: nextads
+    parameters:
+      - name: setup_mode
+        default: create_only
     timeout_seconds: 21600
     tasks:
       - task_key: populate_dev_tables
         spark_python_task:
-          python_file: ../../scripts/table_operations/setup_dev_tables.py
+          python_file: ../../jobs/table_operations/setup_dev_tables.py
           parameters:
-            - --standard
+            - --mode
+            - "{{job.parameters.setup_mode}}"
         job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
         libraries: ${var.shared_libraries}
         timeout_seconds: 21600
