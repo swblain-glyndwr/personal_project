@@ -2,13 +2,20 @@ import sys
 from pathlib import Path
 import sys
 from pathlib import Path
+
 try:
     PROJECT_ROOT = Path(__file__).resolve().parents[3]
 except NameError:
     # __file__ is not defined when running as a Databricks notebook
-    notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get() # type: ignore # noqa
-    if not notebook_path.startswith('/Workspace'):
-        notebook_path = '/Workspace' + notebook_path
+    notebook_path = (
+        dbutils.notebook.entry_point.getDbutils()
+        .notebook()
+        .getContext()
+        .notebookPath()
+        .get()
+    )  # type: ignore # noqa
+    if not notebook_path.startswith("/Workspace"):
+        notebook_path = "/Workspace" + notebook_path
     PROJECT_ROOT = Path(notebook_path).parents[3]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
@@ -118,9 +125,6 @@ def main(
         lift_threshold,
     )
 
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     jobparser = get_job_parser()
