@@ -5,8 +5,7 @@ from dsutils.logtools import  get_logger
 logger = get_logger(__name__)
 
 ## TODO: migrate these to be pulled from next_ads_core functionality
-
-def _date_window(reference_date: str, lookback_days: int, offset_days: int=0):
+def _date_window_offset(reference_date: str, lookback_days: int, offset_days: int=0):
     """
     Determine a start & end date given the reference date,
     lookback_days and offset number of days 
@@ -35,7 +34,7 @@ def build_product_catid_df(
     PRODUCT_CATALOG = spark.table("marketingdata_prod.warehouse.product_catalog")
     PRODUCT_CATALOG_HISTORY = spark.table("marketingdata_prod.warehouse.product_catalog_history")
 
-    start_date, end_date = _date_window(reference_date, 365)
+    start_date, end_date = _date_window_offset(reference_date, 365)
 
     # All current item categories
     product_cat_ids_current = (
@@ -195,15 +194,15 @@ def build_advert_items_df(
 
     logger.info("Running validation checks on advert linked items & catids dataset")
     ad_item_catid_len=advert_items.select("UniqueAdID").count()
-    duplicates=advert_items.groupBy("UniqueAdID", "itemno").agg(F.count("*").alias("number_records")).filter(F.col("number_records")>1).count()
+    duplicates=advert_items.groupBy("UniqueAdID", "itemno").agg(F.count("*").alias("number_records")).filter(F.col("number_records")>1)
     if ad_item_catid_len ==0:  
         raise ValueError("Advert Item table build contains no data")
-    if duplicates > 0: 
-        #TODO: Add in more details here 
-        raise KeyError("Advert Items has duplicate items for an advert")
+    if duplicates.count() > 0:
+        duplicate_ads=', '.join([row[0] for row in duplicates.distinct().select('UniqueAdID').collect()]) 
+        raise KeyError(f"Advert Items has duplicate items for adverts {duplicate_ads}")
     if ads.select("UniqueAdID").count() != advert_items.select("UniqueAdID").distinct().count(): 
-        logger.warning("Mismatch in the number of adverts with catids")
-        #TODO: add details 
+        missing_ads=', '.join([row[0] for row in ads.select("UniqueAdID").join(advert_items.select("UniqueAdID").distinct(), on="UniqueAdID", how='leftanti').collect()])
+        logger.warning(f"Mismatch in the number of adverts with catids. Adverts not represented: {missing_ads}")
     advert_items.write.format("delta").mode("overwrite").option(
         "overwriteSchema", "true"
     ).saveAsTable(
@@ -256,10 +255,18 @@ def determine_ad_profile_similiarity(spark, catalog:str, schema:str, reference_d
     # How many ads have similarity of 1 (need to account for duplicate locations)
     if ad_item_profile_similarity_len ==0:  
         raise ValueError("Advert Item similarity table buildcontains no data")
-    #TODO: Add in QA step here:
+    
     #  How many ads have similarity of 1 (need to account for duplicate locations)
-    # if product_cat_ids.select("itemno").distinct.count() == product_cat_ids_len:
-    #     logger.warning(f"Multiple Adverts found with identical item profiles")
+    similarity=(ad_items_overlap.withColumns({"Adcampaign_components": F.split(F.col("UniqueAdID"), "_"),
+                                              "TargetAdcampaign_components": F.split(F.col("TargetUniqueAdID"), "_")})
+    .withColumns({"Adcampaign": F.concat_ws("_", F.col("Adcampaign_components")[0], F.col("Adcampaign_components")[1]),
+                   "Target_Adcampaign": F.concat_ws("_", F.col("TargetAdcampaign_components")[0], F.col("TargetAdcampaign_components")[1])})
+                   .withColumn("check", F.col("Target_Adcampaign")!=F.col("Adcampaign"))
+    .filter((F.col("overlap_proportion")==F.lit(1)) & (F.col("UniqueAdID")!=F.col("TargetUniqueAdID")) & (F.col("Target_Adcampaign")!=F.col("Adcampaign"))))
+
+    if similarity.count()>0: 
+        similarity_records=", ".join([f"{row[0]} : {row[1]}" for row in similarity.select("UniqueAdID", "TargetUniqueAdID").collect()])
+        logger.warning(f"Multiple Adverts found with identical item profiles: {similarity_records}")
 
     ad_items_overlap.write.format("delta").mode("overwrite").option(
         "overwriteSchema", "true"
@@ -371,7 +378,7 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
         raise ValueError("Duplicate advert IDs identified in Advert page type view")
     
     # Build out the afinity levels
-    start_date, end_date = _date_window(reference_date, 30)
+    start_date, end_date = _date_window_offset(reference_date, 30)
     prior_year_start_date = F.date_sub(start_date, 365)
     prior_year_end_date = F.date_sub(end_date, 365)
 

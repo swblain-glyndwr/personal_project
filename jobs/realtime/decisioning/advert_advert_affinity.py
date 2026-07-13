@@ -26,16 +26,13 @@ from dsutils.logtools import configure_logging, get_logger
 from next_ads.utils import config_manager, etl
 from next_ads.common.paths import load_client_config
 
-from next_ads.realtime.decisioning.advert_affinity_build import (
+from next_ads.realtime.decisioning.advert_affinity_data_build import (
     build_product_catid_df,
     build_advert_items_df,
     build_advert_affinity,
     determine_ad_profile_similiarity,
 )
-
-# For Testing 
-# test_args=["--client", "next_uk", "--username", "claire_wilsonbarnes"]
-
+ 
 def main(
     JOB_ENV:str, 
     CLIENT:str,
@@ -46,7 +43,8 @@ def main(
     ad_perc_coverage_threshold: float=0.95,    
 ):
     from pyspark.sql import functions as F
-
+    from datetime import date 
+    
     configure_logging(
         log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
@@ -78,18 +76,15 @@ def main(
     AD_AD_ASSOCIATIONS_LATEST= etl.map_tbl(tbls["nextads_advert_advert_association"], **tbl_args)
     ADVERT_ITEMS_CATID_LATEST = etl.map_tbl(tbls["nextads_advert_items_catid"], **tbl_args)
 
-    # TODO: Add in reference date validation steps here 
-    # Validate reference date can be converted to properdate 
     if reference_date:
         try: 
             F.lit(reference_date).cast("date")
         except:
-            logger.warning("Reference date could not be parsed using current date")
-            #TODO set to current date
-            reference_date=None
+            logger.warning("Provided reference date could not be parsed using current date")
+            reference_date=date.today().strftime("%Y-%m-%d")
     else:
-        #TODO set to current date
-        reference_date=None
+        logger.warning("No reference date provided using current date")
+        reference_date=date.today().strftime("%Y-%m-%d")
         
     logger.info(f"Running for date: {reference_date}")
     logger.info("Building item catid for product from prior 12 months")
