@@ -1,7 +1,5 @@
 import sys
 from pathlib import Path
-import sys
-from pathlib import Path
 
 try:
     PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -137,9 +135,9 @@ if __name__ == "__main__":
         CLIENT,
         LOG_LEVEL,
         reference_date=jobparser.get_arg("--reference-date"),
-        history_data_weighting=jobparser.get_arg("--history-data-weighting"),
-        lift_threshold=jobparser.get_arg("--lift-threshold"),
-        ad_perc_coverage_threshold=jobparser.get_arg(
+        history_data_weighting=float(jobparser.get_arg("--history-data-weighting")),
+        lift_threshold=float(jobparser.get_arg("--lift-threshold")),
+        ad_perc_coverage_threshold=float(jobparser.get_arg(
             "--ad-coverage-threshold"
-        ),
+        )),
     )

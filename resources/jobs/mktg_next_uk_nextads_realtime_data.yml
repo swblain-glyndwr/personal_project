@@ -36,7 +36,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_realtime_data
             - --lift-threshold
             - 1.1
             - --ad-coverage-threshold
-            - 0.85
+            - 0.95
         job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
         libraries: ${var.shared_libraries}
         max_retries: 2
