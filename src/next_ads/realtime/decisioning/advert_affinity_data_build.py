@@ -1,5 +1,3 @@
-from pyspark.sql import functions as F
-from pyspark.sql import Window
 from dsutils.logtools import get_logger
 
 logger = get_logger(__name__)
@@ -9,8 +7,7 @@ logger = get_logger(__name__)
 def _date_window_offset(
     reference_date: str, lookback_days: int, offset_days: int = 0
 ):
-    """
-    Determine a start & end date given the reference date,
+    """Determine a start & end date given the reference date,
     lookback_days and offset number of days
     """
     from pyspark.sql import functions as F

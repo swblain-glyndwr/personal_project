@@ -88,9 +88,9 @@ def main(
     if reference_date:
         try:
             F.lit(reference_date).cast("date")
-        except:
+        except Exception as e:
             logger.warning(
-                "Provided reference date could not be parsed using current date"
+                f"Provided reference date could not be parsed using current date : {e}"
             )
             reference_date = date.today().strftime("%Y-%m-%d")
     else:
