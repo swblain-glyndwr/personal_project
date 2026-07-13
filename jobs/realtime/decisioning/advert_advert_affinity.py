@@ -1,4 +1,3 @@
-
 # import sys
 # from pathlib import Path
 
@@ -32,21 +31,23 @@ from next_ads.realtime.decisioning.advert_affinity_data_build import (
     build_advert_affinity,
     determine_ad_profile_similiarity,
 )
- 
+
+
 def main(
-    JOB_ENV:str, 
-    CLIENT:str,
-    LOG_LEVEL:str,
-    reference_date:str= None,
-    history_data_weighting: float=1,
-    lift_threshold: float=1.1,
-    ad_perc_coverage_threshold: float=0.95,    
+    JOB_ENV: str,
+    CLIENT: str,
+    LOG_LEVEL: str,
+    reference_date: str = None,
+    history_data_weighting: float = 1,
+    lift_threshold: float = 1.1,
+    ad_perc_coverage_threshold: float = 0.95,
 ):
     from pyspark.sql import functions as F
-    from datetime import date 
+    from datetime import date
 
     configure_logging(
-        log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
     spark.conf.set("spark.sql.shuffle.partitions", "auto")
@@ -67,44 +68,58 @@ def main(
     SCHEMA = config.schema_write
     CATALOG = config.catalog_write
     logger.info(f"Write schema set to {SCHEMA}")
-    logger.info(f"Write schema set to {CATALOG}")
-    tbl_args = {'catalog': CATALOG, 'schema': SCHEMA, 'client': CLIENT}
+    logger.info(f"Write catalog set to {CATALOG}")
+    tbl_args = {"catalog": CATALOG, "schema": SCHEMA, "client": CLIENT}
     tbls = cfg["tables"]["write"]
 
-    PRODUCT_CATIDS_LATEST = etl.map_tbl(tbls["nextads_item_catid"], **tbl_args)
-    AD_ITEM_SIMILIARITY_LATEST = etl.map_tbl(tbls["nextads_advert_item_profile_similarity"], **tbl_args)
-    AD_AD_ASSOCIATIONS_LATEST= etl.map_tbl(tbls["nextads_advert_advert_association"], **tbl_args)
-    ADVERT_ITEMS_CATID_LATEST = etl.map_tbl(tbls["nextads_advert_items_catid"], **tbl_args)
+    PRODUCT_CATIDS_LATEST = etl.map_tbl(tbls["nextads_items_catid"], **tbl_args)
+    AD_ITEM_SIMILIARITY_LATEST = etl.map_tbl(
+        tbls["nextads_advert_items_profile_similarity"], **tbl_args
+    )
+    AD_AD_ASSOCIATIONS_LATEST = etl.map_tbl(
+        tbls["nextads_advert_advert_association"], **tbl_args
+    )
+    ADVERT_ITEMS_CATID_LATEST = etl.map_tbl(
+        tbls["nextads_advert_items_catid"], **tbl_args
+    )
 
     if reference_date:
-        try: 
+        try:
             F.lit(reference_date).cast("date")
         except:
-            logger.warning("Provided reference date could not be parsed using current date")
-            reference_date=date.today().strftime("%Y-%m-%d")
+            logger.warning(
+                "Provided reference date could not be parsed using current date"
+            )
+            reference_date = date.today().strftime("%Y-%m-%d")
     else:
         logger.warning("No reference date provided using current date")
-        reference_date=date.today().strftime("%Y-%m-%d")
-        
+        reference_date = date.today().strftime("%Y-%m-%d")
+
     logger.info(f"Running for date: {reference_date}")
     logger.info("Building item catid for product from prior 12 months")
-    build_product_catid_df(
-        spark, reference_date, PRODUCT_CATIDS_LATEST
-    )
+    build_product_catid_df(spark, reference_date, PRODUCT_CATIDS_LATEST)
 
     logger.info("Building current advert linked items & catids data")
     build_advert_items_df(
-        spark,CATALOG, SCHEMA,  reference_date, ADVERT_ITEMS_CATID_LATEST
+        spark, CATALOG, SCHEMA, reference_date, ADVERT_ITEMS_CATID_LATEST
     )
     logger.info("Building current advert items similarities")
     determine_ad_profile_similiarity(
-        spark, CATALOG, SCHEMA, reference_date, AD_ITEM_SIMILIARITY_LATEST )
+        spark, CATALOG, SCHEMA, reference_date, AD_ITEM_SIMILIARITY_LATEST
+    )
 
     logger.info("Building Advert:Advert affinity based on views:ad to baskets")
 
-    build_advert_affinity(spark, CATALOG, SCHEMA, reference_date, AD_AD_ASSOCIATIONS_LATEST,
-                           history_data_weighting, 
-                           ad_perc_coverage_threshold, lift_threshold)
+    build_advert_affinity(
+        spark,
+        CATALOG,
+        SCHEMA,
+        reference_date,
+        AD_AD_ASSOCIATIONS_LATEST,
+        history_data_weighting,
+        ad_perc_coverage_threshold,
+        lift_threshold,
+    )
 
 
 if __name__ == "__main__":
@@ -123,5 +138,7 @@ if __name__ == "__main__":
         reference_date=jobparser.get_arg("--reference-date"),
         history_data_weighting=jobparser.get_arg("--history-data-weighting"),
         lift_threshold=jobparser.get_arg("--lift-threshold"),
-        ad_perc_coverage_threshold=jobparser.get_arg("--ad-coverage-threshold")
+        ad_perc_coverage_threshold=jobparser.get_arg(
+            "--ad-coverage-threshold"
+        ),
     )

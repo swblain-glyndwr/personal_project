@@ -1,25 +1,26 @@
 from pyspark.sql import functions as F
 from pyspark.sql import Window
-from dsutils.logtools import  get_logger
+from dsutils.logtools import get_logger
 
 logger = get_logger(__name__)
 
+
 ## TODO: migrate these to be pulled from next_ads_core functionality
-def _date_window_offset(reference_date: str, lookback_days: int, offset_days: int=0):
+def _date_window_offset(
+    reference_date: str, lookback_days: int, offset_days: int = 0
+):
     """
     Determine a start & end date given the reference date,
-    lookback_days and offset number of days 
+    lookback_days and offset number of days
     """
     from pyspark.sql import functions as F
-    
+
     end_date = F.date_sub(F.lit(reference_date).cast("date"), offset_days)
     start_date = F.date_sub(end_date, lookback_days)
     return start_date, end_date
 
-def build_product_catid_df(
-    spark, reference_date: str,
-    output_table:str
-):
+
+def build_product_catid_df(spark, reference_date: str, output_table: str):
     """Build a table of the catid by product for all products in last 365 days
 
     cat_id is build from a combination of department*, brand & next_category
@@ -31,15 +32,18 @@ def build_product_catid_df(
     from pyspark.sql import functions as F
     from pyspark.sql import Window
 
-    PRODUCT_CATALOG = spark.table("marketingdata_prod.warehouse.product_catalog")
-    PRODUCT_CATALOG_HISTORY = spark.table("marketingdata_prod.warehouse.product_catalog_history")
+    PRODUCT_CATALOG = spark.table(
+        "marketingdata_prod.warehouse.product_catalog"
+    )
+    PRODUCT_CATALOG_HISTORY = spark.table(
+        "marketingdata_prod.warehouse.product_catalog_history"
+    )
 
     start_date, end_date = _date_window_offset(reference_date, 365)
 
     # All current item categories
     product_cat_ids_current = (
-        PRODUCT_CATALOG
-        .withColumn(
+        PRODUCT_CATALOG.withColumn(
             "catid",
             F.concat_ws(
                 "_",
@@ -69,8 +73,8 @@ def build_product_catid_df(
         )
     )
     # All historical item categories (that are not in current)
-    prod_cat_history = (PRODUCT_CATALOG_HISTORY
-        .filter(
+    prod_cat_history = (
+        PRODUCT_CATALOG_HISTORY.filter(
             (F.col("rundate") >= start_date) & (F.col("rundate") <= end_date)
         )
         .withColumn(
@@ -108,19 +112,32 @@ def build_product_catid_df(
 
     logger.info("Running validation checks on item catid data")
 
-    #  length of prod_catids >0  & similar to prior records in table: if true overwrite 
-    product_cat_ids_len=product_cat_ids.select("itemno").count()
-    
-    if product_cat_ids_len ==0:  
+    #  length of prod_catids >0  & similar to prior records in table: if true overwrite
+    product_cat_ids_len = product_cat_ids.select("itemno").count()
+
+    if product_cat_ids_len == 0:
         raise ValueError("Item catid table contains no data")
-    
-    if (product_cat_ids.groupBy(F.col("itemno")).agg(F.count("*").alias("number_records")).filter(F.col("number_records")>1).count()) >0 :
-        raise ValueError("Duplicate pids generated in item catid table" )
-    
+
+    if (
+        product_cat_ids.groupBy(F.col("itemno"))
+        .agg(F.count("*").alias("number_records"))
+        .filter(F.col("number_records") > 1)
+        .count()
+    ) > 0:
+        raise ValueError("Duplicate pids generated in item catid table")
+
     if spark.catalog.tableExists(output_table):
-        current_prod_cat_len= spark.table(output_table).select("itemno").count()
-        if not ((current_prod_cat_len *0.9) <= product_cat_ids_len <= (current_prod_cat_len *1.1)):
-            logger.warning(f"Greater than 10% change in number of records for item catid: prior records-{current_prod_cat_len}, new records-{product_cat_ids_len}")
+        current_prod_cat_len = (
+            spark.table(output_table).select("itemno").count()
+        )
+        if not (
+            (current_prod_cat_len * 0.9)
+            <= product_cat_ids_len
+            <= (current_prod_cat_len * 1.1)
+        ):
+            logger.warning(
+                f"Greater than 10% change in number of records for item catid: prior records-{current_prod_cat_len}, new records-{product_cat_ids_len}"
+            )
 
     product_cat_ids.write.format("delta").mode("overwrite").option(
         "overwriteSchema", "true"
@@ -128,33 +145,35 @@ def build_product_catid_df(
 
     logger.info(f"Data in {output_table} updated")
 
-    return 
+    return
 
 
 def build_advert_items_df(
-    spark, catalog: str, schema: str, reference_date: str, output_table:str
+    spark, catalog: str, schema: str, reference_date: str, output_table: str
 ):
     """Build the advert items & catid list by advert for all currently live adverts"""
     from pyspark.sql import functions as F
 
     PRODUCT_CATALOG = spark.table(
-      "marketingdata_prod.warehouse.product_catalog"
+        "marketingdata_prod.warehouse.product_catalog"
     )
     CONTROL_SHEET = spark.table(
-            "marketingdata_prod.warehouse.next_uk_nextads_control_sheet_latest",
+        "marketingdata_prod.warehouse.next_uk_nextads_control_sheet_latest",
     )
     SORT_ORDER_LATEST = spark.table(
-     "marketingdata_prod.warehouse.next_ads_sort_order_latest"
+        "marketingdata_prod.warehouse.next_ads_sort_order_latest"
     )
-    PRODUCT_CATIDS_LATEST = spark.table(f"{catalog}.{schema}.next_uk_nextads_item_catid"
+    PRODUCT_CATIDS_LATEST = spark.table(
+        f"{catalog}.{schema}.next_uk_nextads_item_catid"
     )
     # Currently sort order table seems to contain both sku_id & pid aliases
     # Joining on both to account for issue
     # Should ideally resolve at source for future
 
-    ads =(CONTROL_SHEET
-        .filter(F.col("AudienceOnly") == F.lit(0))
-        .select("UniqueAdID", "rundate").distinct()
+    ads = (
+        CONTROL_SHEET.filter(F.col("AudienceOnly") == F.lit(0))
+        .select("UniqueAdID")
+        .distinct()
     )
 
     advert_items = (
@@ -164,9 +183,7 @@ def build_advert_items_df(
             on="UniqueAdID",
             how="inner",
         )
-        .select(
-            F.col("ad.UniqueAdID"), F.col("ad.rundate"), F.col("s_o.items")
-        )
+        .select(F.col("ad.UniqueAdID"), F.col("s_o.items"))
         .join(
             PRODUCT_CATALOG.alias("cat"),
             on=(F.col("s_o.items") == F.col("cat.pid")),
@@ -181,47 +198,77 @@ def build_advert_items_df(
         .withColumn(
             "itemno", F.coalesce(F.col("pid_"), F.col("pid"), F.col("items"))
         )
-        .select(F.col("ad.UniqueAdID"), F.col("ad.rundate"), F.col("itemno"))
+        .select(F.col("ad.UniqueAdID"), F.col("itemno"))
         .join(PRODUCT_CATIDS_LATEST, on="itemno", how="left")
         .select(
             F.col("UniqueAdID"),
             F.col("itemno"),
             F.col("catid"),
-            F.lit(reference_date).cast("date").alias("feature_date"),
+            F.lit(reference_date).cast("date").alias("rundate"),
         )
         .distinct()
     )
 
-    logger.info("Running validation checks on advert linked items & catids dataset")
-    ad_item_catid_len=advert_items.select("UniqueAdID").count()
-    duplicates=advert_items.groupBy("UniqueAdID", "itemno").agg(F.count("*").alias("number_records")).filter(F.col("number_records")>1)
-    if ad_item_catid_len ==0:  
+    logger.info(
+        "Running validation checks on advert linked items & catids dataset"
+    )
+    ad_item_catid_len = advert_items.select("UniqueAdID").count()
+    duplicates = (
+        advert_items.groupBy("UniqueAdID", "itemno")
+        .agg(F.count("*").alias("number_records"))
+        .filter(F.col("number_records") > 1)
+    )
+    if ad_item_catid_len == 0:
         raise ValueError("Advert Item table build contains no data")
     if duplicates.count() > 0:
-        duplicate_ads=', '.join([row[0] for row in duplicates.distinct().select('UniqueAdID').collect()]) 
-        raise KeyError(f"Advert Items has duplicate items for adverts {duplicate_ads}")
-    if ads.select("UniqueAdID").count() != advert_items.select("UniqueAdID").distinct().count(): 
-        missing_ads=', '.join([row[0] for row in ads.select("UniqueAdID").join(advert_items.select("UniqueAdID").distinct(), on="UniqueAdID", how='leftanti').collect()])
-        logger.warning(f"Mismatch in the number of adverts with catids. Adverts not represented: {missing_ads}")
+        duplicate_ads = ", ".join(
+            [
+                row[0]
+                for row in duplicates.distinct().select("UniqueAdID").collect()
+            ]
+        )
+        raise KeyError(
+            f"Advert Items has duplicate items for adverts {duplicate_ads}"
+        )
+    if (
+        ads.select("UniqueAdID").count()
+        != advert_items.select("UniqueAdID").distinct().count()
+    ):
+        missing_ads = ", ".join(
+            [
+                row[0]
+                for row in ads.select("UniqueAdID")
+                .join(
+                    advert_items.select("UniqueAdID").distinct(),
+                    on="UniqueAdID",
+                    how="leftanti",
+                )
+                .collect()
+            ]
+        )
+        logger.warning(
+            f"Mismatch in the number of adverts with catids. Adverts not represented: {missing_ads}"
+        )
     advert_items.write.format("delta").mode("overwrite").option(
         "overwriteSchema", "true"
-    ).saveAsTable(
-        output_table
-    )
+    ).saveAsTable(output_table)
     logger.info(f"Data in {output_table} updated ")
-    
-    return 
+
+    return
 
 
-def determine_ad_profile_similiarity(spark, catalog:str, schema:str, reference_date:str, output_table:str):
-    
+def determine_ad_profile_similiarity(
+    spark, catalog: str, schema: str, reference_date: str, output_table: str
+):
+
     from pyspark.sql import functions as F
-    
-    ADVERT_ITEMS = spark.table( f"{catalog}.{schema}.next_uk_nextads_advert_item_catid", 
+
+    ADVERT_ITEMS = spark.table(
+        f"{catalog}.{schema}.next_uk_nextads_advert_items_catid",
     )
     # Determine Ad profile similarity
     ad_items_array = ADVERT_ITEMS.groupBy(
-        F.col("UniqueAdID"), F.col("feature_date")
+        F.col("UniqueAdID"), F.col("rundate")
     ).agg(
         F.array_distinct(F.collect_list("itemno")).alias("items_list"),
         F.countDistinct("itemno").alias("itemcount"),
@@ -246,74 +293,109 @@ def determine_ad_profile_similiarity(spark, catalog:str, schema:str, reference_d
             F.col("b.itemcount").alias("target_itemcount"),
             "intersection_count",
             "overlap_proportion",
-            F.lit(reference_date).cast("date").alias("feature_date"),
+            F.lit(reference_date).cast("date").alias("rundate"),
         )
     )
 
-    ad_item_profile_similarity_len=ad_items_overlap.select("UniqueAdID").count()
-    
-    # How many ads have similarity of 1 (need to account for duplicate locations)
-    if ad_item_profile_similarity_len ==0:  
-        raise ValueError("Advert Item similarity table buildcontains no data")
-    
-    #  How many ads have similarity of 1 (need to account for duplicate locations)
-    similarity=(ad_items_overlap.withColumns({"Adcampaign_components": F.split(F.col("UniqueAdID"), "_"),
-                                              "TargetAdcampaign_components": F.split(F.col("TargetUniqueAdID"), "_")})
-    .withColumns({"Adcampaign": F.concat_ws("_", F.col("Adcampaign_components")[0], F.col("Adcampaign_components")[1]),
-                   "Target_Adcampaign": F.concat_ws("_", F.col("TargetAdcampaign_components")[0], F.col("TargetAdcampaign_components")[1])})
-                   .withColumn("check", F.col("Target_Adcampaign")!=F.col("Adcampaign"))
-    .filter((F.col("overlap_proportion")==F.lit(1)) & (F.col("UniqueAdID")!=F.col("TargetUniqueAdID")) & (F.col("Target_Adcampaign")!=F.col("Adcampaign"))))
+    ad_item_profile_similarity_len = ad_items_overlap.select(
+        "UniqueAdID"
+    ).count()
 
-    if similarity.count()>0: 
-        similarity_records=", ".join([f"{row[0]} : {row[1]}" for row in similarity.select("UniqueAdID", "TargetUniqueAdID").collect()])
-        logger.warning(f"Multiple Adverts found with identical item profiles: {similarity_records}")
+    # How many ads have similarity of 1 (need to account for duplicate locations)
+    if ad_item_profile_similarity_len == 0:
+        raise ValueError("Advert Item similarity table buildcontains no data")
+
+    #  How many ads have similarity of 1 (need to account for duplicate locations)
+    similarity = (
+        ad_items_overlap.withColumns(
+            {
+                "Adcampaign_components": F.split(F.col("UniqueAdID"), "_"),
+                "TargetAdcampaign_components": F.split(
+                    F.col("TargetUniqueAdID"), "_"
+                ),
+            }
+        )
+        .withColumns(
+            {
+                "Adcampaign": F.concat_ws(
+                    "_",
+                    F.col("Adcampaign_components")[0],
+                    F.col("Adcampaign_components")[1],
+                ),
+                "Target_Adcampaign": F.concat_ws(
+                    "_",
+                    F.col("TargetAdcampaign_components")[0],
+                    F.col("TargetAdcampaign_components")[1],
+                ),
+            }
+        )
+        .withColumn("check", F.col("Target_Adcampaign") != F.col("Adcampaign"))
+        .filter(
+            (F.col("overlap_proportion") == F.lit(1))
+            & (F.col("UniqueAdID") != F.col("TargetUniqueAdID"))
+            & (F.col("Target_Adcampaign") != F.col("Adcampaign"))
+        )
+    )
+
+    if similarity.count() > 0:
+        similarity_records = ", ".join(
+            [
+                f"{row[0]} : {row[1]}"
+                for row in similarity.select(
+                    "UniqueAdID", "TargetUniqueAdID"
+                ).collect()
+            ]
+        )
+        logger.warning(
+            f"Multiple Adverts found with identical item profiles: {similarity_records}"
+        )
 
     ad_items_overlap.write.format("delta").mode("overwrite").option(
         "overwriteSchema", "true"
-    ).saveAsTable(
-        output_table
-    )
+    ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated ")
 
-    return 
+    return
+
 
 def build_item_action_data(
     spark,
-    catalog, 
+    catalog,
     schema,
     start_date,
     end_date,
-    data_source:str,
-    aggregation_level:str,
+    data_source: str,
+    aggregation_level: str,
 ):
     from pyspark.sql import functions as F
 
     if data_source == "views":
-        WEB_TABLE = spark.table("marketingdata_prod.warehouse.bq_views_next_uk")
-        APP_TABLE = spark.table("marketingdata_prod.warehouse.bq_views_next_uk_app")
+        WEB_TABLE = spark.table(
+            "marketingdata_prod.warehouse.bq_views_next_uk"
+        )
+        APP_TABLE = spark.table(
+            "marketingdata_prod.warehouse.bq_views_next_uk_app"
+        )
 
     elif data_source == "atbs":
         WEB_TABLE = spark.table("marketingdata_prod.warehouse.bq_atbs_next_uk")
-        APP_TABLE = spark.table("marketingdata_prod.warehouse.bq_atbs_next_uk_app")
+        APP_TABLE = spark.table(
+            "marketingdata_prod.warehouse.bq_atbs_next_uk_app"
+        )
     else:
         raise ValueError(
             "Incorrect data source passed in for build item dataset"
         )
-    
 
-    web_data = (WEB_TABLE
-        .filter(F.col("date").between(start_date, end_date))
-        .withColumnRenamed("ProductSKU", "itemno")
-    )
+    web_data = WEB_TABLE.filter(
+        F.col("date").between(start_date, end_date)
+    ).withColumnRenamed("ProductSKU", "itemno")
 
-    app_data = (APP_TABLE
-        .filter(
-            (F.col("date").between(start_date, end_date))
-        )
-        .withColumnRenamed("ProductSKU", "itemno")
-    )
-    
+    app_data = APP_TABLE.filter(
+        (F.col("date").between(start_date, end_date))
+    ).withColumnRenamed("ProductSKU", "itemno")
+
     if data_source == "views":
         web_data = web_data.filter(
             (F.col("ViewTimeSpentSecs") > 0)
@@ -324,7 +406,9 @@ def build_item_action_data(
         )
 
     if aggregation_level == "catid":
-        PRODUCT_CAT_IDS=spark.table(f"{catalog}.{schema}.next_uk_nextads_item_catid")
+        PRODUCT_CAT_IDS = spark.table(
+            f"{catalog}.{schema}.next_uk_nextads_item_catid"
+        )
         web_data = web_data.alias("v").join(
             PRODUCT_CAT_IDS, how="inner", on="itemno"
         )
@@ -349,34 +433,47 @@ def build_item_action_data(
     return all_ad_item_views
 
 
-def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
-                           prior_year_weighting_factor:float=1, 
-                           ad_percentage_coverage_threshold:float=0.95, lift_threshold:float=1.1): 
-    
+def build_advert_affinity(
+    spark,
+    catalog,
+    schema,
+    reference_date,
+    output_table,
+    prior_year_weighting_factor: float = 1,
+    ad_percentage_coverage_threshold: float = 0.95,
+    lift_threshold: float = 1.1,
+):
+
     from pyspark.sql import functions as F
     from pyspark.sql import Window
 
-    ADVERT_ITEMS=spark.table(f"{catalog}.{schema}.next_uk_nextads_advert_item_catid")
+    ADVERT_ITEMS = spark.table(
+        f"{catalog}.{schema}.next_uk_nextads_advert_items_catid"
+    )
     advert_catids = ADVERT_ITEMS.drop("itemno").distinct()
 
     CONTROL_SHEET = spark.table(
-            "marketingdata_prod.warehouse.next_uk_nextads_control_sheet_latest",
-        )
-    ad_page_types = (CONTROL_SHEET
-        .filter(F.col("AudienceOnly") == F.lit(0))
+        "marketingdata_prod.warehouse.next_uk_nextads_control_sheet_latest",
+    )
+    ad_page_types = (
+        CONTROL_SHEET.filter(F.col("AudienceOnly") == F.lit(0))
         .groupBy("rundate", "UniqueAdID")
         .pivot("PageGroup")
         .agg(F.max(F.lit(True)))
         .na.fill(False)
     )
 
-    AD_ITEM_SIMILIARITY_LATEST = spark.table(f"{catalog}.{schema}.next_uk_nextads_advert_item_profile_similarity")
+    AD_ITEM_SIMILIARITY_LATEST = spark.table(
+        f"{catalog}.{schema}.next_uk_nextads_advert_items_profile_similarity"
+    )
 
-    #  Validate there is no duplication 
-    total_ad_number=ad_page_types.select("UniqueAdID").distinct().count()
-    if total_ad_number != ad_page_types.select("UniqueAdID").count(): 
-        raise ValueError("Duplicate advert IDs identified in Advert page type view")
-    
+    #  Validate there is no duplication
+    total_ad_number = ad_page_types.select("UniqueAdID").distinct().count()
+    if total_ad_number != ad_page_types.select("UniqueAdID").count():
+        raise ValueError(
+            "Duplicate advert IDs identified in Advert page type view"
+        )
+
     # Build out the afinity levels
     start_date, end_date = _date_window_offset(reference_date, 30)
     prior_year_start_date = F.date_sub(start_date, 365)
@@ -438,9 +535,7 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
             how="inner",
         )
         .withColumnRenamed("UniqueAdID", "AtbUniqueAdID")
-        .select(
-            "date", "UniqueVisitID", "ViewUniqueAdID", "AtbUniqueAdID"
-        )
+        .select("date", "UniqueVisitID", "ViewUniqueAdID", "AtbUniqueAdID")
         .distinct()
     )
 
@@ -455,15 +550,34 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
     ).agg(F.countDistinct("UniqueVisitID").alias("number_views_atbs"))
 
     logger.info("Running validation checks on prior 30 days association data")
-    total_item_associations=advert_item_associations.select("UniqueVisitID").distinct().count()
+    total_item_associations = (
+        advert_item_associations.select("UniqueVisitID").distinct().count()
+    )
 
-    if not total_item_associations > 0: 
+    if not total_item_associations > 0:
         raise ValueError("No records identified for recent item associations")
-    
-    if (advert_item_associations.select("ViewUniqueAdID").distinct().count() / total_ad_number )< ad_percentage_coverage_threshold: 
-        raise ValueError(f"Less than {round(ad_percentage_coverage_threshold *100,0)} of adverts covered associations data")
 
-    logger.info("Gathering item activity from prior years next 30 days at catid level")
+    if (
+        advert_item_associations.select("ViewUniqueAdID").distinct().count()
+        / total_ad_number
+    ) < ad_percentage_coverage_threshold:
+        raise logger.warning(
+            f"""Less than {
+                round(ad_percentage_coverage_threshold * 100, 0)
+            } of adverts covered associations data -{
+                round(
+                    advert_item_associations.select('ViewUniqueAdID')
+                    .distinct()
+                    .count()
+                    / total_ad_number,
+                    2,
+                )
+            } percentage covered"""
+        )
+
+    logger.info(
+        "Gathering item activity from prior years next 30 days at catid level"
+    )
     prior_year_item_views = build_item_action_data(
         spark,
         catalog,
@@ -516,9 +630,7 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
             how="inner",
         )
         .withColumnRenamed("UniqueAdID", "AtbUniqueAdID")
-        .select(
-            "date", "UniqueVisitID", "ViewUniqueAdID", "AtbUniqueAdID"
-        )
+        .select("date", "UniqueVisitID", "ViewUniqueAdID", "AtbUniqueAdID")
         .distinct()
     )
     number_views_prior_year = prior_year_advert_item_associations.groupBy(
@@ -531,69 +643,83 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
         "ViewUniqueAdID", "AtbUniqueAdID"
     ).agg(F.countDistinct("UniqueVisitID").alias("number_views_atbs"))
 
-    logger.info("Running validation checks on prior year 30 days association data")
-    prior_year_total_item_associations=prior_year_advert_item_associations.select("UniqueVisitID").distinct().count()
-    
-    if not prior_year_total_item_associations > 0: 
-        raise ValueError("No records identified for prior year catid associations")
-    
-    if (prior_year_advert_item_associations.select("ViewUniqueAdID").distinct().count() / total_ad_number )< ad_percentage_coverage_threshold: 
-        raise logger.warning(f"Less than {round(ad_percentage_coverage_threshold *100,0)} of adverts covered in prior year associations data")
+    logger.info(
+        "Running validation checks on prior year 30 days association data"
+    )
+    prior_year_total_item_associations = (
+        prior_year_advert_item_associations.select("UniqueVisitID")
+        .distinct()
+        .count()
+    )
 
+    if not prior_year_total_item_associations > 0:
+        raise ValueError(
+            "No records identified for prior year catid associations"
+        )
+
+    if (
+        prior_year_advert_item_associations.select("ViewUniqueAdID")
+        .distinct()
+        .count()
+        / total_ad_number
+    ) < ad_percentage_coverage_threshold:
+        raise logger.warning(
+            f"Less than {round(ad_percentage_coverage_threshold * 100, 0)} of adverts covered in prior year associations data"
+        )
 
     logger.info("Combining recent & prior year affinity datasets")
-    logger.info(f"Prior year dataset weighting factor used: {prior_year_weighting_factor}")
+    logger.info(
+        f"Prior year dataset weighting factor used: {prior_year_weighting_factor}"
+    )
 
-    total_sessions = ((
+    total_sessions = (
         prior_year_associated_view_basket_catid.select("UniqueVisitID")
         .distinct()
         .count()
         * prior_year_weighting_factor
-    ) + total_item_associations )
+    ) + total_item_associations
 
-    logger.info(f"Total weighted number of sessions used for analysis :{total_sessions}")
+    logger.info(
+        f"Total weighted number of sessions used for analysis :{total_sessions}"
+    )
 
     number_views_combined = (
-        item_number_views.alias("v").join(
-            number_views_prior_year.alias("pv"), on="ViewUniqueAdID", how="left"
-        ).withColumn(
+        item_number_views.alias("v")
+        .join(
+            number_views_prior_year.alias("pv"),
+            on="ViewUniqueAdID",
+            how="left",
+        )
+        .withColumn(
             "number_views_",
             F.col("v.number_views")
-            + (
-                F.col("pv.number_views")
-                * F.lit(prior_year_weighting_factor)
-            ),
+            + (F.col("pv.number_views") * F.lit(prior_year_weighting_factor)),
         )
     ).select(F.col("v.ViewUniqueAdID"), F.col("number_views_"))
 
     number_atbs_combined = (
-        item_number_atbs.alias("b").join(
+        item_number_atbs.alias("b")
+        .join(
             number_atbs_prior_year.alias("pb"), on="AtbUniqueAdID", how="left"
-        ).withColumn(
+        )
+        .withColumn(
             "number_atbs_",
             F.col("b.number_atbs")
-            + (
-                F.col("pb.number_atbs")
-                * F.lit(prior_year_weighting_factor)
-            ),
+            + (F.col("pb.number_atbs") * F.lit(prior_year_weighting_factor)),
         )
     ).select(F.col("b.AtbUniqueAdID"), F.col("number_atbs_"))
 
     number_views_atbs_combined = (
-        item_number_views_atbs.alias("vb").join(
+        item_number_views_atbs.alias("vb")
+        .join(
             number_views_atbs_prior_year.alias("pvb"),
             on=(
-                ( 
-                    F.col("vb.ViewUniqueAdID")
-                    == F.col("pvb.ViewUniqueAdID")
-                )
-                & (
-                    F.col("vb.AtbUniqueAdID")
-                    == F.col("pvb.AtbUniqueAdID")
-                )
+                (F.col("vb.ViewUniqueAdID") == F.col("pvb.ViewUniqueAdID"))
+                & (F.col("vb.AtbUniqueAdID") == F.col("pvb.AtbUniqueAdID"))
             ),
             how="left",
-        ).withColumn(
+        )
+        .withColumn(
             "number_views_atbs_",
             F.col("vb.number_views_atbs")
             + (
@@ -619,9 +745,7 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
             how="left",
             on="AtbUniqueAdID",
         )
-        .withColumn(
-            "support_views", (F.col("number_views_") / total_sessions)
-        )
+        .withColumn("support_views", (F.col("number_views_") / total_sessions))
         .withColumn("support_atbs", (F.col("number_atbs_") / total_sessions))
         .withColumn(
             "support_views_atbs",
@@ -658,17 +782,16 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
         )
     )
 
-    logger.info(f"Adjusting lift based on advert item similarity  & filtering to a lift threshold of {lift_threshold}")
+    logger.info(
+        f"Adjusting lift based on advert item similarity  & filtering to a lift threshold of {lift_threshold}"
+    )
 
     final_associations = (
         association.alias("base")
         .join(
             F.broadcast(AD_ITEM_SIMILIARITY_LATEST).alias("overlap"),
             on=(
-                (
-                    F.col("base.ViewUniqueAdID")
-                    == F.col("overlap.UniqueAdID")
-                )
+                (F.col("base.ViewUniqueAdID") == F.col("overlap.UniqueAdID"))
                 & (
                     F.col("base.AtbUniqueAdID")
                     == F.col("overlap.TargetUniqueAdID")
@@ -724,26 +847,40 @@ def build_advert_affinity(spark, catalog, schema, reference_date,output_table,
                     if i not in ["UniqueAdID", "rundate"]
                 ]
             ),
+            F.lit(reference_date).cast("date").alias("rundate"),
         )
     )
 
     logger.info("Running validation checks on advert: advert affinity dataset")
 
-    rank1=final_associations.filter(F.col("lift_adjusted_ranking")==F.lit(1))
-    number_rank1_ads=rank1.select("ViewUniqueAdID").distinct().count() 
-    number_self_ranked1=rank1.select("ViewUniqueAdID").filter(F.col("ViewUniqueAdID")==F.col("AtbUniqueAdID")).select("ViewUniqueAdID").distinct().count()
-    
-    if (rank1.groupBy("ViewUniqueAdID").agg(F.count("*").alias("number_records")).filter(F.col("number_records")>1).count()) >0: 
+    rank1 = final_associations.filter(
+        F.col("lift_adjusted_ranking") == F.lit(1)
+    )
+    number_rank1_ads = rank1.select("ViewUniqueAdID").distinct().count()
+    number_self_ranked1 = (
+        rank1.select("ViewUniqueAdID")
+        .filter(F.col("ViewUniqueAdID") == F.col("AtbUniqueAdID"))
+        .select("ViewUniqueAdID")
+        .distinct()
+        .count()
+    )
+
+    if (
+        rank1.groupBy("ViewUniqueAdID")
+        .agg(F.count("*").alias("number_records"))
+        .filter(F.col("number_records") > 1)
+        .count()
+    ) > 0:
         raise ValueError("Multiple rank 1 records for Adverts")
 
-    if (number_self_ranked1/ number_rank1_ads) >0.5: 
+    if (number_self_ranked1 / number_rank1_ads) > 0.5:
         raise logger.warning("Over 50% of adverts are self reccomending")
-    
-    if (number_rank1_ads/ total_ad_number )< ad_percentage_coverage_threshold: 
-        raise logger.warning(f"Less than {round(ad_percentage_coverage_threshold *100,0)} of adverts covered in prior year associations data")
+
+    if (number_rank1_ads / total_ad_number) < ad_percentage_coverage_threshold:
+        raise logger.warning(
+            f"Less than {round(ad_percentage_coverage_threshold * 100, 0)} of adverts covered in prior year associations data"
+        )
 
     final_associations.write.format("delta").option(
         "mergeSchema", "true"
-    ).mode("overwrite").saveAsTable(
-        output_table
-    )
+    ).mode("overwrite").saveAsTable(output_table)
