@@ -28,7 +28,7 @@ default:
   # Tables written to environment-specific catalog and schema
   tables_write:
     ad_items: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_ad_items"
-    customer_cells_fixed_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_fixed_latest"
+    customer_cells_fixed_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_"
     customer_cells_fixed_history: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_fixed_history"
     customer_cells_transient: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_transient"
     customer_cells_transient_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_transient_latest"
@@ -119,7 +119,15 @@ default:
     # data_pull
     sort_order_v2: "@format {this.catalog_write}.{this.schema_write}.nextads_sort_order_v2"
     sort_order_v2_latest: "@format {this.catalog_write}.{this.schema_write}.nextads_sort_order_v2_latest"
-
+    ## Tables for analytics pctr model
+    nextads_analytics_pctr_predictions: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_analytics_pctr_predictions"
+    nextads_analytics_pctr_predictions_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_analytics_pctr_predictions_latest"
+    ## Real time features tables
+    nextads_item_catid: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_item_catid"
+    nextads_advert_item_profile_similarity: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_item_profile_similarity"
+    nextads_advert_advert_association: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_advert_association"
+    nextads_advert_items_catid: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_item_catid"
+  
   ranking_model_table_prefix: "@format {this.client}_nextads_theme_affinity_predict"
   ranking_model_tables:
     model_train_input_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_ranked"
