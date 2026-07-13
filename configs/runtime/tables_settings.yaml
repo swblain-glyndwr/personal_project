@@ -28,7 +28,7 @@ default:
   # Tables written to environment-specific catalog and schema
   tables_write:
     ad_items: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_ad_items"
-    customer_cells_fixed_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_"
+    customer_cells_fixed_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_fixed_latest"
     customer_cells_fixed_history: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_fixed_history"
     customer_cells_transient: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_transient"
     customer_cells_transient_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_customer_cells_transient_latest"
