@@ -72,7 +72,9 @@ def main(
     tbl_args = {"catalog": CATALOG, "schema": SCHEMA, "client": CLIENT}
     tbls = cfg["tables"]["write"]
 
-    PRODUCT_CATIDS_LATEST = etl.map_tbl(tbls["nextads_items_catid"], **tbl_args)
+    PRODUCT_CATIDS_LATEST = etl.map_tbl(
+        tbls["nextads_items_catid"], **tbl_args
+    )
     AD_ITEM_SIMILIARITY_LATEST = etl.map_tbl(
         tbls["nextads_advert_items_profile_similarity"], **tbl_args
     )

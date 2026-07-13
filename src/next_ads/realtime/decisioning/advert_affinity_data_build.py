@@ -377,14 +377,13 @@ def build_item_action_data(
         APP_TABLE = spark.table(
             "marketingdata_prod.warehouse.bq_views_next_uk_app"
         )
-
     elif data_source == "atbs":
         WEB_TABLE = spark.table("marketingdata_prod.warehouse.bq_atbs_next_uk")
         APP_TABLE = spark.table(
             "marketingdata_prod.warehouse.bq_atbs_next_uk_app"
         )
     else:
-        raise ValueError(
+        logger.warning(
             "Incorrect data source passed in for build item dataset"
         )
 
@@ -407,7 +406,7 @@ def build_item_action_data(
 
     if aggregation_level == "catid":
         PRODUCT_CAT_IDS = spark.table(
-            f"{catalog}.{schema}.next_uk_nextads_item_catid"
+            f"{catalog}.{schema}.next_uk_nextads_items_catid"
         )
         web_data = web_data.alias("v").join(
             PRODUCT_CAT_IDS, how="inner", on="itemno"
@@ -439,7 +438,7 @@ def build_advert_affinity(
     schema,
     reference_date,
     output_table,
-    prior_year_weighting_factor: float = 1,
+    history_data_weighting: float = 1,
     ad_percentage_coverage_threshold: float = 0.95,
     lift_threshold: float = 1.1,
 ):
@@ -553,31 +552,22 @@ def build_advert_affinity(
     total_item_associations = (
         advert_item_associations.select("UniqueVisitID").distinct().count()
     )
-
-    if not total_item_associations > 0:
-        raise ValueError("No records identified for recent item associations")
-
-    if (
+    perc_recent_ads_covered = (
         advert_item_associations.select("ViewUniqueAdID").distinct().count()
         / total_ad_number
-    ) < ad_percentage_coverage_threshold:
-        raise logger.warning(
-            f"""Less than {
-                round(ad_percentage_coverage_threshold * 100, 0)
-            } of adverts covered associations data -{
-                round(
-                    advert_item_associations.select('ViewUniqueAdID')
-                    .distinct()
-                    .count()
-                    / total_ad_number,
-                    2,
-                )
-            } percentage covered"""
+    )
+    if not (total_item_associations > 0):
+        logger.warning("No records identified for recent item associations")
+
+    if perc_recent_ads_covered < ad_percentage_coverage_threshold:
+        logger.warning(
+            f"Less than {round(ad_percentage_coverage_threshold * 100, 0)} of adverts covered associations data"
         )
 
     logger.info(
         "Gathering item activity from prior years next 30 days at catid level"
     )
+
     prior_year_item_views = build_item_action_data(
         spark,
         catalog,
@@ -587,6 +577,8 @@ def build_advert_affinity(
         data_source="views",
         aggregation_level="catid",
     )
+    logger.info("completed prior year views data")
+
     prior_year_item_atbs = build_item_action_data(
         spark,
         catalog,
@@ -596,6 +588,7 @@ def build_advert_affinity(
         data_source="atbs",
         aggregation_level="catid",
     )
+    logger.info("completed prior year actions data")
 
     prior_year_associated_view_basket_catid = (
         prior_year_item_views.alias("v")
@@ -652,8 +645,8 @@ def build_advert_affinity(
         .count()
     )
 
-    if not prior_year_total_item_associations > 0:
-        raise ValueError(
+    if not (prior_year_total_item_associations > 0):
+        logger.warning(
             "No records identified for prior year catid associations"
         )
 
@@ -663,20 +656,20 @@ def build_advert_affinity(
         .count()
         / total_ad_number
     ) < ad_percentage_coverage_threshold:
-        raise logger.warning(
+        logger.warning(
             f"Less than {round(ad_percentage_coverage_threshold * 100, 0)} of adverts covered in prior year associations data"
         )
 
     logger.info("Combining recent & prior year affinity datasets")
     logger.info(
-        f"Prior year dataset weighting factor used: {prior_year_weighting_factor}"
+        f"Prior year dataset weighting factor used: {history_data_weighting}"
     )
 
     total_sessions = (
         prior_year_associated_view_basket_catid.select("UniqueVisitID")
         .distinct()
         .count()
-        * prior_year_weighting_factor
+        * history_data_weighting
     ) + total_item_associations
 
     logger.info(
@@ -693,7 +686,7 @@ def build_advert_affinity(
         .withColumn(
             "number_views_",
             F.col("v.number_views")
-            + (F.col("pv.number_views") * F.lit(prior_year_weighting_factor)),
+            + (F.col("pv.number_views") * F.lit(history_data_weighting)),
         )
     ).select(F.col("v.ViewUniqueAdID"), F.col("number_views_"))
 
@@ -705,7 +698,7 @@ def build_advert_affinity(
         .withColumn(
             "number_atbs_",
             F.col("b.number_atbs")
-            + (F.col("pb.number_atbs") * F.lit(prior_year_weighting_factor)),
+            + (F.col("pb.number_atbs") * F.lit(history_data_weighting)),
         )
     ).select(F.col("b.AtbUniqueAdID"), F.col("number_atbs_"))
 
@@ -722,10 +715,7 @@ def build_advert_affinity(
         .withColumn(
             "number_views_atbs_",
             F.col("vb.number_views_atbs")
-            + (
-                F.col("pvb.number_views_atbs")
-                * F.lit(prior_year_weighting_factor)
-            ),
+            + (F.col("pvb.number_views_atbs") * F.lit(history_data_weighting)),
         )
     ).select(
         F.col("vb.AtbUniqueAdID"),
@@ -874,13 +864,17 @@ def build_advert_affinity(
         raise ValueError("Multiple rank 1 records for Adverts")
 
     if (number_self_ranked1 / number_rank1_ads) > 0.5:
-        raise logger.warning("Over 50% of adverts are self reccomending")
+        logger.warning("Over 50% of adverts are self reccomending")
 
     if (number_rank1_ads / total_ad_number) < ad_percentage_coverage_threshold:
-        raise logger.warning(
-            f"Less than {round(ad_percentage_coverage_threshold * 100, 0)} of adverts covered in prior year associations data"
+        logger.warning(
+            f"Less than {round((ad_percentage_coverage_threshold * 100), 0)} of adverts covered in associations data"
         )
 
-    final_associations.write.format("delta").option(
+    final_associations.write.format("delta").mode("overwrite").option(
         "mergeSchema", "true"
-    ).mode("overwrite").saveAsTable(output_table)
+    ).saveAsTable(output_table)
+
+    logger.info(f"Data in {output_table} updated")
+
+    return
