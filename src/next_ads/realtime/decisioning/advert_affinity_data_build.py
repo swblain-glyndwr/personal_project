@@ -17,7 +17,7 @@ def _date_window_offset(
     return start_date, end_date
 
 
-def build_product_catid_df(spark, reference_date: str, output_table: str):
+def build_product_catid_df(spark,cfg,reference_date: str, output_table: str):
     """Build a table of the catid by product for all products in last 365 days
 
     cat_id is build from a combination of department*, brand & next_category
@@ -29,11 +29,12 @@ def build_product_catid_df(spark, reference_date: str, output_table: str):
     from pyspark.sql import functions as F
     from pyspark.sql import Window
 
+    read_tables=cfg["tables"]["read"]
     PRODUCT_CATALOG = spark.table(
-        "marketingdata_prod.warehouse.product_catalog"
+        read_tables["product_catalog_latest"]
     )
     PRODUCT_CATALOG_HISTORY = spark.table(
-        "marketingdata_prod.warehouse.product_catalog_history"
+        read_tables["product_catalog"]
     )
 
     start_date, end_date = _date_window_offset(reference_date, 365)
@@ -144,22 +145,26 @@ def build_product_catid_df(spark, reference_date: str, output_table: str):
 
     return
 
-
 def build_advert_items_df(
-    spark, catalog: str, schema: str, reference_date: str, output_table: str
+    spark, cfg, catalog: str, schema: str, reference_date: str, output_table: str
 ):
     """Build the advert items & catid list by advert for all currently live adverts"""
     from pyspark.sql import functions as F
 
+    read_tables=cfg["tables"]["read"]
+
     PRODUCT_CATALOG = spark.table(
-        "marketingdata_prod.warehouse.product_catalog"
+        read_tables["product_catalog_latest"]
     )
-    CONTROL_SHEET = spark.table(
-        "marketingdata_prod.warehouse.next_uk_nextads_control_sheet_latest",
+    # TODO: needs to be prod details 
+    CONTROL_SHEET = spark.table( 
+        etl.map_tbl(cfg["tables"]["write"]["control_sheet_latest"], **tbl_args)
     )
+    # TODO: need to add to tables list 
     SORT_ORDER_LATEST = spark.table(
         "marketingdata_prod.warehouse.next_ads_sort_order_latest"
     )
+
     PRODUCT_CATIDS_LATEST = spark.table(
         f"{catalog}.{schema}.next_uk_nextads_item_catid"
     )
@@ -263,6 +268,7 @@ def determine_ad_profile_similiarity(
     ADVERT_ITEMS = spark.table(
         f"{catalog}.{schema}.next_uk_nextads_advert_items_catid",
     )
+    
     # Determine Ad profile similarity
     ad_items_array = ADVERT_ITEMS.groupBy(
         F.col("UniqueAdID"), F.col("rundate")

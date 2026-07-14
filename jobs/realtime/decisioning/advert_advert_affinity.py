@@ -99,7 +99,7 @@ def main(
 
     logger.info(f"Running for date: {reference_date}")
     logger.info("Building item catid for product from prior 12 months")
-    build_product_catid_df(spark, reference_date, PRODUCT_CATIDS_LATEST)
+    build_product_catid_df(spark,cfg, reference_date, PRODUCT_CATIDS_LATEST)
 
     logger.info("Building current advert linked items & catids data")
     build_advert_items_df(
