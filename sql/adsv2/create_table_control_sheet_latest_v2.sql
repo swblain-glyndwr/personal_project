@@ -22,6 +22,7 @@ create table {catalog}.{schema}.{client}_nextads_control_sheet_latest_v2 (
   Tags STRING,
   Themes STRING,
   AdVariant STRING,
+  ClusterID STRING,
   rundate DATE NOT NULL,
   constraint pk_{client}_nextads_control_sheet_latest_v2 primary key (
     UniqueAdID,
