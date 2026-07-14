@@ -1,4 +1,4 @@
-CREATE TABLE {catalog}.{schema}.next_uk_nextads_advert_fs_item_profile_similarity (
+CREATE TABLE {catalog}.{schema}.{client}_nextads_advert_fs_item_profile_similarity (
     reference_date DATE NOT NULL,
     SourceUniqueAdID string not null,
     TargetUniqueAdID string not null,
@@ -8,7 +8,7 @@ CREATE TABLE {catalog}.{schema}.next_uk_nextads_advert_fs_item_profile_similarit
     overlap_proportion double, 
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
-  constraint pk_next_uk_nextads_advert_fs_item_profile_similarity primary key (
+  constraint pk_{client}_nextads_advert_fs_item_profile_similarity primary key (
     reference_date ,
     SourceUniqueAdID,
     TargetUniqueAdID
