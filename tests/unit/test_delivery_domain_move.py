@@ -81,8 +81,8 @@ def test_v2_payload_export_routes_stay_on_scripts():
         "mktg_next_uk_nextads_payload_export_cicd",
     )
     page_build_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_page_build.yml",
-        "mktg_next_uk_nextads_page_build_cicd",
+        "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "mktg_next_uk_nextads_page_build_cicd_v2",
     )
     main_job = _load_job(
         "resources/jobs/mktg_next_uk_nextads.yml",

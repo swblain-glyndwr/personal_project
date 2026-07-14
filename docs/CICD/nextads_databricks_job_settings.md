@@ -140,6 +140,7 @@ Databricks quality monitor configuration for Theme Affinity ranked outputs.
 | Job | Settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_page_build` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
+| `mktg_next_uk_nextads_page_build_v2` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
 | `mktg_next_uk_nextads_qa` | `client`, `job_env` | Runs operational QA in the target environment. |
 | `mktg_next_uk_nextads_masid_handoff` | `client`, `job_env` | Runs MASID handoff checks. |
 | `mktg_next_uk_nextads_payload_export` | `client`, `job_env`, `do_export` | `do_export=1` enables export. |
