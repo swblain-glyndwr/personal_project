@@ -36,7 +36,7 @@ include:
   - resources/jobs/preprod_dependency_smoke.yml
   - resources/jobs/prod_table_contract_smoke.yml
   - resources/jobs/mktg_next_uk_nextads_feature_store.yml
-
+  - resources/jobs/mktg_next_uk_nextads_realtime_data.yml
 sync:
   include:
     - configs/**
