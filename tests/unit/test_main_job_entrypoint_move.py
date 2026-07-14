@@ -82,7 +82,7 @@ def test_v2_page_build_job_uses_moved_non_v2_entrypoints():
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
-   
+
     trigger_tasks = [
         "trigger_payload_export_job",
     ]
