@@ -273,6 +273,13 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
+                    "when": [
+                        {"col": "AdHocABTest1", "op": "eq", "val": "A"},
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDNextGenAds"}
+                },
+                {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
@@ -1968,6 +1975,12 @@
                 "PL31", "PL32", "PL33", "PL34", "PL35", "PL36", "PL37", "PL38", "PL39", "PL40"],
             "SB_Only": ["SB1", "SB2"],
             "OC_Only": ["OC1", "OC2"]
+        },
+        "page_type_map_v2": {
+            "HP_Only": ["HomePage"],
+            "PLP_Only": ["ProductListingPage"],
+            "SB_Only": ["ShoppingBagPage"],
+            "OC_Only": ["CheckoutPage"]
         }
     }
 }

@@ -862,6 +862,72 @@ def assign_preranked_ads_v2(
         'TriggerScore')
 
 
+def assign_nextgenads_v2(
+        df_ads: DataFrame,
+        customer_to_cluster_table: str,
+        df_cust: DataFrame = None,
+        n_ads: int = 20,
+) -> DataFrame:
+    """Assigns NextGenAds to customers based on cluster assignments, returning
+    ranked assignments for V2 page-type builds.
+
+    Reads the cluster-to-customer assignment table, filters to the requested
+    rank range, then inner-joins to df_ads to restrict to currently eligible
+    ads in the control sheet. The inner join means customers whose assigned
+    ClusterID maps to no active ad are simply absent from the result; their
+    UniqueAdIDNextGenAds column will be null after the downstream left-join
+    and will be caught by the fillna('NoAdFound') step.
+
+    Arguments:
+        df_ads - DataFrame with columns: UniqueAdID, ClusterID.
+                 Caller is responsible for filtering to eligible NextGenAds
+                 (ClusterID not null, Themes null).
+        customer_to_cluster_table - Name of table containing AccountNumber,
+                                    assigned_cluster_id, target_score,
+                                    assignment_rank
+        df_cust - Optional customer filter (DataFrame with col: AccountNumber)
+        n_ads - Maximum assignment rank to return (default 20). In practice
+                the nextgenads table holds up to rank 3 per customer.
+
+    Returns:
+        DataFrame with columns: AccountNumber, UniqueAdID, Rank, TriggerScore
+    """
+    logger.info(
+        f'Assigning nextgenads up to rank {n_ads} '
+        f'using cluster assignments from {customer_to_cluster_table}'
+    )
+
+    df_cluster2ad = (
+        df_ads
+        .select(
+            F.col('ClusterID').cast('int').alias('assigned_cluster_id'),
+            F.col('UniqueAdID'),
+        )
+        .distinct()
+    )
+
+    df_assigned = (
+        get_spark()
+        .table(customer_to_cluster_table)
+        .where(F.col('assignment_rank') <= n_ads)
+        .select(
+            'AccountNumber',
+            'assigned_cluster_id',
+            F.col('assignment_rank').alias('Rank'),
+            F.col('target_score').alias('TriggerScore'),
+        )
+        .join(df_cluster2ad, on='assigned_cluster_id', how='inner')
+        .select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')
+        .distinct()
+    )
+
+    if df_cust is not None:
+        logger.debug('Filtering customers for assignment')
+        df_assigned = df_assigned.join(df_cust, on='AccountNumber', how='inner')
+
+    return df_assigned.select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')
+
+
 def assign_preranked_ads(
         df_ads: DataFrame,
         preranked_ads_table: str,

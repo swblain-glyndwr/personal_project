@@ -33,6 +33,7 @@ default:
       - ["Tags", "string", "null"]
       - ["Themes", "string", "null"]
       - ["AdVariant", "string", "null"]
+      - ["ClusterID", "string", "null"]
   exclusions_sheet:
     url: "https://docs.google.com/spreadsheets/d/1793xIYCIfHw6bIWrYylclBw-5nbs1v687HiMnPyRkmY/edit?gid=0#gid=0"
     sheet: "Exclusions"
