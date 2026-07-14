@@ -17,7 +17,7 @@ def _date_window_offset(
     return start_date, end_date
 
 
-def build_product_catid_df(spark,cfg,reference_date: str, output_table: str):
+def build_product_catid_df(spark, cfg, reference_date: str, output_table: str):
     """Build a table of the catid by product for all products in last 365 days
 
     cat_id is build from a combination of department*, brand & next_category
@@ -29,13 +29,9 @@ def build_product_catid_df(spark,cfg,reference_date: str, output_table: str):
     from pyspark.sql import functions as F
     from pyspark.sql import Window
 
-    read_tables=cfg["tables"]["read"]
-    PRODUCT_CATALOG = spark.table(
-        read_tables["product_catalog_latest"]
-    )
-    PRODUCT_CATALOG_HISTORY = spark.table(
-        read_tables["product_catalog"]
-    )
+    read_tables = cfg["tables"]["read"]
+    PRODUCT_CATALOG = spark.table(read_tables["product_catalog_latest"])
+    PRODUCT_CATALOG_HISTORY = spark.table(read_tables["product_catalog"])
 
     start_date, end_date = _date_window_offset(reference_date, 365)
 
@@ -145,29 +141,26 @@ def build_product_catid_df(spark,cfg,reference_date: str, output_table: str):
 
     return
 
+
 def build_advert_items_df(
-    spark, cfg, catalog: str, schema: str, reference_date: str, output_table: str
+    spark, cfg, tbl_configs: dict, reference_date: str, output_table: str
 ):
     """Build the advert items & catid list by advert for all currently live adverts"""
     from pyspark.sql import functions as F
+    from next_ads.utils import etl
 
-    read_tables=cfg["tables"]["read"]
+    read_tables = cfg["tables"]["read"]
+    write_tables = cfg["tables"]["write"]
 
-    PRODUCT_CATALOG = spark.table(
-        read_tables["product_catalog_latest"]
+    PRODUCT_CATALOG = spark.table(read_tables["product_catalog_latest"])
+    CONTROL_SHEET = spark.table(
+        etl.map_tbl(write_tables["control_sheet_latest"], **tbl_configs)
     )
-    # TODO: needs to be prod details 
-    CONTROL_SHEET = spark.table( 
-        etl.map_tbl(cfg["tables"]["write"]["control_sheet_latest"], **tbl_args)
-    )
-    # TODO: need to add to tables list 
-    SORT_ORDER_LATEST = spark.table(
-        "marketingdata_prod.warehouse.next_ads_sort_order_latest"
-    )
-
+    SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest"])
     PRODUCT_CATIDS_LATEST = spark.table(
-        f"{catalog}.{schema}.next_uk_nextads_item_catid"
+        etl.map_tbl(write_tables["nextads_items_catid"], **tbl_configs)
     )
+
     # Currently sort order table seems to contain both sku_id & pid aliases
     # Joining on both to account for issue
     # Should ideally resolve at source for future
@@ -260,15 +253,17 @@ def build_advert_items_df(
 
 
 def determine_ad_profile_similiarity(
-    spark, catalog: str, schema: str, reference_date: str, output_table: str
+    spark, cfg, tbl_configs: dict, reference_date: str, output_table: str
 ):
 
     from pyspark.sql import functions as F
+    from next_ads.utils import etl
+
+    write_tables = cfg["tables"]["write"]
 
     ADVERT_ITEMS = spark.table(
-        f"{catalog}.{schema}.next_uk_nextads_advert_items_catid",
+        etl.map_tbl(write_tables["nextads_advert_items_catid"], **tbl_configs)
     )
-    
     # Determine Ad profile similarity
     ad_items_array = ADVERT_ITEMS.groupBy(
         F.col("UniqueAdID"), F.col("rundate")
@@ -364,27 +359,25 @@ def determine_ad_profile_similiarity(
 
 def build_item_action_data(
     spark,
-    catalog,
-    schema,
+    cfg,
+    tbl_configs,
     start_date,
     end_date,
     data_source: str,
     aggregation_level: str,
 ):
     from pyspark.sql import functions as F
+    from next_ads.utils import etl
+
+    read_tables = cfg["tables"]["read"]
+    write_tables = cfg["tables"]["write"]
 
     if data_source == "views":
-        WEB_TABLE = spark.table(
-            "marketingdata_prod.warehouse.bq_views_next_uk"
-        )
-        APP_TABLE = spark.table(
-            "marketingdata_prod.warehouse.bq_views_next_uk_app"
-        )
+        WEB_TABLE = spark.table(read_tables["bq_views"])
+        APP_TABLE = spark.table(read_tables["bq_views_app"])
     elif data_source == "atbs":
-        WEB_TABLE = spark.table("marketingdata_prod.warehouse.bq_atbs_next_uk")
-        APP_TABLE = spark.table(
-            "marketingdata_prod.warehouse.bq_atbs_next_uk_app"
-        )
+        WEB_TABLE = spark.table(read_tables["bq_atbs"])
+        APP_TABLE = spark.table(read_tables["bq_atbs_app"])
     else:
         logger.warning(
             "Incorrect data source passed in for build item dataset"
@@ -409,7 +402,7 @@ def build_item_action_data(
 
     if aggregation_level == "catid":
         PRODUCT_CAT_IDS = spark.table(
-            f"{catalog}.{schema}.next_uk_nextads_items_catid"
+            etl.map_tbl(write_tables["nextads_items_catid"], **tbl_configs)
         )
         web_data = web_data.alias("v").join(
             PRODUCT_CAT_IDS, how="inner", on="itemno"
@@ -437,8 +430,8 @@ def build_item_action_data(
 
 def build_advert_affinity(
     spark,
-    catalog,
-    schema,
+    cfg,
+    tbl_configs,
     reference_date,
     output_table,
     history_data_weighting: float = 1,
@@ -448,14 +441,18 @@ def build_advert_affinity(
 
     from pyspark.sql import functions as F
     from pyspark.sql import Window
+    from next_ads.utils import etl
+
+    write_tables = cfg["tables"]["write"]
 
     ADVERT_ITEMS = spark.table(
-        f"{catalog}.{schema}.next_uk_nextads_advert_items_catid"
+        etl.map_tbl(write_tables["nextads_advert_items_catid"], **tbl_configs)
     )
+
     advert_catids = ADVERT_ITEMS.drop("itemno").distinct()
 
     CONTROL_SHEET = spark.table(
-        "marketingdata_prod.warehouse.next_uk_nextads_control_sheet_latest",
+        etl.map_tbl(write_tables["control_sheet_latest"], **tbl_configs)
     )
     ad_page_types = (
         CONTROL_SHEET.filter(F.col("AudienceOnly") == F.lit(0))
@@ -466,7 +463,10 @@ def build_advert_affinity(
     )
 
     AD_ITEM_SIMILIARITY_LATEST = spark.table(
-        f"{catalog}.{schema}.next_uk_nextads_advert_items_profile_similarity"
+        etl.map_tbl(
+            write_tables["nextads_advert_items_profile_similarity"],
+            **tbl_configs,
+        )
     )
 
     #  Validate there is no duplication
@@ -485,8 +485,8 @@ def build_advert_affinity(
     ## Prior 30 days at item level:
     recent_item_views = build_item_action_data(
         spark,
-        catalog,
-        schema,
+        cfg,
+        tbl_configs,
         start_date,
         end_date,
         data_source="views",
@@ -494,8 +494,8 @@ def build_advert_affinity(
     )
     recent_item_atbs = build_item_action_data(
         spark,
-        catalog,
-        schema,
+        cfg,
+        tbl_configs,
         start_date,
         end_date,
         data_source="atbs",
@@ -573,8 +573,8 @@ def build_advert_affinity(
 
     prior_year_item_views = build_item_action_data(
         spark,
-        catalog,
-        schema,
+        cfg,
+        tbl_configs,
         prior_year_start_date,
         prior_year_end_date,
         data_source="views",
@@ -584,8 +584,8 @@ def build_advert_affinity(
 
     prior_year_item_atbs = build_item_action_data(
         spark,
-        catalog,
-        schema,
+        cfg,
+        tbl_configs,
         prior_year_start_date,
         prior_year_end_date,
         data_source="atbs",

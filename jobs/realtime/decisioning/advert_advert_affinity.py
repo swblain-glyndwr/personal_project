@@ -99,23 +99,23 @@ def main(
 
     logger.info(f"Running for date: {reference_date}")
     logger.info("Building item catid for product from prior 12 months")
-    build_product_catid_df(spark,cfg, reference_date, PRODUCT_CATIDS_LATEST)
+    build_product_catid_df(spark, cfg, reference_date, PRODUCT_CATIDS_LATEST)
 
     logger.info("Building current advert linked items & catids data")
     build_advert_items_df(
-        spark, CATALOG, SCHEMA, reference_date, ADVERT_ITEMS_CATID_LATEST
+        spark, cfg, tbl_args, reference_date, ADVERT_ITEMS_CATID_LATEST
     )
     logger.info("Building current advert items similarities")
     determine_ad_profile_similiarity(
-        spark, CATALOG, SCHEMA, reference_date, AD_ITEM_SIMILIARITY_LATEST
+        spark, cfg, tbl_args, reference_date, AD_ITEM_SIMILIARITY_LATEST
     )
 
     logger.info("Building Advert:Advert affinity based on views:ad to baskets")
 
     build_advert_affinity(
         spark,
-        CATALOG,
-        SCHEMA,
+        cfg,
+        tbl_args,
         reference_date,
         AD_AD_ASSOCIATIONS_LATEST,
         history_data_weighting,
@@ -135,9 +135,11 @@ if __name__ == "__main__":
         CLIENT,
         LOG_LEVEL,
         reference_date=jobparser.get_arg("--reference-date"),
-        history_data_weighting=float(jobparser.get_arg("--history-data-weighting")),
+        history_data_weighting=float(
+            jobparser.get_arg("--history-data-weighting")
+        ),
         lift_threshold=float(jobparser.get_arg("--lift-threshold")),
-        ad_perc_coverage_threshold=float(jobparser.get_arg(
-            "--ad-coverage-threshold"
-        )),
+        ad_perc_coverage_threshold=float(
+            jobparser.get_arg("--ad-coverage-threshold")
+        ),
     )

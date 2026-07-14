@@ -1776,6 +1776,8 @@
             "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
             "bq_views_app": "marketingdata_prod.warehouse.bq_views_next_uk_app",
+            "bq_atbs" : "marketingdata_prod.warehouse.bq_atbs_next_uk",
+            "bq_atbs_app" : "marketingdata_prod.warehouse.bq_atbs_next_uk_app",
             "baskets": "marketingdata_prod.warehouse.baskets_uk_3y",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "product_catalog": "marketingdata_prod.warehouse.product_catalog_history",
@@ -1785,7 +1787,8 @@
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
             "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
             "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest",
-            "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest"
+            "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest",
+            "sort_order_latest": "marketingdata_prod.warehouse.next_ads_sort_order_latest"
         },
         "write": {
             "ad_items": "{catalog}.{schema}.{client}_nextads_ad_items",
