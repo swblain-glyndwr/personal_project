@@ -1,4 +1,3 @@
-
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -6,7 +5,7 @@ from pyspark.sql.types import (
     IntegerType,
     DateType,
     ArrayType,
-    MapType
+    MapType,
 )
 
 from urllib.parse import urlparse, parse_qs
@@ -31,7 +30,9 @@ if USER_SCHEMA:
     os.environ["USER_SCHEMA"] = USER_SCHEMA
 
 config = config_manager.load_config(JOB_ENV)
-nextschema = ArrayType(ArrayType(StringType(), containsNull=False), containsNull=False)
+nextschema = ArrayType(
+    ArrayType(StringType(), containsNull=False), containsNull=False
+)
 
 
 def call_next_cms_api_fn(url):
@@ -136,7 +137,10 @@ def call_next_api_fn(api_endpoint, url):
     searchProviderRequestUrlp = parse_qs(searchProviderRequestUrl)
 
     # flatten the values in the requesturl
-    ha = {k: v[0] if k != "fq" else v for k, v in searchProviderRequestUrlp.items()}
+    ha = {
+        k: v[0] if k != "fq" else v
+        for k, v in searchProviderRequestUrlp.items()
+    }
 
     # remove the url in the response
     ha.pop(
@@ -265,9 +269,9 @@ def url_type(url):
 
 
 def lookup_key(search_type):
-    col = F.when(F.col(search_type) == "promotion", F.lit("promotion")).otherwise(
-        F.lit("search?w")
-    )
+    col = F.when(
+        F.col(search_type) == "promotion", F.lit("promotion")
+    ).otherwise(F.lit("search?w"))
     return col
 
 
@@ -277,7 +281,8 @@ def parse_url_udf(url):
     if parsed.query:
         # parse_qs returns lists, convert to single values for convenience
         return {
-            k: v[0] if len(v) == 1 else v for k, v in parse_qs(parsed.query).items()
+            k: v[0] if len(v) == 1 else v
+            for k, v in parse_qs(parsed.query).items()
         }
     else:
         return parsed.path.strip("/").split("/")
@@ -294,7 +299,10 @@ def parse_url_struct(url):
             for k, v in parse_qs(parsed.query).items()
         }
     else:
-        return {str(i): seg for i, seg in enumerate(parsed.path.strip("/").split("/"))}
+        return {
+            str(i): seg
+            for i, seg in enumerate(parsed.path.strip("/").split("/"))
+        }
 
 
 parse_udf = udf(parse_url_struct, MapType(StringType(), StringType()))
@@ -445,7 +453,9 @@ def parse_and_prep_data(data):
 
 @dp.view(name="control_sheet")
 def control_sheet():
-    s_control_sheet = spark.table(config.tables_write.control_sheet_raw_latest_v2)
+    s_control_sheet = spark.table(
+        config.tables_write.control_sheet_raw_latest_v2
+    )
     return s_control_sheet
 
 
@@ -575,6 +585,7 @@ sort_order_schema = StructType(
         StructField("Tags", StringType(), True),
         StructField("Themes", StringType(), True),
         StructField("AdVariant", StringType(), True),
+        StructField("ClusterID", StringType(), True),
         StructField("rundate", DateType(), True),
     ]
 )
