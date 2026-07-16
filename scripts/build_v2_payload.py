@@ -313,7 +313,9 @@ def make_payload(df_combined):
             F.sort_array(  # sort by the struct with Max_TriggerScore first, sort descending so the most important triggers are at the front of the list
                 F.collect_list(  # list the max TriggerScore, for each fragmentId, for that customer
                     F.struct(
-                        F.col("Max_TriggerScore").alias("t"),
+                        F.coalesce(F.col("Max_TriggerScore"), F.lit(0)).alias(
+                            "t"
+                        ),
                         F.col("fragmentId").alias("id"),
                     )
                 ).over(triggers_window),
@@ -391,24 +393,14 @@ def make_payload(df_combined):
                 F.col("enableAdFatigueRotation"),
                 F.col("fragmentIds"),
             )
-        ).alias("frag_pagetype")
+        ).alias("fragments")
     )
 
     # collate the list of fragments data per customer
     # and collate the next_ads payload struct
-    agg_comb5 = (
-        agg_comb4.groupBy(
-            "AccountNumber",
-            "adFatigueImpressionThreshold",
-            "experimentId",
-            "triggers",
-            "control",
-        )
-        .agg(F.collect_list("frag_pagetype").alias("fragments"))
-        .selectExpr(
-            "AccountNumber as account_number",
-            "struct(AccountNumber, adFatigueImpressionThreshold, experimentId, triggers, control , fragments) as next_ads",
-        )
+    agg_comb5 = agg_comb4.selectExpr(
+        "AccountNumber as account_number",
+        "struct(AccountNumber, adFatigueImpressionThreshold, experimentId, triggers, control , fragments) as next_ads",
     )
 
     # Add a hash of the next_ads struct, include it in the struct
@@ -421,6 +413,18 @@ def make_payload(df_combined):
             F.col("next_ads").withField("adsHash", F.col("ads_hash")),
         )
         .drop("ads_hash")
+        .selectExpr(
+            "account_number",
+            """named_struct('ads', named_struct(
+                                        'adFatigueImpressionThreshold', next_ads.adFatigueImpressionThreshold,
+                                        'experimentId', next_ads.experimentId,
+                                        'triggers', next_ads.triggers,
+                                        'control', next_ads.control,
+                                        'fragments', next_ads.fragments,
+                                        'adsHash', next_ads.adsHash
+                                          )
+                                        ) AS next_ads""",
+        )
     )
 
     return agg_comb6
@@ -459,7 +463,9 @@ def write_payload_tables(
     )
 
 
-def write_output_to_csv(df_output, pii_exponea_next_uk_path, logger, process="next_ads"):
+def write_output_to_csv(
+    df_output, pii_exponea_next_uk_path, logger, process="next_ads"
+):
     payload_path = os.path.join(
         pii_exponea_next_uk_path, "outbound", "customer_attributes", process
     )
@@ -557,7 +563,9 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
             ).alias("next_ads"),
         )
 
-        write_output_to_csv(df_latest_payload, config.pii_exponea_next_uk_path, logger)
+        write_output_to_csv(
+            df_latest_payload, config.pii_exponea_next_uk_path, logger
+        )
 
         # exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
         #                  where roamingprofileid is not null

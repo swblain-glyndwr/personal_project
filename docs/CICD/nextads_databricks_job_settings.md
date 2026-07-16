@@ -43,8 +43,9 @@ candidate scoring.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
-| `--create-only` | Create missing personal DEV tables. | Default DAB mode and recommended onboarding path. |
-| `--seed-latest` | Create missing tables and seed the small latest/reference table set. | Use only when a personal DEV schema needs seed data. |
+| `setup_mode` | Job run mode shown in the Databricks job parameters UI. | `create_only` by default; use `seed_latest` only when a personal DEV schema needs seed data. |
+| `--create-only` | Create missing personal DEV tables from terminal/manual CLI use. | Deprecated job flag alias for `setup_mode=create_only`. |
+| `--seed-latest` | Create missing tables and seed the small latest/reference table set from terminal/manual CLI use. | Deprecated job flag alias for `setup_mode=seed_latest`. |
 | `--sample` | Deprecated alias for `--seed-latest`. | Kept for old Databricks terminal commands. |
 | `--standard` | Deprecated alias for `--create-only`. | Kept to avoid abruptly breaking old job parameters. |
 | `job_env` | Environment guard. | Must be `dev`. Non-DEV values fail. |
@@ -139,6 +140,7 @@ Databricks quality monitor configuration for Theme Affinity ranked outputs.
 | Job | Settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_page_build` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
+| `mktg_next_uk_nextads_page_build_v2` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
 | `mktg_next_uk_nextads_qa` | `client`, `job_env` | Runs operational QA in the target environment. |
 | `mktg_next_uk_nextads_masid_handoff` | `client`, `job_env` | Runs MASID handoff checks. |
 | `mktg_next_uk_nextads_payload_export` | `client`, `job_env`, `do_export` | `do_export=1` enables export. |
@@ -149,6 +151,7 @@ Databricks quality monitor configuration for Theme Affinity ranked outputs.
 | Job | Settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_results_cicd` | `client`, `job_env`, plus `label_window_days=28` for inference-log enrichment | Results tasks run in sequence; `label_window_days` is an integer day window. |
+|`mktg_next_uk_nextads_realtime_data` | `client`, `job_env`, `reference-date`, `history-data-weighting`,`lift-threshold`, `ad-coverage-threshold`| Builds realtime  advert: advert affinity inputs. |
 | `mktg_next_uk_nextads_realtime_inputs` | `client`, `job_env` | Builds realtime viewed/bought inputs. |
 | `mktg_next_uk_nextads_realtime_results_cicd` | `client`, `job_env` | Builds realtime result outputs. |
 | `mktg_next_uk_nextads_data_pull` | `client`, `job_env`, `log_level` | Pulls and archives sort-order data through the configured pipeline/task graph. |

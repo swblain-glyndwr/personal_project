@@ -122,7 +122,14 @@ default:
     ## Tables for analytics pctr model
     nextads_analytics_pctr_predictions: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_analytics_pctr_predictions"
     nextads_analytics_pctr_predictions_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_analytics_pctr_predictions_latest"
-  
+    ## Real time features tables
+    nextads_items_catid: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_items_catid"
+    nextads_advert_items_profile_similarity: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_items_profile_similarity"
+    nextads_advert_advert_association: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_advert_association"
+    nextads_advert_items_catid: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_items_catid"
+    # cms
+    cms_content_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_cms_content_latest"
+    cms_content: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_cms_content"
   ranking_model_table_prefix: "@format {this.client}_nextads_theme_affinity_predict"
   ranking_model_tables:
     model_train_input_table: "@format {this.catalog_write}.{this.schema_write}.{this.ranking_model_table_prefix}_ranked"

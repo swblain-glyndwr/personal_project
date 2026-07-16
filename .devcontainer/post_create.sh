@@ -19,6 +19,6 @@ python3 -m poetry config virtualenvs.in-project true
 python3 -m poetry install
 
 if [ -z "$USER_SCHEMA" ]; then
-  echo "USER_SCHEMA is not set. Create a .env.local file in config/ folder with USER_SCHEMA=<your_user_name_on_databricks>"
+  echo "USER_SCHEMA is not set. Create a .env.local file in configs/runtime folder with USER_SCHEMA=<your_user_name_on_databricks>"
   exit 1
 fi

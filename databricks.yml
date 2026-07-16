@@ -8,6 +8,7 @@ bundle:
 include:
   - resources/jobs/mktg_next_uk_nextads.yml
   - resources/jobs/mktg_next_uk_nextads_page_build.yml
+  - resources/jobs/mktg_next_uk_nextads_page_build_v2.yml
   - resources/jobs/mktg_next_uk_nextads_masid_handoff.yml
   - resources/jobs/mktg_next_uk_nextads_payload_export.yml
   - resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
@@ -35,7 +36,7 @@ include:
   - resources/jobs/preprod_dependency_smoke.yml
   - resources/jobs/prod_table_contract_smoke.yml
   - resources/jobs/mktg_next_uk_nextads_feature_store.yml
-
+  - resources/jobs/mktg_next_uk_nextads_realtime_data.yml
 sync:
   include:
     - configs/**

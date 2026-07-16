@@ -1,18 +1,24 @@
-import os
+
 from pyspark.sql.types import (
     StructType,
     StructField,
     StringType,
     IntegerType,
     DateType,
+    ArrayType,
+    MapType
 )
-from pyspark import pipelines as dp
-from pyspark.sql import functions as F
-import requests
-from pyspark.sql.functions import col, udf
-from pyspark.sql.types import ArrayType, MapType
+
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone
+import requests
+import json
+import os
+
+from pyspark import pipelines as dp
+from pyspark.sql import functions as F
+from pyspark.sql.functions import udf
+
 from next_ads.utils import config_manager
 
 JOB_ENV = spark.conf.get("pipeline.job_env", "dev")
@@ -25,10 +31,37 @@ if USER_SCHEMA:
     os.environ["USER_SCHEMA"] = USER_SCHEMA
 
 config = config_manager.load_config(JOB_ENV)
+nextschema = ArrayType(ArrayType(StringType(), containsNull=False), containsNull=False)
 
-nextschema = ArrayType(
-    ArrayType(StringType(), containsNull=False), containsNull=False
-)
+
+def call_next_cms_api_fn(url):
+    # spoof browser headers so it gets past the WAF
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+    }
+    try:
+        resp = requests.request("GET", url, headers=headers)
+        response = resp.json()
+        status = resp.status_code
+    except Exception as e:
+        # If request fails, return error string, make it obvious there is an issue
+        return str(e)
+
+    if status != 200:
+        # Return Null - no error, just doesn't exist, this is very possible
+        return None
+
+    return response
+
+
+@udf(StringType())
+def call_next_cms_api_duf(url):
+    result = call_next_cms_api_fn(url)
+    return json.dumps(result)
 
 
 def call_next_api_fn(api_endpoint, url):
@@ -103,10 +136,7 @@ def call_next_api_fn(api_endpoint, url):
     searchProviderRequestUrlp = parse_qs(searchProviderRequestUrl)
 
     # flatten the values in the requesturl
-    ha = {
-        k: v[0] if k != "fq" else v
-        for k, v in searchProviderRequestUrlp.items()
-    }
+    ha = {k: v[0] if k != "fq" else v for k, v in searchProviderRequestUrlp.items()}
 
     # remove the url in the response
     ha.pop(
@@ -235,9 +265,9 @@ def url_type(url):
 
 
 def lookup_key(search_type):
-    col = F.when(
-        F.col(search_type) == "promotion", F.lit("promotion")
-    ).otherwise(F.lit("search?w"))
+    col = F.when(F.col(search_type) == "promotion", F.lit("promotion")).otherwise(
+        F.lit("search?w")
+    )
     return col
 
 
@@ -247,8 +277,7 @@ def parse_url_udf(url):
     if parsed.query:
         # parse_qs returns lists, convert to single values for convenience
         return {
-            k: v[0] if len(v) == 1 else v
-            for k, v in parse_qs(parsed.query).items()
+            k: v[0] if len(v) == 1 else v for k, v in parse_qs(parsed.query).items()
         }
     else:
         return parsed.path.strip("/").split("/")
@@ -265,10 +294,7 @@ def parse_url_struct(url):
             for k, v in parse_qs(parsed.query).items()
         }
     else:
-        return {
-            str(i): seg
-            for i, seg in enumerate(parsed.path.strip("/").split("/"))
-        }
+        return {str(i): seg for i, seg in enumerate(parsed.path.strip("/").split("/"))}
 
 
 parse_udf = udf(parse_url_struct, MapType(StringType(), StringType()))
@@ -306,7 +332,7 @@ def parse_and_prep_data(data):
     )
 
     df_parsed = (
-        data.withColumn("parsed", parse_udf(col("url")))
+        data.withColumn("parsed", parse_udf(F.col("url")))
         .withColumn("querystring", F.col("parsed").getItem("w"))
         .withColumn("parts1", F.split(F.col("parsed").getItem(1), "-"))
         .withColumn("parts2", F.split(F.col("parsed").getItem(2), "-"))
@@ -419,10 +445,42 @@ def parse_and_prep_data(data):
 
 @dp.view(name="control_sheet")
 def control_sheet():
-    s_control_sheet = spark.table(
-        config.tables_write.control_sheet_raw_latest_v2
-    )
+    s_control_sheet = spark.table(config.tables_write.control_sheet_raw_latest_v2)
     return s_control_sheet
+
+
+cms_content_schema = StructType(
+    [
+        StructField("CMSPageID", StringType(), True),
+        StructField("cms_data", StringType(), True),
+        StructField("rundate", DateType(), True),
+    ]
+)
+
+
+@dp.materialized_view(
+    name=config.tables_write.cms_content_latest,
+    comment="Latest CMS content metadata for each CMSPageID",
+    schema=cms_content_schema,
+)
+def cms_content():
+    s_control_sheet = spark.table("control_sheet")
+
+    to_query = (
+        s_control_sheet.filter("CMSPAgeID is not null")
+        .select("CMSPageID")
+        .distinct()
+        .withColumn("api_url", F.lit(config.next_cms))
+        .withColumn("cms_url", F.concat(F.col("api_url"), F.col("CMSPageID")))
+    )
+
+    to_query.repartition(5)
+
+    queried = to_query.withColumn(
+        "cms_data", call_next_cms_api_duf(F.col("cms_url"))
+    ).selectExpr("CMSPageID", "cms_data", "current_date() as rundate")
+
+    return queried
 
 
 @dp.materialized_view(
