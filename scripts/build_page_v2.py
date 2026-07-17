@@ -20,7 +20,7 @@ finally:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pyspark.sql import functions as F
-from next_ads.decisioning.assignment import (
+from next_ads.Assignment import (
     assign_random_ads_v2,
     assign_preranked_ads_v2,
     assign_nextgenads_v2,
