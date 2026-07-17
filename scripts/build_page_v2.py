@@ -20,10 +20,10 @@ finally:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pyspark.sql import functions as F
-from next_ads.Assignment import (
+from next_ads.decisioning.assignment import (
     assign_random_ads_v2,
     assign_preranked_ads_v2,
-    assign_nextgenads_v2
+    assign_nextgenads_v2,
 )
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
@@ -86,8 +86,9 @@ CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 PRERANKED_THEMES_TABLE = etl.map_tbl(
     tbls["preranked_ads_from_themes_v2_latest"], **tbl_args
 )
-NEXTGENADS_ASSIGNMENTS_TABLE = cfg["tables"
-                                   ]["read"]["nextgenads_assignments_latest"]
+NEXTGENADS_ASSIGNMENTS_TABLE = cfg["tables"]["read"][
+    "nextgenads_assignments_latest"
+]
 
 # Read results data from prod schema dataset
 tbl_args_results = {
@@ -115,8 +116,9 @@ PAGE_TYPE_ISOLATION_ENABLED = _pt_isolation_cfg["enabled"]
 PAGE_TYPE_ALLOWED_GROUPS = (
     [
         grp
-        for grp, page_types in _pt_isolation_cfg.get("page_type_map_v2", {}
-                                                     ).items()
+        for grp, page_types in _pt_isolation_cfg.get(
+            "page_type_map_v2", {}
+        ).items()
         if PAGE_TYPE in page_types
     ]
     + ["AllPages"]
@@ -230,12 +232,13 @@ if USE_NEXTGENADS:
         df_ads=df_ads_tgt_nextgenads,
         customer_to_cluster_table=NEXTGENADS_ASSIGNMENTS_TABLE,
         df_cust=df_cells.select("AccountNumber"),
-        n_ads=3
+        n_ads=3,
     )
 else:
     logger.info(f"NextGenAds not referenced in {PAGE_TYPE} map - skipping")
     df_assigned_nextgenads = spark.createDataFrame(
-        [], schema="AccountNumber STRING, UniqueAdID STRING, Rank INT"
+        [],
+        schema="AccountNumber STRING, UniqueAdID STRING, Rank INT, TriggerScore FLOAT",
     )
 df_assigned_nextgenads.cache()
 
