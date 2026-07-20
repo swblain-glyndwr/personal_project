@@ -45,8 +45,6 @@ def run_theme_score_mapping(
     CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
     CUSTOMER_CELLS_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
     KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
-    UNDERPERFORMING_ADS = etl.map_tbl(tbls['results_underperforming_ads'],
-                                      **tbl_args)
     SESSIONS = cfg['tables']['read']['bq_sessions']
     ACTIONS = cfg['tables']['read']['bq_actions']
 
@@ -87,26 +85,14 @@ def run_theme_score_mapping(
         client=CLIENT
     )
 
-
     logger.info(f'Getting theme to ad mappings from {CONTROL_SHEET_LATEST}')
 
-    # AutoTrading/ remove underperforming ads from best targeting
-    # based on recent performance checks.
-    df_ads = (
-        spark.table(CONTROL_SHEET_LATEST)
-    )
-
+    df_ads = spark.table(CONTROL_SHEET_LATEST)
 
     if AUTO_TRADING_SWITCH:
         count_df_ads = df_ads.select('UniqueAdID').distinct().count()
 
-        df_ads = (
-            df_ads
-            .join(spark.table(UNDERPERFORMING_ADS),
-                  on=['UniqueAdID', 'rundate'],
-                  how='left_anti')
-            .cache()
-        )
+        df_ads = df_ads.filter(~F.col('IsUnderperforming')).cache()
 
         count_df_ads_pruned = df_ads.select('UniqueAdID').distinct().count()
 

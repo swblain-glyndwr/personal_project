@@ -130,13 +130,6 @@ df_incremental = (
                 F.col('IncARPS') / F.col('C_ARPS'))
             .otherwise(F.lit(None))
         )
-        .join(
-            spark.table(UNDERPERFORMING_ADS)
-            .filter(F.col("rundate") < date.today())
-            .alias("x"),
-            F.col("a.UniqueAdID") == F.col("x.UniqueAdID"),
-            "leftanti",
-        )
     )
 df_ads_removed = (
     df_incremental
@@ -144,8 +137,22 @@ df_ads_removed = (
            (F.col('EstContribution') <= INCREMENTAL_VALUE_THRESHOLD))
 )
 
+# Identify ads newly flagged today (not previously in the underperforming table).
+# Used to deduplicate webhook notifications — table write uses df_ads_removed.
+df_previously_flagged = (
+    spark.table(UNDERPERFORMING_ADS)
+    .filter(F.col('rundate') < date.today())
+    .select('UniqueAdID')
+    .distinct()
+)
+df_newly_flagged = df_ads_removed.join(
+    df_previously_flagged,
+    on='UniqueAdID',
+    how='left_anti',
+)
+
 df_excl_campaigns = (
-    df_ads_removed
+    df_newly_flagged
     .withColumn(
         'PotNumber',
         F.split_part(F.col('UniqueAdID'), F.lit('_'), F.lit(1)),
@@ -237,11 +244,16 @@ df_ad_pre_performance = (
 # Inferences
 total_ads = df_incremental.select('UniqueAdID').distinct().count()
 removed_ads = df_ads_removed.select('UniqueAdID').distinct().count()
+newly_flagged_ads = df_newly_flagged.select('UniqueAdID').distinct().count()
 
 logger.info(f'Total Ads: {total_ads:,}')
+logger.info(f'Currently underperforming: {removed_ads:,}')
+logger.info(f'Newly flagged today: {newly_flagged_ads:,}')
 
 if total_ads > 0:
-    logger.info(f'Removed Ads: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)')
+    logger.info(
+        f'Underperforming Ads: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)'
+    )
 
     total_sessions = df_incremental.agg(F.sum('Sessions')).collect()[0][0] or 0
     ads_removed_sessions = df_ads_removed.agg(F.sum('Sessions')).collect()[0][0] or 0
@@ -260,7 +272,7 @@ else:
     logger.info('Potential impact on Sessions: 0')
 
 ads_msgs = (
-    df_ads_removed.withColumn('Title', F.lit('Current Ad'))
+    df_newly_flagged.withColumn('Title', F.lit('Current Ad'))
     .select(
         'Title',
         'UniqueAdID',
@@ -308,7 +320,7 @@ output_str = '\n'.join(
 
 auto_trading_status = 'AutoTrading ON' if AUTO_TRADING_SWITCH else 'AutoTrading OFF'
 
-if removed_ads > 0:
+if newly_flagged_ads > 0:
     suppression_note = (
         'Ads removed from best targeting.'
         if AUTO_TRADING_SWITCH
@@ -316,7 +328,9 @@ if removed_ads > 0:
     )
     msg = (
         f'{auto_trading_status}: {suppression_note}\n'
-        f'- Num ads flagged: {removed_ads:,} ({removed_ads/total_ads*100:.2f}%)\n'
+        f'- Newly flagged today: {newly_flagged_ads:,}'
+        f' ({newly_flagged_ads/total_ads*100:.2f}% of evaluated ads)\n'
+        f'- Total currently suppressed: {removed_ads:,}\n'
         f'- Min {C_SESSIONS:,} control sessions\n\n'
         f'{output_str}\n\n'
         'Check full results in dashboard.'
@@ -327,9 +341,10 @@ if removed_ads > 0:
         post_to_webhook(WEBHOOK_URL, msg)
 else:
     msg = (
-        f'{auto_trading_status}: No underperforming ads found\n'
+        f'{auto_trading_status}: No newly flagged underperforming ads\n'
         f'(look-back to {CHECK_SESSIONS_FROM}; '
-        f'min {C_SESSIONS:,} control sessions)'
+        f'min {C_SESSIONS:,} control sessions; '
+        f'{removed_ads:,} currently suppressed)'
     )
     logger.warning(msg)
 

@@ -50,6 +50,7 @@ create table {catalog}.{schema}.{client}_nextads_control_sheet_latest (
   Page STRING,
   Screen STRING,
   PageGroup STRING,
+  IsUnderperforming BOOLEAN,
   rundate DATE NOT NULL,
   constraint pk_{client}_nextads_control_sheet_latest primary key (
     UniqueAdID,
