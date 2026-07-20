@@ -26,9 +26,10 @@ from next_ads.utils import config_manager, etl
 from next_ads.common.paths import load_client_config
 
 
-
 from next_ads.realtime.decisioning.reranking_data_build import (
-    create_realtime_known_reranking_weighting_rules
+    create_realtime_known_reranking_weighting_rules,
+    create_central_product_details_by_pid,
+    advert_details_build,
 )
 
 
@@ -37,6 +38,7 @@ def main(
     CLIENT: str,
     LOG_LEVEL: str,
     reference_date: str = None,
+    advert_matching_threshold: float = 0.1,
 ):
     from pyspark.sql import functions as F
     from datetime import date
@@ -71,6 +73,13 @@ def main(
     RERANKING_RULES = etl.map_tbl(
         tbls["nextads_realtime_reranking_rules_weighting"], **tbl_args
     )
+    REALTIME_PRODUCT_FEATURES = etl.map_tbl(
+        tbls["nextads_realtime_reranking_product_features"], **tbl_args
+    )
+    REALTIME_ADVERT_FEATURES = etl.map_tbl(
+        tbls["nextads_realtime_reranking_advert_features"], **tbl_args
+    )
+
     if reference_date:
         try:
             F.lit(reference_date).cast("date")
@@ -86,9 +95,26 @@ def main(
     logger.info(f"Running for date: {reference_date}")
 
     logger.info("Loading realtime known reranking rules")
-    create_realtime_known_reranking_weighting_rules(spark, reference_date, RERANKING_RULES )
+    create_realtime_known_reranking_weighting_rules(
+        spark, reference_date, RERANKING_RULES
+    )
 
-    
+    logger.info("Generating unique product features for realtime reranking")
+    create_central_product_details_by_pid(
+        spark, config, cfg, reference_date, REALTIME_PRODUCT_FEATURES
+    )
+
+    logger.info("Generating unique advert features for realtime reranking")
+
+    advert_details_build(
+        spark,
+        cfg,
+        tbl_args,
+        reference_date,
+        REALTIME_ADVERT_FEATURES,
+        coverage_min_threshold=advert_matching_threshold,
+    )
+
 
 if __name__ == "__main__":
     jobparser = get_job_parser()
@@ -101,11 +127,7 @@ if __name__ == "__main__":
         CLIENT,
         LOG_LEVEL,
         reference_date=jobparser.get_arg("--reference-date"),
-        history_data_weighting=float(
-            jobparser.get_arg("--history-data-weighting")
-        ),
-        lift_threshold=float(jobparser.get_arg("--lift-threshold")),
-        ad_perc_coverage_threshold=float(
-            jobparser.get_arg("--ad-coverage-threshold")
+        advert_matching_threshold=jobparser.get_arg(
+            "--advert-matching-threshold"
         ),
     )
