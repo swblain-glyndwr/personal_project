@@ -225,3 +225,26 @@ def advert_details_build(
     logger.info(f"Data in {output_table} updated")
 
     return
+
+
+def realtime_reranking_preranked_ads_build(): 
+
+    from pyspark.sql import functions as F
+
+    tbls={"rpid_account": "marketingdata_prod.warehouse.rpid_with_accounts",
+        "preranked_ads": "marketingdata_prod.warehouse.next_uk_nextads_preranked_ads_from_themes_v2_latest",
+        "customer_cells": "marketingdata_prod.warehouse.next_uk_nextads_customer_cells_latest",
+        "ad_features": "marketingdata_dev.claire_wilsonbarnes.next_uk_nextads_realtime_reranking_advert_features",}
+
+    CUSTOMER_ADS=spark.table(tbls["preranked_ads"])
+    RPIDS=spark.table(tbls["rpid_account"])
+    AD_FEATURES=spark.table(tbls['ad_features'])
+    CUSTOMER_CELLS=spark.table(tbls['customer_cells'])
+    rpid_accounts=(CUSTOMER_ADS.join(CUSTOMER_CELLS, on="AccountNumber", how="inner")
+                    #Filter out automatically any control accounts 
+                    .filter(F.col("FallowControl")== "Ads")
+                   .join(AD_FEATURES, on="UniqueAdID", how="inner")
+                   .join(RPIDS, on=((CUSTOMER_ADS["AccountNumber"]==RPIDS["account_number"]) 
+                                    &(RPIDS["latestflag"]==F.lit(1))), how="inner")
+                    ).select()
+                
