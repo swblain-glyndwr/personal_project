@@ -39,4 +39,7 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_rerankin
         roamingprofileid,
         rundate)
 )
+USING DELTA
 PARTITIONED BY (roamingprofileid)
+TBLPROPERTIES('delta.enableChangeDataFeed'= 'true' )
+;

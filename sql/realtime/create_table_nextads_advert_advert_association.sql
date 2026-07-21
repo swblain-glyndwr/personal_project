@@ -20,5 +20,7 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_advert_advert_ass
         AtbUniqueAdID,
         rundate)
 )
-
+USING DELTA
 PARTITIONED BY (ViewUniqueAdID, rundate)
+TBLPROPERTIES('delta.enableChangeDataFeed'= 'true' )
+;

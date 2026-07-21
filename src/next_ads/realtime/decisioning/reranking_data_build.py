@@ -296,7 +296,7 @@ def realtime_reranking_preranked_ads_build(
         )
 
     rpid_accounts.write.format("delta").mode("overwrite").option(
-        "overwriteSchema", "true"
+        "mergeSchema", "true"
     ).saveAsTable(output_table)
     logger.info(f"Data in {output_table} updated")
 
@@ -373,7 +373,7 @@ def realtime_reranking_item_weights_build(
         raise ValueError("No records in item weighting rules table")
 
     combined.write.format("delta").mode("overwrite").option(
-        "overwriteSchema", "true"
+        "mergeSchema", "true"
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated")

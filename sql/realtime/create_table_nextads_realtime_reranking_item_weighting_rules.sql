@@ -15,4 +15,7 @@ rundate date not null,
         action,
         rundate)
 )
+USING DELTA
 PARTITIONED BY (pid)
+TBLPROPERTIES('delta.enableChangeDataFeed'= 'true' )
+;
