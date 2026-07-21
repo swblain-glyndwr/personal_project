@@ -1860,7 +1860,9 @@
             "nextads_advert_items_catid": "{catalog}.{schema}.{client}_nextads_advert_items_catid",
             "nextads_realtime_reranking_rules_weighting" : "{catalog}.{schema}.{client}_nextads_realtime_reranking_rules_weighting", 
             "nextads_realtime_reranking_product_features" : "{catalog}.{schema}.{client}_nextads_realtime_reranking_product_features",
-            "nextads_realtime_reranking_advert_features" : "{catalog}.{schema}.{client}_nextads_realtime_reranking_advert_features"
+            "nextads_realtime_reranking_advert_features" : "{catalog}.{schema}.{client}_nextads_realtime_reranking_advert_features",
+            "nextads_realtime_reranking_preranked_ads" : "{catalog}.{schema}.{client}_nextads_realtime_reranking_preranked_ads", 
+            "nextads_realtime_reranking_item_weighting_rules" : "{catalog}.{schema}.{client}_nextads_realtime_reranking_item_weighting_rules"
         }
     },
 

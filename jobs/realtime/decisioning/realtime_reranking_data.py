@@ -30,6 +30,8 @@ from next_ads.realtime.decisioning.reranking_data_build import (
     create_realtime_known_reranking_weighting_rules,
     create_central_product_details_by_pid,
     advert_details_build,
+    realtime_reranking_preranked_ads_build,
+    realtime_reranking_item_weights_build,
 )
 
 
@@ -80,6 +82,13 @@ def main(
         tbls["nextads_realtime_reranking_advert_features"], **tbl_args
     )
 
+    REALTIME_PRERANKED_CUSTOMER_AD_FEATURES = etl.map_tbl(
+        tbls["nextads_realtime_reranking_preranked_ads"], **tbl_args
+    )
+    REALTIME_ITEM_WEIGHTING_RULES = etl.map_tbl(
+        tbls["nextads_realtime_reranking_item_weighting_rules"], **tbl_args
+    )
+
     if reference_date:
         try:
             F.lit(reference_date).cast("date")
@@ -114,6 +123,25 @@ def main(
         REALTIME_ADVERT_FEATURES,
         coverage_min_threshold=advert_matching_threshold,
     )
+    logger.info(
+        "Generating preranked adverts, with RPIDs & features for realtime reranking"
+    )
+    realtime_reranking_preranked_ads_build(
+        spark,
+        cfg,
+        tbl_args,
+        reference_date,
+        REALTIME_PRERANKED_CUSTOMER_AD_FEATURES,
+    )
+
+    logger.info(
+        "Generating items & weighting rules combined data view for realtime reranking"
+    )
+    realtime_reranking_item_weights_build(
+        spark, cfg, tbl_args, reference_date, REALTIME_ITEM_WEIGHTING_RULES
+    )
+
+    logger.info("Realtime reranking data build complete")
 
 
 if __name__ == "__main__":

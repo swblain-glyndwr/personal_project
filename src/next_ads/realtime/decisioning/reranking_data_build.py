@@ -227,24 +227,163 @@ def advert_details_build(
     return
 
 
-def realtime_reranking_preranked_ads_build(): 
+def realtime_reranking_preranked_ads_build(
+    spark, cfg, tbl_configs, reference_date, output_table
+):
 
     from pyspark.sql import functions as F
+    from next_ads.utils import etl
 
-    tbls={"rpid_account": "marketingdata_prod.warehouse.rpid_with_accounts",
-        "preranked_ads": "marketingdata_prod.warehouse.next_uk_nextads_preranked_ads_from_themes_v2_latest",
-        "customer_cells": "marketingdata_prod.warehouse.next_uk_nextads_customer_cells_latest",
-        "ad_features": "marketingdata_dev.claire_wilsonbarnes.next_uk_nextads_realtime_reranking_advert_features",}
+    read_tables = cfg["tables"]["read"]
+    write_tables = cfg["tables"]["write"]
 
-    CUSTOMER_ADS=spark.table(tbls["preranked_ads"])
-    RPIDS=spark.table(tbls["rpid_account"])
-    AD_FEATURES=spark.table(tbls['ad_features'])
-    CUSTOMER_CELLS=spark.table(tbls['customer_cells'])
-    rpid_accounts=(CUSTOMER_ADS.join(CUSTOMER_CELLS, on="AccountNumber", how="inner")
-                    #Filter out automatically any control accounts 
-                    .filter(F.col("FallowControl")== "Ads")
-                   .join(AD_FEATURES, on="UniqueAdID", how="inner")
-                   .join(RPIDS, on=((CUSTOMER_ADS["AccountNumber"]==RPIDS["account_number"]) 
-                                    &(RPIDS["latestflag"]==F.lit(1))), how="inner")
-                    ).select()
-                
+    RPIDS = spark.table(read_tables["rpid_with_accounts"])
+    CUSTOMER_ADS = spark.table(
+        etl.map_tbl(
+            write_tables["preranked_ads_from_themes_v2_latest"], **tbl_configs
+        )
+    )
+    CUSTOMER_CELLS = spark.table(
+        etl.map_tbl(write_tables["customer_cells_latest"], **tbl_configs)
+    )
+    AD_FEATURES = spark.table(
+        etl.map_tbl(
+            write_tables["nextads_realtime_reranking_advert_features"],
+            **tbl_configs,
+        )
+    )
+
+    dup_cols = ["UniqueAdID", "AccountNumber", "rundate"]
+    cells_cols = CUSTOMER_CELLS.columns
+    [cells_cols.remove(i) for i in dup_cols if i in cells_cols]
+    features_cols = AD_FEATURES.columns
+    [features_cols.remove(i) for i in dup_cols if i in features_cols]
+
+    rpid_accounts = (
+        CUSTOMER_ADS.join(CUSTOMER_CELLS, on="AccountNumber", how="inner")
+        # Filter out automatically any control accounts
+        .filter(F.col("FallowControl") == "Ads")
+        .join(AD_FEATURES, on="UniqueAdID", how="inner")
+        .join(
+            RPIDS,
+            on=(
+                (CUSTOMER_ADS["AccountNumber"] == RPIDS["account_number"])
+                & (RPIDS["latestflag"] == F.lit(1))
+            ),
+            how="inner",
+        )
+    ).select(
+        F.col("UniqueAdID"),
+        F.col("AccountNumber"),
+        F.col("roamingprofileid"),
+        F.col("PageType"),
+        F.col("Score"),
+        F.col("TriggerScore"),
+        F.col("Rank"),
+        *cells_cols,
+        *features_cols,
+        F.lit(reference_date).cast("date").alias("rundate"),
+    )
+
+    logger.info("Running validation on pre-ranked advert features dataset")
+
+    tbl_len = rpid_accounts.select("AccountNumber").count()
+    if tbl_len == 0:
+        raise ValueError("No records in pre-ranked advert features table")
+
+    num_dups = (
+        rpid_accounts.groupBy("roamingprofileid", "UniqueAdID", "PageType")
+        .agg(F.count("*").alias("num_dups"))
+        .filter(F.col("num_dups") > 1)
+        .count()
+    )
+
+    if num_dups > 0:
+        raise ValueError(
+            "Duplicate Adverts for customer, locaiton in preranked advert features table"
+        )
+
+    rpid_accounts.write.format("delta").mode("overwrite").option(
+        "overwriteSchema", "true"
+    ).saveAsTable(output_table)
+    logger.info(f"Data in {output_table} updated")
+
+    return
+
+
+def realtime_reranking_item_weights_build(
+    spark, cfg, tbl_configs, reference_date, output_table
+):
+
+    from pyspark.sql import functions as F
+    from next_ads.utils import etl
+
+    write_tables = cfg["tables"]["write"]
+    ITEMS_DATA = spark.table(
+        etl.map_tbl(
+            write_tables["nextads_realtime_reranking_product_features"],
+            **tbl_configs,
+        )
+    )
+    ITEM_WEIGHTS = spark.table(
+        etl.map_tbl(
+            write_tables["nextads_realtime_reranking_rules_weighting"],
+            **tbl_configs,
+        )
+    )
+
+    product_columns = [
+        "pid",
+        "brand",
+        "next_category",
+        "department",
+        "prem_level_brand",
+    ]
+    cols_to_drop = ["weighting_prem_level_brand", "rundate"]
+
+    items_data = spark.table(ITEMS_DATA).select(*product_columns)
+
+    weights = (
+        ITEM_WEIGHTS.groupBy("action", "rundate")
+        .pivot("feature")
+        .agg(F.first("weight"))
+        .na.fill(0)
+    )
+    weights = weights.select(
+        [
+            F.col(c).alias(f"weighting_{c}")
+            if c not in ("action", "rundate")
+            else F.col(c)
+            for c in weights.columns
+        ]
+    )
+
+    # Columns to select
+    weights_cols = weights.columns
+    [weights_cols.remove(i) for i in [cols_to_drop] if i in weights_cols]
+
+    # Combined data view
+    combined = items_data.crossJoinjoin(weights).select(
+        *product_columns,
+        *weights_cols,
+        (
+            F.when(
+                F.col("prem_level_brand"), F.col("weighting_prem_level_brand")
+            ).otherwise(F.lit(0))
+        ).alias("weighting_prem_level_brand"),
+        F.lit(reference_date).cast("date").alias("rundate"),
+    )
+
+    logger.info("Running validation on item weighting rules dataset")
+
+    tbl_len = combined.select("pid").count()
+    if tbl_len == 0:
+        raise ValueError("No records in item weighting rules table")
+
+    combined.write.format("delta").mode("overwrite").option(
+        "overwriteSchema", "true"
+    ).saveAsTable(output_table)
+
+    logger.info(f"Data in {output_table} updated")
+
+    return
