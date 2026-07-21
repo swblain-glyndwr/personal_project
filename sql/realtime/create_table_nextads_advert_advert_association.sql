@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_advert_advert_ass
     cosine_similarity double, 
     lift double, 
     lift_adjusted double, 
-    lift_adjusted_ranking double, 
+    lift_adjusted_ranking int, 
     intersection_count int, 
     overlap_proportion double NOT NULL,
     -- Add in page types here 
