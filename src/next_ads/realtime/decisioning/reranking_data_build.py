@@ -355,7 +355,7 @@ def realtime_reranking_item_weights_build(
     [weights_cols.remove(i) for i in [cols_to_drop] if i in weights_cols]
 
     # Combined data view
-    combined = items_data.crossJoinjoin(weights).select(
+    combined = items_data.crossJoin(weights).select(
         *product_columns,
         *weights_cols,
         (
