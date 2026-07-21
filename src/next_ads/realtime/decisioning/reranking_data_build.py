@@ -333,7 +333,7 @@ def realtime_reranking_item_weights_build(
     ]
     cols_to_drop = ["weighting_prem_level_brand", "rundate"]
 
-    items_data = spark.table(ITEMS_DATA).select(*product_columns)
+    items_data = ITEMS_DATA.select(*product_columns)
 
     weights = (
         ITEM_WEIGHTS.groupBy("action", "rundate")
