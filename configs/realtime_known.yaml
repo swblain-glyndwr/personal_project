@@ -2,4 +2,44 @@ dev:
   client: next_uk
   premium_brands: ['adriannapapell','allsaints','alohas','alphaindustries','angelandrocket','antiquerogue','ariat','armaniexchange','aubin','bakerbytedbaker','bananarepublic','barbour','barbourinternational','bardot','beaverbrooks','bensherman','benetton','boss','calvinklein','calvinkleinjeans','carvela','carvelacomfort','charlestyrwhitt','dickies','didriksons','diesel','dkny','dlx','dunelondon','ea7','emmebymarella','emporioarmani','fredperry','gstar','gant','ginabacconi','guess','guessjeans','hackett','harrybrown','hawesandcurtis','herminaathens','hobbs','hoff','hugo','hunter','ilsejacobsen','jack1t','jacquesdumanoir','jeffbanks','joebrowns','jonesbootmaker','justsheepskin','karenmillen','katespade','katespadenewyork','kgkurtgeiger','kurtgeigerlondon','lacoste','lakelandclothing','lakelandleather','laurenralphlauren','lemieux','lkbennett','luellagrey','lyleandscott','michaelkors','moss','naturalizer','nydj','oliversweeney','ospreylondon','paulsmithjunior','penelopechilvers','phaseeight','prettygreen','pspaulsmith','purecollection','radley','rains','ralphbyralphlauren','ralphlauren','reiss','remusuomo','samedelman','sandersandsandersltd','saucony','savilerowcompany','seafolly','sixstories','skopes','smallsaints','spanx','stevemadden','swarovski','sweatybetty','tedbaker','tedbakertailoring','thediamondstore','thenorthface','thewhitecompany','thomassabo','timberland','tommyhilfiger','tommyjeans','vagabondshoemakers','valentinobags','vionic','vivere','zavetticanada','sandersandsanderslt']
   super_premium_brands: ['7forallmankind','a.p.c.','agolde','americanvintage','annilu','armorlux','barbourxganni','belstaff','bymalenebirger','chintiandparker','citizensofhumanity','clarksoriginals','coach','desmondanddempsey','dragondiffusion','florere','ganni','goodamerican','hereustudio','lesdeux','loake','loefflerrandall','longchamp','lovestories','luvaj','manuatelier','marcjacobs','missoma','nanushka','otiumberg','p.enation','paige','parajumpers','poloralphlauren','ragandbone','rayban','remain','rixo','rotate','seanewyork','significantother','simkhai','sportyandrich','stellamccartneykids','tala','thehandbagclinic','thekooples','theupside','toryburch','varley','veja','versace','weekendmaxmara','wolford','marcjacobskids']
-
+  realtime_known_rules :  {"department_view": {
+        "feature": "department",
+        "action": "view",
+        "weight": 0.1
+    },
+    "category_view": {
+        "feature": "next_category",
+        "action": "view",
+        "weight": 0.1
+    },
+    "brand_view" :{
+    
+        "feature": "brand",
+        "action": "view",
+        "weight": 0.05
+    },
+    "premium_brand_view" :
+    {
+        "feature": "prem_level_brand",
+        "action": "view",
+        "weight": 0.05
+    },
+    "department_atb":
+    {
+        "feature": "department",
+        "action": "atb",
+        "weight": 0.1
+    },
+    "brand_atb":
+    {
+        "feature": "brand",
+        "action": "atb",
+        "weight": 0.1
+    },
+    "category_atb":
+    {
+        "feature": "next_category",
+        "action": "atb",
+        "weight": 0.1
+    }
+    }

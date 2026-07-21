@@ -41,7 +41,6 @@ def _settings_files() -> list[str]:
             "config/model_settings.yaml",
         ),
         _existing_path("configs/runtime/users.yaml", "config/users.yaml"),
-        _existing_path("configs/realtime_known.yaml", "config/realtime_known.yaml"),
     ]
 
 

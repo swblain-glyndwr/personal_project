@@ -4,20 +4,12 @@ logger = get_logger(__name__)
 
 
 def create_realtime_known_reranking_weighting_rules(
-    spark, reference_date: str, output_table: str
+    spark, rules: dict, reference_date: str, output_table: str
 ):
 
     import pyspark.sql.functions as F
-    import json
-    from pathlib import Path
 
-    # TODO migrate to central config functionality ?
-    file = "src/next_ads/realtime/decisioning/realtime_known.json"
-    rtcfg = json.loads(Path(file).read_text())
-
-    flattened_data = [
-        {**value, "ruleID": key} for key, value in rtcfg["rules"].items()
-    ]
+    flattened_data = [{**value, "ruleID": key} for key, value in rules.items()]
 
     rt_rules_df = spark.createDataFrame(flattened_data).select(
         F.col("ruleID"),

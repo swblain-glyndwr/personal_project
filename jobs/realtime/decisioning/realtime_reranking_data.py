@@ -104,8 +104,9 @@ def main(
     logger.info(f"Running for date: {reference_date}")
 
     logger.info("Loading realtime known reranking rules")
+    realtime_rules = config.realtime_known_rules.to_dict()
     create_realtime_known_reranking_weighting_rules(
-        spark, reference_date, RERANKING_RULES
+        spark, realtime_rules, reference_date, RERANKING_RULES
     )
 
     logger.info("Generating unique product features for realtime reranking")
