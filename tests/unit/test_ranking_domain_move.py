@@ -79,7 +79,12 @@ def test_theme_affinity_job_uses_model_entrypoints():
 
 
 def test_theme_affinity_scripts_live_under_model_jobs():
-    assert importlib.util.find_spec("scripts.theme_affinity") is None
+    try:
+        legacy_theme_affinity_spec = importlib.util.find_spec("scripts.theme_affinity")
+    except ModuleNotFoundError:
+        legacy_theme_affinity_spec = None
+
+    assert legacy_theme_affinity_spec is None
 
     for module_name in [
         "model_predict",

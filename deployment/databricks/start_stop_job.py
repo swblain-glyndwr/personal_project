@@ -18,8 +18,7 @@ dbutils = get_dbutils()
 
 
 def cancel_and_restart_job(workspace_client: WorkspaceClient, job_id: int) -> int:
-    """
-    Cancel any active runs of a job, wait for cancellation, then start a new run.
+    """Cancel any active runs of a job, wait for cancellation, then start a new run.
 
     Args:
         workspace_client: A Databricks WorkspaceClient instance

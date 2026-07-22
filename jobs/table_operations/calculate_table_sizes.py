@@ -26,13 +26,9 @@ finally:
 import os
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import (
-    delete_from_and_load,
-    create_table_from_df
-)
+from dsutils.etl import delete_from_and_load
 from dsutils.argparser import get_job_parser
 from next_ads.utils import config_manager
-from next_ads.data_validation import schemas
 import pandas as pd
 
 
@@ -55,14 +51,14 @@ def extract_table_paths(tables_dict: dict, prefix: str = "") -> dict:
     result = {}
     for key, value in tables_dict.items():
         current_key = f"{prefix}.{key}" if prefix else key
-        
+
         if isinstance(value, str):
             # This is a table path (Dynaconf @format string)
             result[current_key] = value
         elif isinstance(value, dict):
             # Recursively process nested dicts
             result.update(extract_table_paths(value, current_key))
-    
+
     return result
 
 
@@ -101,12 +97,12 @@ for schema in schemas:
 
     # Calculate sizes
     tables = []
-    
+
     total_size_gb = 0.0
     for table_key, table_path in sorted(tbls.items()):
         table_sizes = {}
         size_gb = get_table_size_gb(table_path)
-        
+
         if size_gb is not None:
             table_sizes["table_key"] = table_key
             table_sizes["table_size_GB"] = size_gb
