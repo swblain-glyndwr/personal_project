@@ -18,6 +18,7 @@ SQL_SEARCH_DIRS = [
     "sql/retrieval",
     "sql/retrieval/conditional_probability",
     "sql/ranking",
+    "sql/ranking/pctr",
     "sql/ranking/theme_affinity",
     "sql/decisioning",
     "sql/adsv2",

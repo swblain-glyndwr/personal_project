@@ -39,6 +39,7 @@ include:
 sync:
   include:
     - configs/**
+    - experiments/analytics_pctr/**
     - jobs/**
     - next_ads/**
     - next_ads/data/**
