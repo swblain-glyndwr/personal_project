@@ -6,6 +6,9 @@ This is the current DS-facing path for testing the Next Ads model lifecycle proc
 
 This runbook documents the jobs as they operate today. Do not run PREPROD or PROD model movement without release-owner agreement.
 
+For the visual model movement path, see
+[architecture/mlflow_model_lifecycle.md](architecture/mlflow_model_lifecycle.md).
+
 ## Reference Files
 
 - Shared lifecycle contract: [`src/next_ads/ml/lifecycle/spec.py`](../src/next_ads/ml/lifecycle/spec.py)

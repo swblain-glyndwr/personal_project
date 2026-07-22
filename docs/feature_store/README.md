@@ -18,6 +18,8 @@ The implementation is intentionally batch/offline first. It creates governed Dat
 | `adding_sql_built_feature.md` | 5111869 | DS-facing process for adding a reusable SQL-built feature to the feature store. |
 | `candidate_similarity.md` | Follow-up | Offline candidate similarity diagnostics concept; not part of current production model inputs. |
 | `migration_backlog.md` | 5111881 | Prioritised migration backlog and dependencies. |
+| [`../architecture/feature_store_flow.md`](../architecture/feature_store_flow.md) | Architecture | Mermaid view of the shared DEV Feature Store flow and model-building boundaries. |
+| [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Architecture | Wider NextAds model, Feature Store and MLflow overview. |
 
 ## Executable Contracts
 
