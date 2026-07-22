@@ -1,10 +1,22 @@
 import importlib
+import re
 from pathlib import Path
 
 from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+PROJECT_ROOT_FROM_FILE_RE = re.compile(
+    r"PROJECT_ROOT = Path\(__file__\)\.resolve\(\)\.parents\[(\d+)\]"
+)
+PROJECT_ROOT_FROM_NOTEBOOK_RE = re.compile(
+    r"PROJECT_ROOT = Path\(notebook_path\)\.parents\[(\d+)\]"
+)
+PROJECT_ROOT_PARENT_CHAIN_RE = re.compile(
+    r"PROJECT_ROOT = Path\((?:__file__|notebook_path)\)"
+    r"(?:\.resolve\(\))?\.parent(?:\b|\.)"
+)
 
 
 def test_target_package_structure_exists_and_imports():
@@ -77,6 +89,27 @@ def test_feature_layer_target_directories_exist_without_active_jobs():
     for target_dir in target_dirs:
         assert target_dir.is_dir()
         assert (target_dir / "README.md").is_file()
+
+
+def test_job_project_root_bootstrap_depths_match_file_location():
+    job_files = sorted((PROJECT_ROOT / "jobs").rglob("*.py"))
+
+    assert job_files
+
+    for job_file in job_files:
+        relative_path = job_file.relative_to(PROJECT_ROOT)
+        expected_depth = len(relative_path.parts) - 1
+        source = job_file.read_text(encoding="utf-8", errors="ignore")
+
+        assert not PROJECT_ROOT_PARENT_CHAIN_RE.search(source), relative_path
+
+        file_match = PROJECT_ROOT_FROM_FILE_RE.search(source)
+        if file_match:
+            assert int(file_match.group(1)) == expected_depth, relative_path
+
+        notebook_match = PROJECT_ROOT_FROM_NOTEBOOK_RE.search(source)
+        if notebook_match:
+            assert int(notebook_match.group(1)) == expected_depth, relative_path
 
 
 def test_repo_structure_documentation_describes_transition_rules():

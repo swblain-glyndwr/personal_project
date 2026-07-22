@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 try:
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
     # __file__ is not defined when running as a Databricks notebook
     from dsutils.dbc import get_dbutils
@@ -22,7 +22,7 @@ except NameError:
     )  # type: ignore # noqa
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
-    PROJECT_ROOT = Path(notebook_path).parent.parent
+    PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
