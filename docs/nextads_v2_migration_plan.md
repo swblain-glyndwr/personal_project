@@ -57,8 +57,9 @@ sql/adsv2/
 Keep v2 output table names, config keys, and downstream payload contracts stable
 until a separate compatibility/cutover plan is approved.
 
-CMS/data-pull work is deferred to PR `249403` (`feature/TL/cmsdata`) and should
-not be absorbed into this structural cleanup.
+CMS/data-pull work was reconciled through completed PR `249403`
+(`feature/TL/cmsdata`). Treat the current data-pull job/pipeline route as part
+of the post-v2 baseline, not as outstanding Ads v2 structural cleanup.
 
 ## Suggested v2 Move Order
 

@@ -307,8 +307,10 @@ are shaped and consumed by downstream systems. That makes it high-risk
 operational-transition work requiring explicit output contract checks and
 parallel-run evidence.
 
-CMS/data-pull work remains deferred to PR `249403` and should not be absorbed
-into the Ads v2 layout cleanup until that PR is reconciled.
+CMS/data-pull work was reconciled through completed PR `249403`
+(`feature/TL/cmsdata`). The current data-pull route now lives in the
+Databricks data-pull job/pipeline resources plus `src/next_ads/data/sort_order/`
+and `jobs/data_pull.py`; do not treat it as deferred Ads v2 cleanup.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -393,8 +395,10 @@ wrappers remain where needed, and output contracts are preserved.
    MLflow lifecycle PRs.
 7. `feature/SWB/5128910-adsv2-domain-move`
    Keep v2 entrypoints in clear route folders, move reusable logic into Ads v2
-   package subdomains after active v2 PRs and contracts are clear, and defer
-   CMS/data pull until PR `249403` is reconciled.
+   package subdomains after active v2 PRs and contracts are clear. CMS/data
+   pull has already been reconciled through PR `249403`, so leave the current
+   data-pull job/pipeline route in place unless a later data-domain story
+   explicitly changes it.
 8. `feature/SWB/5128910-realtime-reporting-move`
    Move realtime and reporting/results helpers into `src/next_ads/realtime`
    and `src/next_ads/reporting`.
