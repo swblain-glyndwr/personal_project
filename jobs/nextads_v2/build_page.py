@@ -20,7 +20,11 @@ finally:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pyspark.sql import functions as F
-from next_ads.Assignment import assign_random_ads_v2, assign_preranked_ads_v2
+from next_ads.Assignment import (
+    assign_random_ads_v2,
+    assign_preranked_ads_v2,
+    assign_nextgenads_v2
+)
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import chain_when_thens, delete_from_and_load, post_to_webhook
@@ -57,7 +61,7 @@ if not PAGE_TYPE:
     assert JOB_ENV.lower() == "dev", (
         f"page_type must be specified when running in {JOB_ENV}"
     )
-    PAGE_TYPE = "sb"  # Page type can be specified for interactive debugging
+    PAGE_TYPE = "ShoppingBagPage"  # Page type can be specified for debugging
     logger.warning(f"page_type not specified (defaulting to {PAGE_TYPE})")
 
 PAGE_TYPES = cfg["page_types"]
@@ -82,6 +86,8 @@ CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 PRERANKED_THEMES_TABLE = etl.map_tbl(
     tbls["preranked_ads_from_themes_v2_latest"], **tbl_args
 )
+NEXTGENADS_ASSIGNMENTS_TABLE = cfg["tables"
+                                   ]["read"]["nextgenads_assignments_latest"]
 
 # Read results data from prod schema dataset
 tbl_args_results = {
@@ -104,6 +110,20 @@ except KeyError as ke:
         post_to_webhook(WEBHOOK_URL, loc_key_msg)
     raise ke
 
+_pt_isolation_cfg = cfg["page_type_isolation"]
+PAGE_TYPE_ISOLATION_ENABLED = _pt_isolation_cfg["enabled"]
+PAGE_TYPE_ALLOWED_GROUPS = (
+    [
+        grp
+        for grp, page_types in _pt_isolation_cfg.get("page_type_map_v2", {}
+                                                     ).items()
+        if PAGE_TYPE in page_types
+    ]
+    + ["AllPages"]
+    if PAGE_TYPE_ISOLATION_ENABLED
+    else []
+)
+
 logger.info(f"Assigning Ads for Page Type: {PAGE_TYPE}")
 
 logger.info("Getting Ads")
@@ -118,6 +138,7 @@ df_ads = (
         "AudienceOnly",
         "Tags",
         "Themes",
+        "ClusterID",
     )
 )
 
@@ -128,6 +149,11 @@ df_ads_tgt = df_ads.fillna(0, subset=["AudienceOnly"]).where(
 # Create subset of ads for Best
 df_ads_tgt_best = df_ads_tgt.where(F.col("Themes").isNotNull()).where(
     F.col("Themes") != ""
+)
+
+# Create subset of ads for NextGenAds (cluster-based, no themes)
+df_ads_tgt_nextgenads = df_ads.filter(
+    F.col("ClusterID").isNotNull() & F.col("Themes").isNull()
 )
 
 # Drop unneeded columns following processing dataframe
@@ -194,6 +220,25 @@ df_assigned_best.cache()
 
 df_assigned_best_challenger = df_assigned_best
 
+USE_NEXTGENADS = any(
+    step.get("then", {}).get("col") == "UniqueAdIDNextGenAds"
+    for step in CELL_MAP.get("map", [])
+)
+if USE_NEXTGENADS:
+    logger.info(f"NextGenAds enabled for {PAGE_TYPE} - assigning cluster ads")
+    df_assigned_nextgenads = assign_nextgenads_v2(
+        df_ads=df_ads_tgt_nextgenads,
+        customer_to_cluster_table=NEXTGENADS_ASSIGNMENTS_TABLE,
+        df_cust=df_cells.select("AccountNumber"),
+        n_ads=3
+    )
+else:
+    logger.info(f"NextGenAds not referenced in {PAGE_TYPE} map - skipping")
+    df_assigned_nextgenads = spark.createDataFrame(
+        [], schema="AccountNumber STRING, UniqueAdID STRING, Rank INT"
+    )
+df_assigned_nextgenads.cache()
+
 logger.info("Determining Ad to show based on assignments and fixed cells")
 # Build a rank spine from the union of all [AccountNumber, Rank] pairs
 # across basic and best. This ensures we keep the maximum rank coverage
@@ -203,6 +248,7 @@ df_rank_spine = (
     df_assigned_basic.select("AccountNumber", "Rank")
     .unionByName(df_assigned_best.select("AccountNumber", "Rank"))
     .unionByName(df_assigned_best_challenger.select("AccountNumber", "Rank"))
+    .unionByName(df_assigned_nextgenads.select("AccountNumber", "Rank"))
     .distinct()
 )
 
@@ -232,6 +278,16 @@ df_assignments = (
             "AccountNumber",
             F.col("UniqueAdID").alias("UniqueAdIDBestChallenger"),
             F.col("TriggerScore").alias("TriggerScoreBestChallenger"),
+            "Rank",
+        ),
+        on=["AccountNumber", "Rank"],
+        how="left",
+    )
+    .join(
+        df_assigned_nextgenads.select(
+            "AccountNumber",
+            F.col("UniqueAdID").alias("UniqueAdIDNextGenAds"),
+            F.col("TriggerScore").alias("TriggerScoreNextGenAds"),
             "Rank",
         ),
         on=["AccountNumber", "Rank"],
@@ -290,6 +346,7 @@ df_ad_treatments = (
         "UniqueAdIDBasic",
         "UniqueAdIDBest",
         "UniqueAdIDBestChallenger",
+        "UniqueAdIDNextGenAds",
     )
     .withColumns(
         {
@@ -297,6 +354,7 @@ df_ad_treatments = (
             "UniqueAdIDBasic": F.lit("Basic"),
             "UniqueAdIDBest": F.lit("Best"),
             "UniqueAdIDBestChallenger": F.lit("BestChallenger"),
+            "UniqueAdIDNextGenAds": F.lit("NextGenAds"),
         }
     )
     .withColumn("Treatment", chain_when_thens(CELL_MAP["map"]))
@@ -332,6 +390,11 @@ df_ad_assigned = df_ad_assigned.withColumn(
         F.col("Treatment") == "AdSuppressed",
         F.col("TriggerScoreBest"),
     )
+    .when(
+        # NextGenAds uses cluster-based target_score as trigger score.
+        F.col("Treatment").isin("NextGenAds", "NextGenAdsPrem"),
+        F.col("TriggerScoreNextGenAds"),
+    )
     .otherwise(F.lit(None).cast("float")),
 ).withColumn(
     "TriggerScore",
@@ -342,6 +405,24 @@ df_ad_assigned = df_ad_assigned.withColumn(
         F.lit(None).cast("float"),
     ).otherwise(F.col("TriggerScore")),
 )
+
+# --- Page-type isolation suppression ---
+# Customers in a page-type isolation bucket (e.g. SB_Only) should only
+# receive ads on their assigned page type. For all other page types,
+# UniqueAdIDAssigned is overwritten with 'NoAd' so no ad is served.
+if PAGE_TYPE_ISOLATION_ENABLED:
+    logger.info(
+        f"Page-type isolation enabled. "
+        f"Allowed groups for {PAGE_TYPE}: {PAGE_TYPE_ALLOWED_GROUPS}"
+    )
+    df_ad_assigned = df_ad_assigned.withColumn(
+        "UniqueAdIDAssigned",
+        F.when(
+            F.col("PageTypeIsolation").isNotNull()
+            & ~F.col("PageTypeIsolation").isin(PAGE_TYPE_ALLOWED_GROUPS),
+            F.lit("NoAd"),
+        ).otherwise(F.col("UniqueAdIDAssigned")),
+    )
 
 
 # Check and warn if null Treatments exist
@@ -383,6 +464,7 @@ df_ad_assigned = df_ad_assigned.withColumn(
     "UniqueAdIDBasic",
     "UniqueAdIDBest",
     "UniqueAdIDBestChallenger",
+    "UniqueAdIDNextGenAds",
     "Treatment",
     "UniqueAdIDMeasurement",
     "UniqueAdIDAssigned",
@@ -409,6 +491,7 @@ df_cells.unpersist()
 df_assigned_basic.unpersist()
 df_assigned_best.unpersist()
 df_assigned_best_challenger.unpersist()
+df_assigned_nextgenads.unpersist()
 df_assignments.unpersist()
 
 logger.info("Run complete")

@@ -26,6 +26,7 @@ CREATE TABLE {catalog}.{schema}.{client}_nextads_control_sheet_raw_v2 (
   Tags STRING,
   Themes STRING,
   AdVariant STRING,
+  ClusterID STRING,
   rundate DATE,
   CONSTRAINT `pk_{client}_nextads_control_sheet_raw_v2` PRIMARY KEY (`UniqueAdID`))
 USING delta

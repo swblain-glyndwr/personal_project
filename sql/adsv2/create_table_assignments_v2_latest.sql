@@ -5,6 +5,7 @@ CREATE TABLE  {catalog}.{schema}.{client}_nextads_assignments_v2_latest (
     UniqueAdIDBasic string,
     UniqueAdIDBest string,
     UniqueAdIDBestChallenger string,
+    UniqueAdIDNextGenAds string,
     Treatment string,
     UniqueAdIDMeasurement string,
     UniqueAdIDAssigned string not null,

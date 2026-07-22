@@ -66,8 +66,23 @@ def test_page_build_job_uses_moved_non_v2_entrypoints():
     trigger_tasks = [
         "trigger_assignment_validation_job",
         "trigger_masid_handoff_check_job",
-        "trigger_payload_export_job",
         "trigger_plp_gs_delivery_job",
+    ]
+    for task_key in trigger_tasks:
+        assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
+            "../../../jobs/orchestration/trigger_databricks_job.py"
+        )
+
+
+def test_v2_page_build_job_uses_moved_non_v2_entrypoints():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "mktg_next_uk_nextads_page_build_cicd_v2",
+    )
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+
+    trigger_tasks = [
+        "trigger_payload_export_job",
     ]
     for task_key in trigger_tasks:
         assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
@@ -77,8 +92,8 @@ def test_page_build_job_uses_moved_non_v2_entrypoints():
 
 def test_v2_page_build_entrypoint_stays_on_scripts():
     job = _load_job(
-        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml",
-        "mktg_next_uk_nextads_page_build_cicd",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "mktg_next_uk_nextads_page_build_cicd_v2",
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
@@ -102,6 +117,7 @@ def test_route_oriented_entrypoint_files_exist_without_domain_wrappers():
 
     for folder in ["nextads_main", "decisioning", "ranking", "retrieval", "results"]:
         assert not (PROJECT_ROOT / "jobs" / folder).exists()
+
 
 def test_obsolete_main_wrappers_are_removed():
     for entrypoint in [

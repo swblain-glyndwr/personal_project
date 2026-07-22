@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import pyspark.sql.functions as F
 
 try:
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -35,7 +36,7 @@ from next_ads.control.load_control_sheet import (
     process_control_sheet,
     validate_control_sheet_inputs,
 )
-from next_ads.utils import config_manager
+from next_ads.utils import config_manager, etl
 from next_ads.common.paths import load_client_config
 
 
@@ -67,6 +68,10 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
     location_config = run_context.location_config
     output_tables = run_context.output_tables
     logger.info(f"Write schema set to {run_context.schema_write}")
+
+    tbls = cfg["tables"]["write"]
+    tbl_args = {"catalog": config.catalog_write, "schema": config.schema_write, "client": CLIENT}
+    UNDERPERFORMING_ADS = etl.map_tbl(tbls["results_underperforming_ads"], **tbl_args)
 
     logger.info(f"Valid locations: {' '.join(location_config.valid_locations)}")
     logger.info(f"Locations to read: {' '.join(location_config.read_locations)}")
@@ -216,6 +221,8 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
 
     logger.info("Stripping empty UniqueAdID entries")
     target_cols = (spark.table(run_context.target_table).drop("rundate")).columns
+    logger.info(f"Reading underperforming ads from {UNDERPERFORMING_ADS}")
+    df_underperforming_ads = spark.table(UNDERPERFORMING_ADS)
     processed_control_sheet = process_control_sheet(
         df_control_sheet=df_ctrl_raw,
         df_placements=df_placements,
@@ -224,8 +231,22 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         date_format=run_context.date_format,
         date_regex=run_context.date_regex,
         target_cols=target_cols,
+        df_underperforming_ads=df_underperforming_ads,
     )
     df_processed = processed_control_sheet.df
+
+    underperforming_ads = (
+        df_processed
+        .filter(F.col('IsUnderperforming'))
+        .select('UniqueAdID')
+        .distinct()
+    )
+    logger.info(
+        f'IsUnderperforming: {underperforming_ads.count():,} ads flagged'
+    )
+    logger.info(
+        f'IsUnderperforming: {underperforming_ads.show(truncate=False)}'
+    )
 
     if len(processed_control_sheet.invalid_date_ad_ids) > 0:
         date_fmt_msg = (

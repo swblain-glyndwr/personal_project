@@ -273,6 +273,13 @@
             "basic_within": "AlgoDivision",
             "map": [
                 {
+                    "when": [
+                        {"col": "AdHocABTest1", "op": "eq", "val": "A"},
+                        {"col": "ShoppingBagTest1", "op": "eq", "val": "Best"}
+                    ],
+                    "then": {"col": "UniqueAdIDNextGenAds"}
+                },
+                {
                     "when": [{"col": "ShoppingBagTest1", "op": "eq", "val": "Basic"}],
                     "then": {"col": "UniqueAdIDBasic"}
                 },
@@ -1776,6 +1783,8 @@
             "bq_sessions_app": "marketingdata_prod.warehouse.bq_sessions_next_uk_app",
             "bq_screens": "marketingdata_prod.warehouse.bq_screens_next_uk_app",
             "bq_views_app": "marketingdata_prod.warehouse.bq_views_next_uk_app",
+            "bq_atbs" : "marketingdata_prod.warehouse.bq_atbs_next_uk",
+            "bq_atbs_app" : "marketingdata_prod.warehouse.bq_atbs_next_uk_app",
             "baskets": "marketingdata_prod.warehouse.baskets_uk_3y",
             "preference_framework": "marketingdata_prod.warehouse.uk_pf",
             "product_catalog": "marketingdata_prod.warehouse.product_catalog_history",
@@ -1785,7 +1794,8 @@
             "preranked_ads_latest": "marketingdata_prod.ds_sandbox.next_uk_nextads_preranked_ads_latest",
             "credit_ad_accounts": "marketingdata_prod.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915",
             "kids_age_groups_latest": "marketingdata_prod.warehouse.purchased_age_groups_latest",
-            "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest"
+            "nextgenads_assignments_latest":"marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest",
+            "sort_order_latest": "marketingdata_prod.warehouse.next_ads_sort_order_latest"
         },
         "write": {
             "ad_items": "{catalog}.{schema}.{client}_nextads_ad_items",
@@ -1843,7 +1853,12 @@
             "conditional_probability_customer_item_interactions_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_customer_item_interactions_latest",
             "conditional_probability_customer_theme_interactions_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_customer_theme_interactions_latest",
             "conditional_probability_theme_associations_latest": "{catalog}.{schema}.{client}_nextads_conditional_probability_theme_associations_latest",
-            "viewed_bought_latest": "{catalog}.{schema}.{client}_nextads_viewed_bought_latest"
+            "viewed_bought_latest": "{catalog}.{schema}.{client}_nextads_viewed_bought_latest",
+            "nextads_items_catid": "{catalog}.{schema}.{client}_nextads_items_catid",
+            "nextads_advert_items_profile_similarity": "{catalog}.{schema}.{client}_nextads_advert_items_profile_similarity",
+            "nextads_advert_advert_association":"{catalog}.{schema}.{client}_nextads_advert_advert_association",
+            "nextads_advert_items_catid": "{catalog}.{schema}.{client}_nextads_advert_items_catid"
+
         }
     },
 
@@ -1968,6 +1983,12 @@
                 "PL31", "PL32", "PL33", "PL34", "PL35", "PL36", "PL37", "PL38", "PL39", "PL40"],
             "SB_Only": ["SB1", "SB2"],
             "OC_Only": ["OC1", "OC2"]
+        },
+        "page_type_map_v2": {
+            "HP_Only": ["HomePage"],
+            "PLP_Only": ["ProductListingPage"],
+            "SB_Only": ["ShoppingBagPage"],
+            "OC_Only": ["CheckoutPage"]
         }
     }
 }

@@ -5,18 +5,12 @@ from dsutils.etl import post_to_webhook
 from next_ads.decisioning.assignment import get_ad_feedback_scores, greedy_assignment
 
 
-def apply_auto_trading_filter(df_ads, spark, underperforming_ads: str, enabled: bool, logger):
+def apply_auto_trading_filter(df_ads, enabled: bool, logger):
     if not enabled:
         return df_ads
 
     count_df_ads = df_ads.select("UniqueAdID").distinct().count()
-    filtered_df = (
-        df_ads.join(
-            spark.table(underperforming_ads),
-            on=["UniqueAdID", "rundate"],
-            how="left_anti",
-        ).cache()
-    )
+    filtered_df = df_ads.filter(~F.col("IsUnderperforming")).cache()
     count_df_ads_pruned = filtered_df.select("UniqueAdID").distinct().count()
     logger.info(
         f"AutoTrading: removed {count_df_ads - count_df_ads_pruned:,} "

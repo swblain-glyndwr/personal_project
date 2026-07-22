@@ -164,7 +164,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
       - task_key: trigger_page_build_job
         depends_on:
           - task_key: combine_customer_cells
-          - task_key: map_theme_scores_to_ads_v2
+          - task_key: map_theme_scores_to_ads
         spark_python_task:
           python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:
@@ -172,6 +172,22 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}
             - --job-name
             - "mktg_next_uk_nextads_page_build"
+            - --fail-on-submit-error
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 3600
+      - task_key: trigger_page_build_v2_job
+        depends_on:
+          - task_key: combine_customer_cells
+          - task_key: map_theme_scores_to_ads_v2
+        spark_python_task:
+          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
+          parameters:
+            - --job-id
+            - ${resources.jobs.mktg_next_uk_nextads_page_build_cicd_v2.id}
+            - --job-name
+            - "mktg_next_uk_nextads_page_build_v2"
             - --fail-on-submit-error
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}

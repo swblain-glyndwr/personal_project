@@ -56,7 +56,6 @@ def run_theme_score_mapping(
     control_sheet_latest = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
     customer_cells_latest = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
     kids_age_groups = cfg["tables"]["read"]["kids_age_groups_latest"]
-    underperforming_ads = etl.map_tbl(tbls["results_underperforming_ads"], **tbl_args)
     sessions = cfg["tables"]["read"]["bq_sessions"]
     actions = cfg["tables"]["read"]["bq_actions"]
 
@@ -91,8 +90,6 @@ def run_theme_score_mapping(
     df_ads = load_control_ads(spark, control_sheet_latest)
     df_ads = apply_auto_trading_filter(
         df_ads,
-        spark,
-        underperforming_ads,
         auto_trading_switch,
         logger,
     )

@@ -6,7 +6,7 @@ Last refreshed from Databricks: 2026-07-03
 
 This page describes the deployed NextAds Databricks job shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs trigger other jobs, and where reusable model-building routes such as the feature store sit alongside the operational delivery routes.
 
-This is a runtime map, not a deployment policy. For target availability rules, see [nextads_databricks_job_environment_matrix.md](nextads_databricks_job_environment_matrix.md).
+This is a runtime map, not a deployment policy. For target availability rules, see [nextads_databricks_job_environment_matrix.md](nextads_databricks_job_environment_matrix.md). For the wider model, Feature Store and MLflow architecture view, see [../architecture/nextads_model_feature_overview.md](../architecture/nextads_model_feature_overview.md).
 
 ## How to Read This
 

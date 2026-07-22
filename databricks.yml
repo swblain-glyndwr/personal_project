@@ -8,6 +8,7 @@ bundle:
 include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
@@ -35,7 +36,7 @@ include:
   - pipelines/databricks/jobs/preprod_dependency_smoke.yml
   - pipelines/databricks/jobs/prod_table_contract_smoke.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml
-
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_data.yml
 sync:
   include:
     - configs/**

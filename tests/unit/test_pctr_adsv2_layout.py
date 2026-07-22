@@ -37,11 +37,19 @@ def test_analytics_pctr_job_points_to_experiment_and_stays_dev_only_paused():
         for task in job["tasks"]
         if "notebook_task" in task
     ]
+    python_paths = [
+        task["spark_python_task"]["python_file"]
+        for task in job["tasks"]
+        if "spark_python_task" in task
+    ]
     assert notebook_paths
     assert all(
         path.startswith("${workspace.file_path}/experiments/analytics_pctr/")
         for path in notebook_paths
     )
+    assert python_paths == [
+        "${workspace.file_path}/experiments/analytics_pctr/run_predictions.py"
+    ]
 
 
 def test_adsv2_entrypoints_remain_in_current_route_folders():
@@ -49,9 +57,9 @@ def test_adsv2_entrypoints_remain_in_current_route_folders():
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
     )
-    page_build_job = load_job(
-        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml",
-        "mktg_next_uk_nextads_page_build_cicd",
+    page_build_v2_job = load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "mktg_next_uk_nextads_page_build_cicd_v2",
     )
     payload_job = load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml",
@@ -59,7 +67,7 @@ def test_adsv2_entrypoints_remain_in_current_route_folders():
     )
 
     main_tasks = {task["task_key"]: task for task in main_job["tasks"]}
-    page_tasks = {task["task_key"]: task for task in page_build_job["tasks"]}
+    page_v2_tasks = {task["task_key"]: task for task in page_build_v2_job["tasks"]}
 
     assert main_tasks["load_control_sheet_v2"]["spark_python_task"][
         "python_file"
@@ -67,7 +75,7 @@ def test_adsv2_entrypoints_remain_in_current_route_folders():
     assert main_tasks["map_theme_scores_to_ads_v2"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"
-    assert page_tasks["build_page_v2"]["for_each_task"]["task"][
+    assert page_v2_tasks["build_page_v2"]["for_each_task"]["task"][
         "spark_python_task"
     ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
     assert payload_job["tasks"][0]["spark_python_task"]["python_file"] == (
