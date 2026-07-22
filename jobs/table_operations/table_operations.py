@@ -46,7 +46,7 @@ def bootstrap_project_imports() -> None:
 
 def load_create_tables_module():
     bootstrap_project_imports()
-    return importlib.import_module("scripts.table_operations.create_tables")
+    return importlib.import_module("jobs.table_operations.create_tables")
 
 
 def parse_bool(value: str | bool) -> bool:

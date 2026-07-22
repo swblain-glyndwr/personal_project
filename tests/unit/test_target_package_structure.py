@@ -1,7 +1,7 @@
 import importlib
 from pathlib import Path
 
-import yaml
+from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -31,10 +31,10 @@ def test_target_package_structure_exists_and_imports():
 
 
 def test_existing_databricks_job_entrypoints_stay_on_scripts_or_jobs():
-    job_config = yaml.safe_load(
-        (PROJECT_ROOT / "pipelines/databricks/jobs/mktg_next_uk_nextads.yml").read_text()
+    job = load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
+        "mktg_next_uk_nextads_cicd",
     )
-    job = job_config["resources"]["jobs"]["mktg_next_uk_nextads_cicd"]
 
     python_files_by_task = {}
     for task in job["tasks"]:
@@ -56,6 +56,8 @@ def test_existing_databricks_job_entrypoints_stay_on_scripts_or_jobs():
         "../../../jobs/nextads_cells/",
         "../../../jobs/nextads_candidates/",
         "../../../jobs/nextads_assignment/",
+        "../../../jobs/nextads_control/",
+        "../../../jobs/nextads_delivery/",
         "../../../jobs/orchestration/",
     )
     assert all(path.startswith(allowed_job_roots) for path in python_files)

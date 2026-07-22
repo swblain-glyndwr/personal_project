@@ -123,7 +123,7 @@ def test_deployment_pipeline_has_develop_only_dev_feature_store_route():
 
 
 def test_dev_integration_setup_job_is_target_specific():
-    setup = load_yaml("pipelines/databricks/jobs/dev_integration_setup.yml")
+    setup = load_yaml("pipelines/databricks/jobs/table_operations.yml")
     jobs = setup["targets"]["DEV_INTEGRATION"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_dev_integration_setup"]
     migrate_job = jobs["mktg_next_uk_nextads_dev_integration_migrate"]
@@ -132,41 +132,62 @@ def test_dev_integration_setup_job_is_target_specific():
     migrate_task = migrate_job["tasks"][0]
     alter_task = alter_job["tasks"][0]
 
-    assert set(setup["targets"]) == {"DEV_INTEGRATION"}
+    for target_name, target_config in setup["targets"].items():
+        target_jobs = target_config["resources"]["jobs"]
+        if target_name == "DEV_INTEGRATION":
+            continue
+        assert "mktg_next_uk_nextads_dev_integration_setup" not in target_jobs
+        assert "mktg_next_uk_nextads_dev_integration_migrate" not in target_jobs
+        assert "mktg_next_uk_nextads_dev_integration_alter" not in target_jobs
+    assert "mktg_next_uk_nextads_table_operations" in jobs
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../../jobs/table_operations/create_tables.py"
+        == "../../../jobs/table_operations/table_operations.py"
     )
     assert setup_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "create_missing_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_mutating",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
     ]
     assert migrate_task["task_key"] == "recreate_tables"
     assert migrate_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "recreate_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_destructive",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
-        "--droptables",
-        "True",
     ]
     assert alter_task["task_key"] == "alter_tables"
     assert alter_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "alter_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_mutating",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
-        "--altertables",
-        "True",
     ]
 
 
@@ -186,7 +207,10 @@ def test_personal_dev_setup_job_populates_current_user_schema():
         setup_task["spark_python_task"]["python_file"]
         == "../../../jobs/table_operations/setup_dev_tables.py"
     )
-    assert setup_task["spark_python_task"]["parameters"] == ["--standard"]
+    assert setup_task["spark_python_task"]["parameters"] == [
+        "--mode",
+        "{{job.parameters.setup_mode}}",
+    ]
     assert setup_task["libraries"] == "${var.shared_libraries}"
 
 
@@ -234,26 +258,37 @@ def test_preprod_route_is_release_branch_only():
 
 
 def test_preprod_setup_job_is_target_specific_and_non_destructive():
-    setup = load_yaml("pipelines/databricks/jobs/preprod_setup.yml")
+    setup = load_yaml("pipelines/databricks/jobs/table_operations.yml")
     jobs = setup["targets"]["PREPROD"]["resources"]["jobs"]
     setup_job = jobs["mktg_next_uk_nextads_preprod_setup"]
     setup_task = setup_job["tasks"][0]
 
-    assert set(setup["targets"]) == {"PREPROD"}
+    for target_name, target_config in setup["targets"].items():
+        target_jobs = target_config["resources"]["jobs"]
+        if target_name == "PREPROD":
+            continue
+        assert "mktg_next_uk_nextads_preprod_setup" not in target_jobs
+    assert "mktg_next_uk_nextads_table_operations" in jobs
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
-        == "../../../jobs/table_operations/create_tables.py"
+        == "../../../jobs/table_operations/table_operations.py"
     )
     assert setup_task["spark_python_task"]["parameters"] == [
+        "--operation",
+        "create_missing_tables",
         "--client",
         "next_uk",
         "--job_env",
         "${var.job_parameter_environment_name}",
+        "--confirm_mutating",
+        "true",
+        "--dry_run",
+        "false",
         "--log_level",
         "INFO",
     ]
-    assert "--droptables" not in setup_task["spark_python_task"]["parameters"]
+    assert "--confirm_destructive" not in setup_task["spark_python_task"]["parameters"]
 
 
 def test_preprod_dependency_smoke_job_is_metadata_only_and_target_specific():

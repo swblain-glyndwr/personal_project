@@ -135,7 +135,7 @@ def test_drop_tables_executes_confirmed_drop_statements():
 
 
 def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
-    monkeypatch.delitem(sys.modules, "scripts.table_operations.create_tables", raising=False)
+    monkeypatch.delitem(sys.modules, "jobs.table_operations.create_tables", raising=False)
     monkeypatch.setattr(
         table_operations_module,
         "bootstrap_project_imports",
@@ -151,7 +151,7 @@ def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
         dry_run=False,
     )
 
-    assert "scripts.table_operations.create_tables" not in sys.modules
+    assert "jobs.table_operations.create_tables" not in sys.modules
 
 
 def test_resolve_project_root_handles_databricks_exec_without_file(monkeypatch):
