@@ -833,6 +833,8 @@ def build_advert_affinity(
             F.col("lift"),
             F.col("lift_adjusted"),
             F.col("lift_adjusted_ranking"),
+            F.col("overlap_proportion"), 
+            F.col("intersection_count"),
             *(
                 [
                     F.col(i)
