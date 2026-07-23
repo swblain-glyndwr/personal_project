@@ -65,7 +65,12 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         max_retries: 2
         min_retry_interval_millis: 300000
         timeout_seconds: 3600
+      - task_key: trigger_data_pull_for_CMS_pull
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_data_pull.id}
       - task_key: load_control_sheet_v2
+        depends_on:
+          - task_key: trigger_data_pull_for_CMS_pull
         spark_python_task:
           python_file: ../../scripts/load_control_sheet_v2.py
           parameters:
