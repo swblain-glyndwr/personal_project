@@ -28,7 +28,7 @@
 - [DevOps](#devops)
     - Deployment patterns
     - Git strategy
-- [Testing, Monitoring and QA](#testing-monitoring-and-qa)  
+- [Testing, Monitoring and Validation](#testing-monitoring-and-validation)
 </br>
 - [_Appendix_](#appendix)
     - _Other useful resources_
@@ -79,7 +79,7 @@ Prior to 1st Jan 2026, `CLIENT` was inferred from the job name when run as a job
 Examples of various assignment configurations for different locations have been provided in the Appendix.
 
 ### Assignments
-The production assignments job is: [mktg_next_uk_nextads_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/423717571222490?o=6188831950334199) and is defined in the `resources/jobs/` directory of this repo, which is included in the Asset Bundle.
+The production assignments job is: [mktg_next_uk_nextads_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/423717571222490?o=6188831950334199) and is defined in the `pipelines/databricks/jobs/` directory of this repo, which is included in the Asset Bundle.
 
 This job:
 - Reads, validates and loads the control sheet from google sheets into Databricks
@@ -87,14 +87,14 @@ This job:
 - Performs inferencing using the lightweight model
 - Applies the ad feedback loop (if enabled)
 - Assigns ads to customers for each location, depending on model scores, config and customer cells
-- Performs QA checks on the assignments and tables (e.g. Primary Key validity)
+- Performs validation checks on the assignments and tables (e.g. Primary Key validity)
 
 #### Time constraints
 The final `assignments` and `assignments_latest` tables **must be written to before midnight** (i.e. all iterations of the `build_page` task must finish before 00:00). This is because the write functions that are currently implemented (using `dsutils`) append a `rundate` column that reflects the date of the write operation.
 
 If the `assignments` tables are populated after midnight, the `rundate` will be the following date, which will cause the assignments data to be out of sync when joining to the browsing data during results processing. The results assume `SessionDate` (browsing data) aligns with `rundate` from the `assignments` table *plus one day*
 
-There is a check in the QA script that will raise an assertion error if there are multiple dates in the `assignments_latest` table (this also flags instances of the `assignments_latest` table not having been cleared properly from the previous day's run). Multiple dates in this table would therefore flag the case where the `build_page` task has bridged midnight (i.e. some locations were written with `rundate` as one date, and other locations with `rundate` as the next date). It is important to note that there are currently no checks to flag severe overrunning of an upstream task, i.e. where all locations are written to the assignments table after midnight.
+There is a check in the assignment validation script that will raise an assertion error if there are multiple dates in the `assignments_latest` table (this also flags instances of the `assignments_latest` table not having been cleared properly from the previous day's run). Multiple dates in this table would therefore flag the case where the `build_page` task has bridged midnight (i.e. some locations were written with `rundate` as one date, and other locations with `rundate` as the next date). It is important to note that there are currently no checks to flag severe overrunning of an upstream task, i.e. where all locations are written to the assignments table after midnight.
 
 At the time of writing (Jan 2026), the [mktg_next_uk_nextads_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/423717571222490?o=6188831950334199) job runs from 6pm-8:30pm, therefore comfortably finishing before midnight, but it is important to be aware of this requirement.   
 
@@ -109,14 +109,14 @@ To restart assignments, simply unpause the `mktg_next_uk_nextads_cicd` job.
 The ad feedback loop centres around the function `Assignment.get_ad_feedback_scores()`, which is applied to the base relevance scores provided by whichever internal or extenal model is being used. The function boosts/penalises ads in the final ranking based on the ad's current commercial performance. There is a [wiki page](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_wiki/wikis/Directory%20Marketing%20Platform/50090/Ad-Feedback-Loop) that runs through how the loop works, with a number of worked examples.
 
 #### Deploying the jobs to different bundle targets
-The next-ads jobs can be deployed to different targets, i.e. DEV/PREPROD/PROD (see `databricks.yml`), using the [next-uk-nextads-ci-cd](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_build?definitionId=23267) pipeline, which is defined in the `azure-pipelines.yml` file in this repo. It is also possible to deploy to non-prod targets using the Databricks CLI. These non-prod deployments are very useful for end-to-end testing of the next-ads proces in a way that does not affect prod. This is achieved by parameterised schema mapping, where deployed prod runs will write data to `warehouse`, and non-prod deployments will automatically switch to writing to the `ds_sandbox` schema. `JOB_ENV` is defined at the start of each script, which in turn dictates the write schema, as mapped in the associated `config/*.json` file.
+The next-ads jobs can be deployed to different targets, i.e. DEV/PREPROD/PROD (see `databricks.yml`), using the [next-uk-nextads-ci-cd](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_build?definitionId=23267) pipeline, which is defined in the `azure-pipelines.yml` file in this repo. It is also possible to deploy to non-prod targets using the Databricks CLI. These non-prod deployments are very useful for end-to-end testing of the next-ads process in a way that does not affect prod. This is achieved by parameterised schema mapping, where deployed prod runs will write data to `warehouse`, and non-prod deployments will automatically switch to writing to the `ds_sandbox` schema. `JOB_ENV` is defined at the start of each job entrypoint, which in turn dictates the write schema, as mapped in the associated client config under `configs/clients/`.
 
 NOTE: When running scripts interactively, the process will default to 'dev' at runtime, via the same `dsutils.argparser`.
 
 For more on the specifics of this dev/prod delineation, see the [DevOps](#devops) section below.
 
 ### Results
-The production results job is: [mktg_next_uk_nextads_results_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/350665639525302?o=6188831950334199) and is defined in the `resources/jobs/` directory of this repo, which is included in the Asset Bundle.
+The production results job is: [mktg_next_uk_nextads_results_cicd](https://adb-6188831950334199.19.azuredatabricks.net/jobs/350665639525302?o=6188831950334199) and is defined in the `pipelines/databricks/jobs/` directory of this repo, which is included in the Asset Bundle.
 
 This job:
 - Maps ad/MASID assignments to browsing data and infers impressions (Next Ads doesn't currently have a functional GA tagging setup)
@@ -128,7 +128,7 @@ A high-level explanation of the results methodology and associated caveats are o
 The "fallow" (long-term) control group for ads is refreshed periodically as part of good measurement practice. Refreshing the control group can be invoked by passing today's date (fmt: "YYYY-mm-dd") to the named argument `--refresh_control_date` of the `assign_customer_cells.py` script. For example, to refresh the control group on 8th Jan 2026:
 
 ```sh
-python scripts/assign_customer_cells.py --refresh_control_date "2026-01-08"
+python jobs/nextads_cells/assign_customer_cells.py --refresh_control_date "2026-01-08"
 ```
 
 - When refreshing the control group is invoked, the current control cell assignments (`fixed_cells_latest` table) are archived to the `fixed_cells_history` table, the `fixed_cells_latest` table is truncated, and all customers are assigned new fixed cells. Given that refreshing the control group enables customers to be in and out of the control group at different points in time, it is important to capture this so that we know which cells a given customer was in on a given date (i.e. was a customer in the control group or not). This enables us to retain the ability to recalculate/backcalculate results, if necessary. 
@@ -140,7 +140,7 @@ python scripts/assign_customer_cells.py --refresh_control_date "2026-01-08"
 
 Starting 1st Jan 2026, all staff customers (identified by `warehouse.svoccust_hist.specialaccountindicator == 'S'`) are automatically forced into the 'Ads' (i.e. not the fallow control), 'Best' and 'Challenger' fixed cells to ensure that all those working on the ads project can see ads on site. This blanket rule obviously applies to many more staff customers than just those that are directly involved in the project, but is much cleaner and easier to maintain than managing smaller bespoke lists of staff that work directly on ads.
 
-Forcing staff customers to not be in the control group would bias results without correction (staff are typically higher-value customers, and would not be represented in the control group). Therefore customers marked as staff during the `scripts/assign_customer_cells.py` script are subsequently excluded from results processing in `scripts/results.py`.
+Forcing staff customers to not be in the control group would bias results without correction (staff are typically higher-value customers, and would not be represented in the control group). Therefore customers marked as staff during the `jobs/nextads_cells/assign_customer_cells.py` script are subsequently excluded from results processing in `jobs/nextads_reporting/`.
 
 It should be noted that staff status is captured at the time the customer is 'new' to the `assign_customer_cells.py` script, so this customer status reflects that a customer "has been staff" moreso than this customer "is staff". If a customer was staff and is no longer staff, this change in staff status will be reflected when the control group is next refreshed. Additionally, when back calculating results, ensuring that the correct version of `fixed_cells_latest` or `fixed_cells_history` is used is important for ensuring the integrity of this staff customer measurement exclusion.
 
@@ -153,7 +153,7 @@ There are various propensity modelling jobs external to Next Ads, but these no l
 
 When they were utilised as the targeting scores for Next Ads:
 - The "Models" column of the control sheet contained a reference to the model(s) to be used for targeting that ad
-- The task `scripts/build_targeting_scores.py` would take these model references in the control sheet and generate the necessary scores using the view [next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199) (in which the column names match to the options in the control sheet) and output them to the `targeting_scores_latest` table, which would then be picked up by the `scripts/build_page.py` script for each location build.
+- The task `jobs/nextads_candidates/build_targeting_scores.py` would take these model references in the control sheet and generate the necessary scores using the view [next_uk_nextads_model_scores_latest](https://adb-6188831950334199.19.azuredatabricks.net/explore/data/marketingdata_prod/warehouse/next_uk_nextads_model_scores_latest?o=6188831950334199) (in which the column names match to the options in the control sheet) and output them to the `targeting_scores_latest` table, which would then be picked up by the `jobs/nextads_assignment/build_page.py` script for each location build.
 
 ##### ALS
 The ALS model was part of the [mktg_next_ads_data_pull](https://adb-6188831950334199.19.azuredatabricks.net/jobs/201505739615907?o=6188831950334199) job, but it's output is no longer used.
@@ -193,7 +193,7 @@ These tables served as inputs to various external models used for Next Ads:
 
 
 ### Unity Catalog tables
-Numerous Unity Catalog tables serve as inputs to the engine's assignments and results process. For complete and up-to-date details of these tables, see the relevant config file (i.e. `config/*.json` for the tables used as inputs to Next UK Next Ads).
+Numerous Unity Catalog tables serve as inputs to the engine's assignments and results process. For complete and up-to-date details of these tables, see the relevant config file under `configs/clients/`.
 
 ## Downstream Processes
 ### MASID job
@@ -243,7 +243,7 @@ In the current implementation of real-time ads, the Data Engineering (DE) team h
 
 #### Real-Time Unknown Reporting
 
-`warehouse.rtp_exponea_tracking` provides a record of real-time unknown MASID changes for given anonymous `rpid` (alongside metadata like timestamp). Eligible sessions are randomly split into Control/Treatment using an 85/15 split, with control sessions indicated by having `PS1_Z` in their MASID. This information can be combined with the BQ tables (actions and sessions) available in the Unity Catalog to get a top-line read of CVR, AOV, and PRV for Control/Treatment sessions. The results script `scripts/realtime_results_topline.py` handles this analysis.
+`warehouse.rtp_exponea_tracking` provides a record of real-time unknown MASID changes for given anonymous `rpid` (alongside metadata like timestamp). Eligible sessions are randomly split into Control/Treatment using an 85/15 split, with control sessions indicated by having `PS1_Z` in their MASID. This information can be combined with the BQ tables (actions and sessions) available in the Unity Catalog to get a top-line read of CVR, AOV, and PRV for Control/Treatment sessions. The results script `jobs/nextads_reporting/realtime_results.py` handles this analysis.
 
 #### Real-Time Known Reporting
 
@@ -260,14 +260,19 @@ See [cicd_pipeline_guide](/docs/cicd_pipeline_guide.md).
 
 ```md
 next-ads/
-├── azure-pipelines.yml          # Main pipeline
-├── databricks.yml               # DAB configuration
-├── devops/                      # DevOps resources
-│   ├── scripts/
-│   ├── templates/
-│   └── variables/
-├── resources/                   # DAB resources
-│   └── jobs/
+|-- azure-pipelines.yml          # Main pipeline
+|-- databricks.yml               # DAB configuration
+|-- devops/                      # Azure DevOps resources
+|   |-- scripts/
+|   |-- templates/
+|   `-- variables/
+|-- pipelines/
+|   `-- databricks/              # Databricks Asset Bundle resources
+|       |-- jobs/
+|       |-- pipelines/
+|       `-- variables/
+|-- jobs/                        # Databricks Python entrypoints
+`-- src/next_ads/                # Reusable package code
 ```
 
 ### Environment and Dependency Management
@@ -292,7 +297,7 @@ Primary keys are specified in table definitions. While primary keys are not curr
 - Two approvers of all PRs to main branch
 - Commits that are deployed from main should be tagged with an appropriately incremented version number.
 
-### Testing, Monitoring and QA
+### Testing, Monitoring and Validation
 #### Unit and Integration Tests
 Existing tests can be contained in `tests/`. These are largely designed to test things like the existence of tables and the validity of the supplied config file(s), such that necessary schemas and implicit requirements of the config structure can be checked before running end-to-end tests.
 
@@ -605,7 +610,7 @@ Multiple predefined audiences can be provided and used to map hardcoded assignme
 
 #### Example 4 - Multiple when conditions and algo A/B test
 This is the same a example 1 with the addition of setting up an A/B test for two algos.
-- If Algo A is set up in the `scripts/build_page.py` script to output assignments to the "UniqueAdIDBest" column in the `assignments_latest` table, and Algo B is set up in the same script to output to the "UniqueAdIDBestChallenger" column of the same table, splitting Shopping Bag assignments 50/50 between these two algorithms can be achieved as shown below.
+- If Algo A is set up in the `jobs/nextads_assignment/build_page.py` script to output assignments to the "UniqueAdIDBest" column in the `assignments_latest` table, and Algo B is set up in the same script to output to the "UniqueAdIDBestChallenger" column of the same table, splitting Shopping Bag assignments 50/50 between these two algorithms can be achieved as shown below.
 - NOTE: The list of when conditions are applied as a series of operations joined by logical `&` operators, therefore the below config will assign whatever ad is in the "UniqueAdIDBest" column of the `assignments_latest` table to any customer where `col("ShoppingBagTest1") == "Best"`  AND `col("AdHocABTest1") == "A"` (in the `customer_cells_latest` table) evaluate to `True`.
 
 > There are multiple pre-defined random AB splits in the `customer_cells_latest` table; these should be rotated to avoid the same random splits being applied repeatedly to successive tests.
@@ -670,25 +675,25 @@ The following scripts have been created to parse and create the following mappin
 - `theme:attribute` (one-to-many)
 - `item:theme` (one-to-many*)
 
-*one-to-one can be achieved by using ranking mode `adtype-themefreq` and selecting the top ranked theme per item. For caveats that surround this one-to-one relationship when using `adtype-themetype` as the ranking mode, see the note in the [scripts/theme_mapping.py](#scriptsparse_theme_mappingpy) section below.
+*one-to-one can be achieved by using ranking mode `adtype-themefreq` and selecting the top ranked theme per item. For caveats that surround this one-to-one relationship when using `adtype-themetype` as the ranking mode, see the note in the [`jobs/nextads_control/parse_theme_mapping.py`](#jobsnextads_mainparse_theme_mappingpy) section below.
 
-#### `scripts/parse_attributes.py`
+#### `jobs/nextads_control/parse_attributes.py`
 
 Purpose:
 - Parse and clean selected attributes from `warehouse.product_catalog`, and produce a mapping of `item:attribute`.
     - The attributes to parse are specified in the `"attributes"` config key, along with other parameters (e.g. lookback period, frequency cutoffs based on item counts, or counts of orders featuring those items).
 
 Process:
-- An "attribute set" is a fixed set of attributes and values to be included in all downstream theme mappings and are stored in the `attribute_set[_latest]` table. Creation of a new "attribute set", `scripts/parse_attributes.py` will be invoked when the script is run with today's date as the named argument `--refresh_attribute_date`. The below example would refresh the attribute set on 8th Jan 2026.
+- An "attribute set" is a fixed set of attributes and values to be included in all downstream theme mappings and are stored in the `attribute_set[_latest]` table. Creation of a new "attribute set", `jobs/nextads_control/parse_attributes.py` will be invoked when the script is run with today's date as the named argument `--refresh_attribute_date`. The below example would refresh the attribute set on 8th Jan 2026.
 
 ```sh
-python scripts/parse_attributes.py --refresh_attribute_date "2026-01-08" 
+python jobs/nextads_control/parse_attributes.py --refresh_attribute_date "2026-01-08"
 ```
 
 - When refreshing the attribute set is invoked, the new "attribute set" will then be mapped to all the items (`pid`) in `warehouse.product_catalog` (going as far back as the lookback period), outputting the item-attribute mapping to `item_attributes[_latest]` table.
 - When refreshing the attribute set is *not* invoked (or when the refresh date is specified, but today's date is not the refresh date), the script will map the *existing* "attribute set" (i.e. that in the `_latest` attribute set table) to all items (`pid`) in `warehouse.product_catalog` (going as far back as the lookback period), outputting the item-attribute mapping to `item_attributes[_latest]` table.
 
-#### `scripts/parse_theme_mapping.py`
+#### `jobs/nextads_control/parse_theme_mapping.py`
 
 Purpose:
 - Parse and clean theme mapping defined by trade in the Next Ads Control Sheet, and product a mapping of `item:theme`.
@@ -697,7 +702,7 @@ Process:
 - A "theme mapping" is a fixed set of themes and its corresponding attributes. This mapping is defined in the Next Ads Control Sheet Google Sheet (see `"theme_mapping"` config key for details). Creation of a new "theme mapping" will be invoked when the script is run with today's date as the named argument `--refresh_themes_date`. This will cause the script to output a new "theme mapping" to the `theme_mappping[_latest]` table. The below example would refresh the theme mapping on 8th Jan 2026.
 
 ```sh
-python scripts/parse_theme_mapping.py --refresh_themes_date "2026-01-08" 
+python jobs/nextads_control/parse_theme_mapping.py --refresh_themes_date "2026-01-08"
 ```
 
 - When refreshing the theme mapping is invoked, the new theme mapping will be used to create the theme-item mapping (using attributes as the "connective tissue") and outputs this mapping to `item_themes[_latest]`.
@@ -708,7 +713,7 @@ python scripts/parse_theme_mapping.py --refresh_themes_date "2026-01-08"
 
 > **NOTE:** Using mode `adtype-themetype` applies manually defined precedence of themes for items that match multiple themes. There are cases (e.g. a unisex childrens sportswear ad) where an item may deliberately have tied top-ranked themes (e.g. 'boys sports' and 'girls sports' may be the tied top-ranked themes for the unisex sports ad and related items, because unisex themes do not yet exist).
 
-#### `scripts/build_markov_chain.py`
+#### `jobs/nextads_candidates/build_theme_scores.py`
 
 Purpose:
 - Lightweight directional graph of theme associations.
@@ -719,7 +724,7 @@ Process:
 - To "refresh" (i.e. re-train) the markov chain, run the script with today's date as the `--refresh_model_date` flag. The below example would refresh the theme mapping on 8th Jan 2026.
 
 ```sh
-python scripts/build_markov_chain.py --refresh_model_date "2026-01-08" 
+python jobs/nextads_candidates/build_theme_scores.py --refresh_model_date "2026-01-08"
 ```
 
 - When the model is refreshed (re-trained), the script will take baskets from the specified history period and calculate new theme transition probabilities, outputting these probabilities to the `theme_transitions[_latest]` table.
@@ -745,7 +750,7 @@ Example config:
     }
 ```
 
-In the example above theme1 and theme2 will be greedily assigned 1000 and 2000 distinct customers respectively, before the remaining customers are assigned to their best theme. The ordering of cases (i.e. each customer-theme score) for greedy assignment occurs in the `scripts/map_theme_scores_to_ads.py` script. This ordered dataframe is then passed to the `Assignment.greedy_assignment()` function for execution.
+In the example above theme1 and theme2 will be greedily assigned 1000 and 2000 distinct customers respectively, before the remaining customers are assigned to their best theme. The ordering of cases (i.e. each customer-theme score) for greedy assignment occurs in the `jobs/nextads_candidates/build_theme_ad_candidates.py` script. This ordered dataframe is then passed to the `Assignment.greedy_assignment()` function for execution.
 
 #### Enforcement of greedy assignments
 - Greedily assigned themes take precedence by having 1 added to their `RelevanceScore` (after the relevance score has been scaled to [0,1)).
@@ -785,7 +790,7 @@ The design intent of tiling was to avoid all assigning all of the most universal
 
 Running...
 ```sh
-scripts/parse_attributes.py --refresh_attributes_date "2026-01-08"
+jobs/nextads_control/parse_attributes.py --refresh_attributes_date "2026-01-08"
 ```
 ...refreshes*...  
 `{schema}.{client}_nextads_attribute_set[_latest]`  
@@ -794,14 +799,14 @@ scripts/parse_attributes.py --refresh_attributes_date "2026-01-08"
 
 Running...
 ```sh
-scripts/parse_attributes.py
+jobs/nextads_control/parse_attributes.py
 ```
 ...refreshes:  
 `{schema}.{client}_nextads_item_attributes[_latest]` 
 
 Running...
 ```sh
-scripts/parse_theme_mapping.py --refresh_themes_date "2026-01-08"
+jobs/nextads_control/parse_theme_mapping.py --refresh_themes_date "2026-01-08"
 ```
 ...refreshes*...  
 `{schema}.{client}_nextads_theme_mapping[_latest]`  
@@ -810,14 +815,14 @@ scripts/parse_theme_mapping.py --refresh_themes_date "2026-01-08"
 
 Running...
 ```sh
-scripts/parse_theme_mapping.py
+jobs/nextads_control/parse_theme_mapping.py
 ```
 ...refreshes:  
 `{schema}.{client}_nextads_item_themes[_latest]` 
 
 Running...
 ```sh
-scripts/build_markov_chain.py --refresh_model_date "2026-01-08"
+jobs/nextads_candidates/build_theme_scores.py --refresh_model_date "2026-01-08"
 ```
 ...refreshes*...  
 `{schema}.{client}_nextads_theme_transitions[_latest]`  
@@ -826,13 +831,13 @@ scripts/build_markov_chain.py --refresh_model_date "2026-01-08"
 
 Running...
 ```sh
-scripts/build_markov_chain.py
+jobs/nextads_candidates/build_theme_scores.py
 ```
 ...refreshes:  
 `{schema}.{client}_nextads_next_theme_scores[_latest]` 
 
 Running...
 ```sh
-scripts/build_markov_chain.py --test-account "{insert account number}"
+jobs/nextads_candidates/build_theme_scores.py --test-account "{insert account number}"
 ```
 ...logs diagnostics for that account to the console.  

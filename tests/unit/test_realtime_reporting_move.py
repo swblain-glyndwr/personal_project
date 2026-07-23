@@ -1,4 +1,5 @@
 import importlib
+import importlib.util
 from pathlib import Path
 
 from next_ads.reporting import results as reporting_results
@@ -28,15 +29,14 @@ def test_reporting_results_imports_work_from_new_and_legacy_paths():
     )
 
 
-def test_realtime_unknown_imports_work_from_new_and_legacy_paths():
-    legacy_unknown = importlib.import_module("real_time.real_time_unknown")
+def test_realtime_unknown_lives_under_src_package():
+    assert importlib.util.find_spec("real_time") is None
+    assert realtime_unknown.set_ads is not None
+    assert realtime_unknown.format_stream_archive is not None
+    assert realtime_unknown.main is not None
 
-    assert legacy_unknown.set_ads is realtime_unknown.set_ads
-    assert legacy_unknown.format_stream_archive is realtime_unknown.format_stream_archive
-    assert legacy_unknown.main is realtime_unknown.main
 
-
-def test_results_entrypoints_exist_with_legacy_wrappers():
+def test_results_entrypoints_live_under_jobs():
     entrypoints = [
         "results_1",
         "results_2",
@@ -48,68 +48,47 @@ def test_results_entrypoints_exist_with_legacy_wrappers():
     ]
 
     for entrypoint in entrypoints:
-        assert (PROJECT_ROOT / "jobs" / "results" / f"{entrypoint}.py").is_file()
-        assert (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").is_file()
+        assert (PROJECT_ROOT / "jobs" / "nextads_reporting" / f"{entrypoint}.py").is_file()
+        assert not (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").exists()
+        assert not (PROJECT_ROOT / "jobs" / "results" / f"{entrypoint}.py").exists()
 
 
-def test_realtime_entrypoints_exist_with_legacy_wrappers():
-    entrypoints = [
-        "realtime_results",
-        "viewed_bought",
-    ]
-
-    for entrypoint in entrypoints:
-        assert (PROJECT_ROOT / "jobs" / "realtime" / f"{entrypoint}.py").is_file()
-        assert (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").is_file()
+def test_realtime_entrypoints_live_under_jobs():
+    assert (PROJECT_ROOT / "jobs" / "nextads_reporting" / "realtime_results.py").is_file()
+    assert (PROJECT_ROOT / "jobs" / "realtime" / "viewed_bought.py").is_file()
+    assert not (PROJECT_ROOT / "scripts" / "realtime_results.py").exists()
+    assert not (PROJECT_ROOT / "jobs" / "realtime" / "realtime_results.py").exists()
 
     assert (PROJECT_ROOT / "src" / "next_ads" / "realtime" / "unknown.py").is_file()
-    assert (PROJECT_ROOT / "real_time" / "real_time_unknown.py").is_file()
-
-
-def test_legacy_realtime_reporting_wrappers_are_importable_without_running_jobs():
-    for module_name in [
-        "scripts.results_1",
-        "scripts.results_2",
-        "scripts.results_3",
-        "scripts.results_agg",
-        "scripts.results_performance_checks",
-        "scripts.results_to_bigquery",
-        "scripts.results_top_ads_by_location",
-        "scripts.realtime_results",
-        "scripts.viewed_bought",
-    ]:
-        module = importlib.import_module(module_name)
-        assert hasattr(module, "main")
-
 
 def test_realtime_reporting_jobs_use_moved_entrypoints():
     results_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_results.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_results.yml",
         "mktg_next_uk_nextads_results_cicd",
     )
     realtime_results_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_realtime_results.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml",
         "mktg_next_uk_nextads_realtime_results_cicd",
     )
     realtime_inputs_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_inputs.yml",
         "mktg_next_uk_nextads_realtime_inputs_cicd",
     )
 
     results_tasks = {task["task_key"]: task for task in results_job["tasks"]}
     expected_results_paths = {
-        "results_1": "../../jobs/results/results_1.py",
-        "results_2": "../../jobs/results/results_2.py",
-        "results_3": "../../jobs/results/results_3.py",
-        "results_agg": "../../jobs/results/results_agg.py",
+        "results_1": "../../../jobs/nextads_reporting/results_1.py",
+        "results_2": "../../../jobs/nextads_reporting/results_2.py",
+        "results_3": "../../../jobs/nextads_reporting/results_3.py",
+        "results_agg": "../../../jobs/nextads_reporting/results_agg.py",
         "enrich_theme_affinity_inference_log": (
-            "../../jobs/results/enrich_theme_affinity_inference_log.py"
+            "../../../jobs/nextads_reporting/enrich_theme_affinity_inference_log.py"
         ),
         "results_performance_check": (
-            "../../jobs/results/results_performance_checks.py"
+            "../../../jobs/nextads_reporting/results_performance_checks.py"
         ),
-        "results_to_bigquery": "../../jobs/results/results_to_bigquery.py",
-        "results_top_ads": "../../jobs/results/results_top_ads_by_location.py",
+        "results_to_bigquery": "../../../jobs/nextads_reporting/results_to_bigquery.py",
+        "results_top_ads": "../../../jobs/nextads_reporting/results_top_ads_by_location.py",
     }
 
     for task_key, expected_path in expected_results_paths.items():
@@ -128,23 +107,23 @@ def test_realtime_reporting_jobs_use_moved_entrypoints():
 
     assert realtime_results_job["tasks"][0]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/realtime/realtime_results.py"
+    ] == "../../../jobs/nextads_reporting/realtime_results.py"
     assert realtime_inputs_job["tasks"][0]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/realtime/viewed_bought.py"
+    ] == "../../../jobs/realtime/viewed_bought.py"
 
 
 def test_realtime_reporting_move_preserves_schedule_sql_and_config_contracts():
     results_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_results.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_results.yml",
         "mktg_next_uk_nextads_results_cicd",
     )
     realtime_results_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_realtime_results.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml",
         "mktg_next_uk_nextads_realtime_results_cicd",
     )
     realtime_inputs_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_inputs.yml",
         "mktg_next_uk_nextads_realtime_inputs_cicd",
     )
 
@@ -170,8 +149,8 @@ def test_realtime_reporting_move_preserves_schedule_sql_and_config_contracts():
     for path in root_sql_files:
         assert (PROJECT_ROOT / path).is_file()
 
-    assert (PROJECT_ROOT / "real_time" / "config" / "next_uk.json").is_file()
+    assert (PROJECT_ROOT / "configs" / "realtime" / "next_uk.json").is_file()
     assert "big-query-156009.Misc_eu.{client}_nextads_results_topline" in _read(
         "configs/clients/next_uk.json"
     )
-    assert "temporaryGcsBucket" in _read("jobs/results/results_to_bigquery.py")
+    assert "temporaryGcsBucket" in _read("jobs/nextads_reporting/results_to_bigquery.py")

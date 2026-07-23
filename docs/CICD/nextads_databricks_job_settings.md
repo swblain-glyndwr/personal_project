@@ -2,7 +2,7 @@
 
 Status: Working reference
 
-This page explains the runtime settings declared in `resources/jobs/*.yml`.
+This page explains the runtime settings declared in `pipelines/databricks/jobs/*.yml`.
 For target availability and release-route rules, see
 `docs/CICD/nextads_databricks_job_environment_matrix.md`.
 
