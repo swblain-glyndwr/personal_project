@@ -4,6 +4,8 @@ Status: Target route for `feature/SWB/nextads-v1-v2-route-split`
 
 This route keeps Theme Affinity as one shared upstream model output. The model writes customer-theme scores. V1 and v2 then split at the loaded control-sheet join layer: each route reads its own control sheet, uses that sheet's `Themes` column as the ad-theme mapping, joins customer `NextTheme` to ad `Themes`, and ranks the resulting customer-ad candidates at the route grain.
 
+The v2 workbook is the source of truth for the product `Theme Mapping` tab. A Google Sheets Apps Script copies that tab into the v1 workbook, and the v1 tab should be locked to prevent manual edits. The Databricks job validates the copied v1 tab against the v2 source before `parse_theme_mapping` runs. If they differ, the candidate build stops so the Trade team can correct the source/copy before shared product theme scoring is refreshed.
+
 The `score_lightweight` arrows in the candidate-build job are current Databricks task dependencies retained from the existing evening graph. They are not the customer-theme data source for `run_theme_score_mapping`; the mapper reads `config.theme_affinity_assignment_sources.champion` or `challenger`, which currently resolve to `theme_affinity_model_latest`.
 
 ```mermaid
@@ -24,16 +26,24 @@ flowchart TD
   GEN --> V2CS["load_control_sheet_v2<br/>Script: jobs/nextads_control/load_control_sheet_v2.py<br/>Writes: control_sheet_latest_v2<br/>Includes: PageType, Themes"]
 
   GEN --> ATTR["parse_attributes<br/>Script: jobs/nextads_control/parse_attributes.py"]
-  ATTR --> TM["parse_theme_mapping<br/>Script: jobs/nextads_control/parse_theme_mapping.py<br/>Writes: item_themes_latest"]
+  GEN --> SYNC["validate_theme_mapping_sync<br/>Script: jobs/nextads_control/validate_theme_mapping_sync.py<br/>Compares: v2 Theme Mapping source to copied v1 Theme Mapping<br/>Stops on differences"]
+  ATTR --> TM
+  SYNC --> TM["parse_theme_mapping<br/>Script: jobs/nextads_control/parse_theme_mapping.py<br/>Reads copied v1 Theme Mapping<br/>Writes: item_themes_latest"]
   TM --> SCORE["score_lightweight<br/>Script: jobs/nextads_candidates/build_theme_scores.py"]
+
+  TA4 --> COVER["validate_theme_affinity_theme_coverage<br/>Script: jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py<br/>Checks: v1/v2 ad Themes exist in shared NextTheme output"]
+  V1CS --> COVER
+  V2CS --> COVER
 
   TA4 --> V1MAP
   V1CS --> V1MAP["map_theme_scores_to_ads_v1<br/>Script: jobs/nextads_candidates/build_theme_ad_candidates.py<br/>Mapper: src/next_ads/ranking/theme_score_mapping.py<br/>Join: theme_affinity_model_latest.NextTheme = control_sheet_latest.Themes<br/>Writes: preranked_ads_from_themes_latest<br/>Grain: Location"]
   SCORE --> V1MAP
+  COVER --> V1MAP
 
   TA4 --> V2MAP
   V2CS --> V2MAP["map_theme_scores_to_ads_v2<br/>Script: jobs/nextads_candidates/build_page_type_candidates_v2.py<br/>Mapper: src/next_ads/ranking/theme_score_mapping.py<br/>Join: theme_affinity_model_latest.NextTheme = control_sheet_latest_v2.Themes<br/>Writes: preranked_ads_from_themes_v2_latest<br/>Grain: PageType"]
   SCORE --> V2MAP
+  COVER --> V2MAP
 
   C2 --> TR1["trigger_page_build_v1_job<br/>Script: jobs/orchestration/trigger_databricks_job.py"]
   V1MAP --> TR1
@@ -55,8 +65,9 @@ The previous migration assumption was that v2 would fully replace v1 after a sho
 | Boundary | Recommendation | Reason |
 | --- | --- | --- |
 | Theme Affinity | Keep one shared scheduled job. | It writes customer-theme scores and does not depend on either control sheet. |
-| Product Theme Mapping and lightweight scoring | Keep shared in this PR. | These tasks feed the existing theme-scoring route and are not the route-specific ad-to-theme join used by candidate mapping. |
+| Product Theme Mapping and lightweight scoring | Keep shared, with v2 as the workbook source of truth and copied into v1. | Shared product theme scoring remains valid only if both workbooks have identical Theme Mapping tabs; `validate_theme_mapping_sync` stops the job if the copy drifts. |
 | Control sheets | Keep separate tasks. | V1 is location-based and v2 is page-type based. Each loaded table carries its own ad `Themes` values. |
+| Theme coverage | Validate before both mappers. | A shared Theme Affinity model only works if route ad `Themes` exist in the shared `NextTheme` output. |
 | Candidate mapping | Split v1 and v2 tasks. | This is where customer-theme scores are joined to route-specific ad themes and ranked by `Location` or `PageType`. |
 | Page build | Keep separate triggered jobs. | V1 builds by `Location`; v2 builds by `PageType` and feeds payload export. |
 
@@ -84,10 +95,12 @@ Inside `mktg_next_uk_nextads_candidate_build`, these are tasks, not standalone D
 | `load_control_sheet_v1` | `jobs/nextads_control/load_control_sheet.py` | None |
 | `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py` | None |
 | `parse_attributes` | `jobs/nextads_control/parse_attributes.py` | None |
-| `parse_theme_mapping` | `jobs/nextads_control/parse_theme_mapping.py` | `parse_attributes` |
+| `validate_theme_mapping_sync` | `jobs/nextads_control/validate_theme_mapping_sync.py` | None |
+| `parse_theme_mapping` | `jobs/nextads_control/parse_theme_mapping.py` | `parse_attributes`, `validate_theme_mapping_sync` |
 | `score_lightweight` | `jobs/nextads_candidates/build_theme_scores.py` | `parse_theme_mapping` |
-| `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `score_lightweight`, `load_control_sheet_v1` |
-| `map_theme_scores_to_ads_v2` | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `score_lightweight`, `load_control_sheet_v2` |
+| `validate_theme_affinity_theme_coverage` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `load_control_sheet_v1`, `load_control_sheet_v2` |
+| `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `score_lightweight`, `load_control_sheet_v1`, `validate_theme_affinity_theme_coverage` |
+| `map_theme_scores_to_ads_v2` | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `score_lightweight`, `load_control_sheet_v2`, `validate_theme_affinity_theme_coverage` |
 | `trigger_page_build_v1_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `trigger_page_build_v2_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
@@ -99,6 +112,6 @@ If each node needs to be run as an independently addressable Databricks job, the
 | --- | --- | --- |
 | Keep v2 dependent on v1 mapping | V2 reads `preranked_ads_from_themes_latest` and reshapes `Location` to `PageType`. | Couples v2 to v1 location eligibility and ranking, which is wrong for a long-lived page-type route. |
 | Split Theme Affinity into v1 and v2 jobs | Two scheduled model-scoring jobs feed two candidate routes. | Adds model scheduling, monitoring, and table risk without a control-sheet dependency to justify it. |
-| Split product Theme Mapping and lightweight scoring now | Separate `item_themes` and `next_theme_scores` tables are built from each workbook before candidate mapping. | This is a wider customer-theme scoring change and is not required for the v2 page-type ad mapping route described here. |
+| Split product Theme Mapping and lightweight scoring now | Separate `item_themes` and `next_theme_scores` tables are built from each workbook before candidate mapping. | Avoided because v2 is now the Theme Mapping source of truth and the v1 tab is a locked copy. The validation task catches copy drift without introducing duplicate scoring routes. |
 | Fully separate v1 and v2 candidate-build jobs now | Duplicate customer-cell and attribute tasks too. | More operational surface than needed while those inputs are still common. |
 | Fully switch off v1 | V2 becomes the only route. | Not valid because Home Page continues on v1 beyond the initial parallel-run period. |

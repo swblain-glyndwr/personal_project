@@ -2,12 +2,29 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+from pyspark.sql import SparkSession
+
 from next_ads.ranking import scoring
+from next_ads.ranking.theme_coverage import build_missing_theme_affinity_coverage
 from next_ads import Scoring
 from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture
+def local_spark():
+    try:
+        spark = (
+            SparkSession.builder.master("local[1]")
+            .appName("next-ads-ranking-domain-move-tests")
+            .getOrCreate()
+        )
+    except RuntimeError as exc:
+        pytest.skip(f"Local Spark unavailable: {exc}")
+    yield spark
 
 
 def _load_job(path, key):
@@ -80,6 +97,32 @@ def test_v2_theme_score_mapping_uses_v2_control_sheet_directly():
     assert "theme_scores_table" not in v2_entrypoint
     assert "write_score_components=False" in v2_entrypoint
     assert "preranked_ads_from_themes_latest" not in v2_entrypoint
+
+
+def test_theme_affinity_coverage_finds_ad_themes_missing_from_model(local_spark):
+    spark = local_spark
+    control_ads = spark.createDataFrame(
+        [
+            ("ad1", "Summer", "0"),
+            ("ad2", "denim", "0"),
+            ("ad3", "ignored", "1"),
+        ],
+        ["UniqueAdID", "Themes", "AudienceOnly"],
+    )
+    theme_affinity_scores = spark.createDataFrame(
+        [("acc1", "summer")],
+        ["AccountNumber", "NextTheme"],
+    )
+
+    missing = build_missing_theme_affinity_coverage(
+        control_ads,
+        theme_affinity_scores,
+        route="v2",
+    )
+
+    assert [(row.route, row.Theme, row.ad_count) for row in missing.collect()] == [
+        ("v2", "denim", 1)
+    ]
 
 
 def test_theme_affinity_job_uses_model_entrypoints():

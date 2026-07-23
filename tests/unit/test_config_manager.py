@@ -57,6 +57,21 @@ def test_v2_control_sheet_uses_page_type_sheet(clean_env, mock_dotenv):
     assert expected_sheet_id in config.exclusions_sheet.url
 
 
+def test_client_configs_define_v2_theme_mapping_source():
+    expected_sheet_id = "1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4"
+
+    for client in ["next_uk", "next_gb"]:
+        cfg = common_paths.load_client_config(client)
+
+        assert expected_sheet_id in cfg["theme_mapping_v2"]["url"]
+        assert cfg["theme_mapping_v2"]["sheet"] == cfg["theme_mapping"]["sheet"]
+        assert cfg["theme_mapping_v2"]["source_of_truth"] is True
+        assert cfg["theme_mapping_v2"]["copied_to"] == "theme_mapping"
+        assert cfg["theme_mapping_v2"]["read_schema"] == (
+            cfg["theme_mapping"]["read_schema"]
+        )
+
+
 def test_config_paths_fall_back_to_legacy_config_folder(monkeypatch, tmp_path):
     monkeypatch.setattr(new_config_manager, "PROJECT_ROOT", tmp_path)
 

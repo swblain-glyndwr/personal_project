@@ -98,9 +98,23 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 7200
+      - task_key: validate_theme_mapping_sync
+        spark_python_task:
+          python_file: ../../../jobs/nextads_control/validate_theme_mapping_sync.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        min_retry_interval_millis: 300000
+        timeout_seconds: 1800
       - task_key: parse_theme_mapping
         depends_on:
           - task_key: parse_attributes
+          - task_key: validate_theme_mapping_sync
         spark_python_task:
           python_file: ../../../jobs/nextads_control/parse_theme_mapping.py
           parameters:
@@ -130,10 +144,26 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 18000
+      - task_key: validate_theme_affinity_theme_coverage
+        depends_on:
+          - task_key: load_control_sheet_v1
+          - task_key: load_control_sheet_v2
+        spark_python_task:
+          python_file: ../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 1800
       - task_key: map_theme_scores_to_ads_v1
         depends_on:
           - task_key: score_lightweight
           - task_key: load_control_sheet_v1
+          - task_key: validate_theme_affinity_theme_coverage
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_theme_ad_candidates.py
           parameters:
@@ -152,6 +182,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: score_lightweight
           - task_key: load_control_sheet_v2
+          - task_key: validate_theme_affinity_theme_coverage
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_page_type_candidates_v2.py
           parameters:

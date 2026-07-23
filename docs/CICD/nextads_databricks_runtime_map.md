@@ -59,13 +59,20 @@ flowchart TD
 
 This is the main evening operational route. It keeps customer cells, item attributes, product Theme Mapping, and lightweight theme scoring shared. Both page-build routes remain active, and the v1/v2 split happens when shared customer-theme scores are joined to each route's loaded control sheet. `score_lightweight` is still a task dependency in the YAML, but `run_theme_score_mapping` reads Theme Affinity model latest for customer-theme scores.
 
+The v2 workbook owns the `Theme Mapping` tab. A Google Sheets Apps Script copies it into the v1 workbook, and `validate_theme_mapping_sync` checks that copy before the shared parser runs. `validate_theme_affinity_theme_coverage` then checks that active ad `Themes` from both loaded route control sheets exist in the shared Theme Affinity `NextTheme` output before either mapper runs.
+
 ```mermaid
 flowchart TD
   assign_customer_cells --> combine_customer_cells
+  validate_theme_mapping_sync --> parse_theme_mapping
   parse_attributes --> parse_theme_mapping --> score_lightweight
+  load_control_sheet_v1 --> validate_theme_affinity_theme_coverage
+  load_control_sheet_v2 --> validate_theme_affinity_theme_coverage
   load_control_sheet_v1 --> map_theme_scores_to_ads_v1
+  validate_theme_affinity_theme_coverage --> map_theme_scores_to_ads_v1
   score_lightweight --> map_theme_scores_to_ads_v1
   load_control_sheet_v2 --> map_theme_scores_to_ads_v2
+  validate_theme_affinity_theme_coverage --> map_theme_scores_to_ads_v2
   score_lightweight --> map_theme_scores_to_ads_v2
   combine_customer_cells --> trigger_page_build_v1_job
   map_theme_scores_to_ads_v1 --> trigger_page_build_v1_job
@@ -75,7 +82,7 @@ flowchart TD
   trigger_page_build_v2_job --> page_build_v2["mktg_next_uk_nextads_page_build_v2"]
 ```
 
-Observed latest successful candidate-build task timing, from run `101421282112344`, with task names normalised to the target route:
+Observed latest successful candidate-build task timing, from run `101421282112344`, with task names normalised to the target route. New guardrail tasks have no observed PROD baseline yet, so their durations are listed as new rather than historical measurements:
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |
@@ -83,17 +90,19 @@ Observed latest successful candidate-build task timing, from run `10142128211234
 | `load_control_sheet_v1` | 0m | 12m 43s | None |
 | `load_control_sheet_v2` | 0m | 11m 52s | None |
 | `parse_attributes` | 0m | 26m 51s | None |
-| `parse_theme_mapping` | 26m | 4m 22s baseline | `parse_attributes` |
-| `score_lightweight` | 30m | 1h 14m 1s baseline | `parse_theme_mapping` |
+| `validate_theme_mapping_sync` | 0m | New guardrail | None |
+| `parse_theme_mapping` | After attributes and Theme Mapping sync | 4m 22s baseline | `parse_attributes`, `validate_theme_mapping_sync` |
+| `score_lightweight` | After Theme Mapping parse | 1h 14m 1s baseline | `parse_theme_mapping` |
 | `combine_customer_cells` | 38m | 2m 43s | `assign_customer_cells` |
-| `map_theme_scores_to_ads_v1` | 1h 44m | 1h 22m 55s | `score_lightweight`, `load_control_sheet_v1` |
-| `map_theme_scores_to_ads_v2` | After shared scoring | Prior baseline 43m 36s | `score_lightweight`, `load_control_sheet_v2` |
+| `validate_theme_affinity_theme_coverage` | After both control sheets | New guardrail | `load_control_sheet_v1`, `load_control_sheet_v2` |
+| `map_theme_scores_to_ads_v1` | After shared scoring and coverage validation | 1h 22m 55s baseline | `score_lightweight`, `load_control_sheet_v1`, `validate_theme_affinity_theme_coverage` |
+| `map_theme_scores_to_ads_v2` | After shared scoring and coverage validation | Prior baseline 43m 36s | `score_lightweight`, `load_control_sheet_v2`, `validate_theme_affinity_theme_coverage` |
 | `trigger_page_build_v1_job` | After v1 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `trigger_page_build_v2_job` | After v2 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
 ```mermaid
 gantt
-  title Candidate build timeline, latest successful PROD run 101421282112344
+  title Candidate build timeline, baseline plus new guardrail positions
   dateFormat  YYYY-MM-DD HH:mm
   axisFormat  %H:%M
   section Parallel inputs
@@ -101,13 +110,15 @@ gantt
   load_control_sheet_v1      :2026-07-02 18:00, 13m
   load_control_sheet_v2      :2026-07-02 18:00, 12m
   parse_attributes           :2026-07-02 18:00, 27m
+  validate_theme_mapping_sync :2026-07-02 18:00, 2m
   section Theme scoring
   parse_theme_mapping        :2026-07-02 18:26, 4m
   score_lightweight          :2026-07-02 18:30, 74m
   section Candidate mapping
   combine_customer_cells     :2026-07-02 18:38, 3m
-  map_theme_scores_to_ads_v1 :2026-07-02 19:44, 83m
-  map_theme_scores_to_ads_v2 :2026-07-02 19:44, 44m
+  validate_theme_affinity_theme_coverage :2026-07-02 18:13, 2m
+  map_theme_scores_to_ads_v1 :2026-07-02 19:46, 83m
+  map_theme_scores_to_ads_v2 :2026-07-02 19:46, 44m
   trigger_page_build_v1_job  :2026-07-02 21:07, 1m
   trigger_page_build_v2_job  :2026-07-02 20:28, 1m
 ```

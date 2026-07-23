@@ -10,6 +10,8 @@ being a short cutover route.
 
 V2 is not a full replacement for v1. Home Page remains on the v1 location-based route, while new page-type assignments use v2. Customer cells, item attributes, product Theme Mapping, and lightweight theme scoring remain shared in this PR. Candidate mapping splits by route because v1 and v2 read different loaded control sheets: v1 uses `control_sheet_latest` with `Location`, and v2 uses workbook `1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4` through `control_sheet_latest_v2` with `PageType`.
 
+The v2 workbook is the operational source of truth for the `Theme Mapping` tab. A Google Sheets Apps Script copies that tab into the v1 workbook, and the v1 tab should be locked so Trade cannot edit the copied version directly. The candidate build runs `validate_theme_mapping_sync` before `parse_theme_mapping`; differences stop the job and should be raised to Trade because shared product theme scoring would otherwise be built from a stale copy.
+
 ## Current Rule
 
 Current v2 runtime paths are already route-oriented and should remain stable
@@ -31,8 +33,10 @@ in this route-split PR is limited to candidate mapping: v2 maps shared Theme Aff
 | Layer | V1 route | V2 route | Notes |
 | --- | --- | --- | --- |
 | Control sheet | `load_control_sheet_v1` writes `control_sheet_latest` | `load_control_sheet_v2` writes `control_sheet_latest_v2` | Separate inputs and table contracts. |
-| Product Theme Mapping | Shared `parse_theme_mapping` writes `theme_mapping_latest` and `item_themes_latest` | Shared upstream task | This feeds product-to-theme scoring, not the route-specific ad-to-theme join in candidate mapping. |
+| Product Theme Mapping | Shared `parse_theme_mapping` writes `theme_mapping_latest` and `item_themes_latest` from the copied v1 tab | Shared upstream task, validated against the v2 source tab first | V2 is the source of truth; the v1 workbook copy preserves the current parser/table contract. |
 | Lightweight scoring | Shared `score_lightweight` writes `next_theme_scores_latest` | Shared upstream task dependency | Kept as-is to avoid a wider scheduling change; the v2 candidate mapper reads Theme Affinity model latest for customer-theme scores. |
+| Theme Mapping sync validation | `validate_theme_mapping_sync` compares copied v1 Theme Mapping to v2 source | Same hard-stop validation | Stops the candidate build if the Apps Script copy has not kept the workbooks aligned. |
+| Theme Affinity coverage validation | `validate_theme_affinity_theme_coverage` checks v1/v2 ad `Themes` against shared `theme_affinity_model_latest.NextTheme` | Same hard-stop validation | Proves both route-specific ad-theme joins can be scored by the single customer-theme model output. |
 | Candidate mapping | `map_theme_scores_to_ads_v1` reads `control_sheet_latest` plus shared Theme Affinity scores and writes `preranked_ads_from_themes_latest` | `map_theme_scores_to_ads_v2` reads `control_sheet_latest_v2` plus shared Theme Affinity scores and writes `preranked_ads_from_themes_v2_latest` | Both routes join customer `NextTheme` to their control sheet's ad `Themes`; v2 does not read or reshape v1 preranked output. |
 | Output grain | `Location` | `PageType` | The shared mapper is parameterised by output grain. |
 | Page build | `mktg_next_uk_nextads_page_build` runs `jobs/nextads_assignment/build_page.py` | `mktg_next_uk_nextads_page_build_v2` runs `jobs/nextads_v2/build_page.py` | Separate triggered jobs keep route contracts clear. |
@@ -97,6 +101,8 @@ of the post-v2 baseline, not as outstanding Ads v2 structural cleanup.
 
 - v2 config load tests for DEV and DEV Integration.
 - v2 control-sheet schema tests.
+- Theme Mapping sync tests proving the v2 workbook tab is the source of truth and the v1 tab is only the copied parser input.
+- Theme Affinity coverage tests proving v1/v2 ad `Themes` can join to shared customer `NextTheme` output.
 - v2 output table and payload contract checks.
 - DAB validate for DEV and DEV Integration.
 - PREPROD validation only when the v2 route is release-candidate.

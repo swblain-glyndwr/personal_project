@@ -24,6 +24,8 @@ For target availability and release-route rules, see
 
 Main NextAds candidate-generation graph. Customer cells, item attributes, product Theme Mapping, and lightweight theme scoring are shared. V1 and v2 split at the loaded control-sheet join layer. Theme Affinity is not a task in this graph; its 09:00 scheduled job writes the shared customer-theme score source used by both candidate mappers.
 
+The v2 workbook is the source of truth for the `Theme Mapping` tab. An external Google Sheets Apps Script copies it to the v1 workbook, where the tab should be locked. The candidate-build job validates that copy before parsing the shared product Theme Mapping.
+
 | Task | Settings | Notes / options |
 | --- | --- | --- |
 | `assign_customer_cells` | `client`, `job_env`, `refresh_control_date` | `refresh_control_date` is date-gated; use a current `YYYY-MM-DD` only when deliberately refreshing control assignments. |
@@ -31,8 +33,10 @@ Main NextAds candidate-generation graph. Customer cells, item attributes, produc
 | `load_control_sheet_v1` | `client`, `job_env` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
 | `load_control_sheet_v2` | `client`, `job_env` | Loads v2 page-type control-sheet data and writes `control_sheet_latest_v2`. |
 | `parse_attributes` | `client`, `job_env`, `refresh_attributes_date` | Refreshes the attribute set only when the date is today; otherwise remaps using latest attributes. |
-| `parse_theme_mapping` | `client`, `job_env`, `refresh_themes_date` | Reads the configured product Theme Mapping tab and writes `theme_mapping_latest` / `item_themes_latest`. This is shared upstream work. |
+| `validate_theme_mapping_sync` | `client`, `job_env`, optional `warn-only` flag | Compares the v2 source Theme Mapping tab with the copied v1 Theme Mapping tab. The default is a hard stop on differences. |
+| `parse_theme_mapping` | `client`, `job_env`, `refresh_themes_date` | Reads the copied v1 product Theme Mapping tab and writes `theme_mapping_latest` / `item_themes_latest`. This is shared upstream work. |
 | `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs Markov scoring. Refreshes transition probabilities only when the date is today. This remains a shared upstream task dependency, but the candidate mapper's customer-theme source is Theme Affinity model latest. |
+| `validate_theme_affinity_theme_coverage` | `client`, `job_env`, optional `warn-only` flag | Checks active v1/v2 ad `Themes` from the loaded control sheets exist in shared `theme_affinity_model_latest.NextTheme`. The default is a hard stop on missing coverage. |
 | `map_theme_scores_to_ads_v1` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest`, joins `NextTheme` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. `apply-ad-feedback` is a flag. |
 | `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest_v2`, joins `NextTheme` to ad `Themes`, ranks by `PageType`, and writes `preranked_ads_from_themes_v2_latest`; it does not read v1 preranked output. |
 | `trigger_page_build_v1_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build` job id. `fail-on-submit-error` is a flag. |
