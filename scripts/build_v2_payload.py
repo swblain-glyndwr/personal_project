@@ -1,6 +1,9 @@
 import sys
 from pathlib import Path
+from time import time
 
+import requests
+from requests.auth import HTTPBasicAuth
 
 try:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -58,6 +61,40 @@ def get_input_dataframes(config, spark):
         control_sheet_latest_v2,
         rpid_with_accounts,
     )
+
+
+def start_import(
+    project_token: str,
+    url: str,
+    api_key_id: str,
+    api_secret: str,
+    import_id: str,
+):
+    start_url = (
+        f"{url}/data/v2/projects/{project_token}/imports/{import_id}/start"
+    )
+    response = requests.post(
+        url=start_url, auth=HTTPBasicAuth(api_key_id, api_secret)
+    )
+    if response.status_code == 200:
+        print("Import triggered successfully")
+    else:
+        print("Import trigger - Failed")
+    return None
+
+
+def fetch_credentials(config):
+    project_token = config.bloomreach_project_token
+    url = config.bloomreach_url
+    api_key_id = dbutils.secrets.get(
+        scope=config.bloomreach_secret_scope,
+        key=config.bloomreach_secret_key_id,
+    )
+    api_secret = dbutils.secrets.get(
+        scope=config.bloomreach_secret_scope,
+        key=config.bloomreach_secret_key_name,
+    )
+    return project_token, url, api_key_id, api_secret
 
 
 def get_experiments(
@@ -567,11 +604,25 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
             df_latest_payload, config.pii_exponea_next_uk_path, logger
         )
 
+        time.sleep(60)  # wait for 60 seconds before triggering the import
+
+        project_token, url, api_key_id, api_secret = fetch_credentials(config)
+
+        start_import(
+            project_token,
+            url,
+            api_key_id,
+            api_secret,
+            config.bloomreach_import_id,
+        )
+
+        # Blanking code
         # exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
         #                  where roamingprofileid is not null
         #                  and trim(roamingprofileid)!=''
         #                  and (next_ads is not null)""")
-        # in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti") #GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
+        # in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti")
+        # GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
         # distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", lit(""))
 
         # write_output_to_csv(distinct_nextads_blank, config.pii_exponea_next_uk_path, logger, process="next_ads_blanking")
