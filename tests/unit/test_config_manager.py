@@ -4,7 +4,6 @@ from unittest.mock import patch
 from next_ads.common import config_manager as new_config_manager
 from next_ads.common import paths as common_paths
 from next_ads.common.config_manager import load_config as new_load_config
-from next_ads.common.paths import load_client_config
 from next_ads.utils.config_manager import load_config
 
 
@@ -56,16 +55,6 @@ def test_v2_control_sheet_uses_page_type_sheet(clean_env, mock_dotenv):
 
     assert expected_sheet_id in config.control_sheet_v2.url
     assert expected_sheet_id in config.exclusions_sheet.url
-
-
-def test_theme_mapping_sources_are_split_by_route():
-    v1_sheet_id = "1ZVZxP6pms8t0THY7BLoFHh4INQwfhxGWcuLEXsPX2JI"
-    v2_sheet_id = "1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4"
-
-    assert v1_sheet_id in load_client_config("next_uk")["theme_mapping"]["url"]
-    assert v1_sheet_id in load_client_config("next_gb")["theme_mapping"]["url"]
-    assert v2_sheet_id in load_client_config("next_uk")["theme_mapping_v2"]["url"]
-    assert v2_sheet_id in load_client_config("next_gb")["theme_mapping_v2"]["url"]
 
 
 def test_config_paths_fall_back_to_legacy_config_folder(monkeypatch, tmp_path):

@@ -2,7 +2,9 @@
 
 Status: Target route for `feature/SWB/nextads-v1-v2-route-split`
 
-This route keeps customer cells and item attributes shared. Theme Mapping and lightweight theme scoring are split by route so v1 and v2 can read their respective workbook tabs before the candidate mapping layer joins route-specific theme scores to route-specific control-sheet ads.
+This route keeps Theme Affinity as one shared upstream model output. The model writes customer-theme scores. V1 and v2 then split at the loaded control-sheet join layer: each route reads its own control sheet, uses that sheet's `Themes` column as the ad-theme mapping, joins customer `NextTheme` to ad `Themes`, and ranks the resulting customer-ad candidates at the route grain.
+
+The `score_lightweight` arrows in the candidate-build job are current Databricks task dependencies retained from the existing evening graph. They are not the customer-theme data source for `run_theme_score_mapping`; the mapper reads `config.theme_affinity_assignment_sources.champion` or `challenger`, which currently resolve to `theme_affinity_model_latest`.
 
 ```mermaid
 flowchart TD
@@ -18,22 +20,20 @@ flowchart TD
   GEN --> C1["assign_customer_cells<br/>Script: jobs/nextads_cells/assign_customer_cells.py"]
   C1 --> C2["combine_customer_cells<br/>Script: jobs/nextads_cells/combine_customer_cells.py"]
 
-  GEN --> V1CS["load_control_sheet_v1<br/>Script: jobs/nextads_control/load_control_sheet.py<br/>Writes: control_sheet_latest"]
-  GEN --> V2CS["load_control_sheet_v2<br/>Script: jobs/nextads_control/load_control_sheet_v2.py<br/>Writes: control_sheet_latest_v2"]
+  GEN --> V1CS["load_control_sheet_v1<br/>Script: jobs/nextads_control/load_control_sheet.py<br/>Writes: control_sheet_latest<br/>Includes: Location, Themes"]
+  GEN --> V2CS["load_control_sheet_v2<br/>Script: jobs/nextads_control/load_control_sheet_v2.py<br/>Writes: control_sheet_latest_v2<br/>Includes: PageType, Themes"]
 
   GEN --> ATTR["parse_attributes<br/>Script: jobs/nextads_control/parse_attributes.py"]
-  ATTR --> TM1["parse_theme_mapping_v1<br/>Script: jobs/nextads_control/parse_theme_mapping.py --route v1<br/>Reads: v1 Theme Mapping tab<br/>Writes: item_themes_latest"]
-  ATTR --> CMP["compare_theme_mappings<br/>Script: jobs/nextads_control/compare_theme_mappings.py<br/>Warns on v1/v2 Theme Mapping differences"]
-  CMP --> TM2["parse_theme_mapping_v2<br/>Script: jobs/nextads_control/parse_theme_mapping.py --route v2<br/>Reads: v2 Theme Mapping tab<br/>Writes: item_themes_latest_v2"]
-  TM1 --> SCORE1["score_lightweight_v1<br/>Script: jobs/nextads_candidates/build_theme_scores.py --route v1"]
-  TM2 --> SCORE2["score_lightweight_v2<br/>Script: jobs/nextads_candidates/build_theme_scores.py --route v2<br/>Writes: next_theme_scores_latest_v2"]
+  ATTR --> TM["parse_theme_mapping<br/>Script: jobs/nextads_control/parse_theme_mapping.py<br/>Writes: item_themes_latest"]
+  TM --> SCORE["score_lightweight<br/>Script: jobs/nextads_candidates/build_theme_scores.py"]
 
   TA4 --> V1MAP
-  SCORE1 --> V1MAP["map_theme_scores_to_ads_v1<br/>Script: jobs/nextads_candidates/build_theme_ad_candidates.py<br/>Mapper: src/next_ads/ranking/theme_score_mapping.py<br/>Reads: control_sheet_latest + theme_affinity_model_latest<br/>Writes: preranked_ads_from_themes_latest<br/>Grain: Location"]
-  V1CS --> V1MAP
+  V1CS --> V1MAP["map_theme_scores_to_ads_v1<br/>Script: jobs/nextads_candidates/build_theme_ad_candidates.py<br/>Mapper: src/next_ads/ranking/theme_score_mapping.py<br/>Join: theme_affinity_model_latest.NextTheme = control_sheet_latest.Themes<br/>Writes: preranked_ads_from_themes_latest<br/>Grain: Location"]
+  SCORE --> V1MAP
 
-  SCORE2 --> V2MAP["map_theme_scores_to_ads_v2<br/>Script: jobs/nextads_candidates/build_page_type_candidates_v2.py<br/>Mapper: src/next_ads/ranking/theme_score_mapping.py<br/>Reads: control_sheet_latest_v2 + next_theme_scores_latest_v2<br/>Writes: preranked_ads_from_themes_v2_latest<br/>Grain: PageType"]
-  V2CS --> V2MAP
+  TA4 --> V2MAP
+  V2CS --> V2MAP["map_theme_scores_to_ads_v2<br/>Script: jobs/nextads_candidates/build_page_type_candidates_v2.py<br/>Mapper: src/next_ads/ranking/theme_score_mapping.py<br/>Join: theme_affinity_model_latest.NextTheme = control_sheet_latest_v2.Themes<br/>Writes: preranked_ads_from_themes_v2_latest<br/>Grain: PageType"]
+  SCORE --> V2MAP
 
   C2 --> TR1["trigger_page_build_v1_job<br/>Script: jobs/orchestration/trigger_databricks_job.py"]
   V1MAP --> TR1
@@ -50,16 +50,14 @@ flowchart TD
 
 ## Rationale
 
-The previous migration assumption was that v2 would fully replace v1 after a short parallel run. That is no longer true: Home Page remains on v1, while new page types need v2. Keeping the routes separate at the candidate mapping layer lets both routes run without v2 depending on either a v1 location-shaped output or a v1-only Theme Mapping tab.
-
-This is the lowest-risk split because it only separates producers where the input contract now differs:
+The previous migration assumption was that v2 would fully replace v1 after a short parallel run. That is no longer true: Home Page remains on v1, while new page types need v2. The safe split is therefore at the route-specific control-sheet join and output-grain layer.
 
 | Boundary | Recommendation | Reason |
 | --- | --- | --- |
-| Theme Affinity | Keep shared scheduled job. | It writes customer-theme affinity scores and does not depend on either control sheet. |
-| Theme mapping and lightweight score inputs | Split v1 and v2 tasks. | The Theme Mapping tabs can differ by workbook, so v2 needs separate item-theme and score outputs. |
-| Control sheets | Keep separate tasks. | V1 is location-based; v2 is page-type based. Their schemas and output contracts differ. |
-| Candidate mapping | Split v1 and v2 tasks. | This is where shared scores are joined to route-specific control data. |
+| Theme Affinity | Keep one shared scheduled job. | It writes customer-theme scores and does not depend on either control sheet. |
+| Product Theme Mapping and lightweight scoring | Keep shared in this PR. | These tasks feed the existing theme-scoring route and are not the route-specific ad-to-theme join used by candidate mapping. |
+| Control sheets | Keep separate tasks. | V1 is location-based and v2 is page-type based. Each loaded table carries its own ad `Themes` values. |
+| Candidate mapping | Split v1 and v2 tasks. | This is where customer-theme scores are joined to route-specific ad themes and ranked by `Location` or `PageType`. |
 | Page build | Keep separate triggered jobs. | V1 builds by `Location`; v2 builds by `PageType` and feeds payload export. |
 
 ## Databricks Job Granularity
@@ -69,7 +67,7 @@ The current YAMLs do not create a separate Databricks job for every node in the 
 | Databricks job | YAML | Runnable independently? | Contains / runs |
 | --- | --- | --- | --- |
 | `mktg_next_uk_nextads_theme_affinity` | `pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml` | Yes | Scheduled upstream model route; writes `theme_affinity_model_latest`. |
-| `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Yes, as one multi-task job | Customer cells, v1/v2 control-sheet loads, v1/v2 Theme Mapping, Theme Mapping comparison, v1/v2 lightweight scoring, v1/v2 candidate mapping, and page-build triggers. |
+| `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Yes, as one multi-task job | Customer cells, v1/v2 control-sheet loads, shared product theme mapping/scoring, v1/v2 candidate mapping, and page-build triggers. |
 | `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Yes | V1 location-based page build, then triggers validation, MASID handoff, and PLP delivery. |
 | `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Yes | V2 page-type page build, then triggers payload export. |
 | `mktg_next_uk_nextads_assignment_validation` | `pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml` | Yes | V1 assignment validation. |
@@ -86,17 +84,14 @@ Inside `mktg_next_uk_nextads_candidate_build`, these are tasks, not standalone D
 | `load_control_sheet_v1` | `jobs/nextads_control/load_control_sheet.py` | None |
 | `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py` | None |
 | `parse_attributes` | `jobs/nextads_control/parse_attributes.py` | None |
-| `parse_theme_mapping_v1` | `jobs/nextads_control/parse_theme_mapping.py --route v1` | `parse_attributes` |
-| `compare_theme_mappings` | `jobs/nextads_control/compare_theme_mappings.py` | `parse_attributes` |
-| `parse_theme_mapping_v2` | `jobs/nextads_control/parse_theme_mapping.py --route v2` | `parse_attributes`, `compare_theme_mappings` |
-| `score_lightweight_v1` | `jobs/nextads_candidates/build_theme_scores.py --route v1` | `parse_theme_mapping_v1` |
-| `score_lightweight_v2` | `jobs/nextads_candidates/build_theme_scores.py --route v2` | `parse_theme_mapping_v2` |
-| `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `score_lightweight_v1`, `load_control_sheet_v1` |
-| `map_theme_scores_to_ads_v2` | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `score_lightweight_v2`, `load_control_sheet_v2` |
+| `parse_theme_mapping` | `jobs/nextads_control/parse_theme_mapping.py` | `parse_attributes` |
+| `score_lightweight` | `jobs/nextads_candidates/build_theme_scores.py` | `parse_theme_mapping` |
+| `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `score_lightweight`, `load_control_sheet_v1` |
+| `map_theme_scores_to_ads_v2` | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `score_lightweight`, `load_control_sheet_v2` |
 | `trigger_page_build_v1_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `trigger_page_build_v2_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
-If each node needs to be run as an independently addressable Databricks job, the YAML structure would need another split: separate job YAMLs for the control, theme-mapping, scoring, and candidate-mapping nodes, plus an orchestration job using `run_job_task` or trigger tasks. That would improve manual rerun control, but it would add more deployed jobs, job ids, alert surfaces, and ordering contracts to maintain.
+If each node needs to be run as an independently addressable Databricks job, the YAML structure would need another split: separate job YAMLs for the control, scoring, and candidate-mapping nodes, plus an orchestration job using `run_job_task` or trigger tasks. That would improve manual rerun control, but it would add more deployed jobs, job ids, alert surfaces, and ordering contracts to maintain.
 
 ## Alternatives
 
@@ -104,5 +99,6 @@ If each node needs to be run as an independently addressable Databricks job, the
 | --- | --- | --- |
 | Keep v2 dependent on v1 mapping | V2 reads `preranked_ads_from_themes_latest` and reshapes `Location` to `PageType`. | Couples v2 to v1 location eligibility and ranking, which is wrong for a long-lived page-type route. |
 | Split Theme Affinity into v1 and v2 jobs | Two scheduled model-scoring jobs feed two candidate routes. | Adds model scheduling, monitoring, and table risk without a control-sheet dependency to justify it. |
+| Split product Theme Mapping and lightweight scoring now | Separate `item_themes` and `next_theme_scores` tables are built from each workbook before candidate mapping. | This is a wider customer-theme scoring change and is not required for the v2 page-type ad mapping route described here. |
 | Fully separate v1 and v2 candidate-build jobs now | Duplicate customer-cell and attribute tasks too. | More operational surface than needed while those inputs are still common. |
 | Fully switch off v1 | V2 becomes the only route. | Not valid because Home Page continues on v1 beyond the initial parallel-run period. |

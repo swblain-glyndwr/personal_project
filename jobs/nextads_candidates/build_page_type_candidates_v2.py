@@ -64,10 +64,6 @@ preranked_ads_from_themes_v2_latest = etl.map_tbl(
     tbls["preranked_ads_from_themes_v2_latest"],
     **tbl_args,
 )
-next_theme_scores_latest_v2 = etl.map_tbl(
-    tbls["next_theme_scores_latest_v2"],
-    **tbl_args,
-)
 
 run_theme_score_mapping(
     spark=spark,
@@ -79,7 +75,6 @@ run_theme_score_mapping(
     output_preranked_table=preranked_ads_from_themes_v2_latest,
     output_grain="page_type",
     top_ads_per_group=TOP_ADS_PER_PAGE_TYPE,
-    theme_scores_table=next_theme_scores_latest_v2,
     write_score_components=False,
     logger=logger,
 )

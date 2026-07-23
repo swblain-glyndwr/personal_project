@@ -56,7 +56,7 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     assert "output_preranked_table" in package_module
     assert "output_grain" in package_module
     assert "top_ads_per_group" in package_module
-    assert "theme_scores_table" in package_module
+    assert "config.theme_affinity_assignment_sources.champion" in package_module
     assert "def build_ad_location_mappings(" in retrieval_module
     assert "def build_ad_group_mappings(" in retrieval_module
     assert "def apply_greedy_theme_assignment(" in eligibility_module
@@ -76,8 +76,8 @@ def test_v2_theme_score_mapping_uses_v2_control_sheet_directly():
         in v2_entrypoint
     )
     assert "output_grain=\"page_type\"" in v2_entrypoint
-    assert "next_theme_scores_latest_v2" in v2_entrypoint
-    assert "theme_scores_table=next_theme_scores_latest_v2" in v2_entrypoint
+    assert "next_theme_scores_latest_v2" not in v2_entrypoint
+    assert "theme_scores_table" not in v2_entrypoint
     assert "write_score_components=False" in v2_entrypoint
     assert "preranked_ads_from_themes_latest" not in v2_entrypoint
 

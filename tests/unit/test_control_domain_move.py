@@ -16,7 +16,6 @@ from next_ads.control.theme_mapping import (
     normalise_theme_mapping,
     rank_item_themes,
 )
-from next_ads.control.theme_mapping_compare import build_theme_mapping_differences
 from tests.job_resource_helpers import load_job
 
 
@@ -159,38 +158,6 @@ def test_theme_mapping_filters_and_ranks_item_themes(local_spark):
     ]
 
 
-def test_theme_mapping_comparison_reports_route_differences(local_spark):
-    spark = local_spark
-    v1_mapping = spark.createDataFrame(
-        [
-            ("summer", "category:dress", "seasonal", "1", "fashion", "1"),
-            ("denim", "category:jeans", "material", "2", "fashion", "1"),
-        ],
-        [
-            "Theme",
-            "TargetingAttributes",
-            "ThemeType",
-            "ThemeTypeRank",
-            "AdType",
-            "AdTypeRank",
-        ],
-    )
-    v2_mapping = spark.createDataFrame(
-        [
-            ("summer", "category:dress", "seasonal", "1", "fashion", "1"),
-            ("home", "department:home", "department", "1", "home", "1"),
-        ],
-        v1_mapping.columns,
-    )
-
-    differences = build_theme_mapping_differences(v1_mapping, v2_mapping)
-
-    assert _sorted_rows(differences, "difference_type", "Theme") == [
-        ("v1_only", "denim"),
-        ("v2_only", "home"),
-    ]
-
-
 def test_main_job_uses_control_domain_entrypoints():
     job = load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
@@ -204,13 +171,7 @@ def test_main_job_uses_control_domain_entrypoints():
     assert tasks_by_key["parse_attributes"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/parse_attributes.py"
-    assert tasks_by_key["parse_theme_mapping_v1"]["spark_python_task"][
-        "python_file"
-    ] == "../../../jobs/nextads_control/parse_theme_mapping.py"
-    assert tasks_by_key["compare_theme_mappings"]["spark_python_task"][
-        "python_file"
-    ] == "../../../jobs/nextads_control/compare_theme_mappings.py"
-    assert tasks_by_key["parse_theme_mapping_v2"]["spark_python_task"][
+    assert tasks_by_key["parse_theme_mapping"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/parse_theme_mapping.py"
 

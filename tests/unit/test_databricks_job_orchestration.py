@@ -61,12 +61,15 @@ def test_v2_mapping_does_not_depend_on_v1_mapping():
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
     assert tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"] == [
-        {"task_key": "score_lightweight_v2"},
+        {"task_key": "score_lightweight"},
         {"task_key": "load_control_sheet_v2"},
     ]
+    assert {"task_key": "map_theme_scores_to_ads_v1"} not in tasks_by_key[
+        "map_theme_scores_to_ads_v2"
+    ]["depends_on"]
 
 
-def test_theme_mapping_and_lightweight_scores_are_split_by_route():
+def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
@@ -74,25 +77,15 @@ def test_theme_mapping_and_lightweight_scores_are_split_by_route():
 
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
-    assert tasks_by_key["parse_theme_mapping_v1"]["depends_on"] == [
+    assert tasks_by_key["parse_theme_mapping"]["depends_on"] == [
         {"task_key": "parse_attributes"},
     ]
-    assert tasks_by_key["compare_theme_mappings"]["depends_on"] == [
-        {"task_key": "parse_attributes"},
+    assert tasks_by_key["score_lightweight"]["depends_on"] == [
+        {"task_key": "parse_theme_mapping"},
     ]
-    assert tasks_by_key["parse_theme_mapping_v2"]["depends_on"] == [
-        {"task_key": "parse_attributes"},
-        {"task_key": "compare_theme_mappings"},
-    ]
-    assert tasks_by_key["score_lightweight_v1"]["depends_on"] == [
-        {"task_key": "parse_theme_mapping_v1"},
-    ]
-    assert tasks_by_key["score_lightweight_v2"]["depends_on"] == [
-        {"task_key": "parse_theme_mapping_v2"},
-    ]
-    assert "--route" in tasks_by_key["parse_theme_mapping_v2"]["spark_python_task"][
-        "parameters"
-    ]
+    assert "parse_theme_mapping_v2" not in tasks_by_key
+    assert "score_lightweight_v2" not in tasks_by_key
+    assert "compare_theme_mappings" not in tasks_by_key
 
 
 def test_page_build_triggers_downstream_jobs_without_waiting_for_results():

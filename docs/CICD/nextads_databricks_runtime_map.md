@@ -57,19 +57,16 @@ flowchart TD
 
 ## Candidate Build Task Graph
 
-This is the main evening operational route. It keeps customer cells and item
-attributes shared, then splits Theme Mapping and lightweight theme scoring by
-route before the control-sheet join layer. Both page-build routes remain active.
+This is the main evening operational route. It keeps customer cells, item attributes, product Theme Mapping, and lightweight theme scoring shared. Both page-build routes remain active, and the v1/v2 split happens when shared customer-theme scores are joined to each route's loaded control sheet. `score_lightweight` is still a task dependency in the YAML, but `run_theme_score_mapping` reads Theme Affinity model latest for customer-theme scores.
 
 ```mermaid
 flowchart TD
   assign_customer_cells --> combine_customer_cells
-  parse_attributes --> parse_theme_mapping_v1 --> score_lightweight_v1
-  parse_attributes --> compare_theme_mappings --> parse_theme_mapping_v2 --> score_lightweight_v2
+  parse_attributes --> parse_theme_mapping --> score_lightweight
   load_control_sheet_v1 --> map_theme_scores_to_ads_v1
-  score_lightweight_v1 --> map_theme_scores_to_ads_v1
+  score_lightweight --> map_theme_scores_to_ads_v1
   load_control_sheet_v2 --> map_theme_scores_to_ads_v2
-  score_lightweight_v2 --> map_theme_scores_to_ads_v2
+  score_lightweight --> map_theme_scores_to_ads_v2
   combine_customer_cells --> trigger_page_build_v1_job
   map_theme_scores_to_ads_v1 --> trigger_page_build_v1_job
   combine_customer_cells --> trigger_page_build_v2_job
@@ -78,8 +75,7 @@ flowchart TD
   trigger_page_build_v2_job --> page_build_v2["mktg_next_uk_nextads_page_build_v2"]
 ```
 
-Observed latest successful candidate-build task timing, from run
-`101421282112344`, with task names normalised to the target split route:
+Observed latest successful candidate-build task timing, from run `101421282112344`, with task names normalised to the target route:
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |
@@ -87,14 +83,11 @@ Observed latest successful candidate-build task timing, from run
 | `load_control_sheet_v1` | 0m | 12m 43s | None |
 | `load_control_sheet_v2` | 0m | 11m 52s | None |
 | `parse_attributes` | 0m | 26m 51s | None |
-| `parse_theme_mapping_v1` | 26m | 4m 22s baseline | `parse_attributes` |
-| `compare_theme_mappings` | 26m target start | New task | `parse_attributes` |
-| `parse_theme_mapping_v2` | After comparison | New route task | `parse_attributes`, `compare_theme_mappings` |
-| `score_lightweight_v1` | 30m | 1h 14m 1s baseline | `parse_theme_mapping_v1` |
-| `score_lightweight_v2` | After v2 mapping parse | New route task | `parse_theme_mapping_v2` |
+| `parse_theme_mapping` | 26m | 4m 22s baseline | `parse_attributes` |
+| `score_lightweight` | 30m | 1h 14m 1s baseline | `parse_theme_mapping` |
 | `combine_customer_cells` | 38m | 2m 43s | `assign_customer_cells` |
-| `map_theme_scores_to_ads_v1` | 1h 44m | 1h 22m 55s | `score_lightweight_v1`, `load_control_sheet_v1` |
-| `map_theme_scores_to_ads_v2` | After v2 scoring | Prior baseline 43m 36s | `score_lightweight_v2`, `load_control_sheet_v2` |
+| `map_theme_scores_to_ads_v1` | 1h 44m | 1h 22m 55s | `score_lightweight`, `load_control_sheet_v1` |
+| `map_theme_scores_to_ads_v2` | After shared scoring | Prior baseline 43m 36s | `score_lightweight`, `load_control_sheet_v2` |
 | `trigger_page_build_v1_job` | After v1 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `trigger_page_build_v2_job` | After v2 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
@@ -109,11 +102,8 @@ gantt
   load_control_sheet_v2      :2026-07-02 18:00, 12m
   parse_attributes           :2026-07-02 18:00, 27m
   section Theme scoring
-  parse_theme_mapping_v1     :2026-07-02 18:26, 4m
-  compare_theme_mappings     :2026-07-02 18:26, 5m
-  parse_theme_mapping_v2     :2026-07-02 18:31, 4m
-  score_lightweight_v1       :2026-07-02 18:30, 74m
-  score_lightweight_v2       :2026-07-02 18:35, 74m
+  parse_theme_mapping        :2026-07-02 18:26, 4m
+  score_lightweight          :2026-07-02 18:30, 74m
   section Candidate mapping
   combine_customer_cells     :2026-07-02 18:38, 3m
   map_theme_scores_to_ads_v1 :2026-07-02 19:44, 83m

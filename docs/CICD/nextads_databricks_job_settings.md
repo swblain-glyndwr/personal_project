@@ -22,10 +22,7 @@ For target availability and release-route rules, see
 
 ### `mktg_next_uk_nextads_candidate_build`
 
-Main NextAds candidate-generation graph. Customer cells and item attributes are
-shared, then v1 and v2 split for Theme Mapping, lightweight theme scoring, and
-the control-sheet join. Theme Affinity is not a task in this graph; its 09:00
-scheduled job still writes the existing v1 assignment source.
+Main NextAds candidate-generation graph. Customer cells, item attributes, product Theme Mapping, and lightweight theme scoring are shared. V1 and v2 split at the loaded control-sheet join layer. Theme Affinity is not a task in this graph; its 09:00 scheduled job writes the shared customer-theme score source used by both candidate mappers.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
@@ -34,13 +31,10 @@ scheduled job still writes the existing v1 assignment source.
 | `load_control_sheet_v1` | `client`, `job_env` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
 | `load_control_sheet_v2` | `client`, `job_env` | Loads v2 page-type control-sheet data and writes `control_sheet_latest_v2`. |
 | `parse_attributes` | `client`, `job_env`, `refresh_attributes_date` | Refreshes the attribute set only when the date is today; otherwise remaps using latest attributes. |
-| `parse_theme_mapping_v1` | `client`, `job_env`, `refresh_themes_date`, `route=v1` | Reads the existing workbook Theme Mapping tab and writes v1 `theme_mapping_latest` / `item_themes_latest`. |
-| `compare_theme_mappings` | `client`, `job_env`, optional `fail-on-differences` | Reads both workbook Theme Mapping tabs and logs row-level differences so Trade can review them; posts the warning only in PROD. |
-| `parse_theme_mapping_v2` | `client`, `job_env`, `refresh_themes_date`, `route=v2` | Reads the v2 workbook Theme Mapping tab and writes v2 `theme_mapping_latest_v2` / `item_themes_latest_v2`. |
-| `score_lightweight_v1` | `client`, `job_env`, `refresh_model_date`, `route=v1` | Runs v1 Markov scoring. Refreshes transition probabilities only when the date is today. |
-| `score_lightweight_v2` | `client`, `job_env`, `refresh_model_date`, `route=v2` | Runs v2 Markov scoring from `item_themes_latest_v2` and writes `next_theme_scores_latest_v2`. |
-| `map_theme_scores_to_ads_v1` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | Reads `control_sheet_latest` plus shared Theme Affinity scores and writes `preranked_ads_from_themes_latest`. `apply-ad-feedback` is a flag. |
-| `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | Reads `control_sheet_latest_v2` plus `next_theme_scores_latest_v2` and writes `preranked_ads_from_themes_v2_latest`; it does not read v1 preranked output. |
+| `parse_theme_mapping` | `client`, `job_env`, `refresh_themes_date` | Reads the configured product Theme Mapping tab and writes `theme_mapping_latest` / `item_themes_latest`. This is shared upstream work. |
+| `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs Markov scoring. Refreshes transition probabilities only when the date is today. This remains a shared upstream task dependency, but the candidate mapper's customer-theme source is Theme Affinity model latest. |
+| `map_theme_scores_to_ads_v1` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest`, joins `NextTheme` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. `apply-ad-feedback` is a flag. |
+| `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest_v2`, joins `NextTheme` to ad `Themes`, ranks by `PageType`, and writes `preranked_ads_from_themes_v2_latest`; it does not read v1 preranked output. |
 | `trigger_page_build_v1_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build` job id. `fail-on-submit-error` is a flag. |
 | `trigger_page_build_v2_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build_v2` job id. `fail-on-submit-error` is a flag. |
 

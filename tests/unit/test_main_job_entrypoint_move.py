@@ -22,11 +22,8 @@ def test_main_job_uses_moved_non_v2_entrypoints():
         "combine_customer_cells": "../../../jobs/nextads_cells/combine_customer_cells.py",
         "load_control_sheet_v1": "../../../jobs/nextads_control/load_control_sheet.py",
         "parse_attributes": "../../../jobs/nextads_control/parse_attributes.py",
-        "parse_theme_mapping_v1": "../../../jobs/nextads_control/parse_theme_mapping.py",
-        "compare_theme_mappings": "../../../jobs/nextads_control/compare_theme_mappings.py",
-        "parse_theme_mapping_v2": "../../../jobs/nextads_control/parse_theme_mapping.py",
-        "score_lightweight_v1": "../../../jobs/nextads_candidates/build_theme_scores.py",
-        "score_lightweight_v2": "../../../jobs/nextads_candidates/build_theme_scores.py",
+        "parse_theme_mapping": "../../../jobs/nextads_control/parse_theme_mapping.py",
+        "score_lightweight": "../../../jobs/nextads_candidates/build_theme_scores.py",
         "map_theme_scores_to_ads_v1": "../../../jobs/nextads_candidates/build_theme_ad_candidates.py",
         "trigger_page_build_v1_job": "../../../jobs/orchestration/trigger_databricks_job.py",
     }

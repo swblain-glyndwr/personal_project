@@ -39,7 +39,6 @@ def run_theme_score_mapping(
     output_preranked_table: str | None = None,
     output_grain: str = "location",
     top_ads_per_group: int | None = None,
-    theme_scores_table: str | None = None,
     write_score_components: bool = True,
     logger=None,
 ):
@@ -84,10 +83,7 @@ def run_theme_score_mapping(
     sessions = cfg["tables"]["read"]["bq_sessions"]
     actions = cfg["tables"]["read"]["bq_actions"]
 
-    if theme_scores_table:
-        logger.info(f"Running script with explicit theme scores: {theme_scores_table}")
-        next_theme_scores_latest = theme_scores_table
-    elif algo == "challenger":
+    if algo == "challenger":
         logger.info("Running script as Challenger")
         next_theme_scores_latest = config.theme_affinity_assignment_sources.challenger
     else:
