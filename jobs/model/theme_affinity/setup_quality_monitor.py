@@ -37,7 +37,9 @@ from next_ads.ml.lifecycle.databricks_monitoring import (
     ensure_time_series_quality_monitor,
     refresh_quality_monitor,
 )
-from next_ads.ranking.theme_affinity.lifecycle_spec import resolve_lifecycle_config
+from next_ads.ranking.theme_affinity.lifecycle_spec import (
+    resolve_lifecycle_config,
+)
 from next_ads.ranking.theme_affinity.quality_monitoring import (
     custom_metrics_for_profile,
 )
@@ -60,7 +62,9 @@ JOB_ENV = jobparser.get_arg("--job_env")
 CLIENT = jobparser.get_arg("--client") or "next_uk"
 LOG_LEVEL = jobparser.get_arg("--log_level")
 ACTION = (jobparser.get_arg("--action") or "setup").strip().lower()
-MONITOR_TYPE = (jobparser.get_arg("--monitor_type") or "time_series").strip().lower()
+MONITOR_TYPE = (
+    (jobparser.get_arg("--monitor_type") or "time_series").strip().lower()
+)
 TABLE_NAME = jobparser.get_arg("--table_name")
 OUTPUT_SCHEMA_NAME = jobparser.get_arg("--output_schema_name")
 ASSETS_DIR = jobparser.get_arg("--assets_dir")
@@ -73,12 +77,14 @@ PROBLEM_TYPE = jobparser.get_arg("--problem_type") or "classification"
 PREDICTION_COL = jobparser.get_arg("--prediction_col") or "prediction"
 MODEL_ID_COL = jobparser.get_arg("--model_id_col") or "model_id"
 LABEL_COL = _optional_arg(jobparser.get_arg("--label_col"))
-PREDICTION_PROBA_COL = _optional_arg(jobparser.get_arg("--prediction_proba_col"))
+PREDICTION_PROBA_COL = _optional_arg(
+    jobparser.get_arg("--prediction_proba_col")
+)
 
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 lifecycle_config = resolve_lifecycle_config(config)
 
 table_name = TABLE_NAME or lifecycle_config.train_table
@@ -90,7 +96,9 @@ workspace_client = WorkspaceClient()
 if ACTION == "delete":
     logger.info("Deleting Databricks quality monitor for %s", table_name)
     delete_result = delete_quality_monitor(workspace_client, table_name)
-    logger.info("Quality monitor delete result for %s: %s", table_name, delete_result)
+    logger.info(
+        "Quality monitor delete result for %s: %s", table_name, delete_result
+    )
 elif ACTION == "refresh":
     logger.info("Starting quality monitor refresh for %s", table_name)
     refresh = refresh_quality_monitor(workspace_client, table_name)
@@ -113,7 +121,10 @@ if ACTION == "setup":
             custom_metrics=custom_metrics,
             warehouse_id=WAREHOUSE_ID,
         )
-        logger.info("Creating or updating time-series quality monitor for %s", table_name)
+        logger.info(
+            "Creating or updating time-series quality monitor for %s",
+            table_name,
+        )
         monitor = ensure_time_series_quality_monitor(workspace_client, spec)
     elif MONITOR_TYPE == "inference_log":
         spec = InferenceLogQualityMonitorSpec(
@@ -131,7 +142,10 @@ if ACTION == "setup":
             custom_metrics=custom_metrics,
             warehouse_id=WAREHOUSE_ID,
         )
-        logger.info("Creating or updating inference-log quality monitor for %s", table_name)
+        logger.info(
+            "Creating or updating inference-log quality monitor for %s",
+            table_name,
+        )
         monitor = ensure_inference_log_quality_monitor(workspace_client, spec)
     else:
         raise ValueError("monitor_type must be time_series or inference_log")

@@ -29,7 +29,7 @@ USER_SCHEMA = spark.conf.get("pipeline.user_schema", "")
 if USER_SCHEMA:
     os.environ["USER_SCHEMA"] = USER_SCHEMA
 
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 nextschema = ArrayType(
     ArrayType(StringType(), containsNull=False), containsNull=False
 )

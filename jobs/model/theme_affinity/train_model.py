@@ -48,7 +48,7 @@ EARLY_STOPPING = jobparser.get_arg("--early_stopping")
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 
 logger.info("Training Theme Affinity MLflow model for %s/%s", JOB_ENV, CLIENT)
 result = train_and_register_model(

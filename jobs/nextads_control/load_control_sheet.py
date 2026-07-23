@@ -25,7 +25,11 @@ finally:
 import dsutils.gcp as gcp
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import delete_from_and_load, post_to_webhook, truncate_and_load
+from dsutils.etl import (
+    delete_from_and_load,
+    post_to_webhook,
+    truncate_and_load,
+)
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.control.load_control_sheet import (
@@ -56,7 +60,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         CLIENT = "next_uk"
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
@@ -70,11 +74,21 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
     logger.info(f"Write schema set to {run_context.schema_write}")
 
     tbls = cfg["tables"]["write"]
-    tbl_args = {"catalog": config.catalog_write, "schema": config.schema_write, "client": CLIENT}
-    UNDERPERFORMING_ADS = etl.map_tbl(tbls["results_underperforming_ads"], **tbl_args)
+    tbl_args = {
+        "catalog": config.catalog_write,
+        "schema": config.schema_write,
+        "client": CLIENT,
+    }
+    UNDERPERFORMING_ADS = etl.map_tbl(
+        tbls["results_underperforming_ads"], **tbl_args
+    )
 
-    logger.info(f"Valid locations: {' '.join(location_config.valid_locations)}")
-    logger.info(f"Locations to read: {' '.join(location_config.read_locations)}")
+    logger.info(
+        f"Valid locations: {' '.join(location_config.valid_locations)}"
+    )
+    logger.info(
+        f"Locations to read: {' '.join(location_config.read_locations)}"
+    )
     logger.info(
         f"Locations with inherited ads: {location_config.inherited_locations}"
     )
@@ -150,11 +164,15 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         del_where={"rundate": "current_date()"},
     )
 
-    logger.info(f"Writing Control Sheet to {output_tables.control_sheet_raw_latest}")
+    logger.info(
+        f"Writing Control Sheet to {output_tables.control_sheet_raw_latest}"
+    )
     assert_append_rundate_target_schema(
         table_name=output_tables.control_sheet_raw_latest,
         df_columns=df_ctrl_raw_filtered.columns,
-        target_columns=spark.table(output_tables.control_sheet_raw_latest).columns,
+        target_columns=spark.table(
+            output_tables.control_sheet_raw_latest
+        ).columns,
     )
     truncate_and_load(
         df=df_ctrl_raw_filtered,
@@ -162,7 +180,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         pk_cols=["Realm", "Territory", "UniqueAdID"],
     )
 
-    logger.info(f"Writing Placements Sheet to {output_tables.control_sheet_plp_raw}")
+    logger.info(
+        f"Writing Placements Sheet to {output_tables.control_sheet_plp_raw}"
+    )
     delete_from_and_load(
         df=df_placements,
         table=output_tables.control_sheet_plp_raw,
@@ -199,9 +219,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
             )
 
         except Exception as e:
-            plx_write_msg = (
-                "Error writing to multipage locations table; URLs not refreshed"
-            )
+            plx_write_msg = "Error writing to multipage locations table; URLs not refreshed"
             logger.warning(plx_write_msg)
             logger.error(e)
             if JOB_ENV == "prod":
@@ -216,11 +234,16 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         df_plx_urls=df_plx_urls,
     )
     df_placements = validation_result.df_placements
-    for input_name, errors_json in validation_result.errors_json_by_input.items():
+    for (
+        input_name,
+        errors_json,
+    ) in validation_result.errors_json_by_input.items():
         logger.info(f"{input_name} data validation errors: {errors_json}")
 
     logger.info("Stripping empty UniqueAdID entries")
-    target_cols = (spark.table(run_context.target_table).drop("rundate")).columns
+    target_cols = (
+        spark.table(run_context.target_table).drop("rundate")
+    ).columns
     logger.info(f"Reading underperforming ads from {UNDERPERFORMING_ADS}")
     df_underperforming_ads = spark.table(UNDERPERFORMING_ADS)
     processed_control_sheet = process_control_sheet(
@@ -236,16 +259,15 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
     df_processed = processed_control_sheet.df
 
     underperforming_ads = (
-        df_processed
-        .filter(F.col('IsUnderperforming'))
-        .select('UniqueAdID')
+        df_processed.filter(F.col("IsUnderperforming"))
+        .select("UniqueAdID")
         .distinct()
     )
     logger.info(
-        f'IsUnderperforming: {underperforming_ads.count():,} ads flagged'
+        f"IsUnderperforming: {underperforming_ads.count():,} ads flagged"
     )
     logger.info(
-        f'IsUnderperforming: {underperforming_ads.show(truncate=False)}'
+        f"IsUnderperforming: {underperforming_ads.show(truncate=False)}"
     )
 
     if len(processed_control_sheet.invalid_date_ad_ids) > 0:
@@ -269,7 +291,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         f"{processed_control_sheet.active_ad_location_count:,}"
     )
 
-    duplicate_masid_resolution = processed_control_sheet.duplicate_masid_resolution
+    duplicate_masid_resolution = (
+        processed_control_sheet.duplicate_masid_resolution
+    )
     if duplicate_masid_resolution.warning_message:
         logger.warning(duplicate_masid_resolution.warning_message)
         if JOB_ENV == "prod":

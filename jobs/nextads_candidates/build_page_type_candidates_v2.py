@@ -50,7 +50,7 @@ assert TOP_ADS_PER_PAGE_TYPE > 0, (
     "top-ads-per-page-type must be greater than zero"
 )
 
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 logger.info(f"Configuring run for client: {CLIENT}")
 cfg = load_client_config(CLIENT)
 

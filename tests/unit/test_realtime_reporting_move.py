@@ -21,8 +21,14 @@ def _load_job(path: str, key: str) -> dict:
 def test_reporting_results_imports_work_from_new_and_legacy_paths():
     legacy_results = importlib.import_module("next_ads.Results")
 
-    assert legacy_results.check_control_ratio is reporting_results.check_control_ratio
-    assert legacy_results.summarise_sessions is reporting_results.summarise_sessions
+    assert (
+        legacy_results.check_control_ratio
+        is reporting_results.check_control_ratio
+    )
+    assert (
+        legacy_results.summarise_sessions
+        is reporting_results.summarise_sessions
+    )
     assert (
         legacy_results.validate_assignments_match_pf
         is reporting_results.validate_assignments_match_pf
@@ -48,18 +54,29 @@ def test_results_entrypoints_live_under_jobs():
     ]
 
     for entrypoint in entrypoints:
-        assert (PROJECT_ROOT / "jobs" / "nextads_reporting" / f"{entrypoint}.py").is_file()
+        assert (
+            PROJECT_ROOT / "jobs" / "nextads_reporting" / f"{entrypoint}.py"
+        ).is_file()
         assert not (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").exists()
-        assert not (PROJECT_ROOT / "jobs" / "results" / f"{entrypoint}.py").exists()
+        assert not (
+            PROJECT_ROOT / "jobs" / "results" / f"{entrypoint}.py"
+        ).exists()
 
 
 def test_realtime_entrypoints_live_under_jobs():
-    assert (PROJECT_ROOT / "jobs" / "nextads_reporting" / "realtime_results.py").is_file()
+    assert (
+        PROJECT_ROOT / "jobs" / "nextads_reporting" / "realtime_results.py"
+    ).is_file()
     assert (PROJECT_ROOT / "jobs" / "realtime" / "viewed_bought.py").is_file()
     assert not (PROJECT_ROOT / "scripts" / "realtime_results.py").exists()
-    assert not (PROJECT_ROOT / "jobs" / "realtime" / "realtime_results.py").exists()
+    assert not (
+        PROJECT_ROOT / "jobs" / "realtime" / "realtime_results.py"
+    ).exists()
 
-    assert (PROJECT_ROOT / "src" / "next_ads" / "realtime" / "unknown.py").is_file()
+    assert (
+        PROJECT_ROOT / "src" / "next_ads" / "realtime" / "unknown.py"
+    ).is_file()
+
 
 def test_realtime_reporting_jobs_use_moved_entrypoints():
     results_job = _load_job(
@@ -96,21 +113,23 @@ def test_realtime_reporting_jobs_use_moved_entrypoints():
             expected_path
         )
 
-    assert results_tasks["enrich_theme_affinity_inference_log"]["depends_on"] == [
-        {"task_key": "results_3"}
-    ]
+    assert results_tasks["enrich_theme_affinity_inference_log"][
+        "depends_on"
+    ] == [{"task_key": "results_3"}]
     enrich_parameters = results_tasks["enrich_theme_affinity_inference_log"][
         "spark_python_task"
     ]["parameters"]
     assert "--label_window_days" in enrich_parameters
     assert "28" in enrich_parameters
 
-    assert realtime_results_job["tasks"][0]["spark_python_task"][
-        "python_file"
-    ] == "../../../jobs/nextads_reporting/realtime_results.py"
-    assert realtime_inputs_job["tasks"][0]["spark_python_task"][
-        "python_file"
-    ] == "../../../jobs/realtime/viewed_bought.py"
+    assert (
+        realtime_results_job["tasks"][0]["spark_python_task"]["python_file"]
+        == "../../../jobs/nextads_reporting/realtime_results.py"
+    )
+    assert (
+        realtime_inputs_job["tasks"][0]["spark_python_task"]["python_file"]
+        == "../../../jobs/realtime/viewed_bought.py"
+    )
 
 
 def test_realtime_reporting_move_preserves_schedule_sql_and_config_contracts():
@@ -150,7 +169,10 @@ def test_realtime_reporting_move_preserves_schedule_sql_and_config_contracts():
         assert (PROJECT_ROOT / path).is_file()
 
     assert (PROJECT_ROOT / "configs" / "realtime" / "next_uk.json").is_file()
-    assert "big-query-156009.Misc_eu.{client}_nextads_results_topline" in _read(
-        "configs/clients/next_uk.json"
+    assert (
+        "big-query-156009.Misc_eu.{client}_nextads_results_topline"
+        in _read("configs/clients/next_uk.yaml")
     )
-    assert "temporaryGcsBucket" in _read("jobs/nextads_reporting/results_to_bigquery.py")
+    assert "temporaryGcsBucket" in _read(
+        "jobs/nextads_reporting/results_to_bigquery.py"
+    )

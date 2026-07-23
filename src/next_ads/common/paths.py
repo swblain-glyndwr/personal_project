@@ -1,4 +1,5 @@
-import json
+import os
+import warnings
 from pathlib import Path
 
 
@@ -41,25 +42,49 @@ def _first_existing_path(candidates: list[str]) -> Path:
 def resolve_client_config_path(client: str) -> Path:
     return _first_existing_path(
         [
-            f"configs/clients/{client}.json",
-            f"config/{client}.json",
+            f"configs/clients/{client}.yaml",
+            f"config/{client}.yaml",
         ]
     )
 
 
 def iter_client_config_paths() -> list[Path]:
-    paths = sorted((PROJECT_ROOT / "configs" / "clients").glob("*.json"))
+    paths = sorted((PROJECT_ROOT / "configs" / "clients").glob("*.yaml"))
     if paths:
         return paths
-    return sorted((PROJECT_ROOT / "config").glob("*.json"))
+    return sorted((PROJECT_ROOT / "config").glob("*.yaml"))
 
 
 def load_client_config(client: str) -> dict:
-    return json.loads(resolve_client_config_path(client).read_text())
+    warnings.warn(
+        "load_client_config() is deprecated and will be removed in a future release. "
+        "Please migrate to native Dynaconf loading via load_config().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from next_ads.common.config_manager import load_config
+
+    config = load_config(os.environ.get("JOB_ENV", "prod"), client=client)
+    return {
+        str(key).lower(): _plain_value(child)
+        for key, child in config.as_dict().items()
+    }
+
+
+def _plain_value(value):
+    if hasattr(value, "to_dict"):
+        value = value.to_dict()
+    if isinstance(value, dict):
+        return {key: _plain_value(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_plain_value(child) for child in value]
+    return value
 
 
 def resolve_sql_path(file_name: str) -> Path:
-    candidates = [PROJECT_ROOT / directory / file_name for directory in SQL_SEARCH_DIRS]
+    candidates = [
+        PROJECT_ROOT / directory / file_name for directory in SQL_SEARCH_DIRS
+    ]
     for candidate in candidates:
         if candidate.exists():
             return candidate

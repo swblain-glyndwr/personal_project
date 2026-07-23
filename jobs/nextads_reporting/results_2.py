@@ -53,7 +53,7 @@ if not CLIENT:
     logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
 # load configuration
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 logger.info(f"Configuring run for client: {CLIENT}")
 cfg = load_client_config(CLIENT)
 
@@ -202,9 +202,7 @@ df_va_screens_non_plx = df_assignments_non_plx.join(
     on=["SessionDate", "Location"],
     how="inner",
 ).join(
-    broadcast(
-        df_pages_visited
-    ),
+    broadcast(df_pages_visited),
     on=["AccountNumber", "SessionDate", "PagePath"],
     how="inner",
 )

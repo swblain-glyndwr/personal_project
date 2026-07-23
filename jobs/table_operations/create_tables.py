@@ -29,7 +29,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.utils import config_manager
-from next_ads.common.paths import load_client_config, resolve_sql_contract_path
+from next_ads.common.paths import resolve_sql_contract_path
 from next_ads.utils import etl
 
 
@@ -186,7 +186,9 @@ def _split_top_level_column_definitions(column_block: str) -> list[str]:
     return definitions
 
 
-def extract_create_table_columns(create_table_sql: str) -> list[tuple[str, str]]:
+def extract_create_table_columns(
+    create_table_sql: str,
+) -> list[tuple[str, str]]:
     """Extract top-level column definitions from a CREATE TABLE statement."""
     columns = []
     column_block = _extract_outer_column_block(create_table_sql)
@@ -257,13 +259,19 @@ def compare_table_schema(
     actual_names = [column.name for column in actual_columns]
 
     missing_columns = [
-        column for column in expected_columns if column.name not in actual_by_name
+        column
+        for column in expected_columns
+        if column.name not in actual_by_name
     ]
-    extra_columns = [name for name in actual_names if name not in expected_by_name]
+    extra_columns = [
+        name for name in actual_names if name not in expected_by_name
+    ]
     common_expected_names = [
         name for name in expected_names if name in actual_by_name
     ]
-    common_actual_names = [name for name in actual_names if name in expected_by_name]
+    common_actual_names = [
+        name for name in actual_names if name in expected_by_name
+    ]
     order_drift = common_expected_names != common_actual_names
 
     type_drift = []
@@ -310,7 +318,9 @@ def can_use_additive_alter_only(
     return [*actual_names, *missing_names] == expected_names
 
 
-def build_repair_create_table_query(create_table_sql: str, repair_table: str) -> str:
+def build_repair_create_table_query(
+    create_table_sql: str, repair_table: str
+) -> str:
     column_start = create_table_sql.find("(")
     if column_start == -1:
         raise ValueError("Could not locate CREATE TABLE column block")
@@ -361,9 +371,12 @@ def build_repair_insert_query(
     actual_columns: list[ColumnSpec],
 ) -> str:
     actual_names = {column.name for column in actual_columns}
-    insert_columns = ", ".join(f"`{column.name}`" for column in expected_columns)
+    insert_columns = ", ".join(
+        f"`{column.name}`" for column in expected_columns
+    )
     select_columns = ", ".join(
-        sql_select_expression(column, actual_names) for column in expected_columns
+        sql_select_expression(column, actual_names)
+        for column in expected_columns
     )
     return (
         f"INSERT INTO {repair_table} ({insert_columns}) "
@@ -437,7 +450,9 @@ def repair_table_to_contract(
         logger.info("Planned repair SQL: %s", statement)
 
     if dry_run:
-        logger.info("Dry run enabled; not executing rebuild repair for %s", table)
+        logger.info(
+            "Dry run enabled; not executing rebuild repair for %s", table
+        )
         return
 
     original_count = spark.table(table).count()
@@ -461,7 +476,9 @@ def repair_table_to_contract(
         )
 
 
-def table_matches_selection(table_ref: str, table: str, selected_tables: set[str]) -> bool:
+def table_matches_selection(
+    table_ref: str, table: str, selected_tables: set[str]
+) -> bool:
     if not selected_tables:
         return True
     table_name = table.split(".")[-1]
@@ -501,8 +518,7 @@ def build_add_missing_columns_query(
     missing_columns = [
         (name, data_type)
         for name, data_type in expected_columns
-        if name not in actual_column_set
-        and can_auto_add_column(data_type)
+        if name not in actual_column_set and can_auto_add_column(data_type)
     ]
 
     if not missing_columns:
@@ -526,7 +542,8 @@ def main(
     TABLES="",
 ):
     configure_logging(
-        log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
 
@@ -542,50 +559,33 @@ def main(
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
     logger.info(f"Configuring run for client: {CLIENT}")
-    selected_tables = set(table.strip() for table in TABLES.split(",") if table.strip())
+    selected_tables = set(
+        table.strip() for table in TABLES.split(",") if table.strip()
+    )
     if selected_tables:
-        logger.info("Restricting table operation to: %s", ", ".join(selected_tables))
-
-    # Try to load from Dynaconf first (new approach)
-    try:
-        config = config_manager.load_config(JOB_ENV)
-        logger.info("Loaded configuration from Dynaconf settings")
-
-        # Get table definitions and catalog info from Dynaconf
-        tbls_write = config.get("tables_write", {})
-        write_catalog = config.get("catalog_write", "marketingdata_dev")
-        schema_write = config.get("schema_write", "ds_sandbox")
-
-        if not tbls_write:
-            raise ValueError("tables_write not found in Dynaconf config")
-
-        # Recursively extract all table paths from potentially nested structure
-        tbls = extract_table_paths(tbls_write)
-
-        if not tbls:
-            raise ValueError("No table paths found in tables_write config")
-
-        use_dynaconf = True
         logger.info(
-            f"Using Dynaconf tables config with write_catalog={write_catalog}, schema_write={schema_write}"
+            "Restricting table operation to: %s", ", ".join(selected_tables)
         )
-        logger.info(f"Extracted {len(tbls)} table definitions from config")
-    except Exception as e:
-        logger.warning(
-            f"Failed to load Dynaconf config: {e}. Falling back to legacy JSON config"
-        )
-        use_dynaconf = False
 
-        # Fallback to legacy JSON config
-        cfg = load_client_config(CLIENT)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
+    logger.info("Loaded configuration from Dynaconf settings")
 
-        tbls = cfg["tables"]["write"]
-        SCHEMA = cfg["schema"][JOB_ENV]
-        write_catalog = "marketingdata_prod"  # Legacy always used prod catalog
-        schema_write = SCHEMA
-        logger.info(
-            f"Using legacy config with write_catalog={write_catalog}, schema_write={schema_write}"
-        )
+    tbls_write = config.get("tables_write", {})
+    write_catalog = config.get("catalog_write", "marketingdata_dev")
+    schema_write = config.get("schema_write", "ds_sandbox")
+
+    if not tbls_write:
+        raise ValueError("tables_write not found in Dynaconf config")
+
+    tbls = extract_table_paths(tbls_write)
+
+    if not tbls:
+        raise ValueError("No table paths found in tables_write config")
+
+    logger.info(
+        f"Using Dynaconf tables config with write_catalog={write_catalog}, schema_write={schema_write}"
+    )
+    logger.info(f"Extracted {len(tbls)} table definitions from config")
 
     # Extract catalog and schema from the first table to validate schema existence
     # This assumes all tables share the same catalog and schema
@@ -623,30 +623,17 @@ def main(
         raise
 
     # Prepare table arguments for template substitution
-    if use_dynaconf:
-        # When using Dynaconf, tables are already fully resolved
-        # but we still need catalog and schema for template substitution in SQL files
-        tbl_args = {
-            "schema": schema_write,
-            "client": CLIENT,
-            "catalog": write_catalog,
-        }
-    else:
-        # Legacy: need to substitute placeholders
-        tbl_args = {
-            "schema": schema_write,
-            "client": CLIENT,
-            "catalog": write_catalog,
-        }
+    # Tables are already resolved from Dynaconf, but SQL contract files still
+    # use placeholders for reusable schema/client/catalog substitution.
+    tbl_args = {
+        "schema": schema_write,
+        "client": CLIENT,
+        "catalog": write_catalog,
+    }
 
     resolved_tbls = {}
     for table_ref in tbls:
-        if use_dynaconf:
-            # Table is already resolved from Dynaconf
-            table = tbls[table_ref]
-        else:
-            # Legacy: use map_tbl to substitute placeholders
-            table = etl.map_tbl(tbls[table_ref], **tbl_args)
+        table = tbls[table_ref]
 
         if table_matches_selection(table_ref, table, selected_tables):
             resolved_tbls[table_ref] = table
@@ -666,14 +653,17 @@ def main(
 
     if missing_scripts:
         raise ValueError(
-            f"Missing SQL create scripts: {', '.join(missing_scripts)}")
+            f"Missing SQL create scripts: {', '.join(missing_scripts)}"
+        )
 
     for table_ref, table in resolved_tbls.items():
         if DROP_TABLES and (JOB_ENV.lower() == "dev" or ALLOW_NON_DEV_DROP):
             logger.info(f"Dropping table {table} as --droptables is 'True'")
             logger.info(f"Running drop table if exists {table}")
             if DRY_RUN:
-                logger.info("Dry run enabled; not executing drop for %s", table)
+                logger.info(
+                    "Dry run enabled; not executing drop for %s", table
+                )
             else:
                 spark.sql(f"drop table if exists {table}")
 
@@ -691,14 +681,20 @@ def main(
             expected_columns = parse_column_specs(
                 extract_create_table_columns(query)
             )
-            actual_columns = spark_schema_column_specs(spark.table(table).schema)
+            actual_columns = spark_schema_column_specs(
+                spark.table(table).schema
+            )
             drift = compare_table_schema(expected_columns, actual_columns)
             if not drift.has_drift:
                 logger.info(f"Table {table} matches SQL contract")
                 continue
 
-            logger.warning("Table %s schema drift detected: %s", table, drift.summary())
-            if can_use_additive_alter_only(expected_columns, actual_columns, drift):
+            logger.warning(
+                "Table %s schema drift detected: %s", table, drift.summary()
+            )
+            if can_use_additive_alter_only(
+                expected_columns, actual_columns, drift
+            ):
                 add_columns = [
                     (column.name, column.raw_definition)
                     for column in drift.missing_columns

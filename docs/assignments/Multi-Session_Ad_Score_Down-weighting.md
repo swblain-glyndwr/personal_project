@@ -8,7 +8,7 @@ Data analysis shows that CTR starts dropping significantly after a customer's **
 ___
 
 ## Technical Architecture & File Changes
-### 1. Configuration (`next_uk.json`)
+### 1. Configuration (`next_uk.yaml`)
 We introduced the Actions table to the read configuration layer to track historical impression and click data.
 - **Added Key:** `"bq_actions": "marketingdata_prod.warehouse.bq_actions_next_uk"`
 ### 2. Helper Functions (`Assignment.py`):

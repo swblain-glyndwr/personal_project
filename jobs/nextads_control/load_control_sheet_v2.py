@@ -192,7 +192,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
     # load configuration
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
 
     VALID_PAGE_TYPES = [
@@ -623,30 +623,27 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger.info(f"Reading underperforming ads from {UNDERPERFORMING_ADS}")
     df_underperforming_ids = (
         spark.table(UNDERPERFORMING_ADS)
-        .filter(F.col('rundate') == F.current_date())
-        .select('UniqueAdID')
+        .filter(F.col("rundate") == F.current_date())
+        .select("UniqueAdID")
         .distinct()
-        .withColumn('IsUnderperforming', F.lit(True))
+        .withColumn("IsUnderperforming", F.lit(True))
     )
-    df_processed = (
-        df_processed
-        .join(df_underperforming_ids, on='UniqueAdID', how='left')
-        .withColumn(
-            'IsUnderperforming',
-            F.coalesce(F.col('IsUnderperforming'), F.lit(False)),
-        )
+    df_processed = df_processed.join(
+        df_underperforming_ids, on="UniqueAdID", how="left"
+    ).withColumn(
+        "IsUnderperforming",
+        F.coalesce(F.col("IsUnderperforming"), F.lit(False)),
     )
     underperforming_ads = (
-        df_processed
-        .filter(F.col('IsUnderperforming'))
-        .select('UniqueAdID')
+        df_processed.filter(F.col("IsUnderperforming"))
+        .select("UniqueAdID")
         .distinct()
     )
     logger.info(
-        f'IsUnderperforming: {underperforming_ads.count():,} ads flagged'
+        f"IsUnderperforming: {underperforming_ads.count():,} ads flagged"
     )
     logger.info(
-        f'IsUnderperforming: {underperforming_ads.show(truncate=False)}'
+        f"IsUnderperforming: {underperforming_ads.show(truncate=False)}"
     )
 
     ################################################################################
