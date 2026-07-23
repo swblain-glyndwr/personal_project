@@ -1,4 +1,4 @@
-import importlib
+﻿import importlib
 import importlib.util
 from pathlib import Path
 
@@ -52,9 +52,34 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     assert "def run_theme_score_mapping(" in package_module
     assert "truncate_and_load(" in package_module
     assert "delete_from_and_load(" in package_module
+    assert "control_sheet_latest_table" in package_module
+    assert "output_preranked_table" in package_module
+    assert "output_grain" in package_module
+    assert "top_ads_per_group" in package_module
+    assert "theme_scores_table" in package_module
     assert "def build_ad_location_mappings(" in retrieval_module
+    assert "def build_ad_group_mappings(" in retrieval_module
     assert "def apply_greedy_theme_assignment(" in eligibility_module
+    assert "def assert_eligible_groups(" in eligibility_module
     assert "def rank_top_ads_per_adset(" in ranking_module
+    assert "def map_ranked_ads_to_groups(" in ranking_module
+
+
+def test_v2_theme_score_mapping_uses_v2_control_sheet_directly():
+    v2_entrypoint = (
+        PROJECT_ROOT / "jobs/nextads_candidates/build_page_type_candidates_v2.py"
+    ).read_text()
+
+    assert "run_theme_score_mapping(" in v2_entrypoint
+    assert (
+        "control_sheet_latest_table=config.tables_write.control_sheet_latest_v2"
+        in v2_entrypoint
+    )
+    assert "output_grain=\"page_type\"" in v2_entrypoint
+    assert "next_theme_scores_latest_v2" in v2_entrypoint
+    assert "theme_scores_table=next_theme_scores_latest_v2" in v2_entrypoint
+    assert "write_score_components=False" in v2_entrypoint
+    assert "preranked_ads_from_themes_latest" not in v2_entrypoint
 
 
 def test_theme_affinity_job_uses_model_entrypoints():
@@ -96,7 +121,7 @@ def test_theme_affinity_scripts_live_under_model_jobs():
         ).is_file()
 
 
-def test_v2_entrypoints_stay_on_scripts():
+def test_v2_entrypoints_use_jobs_folder():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",

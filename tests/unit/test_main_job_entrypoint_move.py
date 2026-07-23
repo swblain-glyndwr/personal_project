@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from tests.job_resource_helpers import load_job
 
@@ -20,12 +20,15 @@ def test_main_job_uses_moved_non_v2_entrypoints():
     expected_paths = {
         "assign_customer_cells": "../../../jobs/nextads_cells/assign_customer_cells.py",
         "combine_customer_cells": "../../../jobs/nextads_cells/combine_customer_cells.py",
-        "load_control_sheet": "../../../jobs/nextads_control/load_control_sheet.py",
+        "load_control_sheet_v1": "../../../jobs/nextads_control/load_control_sheet.py",
         "parse_attributes": "../../../jobs/nextads_control/parse_attributes.py",
-        "parse_theme_mapping": "../../../jobs/nextads_control/parse_theme_mapping.py",
-        "score_lightweight": "../../../jobs/nextads_candidates/build_theme_scores.py",
-        "map_theme_scores_to_ads": "../../../jobs/nextads_candidates/build_theme_ad_candidates.py",
-        "trigger_page_build_job": "../../../jobs/orchestration/trigger_databricks_job.py",
+        "parse_theme_mapping_v1": "../../../jobs/nextads_control/parse_theme_mapping.py",
+        "compare_theme_mappings": "../../../jobs/nextads_control/compare_theme_mappings.py",
+        "parse_theme_mapping_v2": "../../../jobs/nextads_control/parse_theme_mapping.py",
+        "score_lightweight_v1": "../../../jobs/nextads_candidates/build_theme_scores.py",
+        "score_lightweight_v2": "../../../jobs/nextads_candidates/build_theme_scores.py",
+        "map_theme_scores_to_ads_v1": "../../../jobs/nextads_candidates/build_theme_ad_candidates.py",
+        "trigger_page_build_v1_job": "../../../jobs/orchestration/trigger_databricks_job.py",
     }
 
     for task_key, expected_path in expected_paths.items():
@@ -34,7 +37,7 @@ def test_main_job_uses_moved_non_v2_entrypoints():
         )
 
 
-def test_v2_main_job_entrypoints_stay_on_scripts():
+def test_v2_main_job_entrypoints_use_jobs_folder():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
@@ -90,7 +93,7 @@ def test_v2_page_build_job_uses_moved_non_v2_entrypoints():
         )
 
 
-def test_v2_page_build_entrypoint_stays_on_scripts():
+def test_v2_page_build_entrypoint_uses_jobs_folder():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd_v2",

@@ -24,17 +24,19 @@ flowchart TD
   candidate["18:00 PROD\nmktg_next_uk_nextads_candidate_build\n~3h20-3h50"]
   realtime_inputs["18:00 PROD\nmktg_next_uk_nextads_realtime_inputs\n~18-20m"]
   page_build["Triggered\nmktg_next_uk_nextads_page_build\n~41-51m"]
-  qa["Triggered\nmktg_next_uk_nextads_qa\n~12-13m"]
+  page_build_v2["Triggered\nmktg_next_uk_nextads_page_build_v2"]
+  qa["Triggered\nmktg_next_uk_nextads_assignment_validation\n~12-13m"]
   masid["Triggered\nmktg_next_uk_nextads_masid_handoff\n~8-16m"]
   payload["Triggered\nmktg_next_uk_nextads_payload_export\n~24-26m"]
   plp["Triggered\nmktg_next_uk_nextads_plp_gs_delivery\n~10-12m"]
   feature_store["21:00 DEV_FEATURE_STORE\nmktg_next_uk_nextads_feature_store\nno recent successful runs found"]
 
   candidate --> page_build
+  candidate --> page_build_v2
   page_build --> qa
   page_build --> masid
-  page_build --> payload
   page_build --> plp
+  page_build_v2 --> payload
 ```
 
 ## Recent Observed Runtimes
@@ -43,7 +45,7 @@ flowchart TD
 | --- | --- | --- | --- | --- | --- |
 | Candidate build | PROD | `539075297323897` | 18:00 daily | `101421282112344` | 3h 50m 34s; 3h 40m 30s; 3h 21m 55s |
 | Page build | PROD | `269306885845144` | Triggered by candidate build | `724497366216494` | 45m 46s; 50m 52s; 41m 29s |
-| QA | PROD | `499074472587770` | Triggered by page build | `1001390743121428` | 12m 43s; 11m 55s; 12m 41s |
+| Assignment validation | PROD | `499074472587770` | Triggered by page build | `1001390743121428` | 12m 43s; 11m 55s; 12m 41s |
 | MASID handoff | PROD | `61892626872113` | Triggered by page build | `493812673009118` | 9m 20s; 16m 1s; 8m 21s |
 | Payload export | PROD | `1085437962619214` | Triggered by page build | `313359766451448` | 26m 16s; 24m 17s; 23m 54s |
 | PLP Google Sheets delivery | PROD | `258720571842239` | Triggered by page build | `293773116584228` | 10m 27s; 10m 42s; 11m 41s |
@@ -55,36 +57,46 @@ flowchart TD
 
 ## Candidate Build Task Graph
 
-This is the main evening operational route. It still represents the current theme-led assignment path: customer cells and control-sheet inputs are prepared, themes are parsed and scored, theme scores are mapped to ads, and the page-build job is triggered after candidate rows and customer cells are ready.
+This is the main evening operational route. It keeps customer cells and item
+attributes shared, then splits Theme Mapping and lightweight theme scoring by
+route before the control-sheet join layer. Both page-build routes remain active.
 
 ```mermaid
 flowchart TD
   assign_customer_cells --> combine_customer_cells
-  parse_attributes --> parse_theme_mapping --> score_lightweight
-  load_control_sheet --> map_theme_scores_to_ads
-  score_lightweight --> map_theme_scores_to_ads
+  parse_attributes --> parse_theme_mapping_v1 --> score_lightweight_v1
+  parse_attributes --> compare_theme_mappings --> parse_theme_mapping_v2 --> score_lightweight_v2
+  load_control_sheet_v1 --> map_theme_scores_to_ads_v1
+  score_lightweight_v1 --> map_theme_scores_to_ads_v1
   load_control_sheet_v2 --> map_theme_scores_to_ads_v2
-  score_lightweight --> map_theme_scores_to_ads_v2
-  map_theme_scores_to_ads --> map_theme_scores_to_ads_v2
-  combine_customer_cells --> trigger_page_build_job
-  map_theme_scores_to_ads_v2 --> trigger_page_build_job
-  trigger_page_build_job --> page_build["mktg_next_uk_nextads_page_build"]
+  score_lightweight_v2 --> map_theme_scores_to_ads_v2
+  combine_customer_cells --> trigger_page_build_v1_job
+  map_theme_scores_to_ads_v1 --> trigger_page_build_v1_job
+  combine_customer_cells --> trigger_page_build_v2_job
+  map_theme_scores_to_ads_v2 --> trigger_page_build_v2_job
+  trigger_page_build_v1_job --> page_build["mktg_next_uk_nextads_page_build"]
+  trigger_page_build_v2_job --> page_build_v2["mktg_next_uk_nextads_page_build_v2"]
 ```
 
-Observed latest successful candidate-build task timing, from run `101421282112344`:
+Observed latest successful candidate-build task timing, from run
+`101421282112344`, with task names normalised to the target split route:
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |
 | `assign_customer_cells` | 0m | 38m 52s | None |
-| `load_control_sheet` | 0m | 12m 43s | None |
+| `load_control_sheet_v1` | 0m | 12m 43s | None |
 | `load_control_sheet_v2` | 0m | 11m 52s | None |
 | `parse_attributes` | 0m | 26m 51s | None |
-| `parse_theme_mapping` | 26m | 4m 22s | `parse_attributes` |
-| `score_lightweight` | 30m | 1h 14m 1s | `parse_theme_mapping` |
+| `parse_theme_mapping_v1` | 26m | 4m 22s baseline | `parse_attributes` |
+| `compare_theme_mappings` | 26m target start | New task | `parse_attributes` |
+| `parse_theme_mapping_v2` | After comparison | New route task | `parse_attributes`, `compare_theme_mappings` |
+| `score_lightweight_v1` | 30m | 1h 14m 1s baseline | `parse_theme_mapping_v1` |
+| `score_lightweight_v2` | After v2 mapping parse | New route task | `parse_theme_mapping_v2` |
 | `combine_customer_cells` | 38m | 2m 43s | `assign_customer_cells` |
-| `map_theme_scores_to_ads` | 1h 44m | 1h 22m 55s | `score_lightweight`, `load_control_sheet` |
-| `map_theme_scores_to_ads_v2` | 3h 7m | 43m 36s | `score_lightweight`, `map_theme_scores_to_ads`, `load_control_sheet_v2` |
-| `trigger_page_build_job` | 3h 50m | 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
+| `map_theme_scores_to_ads_v1` | 1h 44m | 1h 22m 55s | `score_lightweight_v1`, `load_control_sheet_v1` |
+| `map_theme_scores_to_ads_v2` | After v2 scoring | Prior baseline 43m 36s | `score_lightweight_v2`, `load_control_sheet_v2` |
+| `trigger_page_build_v1_job` | After v1 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
+| `trigger_page_build_v2_job` | After v2 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
 ```mermaid
 gantt
@@ -93,31 +105,43 @@ gantt
   axisFormat  %H:%M
   section Parallel inputs
   assign_customer_cells      :2026-07-02 18:00, 39m
-  load_control_sheet         :2026-07-02 18:00, 13m
+  load_control_sheet_v1      :2026-07-02 18:00, 13m
   load_control_sheet_v2      :2026-07-02 18:00, 12m
   parse_attributes           :2026-07-02 18:00, 27m
   section Theme scoring
-  parse_theme_mapping        :2026-07-02 18:26, 4m
-  score_lightweight          :2026-07-02 18:30, 74m
+  parse_theme_mapping_v1     :2026-07-02 18:26, 4m
+  compare_theme_mappings     :2026-07-02 18:26, 5m
+  parse_theme_mapping_v2     :2026-07-02 18:31, 4m
+  score_lightweight_v1       :2026-07-02 18:30, 74m
+  score_lightweight_v2       :2026-07-02 18:35, 74m
   section Candidate mapping
   combine_customer_cells     :2026-07-02 18:38, 3m
-  map_theme_scores_to_ads    :2026-07-02 19:44, 83m
-  map_theme_scores_to_ads_v2 :2026-07-02 21:07, 44m
-  trigger_page_build_job     :2026-07-02 21:50, 1m
+  map_theme_scores_to_ads_v1 :2026-07-02 19:44, 83m
+  map_theme_scores_to_ads_v2 :2026-07-02 19:44, 44m
+  trigger_page_build_v1_job  :2026-07-02 21:07, 1m
+  trigger_page_build_v2_job  :2026-07-02 20:28, 1m
 ```
 
 ## Page Build And Delivery Fan-Out
 
-The page-build job is not normally scheduled by itself in PROD. It is submitted by the final task in candidate build. It builds page outputs and then triggers delivery and checking jobs.
+The v1 and v2 page-build jobs are not normally scheduled by themselves in PROD.
+They are submitted by the candidate-build route after their respective mapping
+tables and shared customer cells are ready. The v1 page-build job remains
+location-based and continues to fan out to QA, MASID handoff, and PLP delivery.
+The v2 page-build job is page-type based and fans out to payload export.
 
 ```mermaid
 flowchart TD
-  build_page_primary --> build_page_secondary
-  build_page_v2 --> trigger_payload_export_job
-  build_page_secondary --> trigger_qa_job
-  build_page_secondary --> trigger_masid_handoff_check_job
-  build_page_secondary --> trigger_plp_gs_delivery_job
-  trigger_qa_job --> qa["mktg_next_uk_nextads_qa"]
+  subgraph v1["mktg_next_uk_nextads_page_build"]
+    build_page_primary --> build_page_secondary
+    build_page_secondary --> trigger_assignment_validation_job
+    build_page_secondary --> trigger_masid_handoff_check_job
+    build_page_secondary --> trigger_plp_gs_delivery_job
+  end
+  subgraph v2["mktg_next_uk_nextads_page_build_v2"]
+    build_page_v2 --> trigger_payload_export_job
+  end
+  trigger_assignment_validation_job --> qa["mktg_next_uk_nextads_assignment_validation"]
   trigger_masid_handoff_check_job --> masid["mktg_next_uk_nextads_masid_handoff"]
   trigger_payload_export_job --> payload["mktg_next_uk_nextads_payload_export"]
   trigger_plp_gs_delivery_job --> plp["mktg_next_uk_nextads_plp_gs_delivery"]

@@ -51,7 +51,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 3600
-      - task_key: load_control_sheet
+      - task_key: load_control_sheet_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_control/load_control_sheet.py
           parameters:
@@ -98,7 +98,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 7200
-      - task_key: parse_theme_mapping
+      - task_key: parse_theme_mapping_v1
         depends_on:
           - task_key: parse_attributes
         spark_python_task:
@@ -110,13 +110,48 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --refresh_themes_date
             - "2026-06-15"
+            - --route
+            - "v1"
         job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 3600
-      - task_key: score_lightweight
+      - task_key: compare_theme_mappings
         depends_on:
-          - task_key: parse_theme_mapping
+          - task_key: parse_attributes
+        spark_python_task:
+          python_file: ../../../jobs/nextads_control/compare_theme_mappings.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 1800
+      - task_key: parse_theme_mapping_v2
+        depends_on:
+          - task_key: parse_attributes
+          - task_key: compare_theme_mappings
+        spark_python_task:
+          python_file: ../../../jobs/nextads_control/parse_theme_mapping.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --refresh_themes_date
+            - "2026-06-15"
+            - --route
+            - "v2"
+        job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 3600
+      - task_key: score_lightweight_v1
+        depends_on:
+          - task_key: parse_theme_mapping_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_theme_scores.py
           parameters:
@@ -126,14 +161,34 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --refresh_model_date
             - "2026-05-11"
+            - --route
+            - "v1"
         job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 18000
-      - task_key: map_theme_scores_to_ads
+      - task_key: score_lightweight_v2
         depends_on:
-          - task_key: score_lightweight
-          - task_key: load_control_sheet
+          - task_key: parse_theme_mapping_v2
+        spark_python_task:
+          python_file: ../../../jobs/nextads_candidates/build_theme_scores.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --refresh_model_date
+            - "2026-05-11"
+            - --route
+            - "v2"
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 18000
+      - task_key: map_theme_scores_to_ads_v1
+        depends_on:
+          - task_key: score_lightweight_v1
+          - task_key: load_control_sheet_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_theme_ad_candidates.py
           parameters:
@@ -150,8 +205,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         timeout_seconds: 10800
       - task_key: map_theme_scores_to_ads_v2
         depends_on:
-          - task_key: score_lightweight
-          - task_key: map_theme_scores_to_ads
+          - task_key: score_lightweight_v2
           - task_key: load_control_sheet_v2
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_page_type_candidates_v2.py
@@ -166,10 +220,10 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 10800
-      - task_key: trigger_page_build_job
+      - task_key: trigger_page_build_v1_job
         depends_on:
           - task_key: combine_customer_cells
-          - task_key: map_theme_scores_to_ads
+          - task_key: map_theme_scores_to_ads_v1
         spark_python_task:
           python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:

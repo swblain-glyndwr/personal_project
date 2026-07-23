@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 import yaml
 
@@ -19,7 +19,8 @@ def test_main_job_submits_page_build_without_waiting_for_result():
     )
 
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
-    trigger_task = tasks_by_key["trigger_page_build_job"]
+    trigger_v1_task = tasks_by_key["trigger_page_build_v1_job"]
+    trigger_v2_task = tasks_by_key["trigger_page_build_v2_job"]
 
     assert job["name"] == "mktg_next_uk_nextads_candidate_build"
     assert job["email_notifications"]["on_failure"] == (
@@ -31,20 +32,66 @@ def test_main_job_submits_page_build_without_waiting_for_result():
         task["task_key"] for task in job["tasks"] if "run_job_task" in task
     ]
     assert run_job_tasks == ["trigger_data_pull_for_CMS_pull"]
-    assert trigger_task["depends_on"] == [
+    assert trigger_v1_task["depends_on"] == [
         {"task_key": "combine_customer_cells"},
-        {"task_key": "map_theme_scores_to_ads"},
-        # {"task_key": "map_theme_scores_to_ads_v2"},
+        {"task_key": "map_theme_scores_to_ads_v1"},
     ]
-    assert trigger_task["spark_python_task"]["python_file"] == (
+    assert trigger_v1_task["spark_python_task"]["python_file"] == (
         "../../../jobs/orchestration/trigger_databricks_job.py"
     )
-    assert trigger_task["spark_python_task"]["parameters"] == [
+    assert trigger_v2_task["depends_on"] == [
+        {"task_key": "combine_customer_cells"},
+        {"task_key": "map_theme_scores_to_ads_v2"},
+    ]
+    assert trigger_v1_task["spark_python_task"]["parameters"] == [
         "--job-id",
         "${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}",
         "--job-name",
         "mktg_next_uk_nextads_page_build",
         "--fail-on-submit-error",
+    ]
+
+
+def test_v2_mapping_does_not_depend_on_v1_mapping():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
+        "mktg_next_uk_nextads_cicd",
+    )
+
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+
+    assert tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"] == [
+        {"task_key": "score_lightweight_v2"},
+        {"task_key": "load_control_sheet_v2"},
+    ]
+
+
+def test_theme_mapping_and_lightweight_scores_are_split_by_route():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
+        "mktg_next_uk_nextads_cicd",
+    )
+
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+
+    assert tasks_by_key["parse_theme_mapping_v1"]["depends_on"] == [
+        {"task_key": "parse_attributes"},
+    ]
+    assert tasks_by_key["compare_theme_mappings"]["depends_on"] == [
+        {"task_key": "parse_attributes"},
+    ]
+    assert tasks_by_key["parse_theme_mapping_v2"]["depends_on"] == [
+        {"task_key": "parse_attributes"},
+        {"task_key": "compare_theme_mappings"},
+    ]
+    assert tasks_by_key["score_lightweight_v1"]["depends_on"] == [
+        {"task_key": "parse_theme_mapping_v1"},
+    ]
+    assert tasks_by_key["score_lightweight_v2"]["depends_on"] == [
+        {"task_key": "parse_theme_mapping_v2"},
+    ]
+    assert "--route" in tasks_by_key["parse_theme_mapping_v2"]["spark_python_task"][
+        "parameters"
     ]
 
 

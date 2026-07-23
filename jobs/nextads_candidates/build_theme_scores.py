@@ -38,6 +38,15 @@ from next_ads.utils import etl
 from next_ads.Plotting import DirectedGraphPlotter
 
 
+def route_table_key(base_key: str, route: str) -> str:
+    route = route.lower()
+    if route == "v1":
+        return base_key
+    if route == "v2":
+        return f"{base_key}_v2"
+    raise ValueError("route must be one of: v1, v2")
+
+
 def main(
     JOB_ENV,
     CLIENT,
@@ -48,6 +57,7 @@ def main(
     PLOT_GRAPH=False,
     MIN_EDGE_WEIGHT=0.03,
     MIN_NODE_WEIGHT=1000,
+    ROUTE="v1",
 ):
     configure_logging(
         log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
@@ -68,6 +78,7 @@ def main(
     config = config_manager.load_config(JOB_ENV)
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
+    route = (ROUTE or "v1").lower()
 
     PRODUCT_CATALOG = cfg["tables"]["read"]["product_catalog"]
     BASKETS = cfg["tables"]["read"]["baskets"]
@@ -87,22 +98,26 @@ def main(
 
     tbl_args = {'catalog': config.catalog_write,
                 'schema': SCHEMA, 'client': CLIENT}
-    ITEM_THEMES = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
-    THEME_TRANSITIONS_LATEST = etl.map_tbl(tbls["theme_transitions_latest"], **tbl_args)  # noqa
-    THEME_TRANSITIONS = etl.map_tbl(tbls["theme_transitions"], **tbl_args)
-    NEXT_THEME_SCORES_LATEST = etl.map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
-    NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
-    THEME_SCORING_EVENTS_LATEST = etl.map_tbl(tbls["theme_scoring_events_latest"], **tbl_args)  # noqa
+    ITEM_THEMES = etl.map_tbl(
+        tbls[route_table_key("item_themes_latest", route)], **tbl_args
+    )
+    THEME_TRANSITIONS_LATEST = etl.map_tbl(
+        tbls[route_table_key("theme_transitions_latest", route)], **tbl_args
+    )  # noqa
+    THEME_TRANSITIONS = etl.map_tbl(
+        tbls[route_table_key("theme_transitions", route)], **tbl_args
+    )
+    NEXT_THEME_SCORES_LATEST = etl.map_tbl(
+        tbls[route_table_key("next_theme_scores_latest", route)], **tbl_args
+    )  # noqa
+    NEXT_THEME_SCORES = etl.map_tbl(
+        tbls[route_table_key("next_theme_scores", route)], **tbl_args
+    )
+    THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
+        tbls[route_table_key("theme_scoring_events_latest", route)], **tbl_args
+    )  # noqa
 
     ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
-
-    NEXT_THEME_SCORES_LATEST = etl.map_tbl(
-        tbls["next_theme_scores_latest"], **tbl_args
-    )  # noqa
-    NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
-    THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
-        tbls["theme_scoring_events_latest"], **tbl_args
-    )  # noqa
 
     ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
 
@@ -570,4 +585,5 @@ if __name__ == "__main__":
         PLOT_GRAPH=jobparser.has_arg("--plot-graph"),
         MIN_EDGE_WEIGHT=jobparser.get_arg("--min-edge-weight") or 0.03,
         MIN_NODE_WEIGHT=jobparser.get_arg("--min-node-weight") or 1000,
+        ROUTE=jobparser.get_arg("--route") or "v1",
     )

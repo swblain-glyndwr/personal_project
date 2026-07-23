@@ -1,4 +1,4 @@
-import importlib
+﻿import importlib
 from pathlib import Path
 
 from next_ads.delivery import google_sheets
@@ -74,7 +74,7 @@ def test_delivery_jobs_use_delivery_entrypoints():
     ] == "../../../jobs/nextads_delivery/plp_gs.py"
 
 
-def test_v2_payload_export_routes_stay_on_scripts():
+def test_v2_payload_export_routes_use_jobs_folder():
     payload_job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml",
         "mktg_next_uk_nextads_payload_export_cicd",

@@ -38,7 +38,27 @@ from next_ads.utils import config_manager, etl
 from next_ads.common.paths import load_client_config
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=None):
+def route_table_key(base_key: str, route: str) -> str:
+    route = route.lower()
+    if route == "v1":
+        return base_key
+    if route == "v2":
+        return f"{base_key}_v2"
+    raise ValueError("route must be one of: v1, v2")
+
+
+def route_theme_mapping_key(route: str) -> str:
+    return route_table_key("theme_mapping", route)
+
+
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    REFRESH_THEMES_DATE,
+    THEME_RANKING_MODE=None,
+    ROUTE="v1",
+):
     configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
@@ -54,6 +74,8 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
     config = config_manager.load_config(JOB_ENV)
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
+    route = (ROUTE or "v1").lower()
+    theme_mapping_config_key = route_theme_mapping_key(route)
 
     today = date.today().strftime(format="%Y-%m-%d")
     set_theme_attributes = REFRESH_THEMES_DATE == today or False
@@ -73,28 +95,36 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
         "schema": schema,
         "client": CLIENT,
     }
-    theme_mapping = etl.map_tbl(tbls["theme_mapping"], **tbl_args)
-    theme_mapping_latest = etl.map_tbl(tbls["theme_mapping_latest"], **tbl_args)
+    theme_mapping = etl.map_tbl(
+        tbls[route_table_key("theme_mapping", route)], **tbl_args
+    )
+    theme_mapping_latest = etl.map_tbl(
+        tbls[route_table_key("theme_mapping_latest", route)], **tbl_args
+    )
     item_attributes_latest = etl.map_tbl(
         tbls["item_attributes_latest"],
         **tbl_args,
     )
-    item_themes_latest = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
-    item_themes = etl.map_tbl(tbls["item_themes"], **tbl_args)
+    item_themes_latest = etl.map_tbl(
+        tbls[route_table_key("item_themes_latest", route)], **tbl_args
+    )
+    item_themes = etl.map_tbl(
+        tbls[route_table_key("item_themes", route)], **tbl_args
+    )
 
     webhook_url = cfg["webhooks"]["DS Warnings"]
 
     logger.info(
-        "Parsing theme mapping from control sheet tab: "
-        f'{cfg["theme_mapping"]["sheet"]}'
+        f"Parsing {route} theme mapping from control sheet tab: "
+        f'{cfg[theme_mapping_config_key]["sheet"]}'
     )
     df_themes = normalise_theme_mapping(
         gcp.spark_df_from_sheets(
-            url=cfg["theme_mapping"]["url"],
-            worksheet_name=cfg["theme_mapping"]["sheet"],
+            url=cfg[theme_mapping_config_key]["url"],
+            worksheet_name=cfg[theme_mapping_config_key]["sheet"],
             gcp_scope=cfg["gcp"]["scope"],
             gcp_key=cfg["gcp"]["key"],
-            schema=cfg["theme_mapping"]["read_schema"],
+            schema=cfg[theme_mapping_config_key]["read_schema"],
         )
     )
 
@@ -175,6 +205,7 @@ def parse_args():
         "LOG_LEVEL": jobparser.get_arg("--log_level"),
         "REFRESH_THEMES_DATE": jobparser.get_arg("--refresh_themes_date"),
         "THEME_RANKING_MODE": jobparser.get_arg("--theme-ranking-mode"),
+        "ROUTE": jobparser.get_arg("--route") or "v1",
     }
 
 

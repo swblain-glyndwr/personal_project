@@ -170,10 +170,14 @@ def load_customer_age_preferences(spark, kids_age_groups: str):
     return customer_prefs, age_order_map
 
 
-def assert_eligible_locations(df_ad_scores, df_ad2loc):
+def assert_eligible_groups(df_ad_scores, df_ad2group, group_col: str):
     df_violations = df_ad_scores.join(
-        df_ad2loc,
-        on=["Location", "UniqueAdID"],
+        df_ad2group,
+        on=[group_col, "UniqueAdID"],
         how="left_anti",
     )
-    assert df_violations.count() == 0, "Ads assigned to ineligible locations"
+    assert df_violations.count() == 0, f"Ads assigned to ineligible {group_col}"
+
+
+def assert_eligible_locations(df_ad_scores, df_ad2loc):
+    assert_eligible_groups(df_ad_scores, df_ad2loc, group_col="Location")

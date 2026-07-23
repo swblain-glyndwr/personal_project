@@ -78,7 +78,7 @@ def rank_top_ads_per_adset(
     df_ad2adset,
     customer_prefs,
     age_order_map,
-    top_ads_per_location: int,
+    top_ads_per_group: int,
 ):
     return (
         df_score_components.join(customer_prefs, "AccountNumber", how="left")
@@ -120,12 +120,27 @@ def rank_top_ads_per_adset(
                 )
             ),
         )
-        .where(F.col("Rank") <= top_ads_per_location)
+        .where(F.col("Rank") <= top_ads_per_group)
+    )
+
+
+def map_ranked_ads_to_groups(df_adset_scores, df_adset2group, group_col: str):
+    return (
+        df_adset_scores.join(df_adset2group, on="AdSetID", how="inner")
+        .select(
+            "AccountNumber",
+            "UniqueAdID",
+            group_col,
+            "Score",
+            "TriggerScore",
+            "Rank",
+        )
     )
 
 
 def map_ranked_ads_to_locations(df_adset_scores, df_adset2loc):
-    return (
-        df_adset_scores.join(df_adset2loc, on="AdSetID", how="inner")
-        .select("AccountNumber", "UniqueAdID", "Location", "Score", "TriggerScore", "Rank")
+    return map_ranked_ads_to_groups(
+        df_adset_scores,
+        df_adset2loc,
+        group_col="Location",
     )

@@ -179,7 +179,7 @@ After feature PRs have merged to `develop`, run the deployment pipeline from `de
 
 Leave `Recreate DEV integration tables` unticked for normal runs. Tick it only when a merged change intentionally changes table definitions and the shared DEV integration tables need to be dropped and recreated.
 
-For smoke evidence, run `load_control_sheet`, and run `load_control_sheet_v2` when v2 control sheet changes are in scope. Confirm the output tables are created or updated in `marketingdata_dev.nextads_integration` and that no PREPROD or PROD outputs have changed.
+For smoke evidence, run `load_control_sheet_v1`, and run `load_control_sheet_v2` when v2 control sheet changes are in scope. Confirm the output tables are created or updated in `marketingdata_dev.nextads_integration` and that no PREPROD or PROD outputs have changed.
 
 #### DEV Feature Store
 
