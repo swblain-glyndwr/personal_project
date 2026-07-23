@@ -225,6 +225,7 @@ def realtime_reranking_preranked_ads_build(
 
     from pyspark.sql import functions as F
     from next_ads.utils import etl
+    from pyspark.sql.types import DoubleType
 
     read_tables = cfg["tables"]["read"]
     write_tables = cfg["tables"]["write"]
@@ -269,8 +270,8 @@ def realtime_reranking_preranked_ads_build(
             F.col("AccountNumber"),
             F.col("roamingprofileid"),
             F.col("PageType"),
-            F.col("Score"),
-            F.col("TriggerScore"),
+            F.col("Score").cast(DoubleType()),
+            F.col("TriggerScore").cast(DoubleType()),
             F.col("Rank"),
             *cells_cols,
             *features_cols,
