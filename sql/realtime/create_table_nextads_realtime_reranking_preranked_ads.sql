@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_reranking_preranked_ads (
- UniqueAdID STRING NOT NULL 
+ UniqueAdID STRING NOT NULL ,
  AccountNumber STRING NOT NULL ,
  roamingprofileid STRING NOT NULL ,
  PageType STRING NOT NULL ,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_rerankin
  department_perc_coverage DOUBLE, 
  next_category STRING, 
  next_category_perc_coverage DOUBLE, 
- prem_level_brand BOOL ,
+ prem_level_brand BOOLEAN ,
  prem_level_brand_perc_coverage DOUBLE ,
  rundate date not null,
     constraint pk_{client}_nextads_realtime_reranking_preranked_ads primary key (
