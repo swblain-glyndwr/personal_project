@@ -297,9 +297,9 @@ def realtime_reranking_preranked_ads_build(
             "Duplicate Adverts for customer, locaiton in preranked advert features table"
         )
 
-    rpid_accounts.write.format("delta").mode("overwrite").option(
-        "mergeSchema", "true"
-    ).saveAsTable(output_table)
+    rpid_accounts.write.format("delta").mode("overwrite").saveAsTable(
+        output_table
+    )
     logger.info(f"Data in {output_table} updated")
 
     return

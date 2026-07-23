@@ -40,6 +40,6 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_rerankin
         rundate)
 )
 USING DELTA
-PARTITIONED BY (roamingprofileid)
+CLUSTER BY (roamingprofileid)
 TBLPROPERTIES('delta.enableChangeDataFeed'= 'true' )
 ;
