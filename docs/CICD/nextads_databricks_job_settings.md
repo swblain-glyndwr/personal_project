@@ -52,18 +52,26 @@ candidate scoring.
 
 ### `mktg_next_uk_nextads_table_operations`
 
-Manual table maintenance. Defaults are inert.
+Manual table maintenance. Defaults are inert: every `run_*` action defaults to `false`, and `dry_run` defaults to `true`. Select exactly one `run_*` action for each run.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
-| `operation` | Operation to prepare or execute. | `create_missing_tables`, `alter_tables`, `recreate_tables`, `drop_tables`. |
+| `run_create_missing_tables` | Create configured tables that do not already exist. | Set to `true` for this action only. Requires `confirm_mutating=true` when `dry_run=false`. |
+| `run_alter_tables` | Add supported missing columns to configured tables. | Set to `true` for this action only. Requires `confirm_mutating=true` when `dry_run=false`. |
+| `run_recreate_tables` | Drop and recreate configured tables. | Set to `true` for this action only. Requires `confirm_destructive=true` when `dry_run=false`. |
+| `run_drop_tables` | Drop explicit tables listed in `tables`. | Set to `true` for this action only. Requires `confirm_destructive=true` when `dry_run=false`. |
+| `run_copy_prod_tables_to_dev` | Copy configured PROD read/source tables into the selected DEV schema. | Set to `true` for this action only. Requires `job_env=dev` and `confirm_mutating=true` when `dry_run=false`. |
 | `client` | Client config key. | Usually `next_uk`. |
 | `job_env` | Environment config to use. | Target-provided `dev`, `preprod`, or `prod`. |
 | `catalog`, `schema` | Namespace for explicit table operations. | Required for `drop_tables`; defaults come from target variables. |
 | `tables` | Comma-separated table list for `drop_tables`. | Unqualified names resolve under `catalog.schema`; fully qualified names must match `catalog.schema`. Wildcards are rejected. |
-| `confirm_mutating` | Allows non-destructive mutation. | Must be `true` with `dry_run=false` for `create_missing_tables` and `alter_tables`. |
+| `history_days` | Number of days copied by `run_copy_prod_tables_to_dev`. | Defaults to `1`. |
+| `input_tables_only` | Skips generated ranking output tables during PROD-to-DEV copy. | Defaults to `true`. |
+| `confirm_mutating` | Allows non-destructive mutation. | Must be `true` with `dry_run=false` for `run_create_missing_tables`, `run_alter_tables`, and `run_copy_prod_tables_to_dev`. |
 | `confirm_destructive` | Allows destructive mutation. | Must be `true` with `dry_run=false` for `recreate_tables` and `drop_tables`. |
 | `dry_run` | Preview without executing. | Defaults to `true`; set `false` only with the relevant confirmation. |
+
+To copy PROD source tables into a personal DEV schema, run `mktg_next_uk_nextads_table_operations` with `run_copy_prod_tables_to_dev=true`, `job_env=dev`, `client=next_uk`, `history_days=1`, `input_tables_only=true`, `confirm_mutating=true`, and `dry_run=false`. Leave `dry_run=true` first when you only want to check the selected action.
 
 ### DEV Integration And PREPROD Table Setup Jobs
 

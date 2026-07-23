@@ -13,6 +13,15 @@ SUPPORTED_OPERATIONS = {
     "create_missing_tables",
     "alter_tables",
     "recreate_tables",
+    "copy_prod_tables_to_dev",
+}
+
+ACTION_FLAGS = {
+    "run_create_missing_tables": "create_missing_tables",
+    "run_alter_tables": "alter_tables",
+    "run_recreate_tables": "recreate_tables",
+    "run_drop_tables": "drop_tables",
+    "run_copy_prod_tables_to_dev": "copy_prod_tables_to_dev",
 }
 
 
@@ -49,6 +58,11 @@ def load_create_tables_module():
     return importlib.import_module("jobs.table_operations.create_tables")
 
 
+def load_mirror_prod_tables_module():
+    bootstrap_project_imports()
+    return importlib.import_module("jobs.table_operations.mirror_prod_tables_in_dev")
+
+
 def parse_bool(value: str | bool) -> bool:
     if isinstance(value, bool):
         return value
@@ -59,6 +73,42 @@ def parse_bool(value: str | bool) -> bool:
     if normalised in {"false", "0", "no", "n"}:
         return False
     raise ValueError(f"Unsupported boolean value: {value!r}")
+
+
+def resolve_operation_from_flags(
+    *,
+    operation: str | None = None,
+    **action_flags: str | bool | None,
+) -> str:
+    supplied_flags = {
+        name: value
+        for name, value in action_flags.items()
+        if value is not None
+    }
+    selected = [
+        ACTION_FLAGS[name]
+        for name, value in supplied_flags.items()
+        if parse_bool(value)
+    ]
+
+    if len(selected) > 1:
+        raise ValueError(
+            "Exactly one run_* action parameter must be true. Selected: "
+            + ", ".join(selected)
+        )
+    if selected:
+        selected_operation = selected[0]
+        if operation and operation != selected_operation:
+            raise ValueError(
+                "--operation must match the selected run_* action parameter. "
+                f"Got operation={operation!r}, selected={selected_operation!r}"
+            )
+        return selected_operation
+    if supplied_flags:
+        raise ValueError("Exactly one run_* action parameter must be true")
+    if operation:
+        return operation
+    raise ValueError("No table operation selected")
 
 
 def quote_identifier(value: str) -> str:
@@ -195,6 +245,46 @@ def run_configured_table_operation(
     return []
 
 
+def copy_prod_tables_to_dev(
+    *,
+    job_env: str,
+    client: str,
+    log_level: str,
+    confirm_mutating: bool,
+    dry_run: bool,
+    history_days: int,
+    input_tables_only: bool,
+    logger: logging.Logger | None = None,
+) -> list[str]:
+    logger = logger or logging.getLogger(__name__)
+    if job_env.lower() != "dev":
+        raise ValueError("copy_prod_tables_to_dev only supports job_env=dev")
+    if dry_run:
+        logger.info(
+            "Dry run enabled; would copy PROD tables into DEV for "
+            "client=%s history_days=%s input_tables_only=%s",
+            client,
+            history_days,
+            input_tables_only,
+        )
+        return []
+    if not confirm_mutating:
+        raise ValueError(
+            "--confirm_mutating true is required for copy_prod_tables_to_dev "
+            "when dry_run=false"
+        )
+
+    mirror_prod_tables = load_mirror_prod_tables_module()
+    mirror_prod_tables.main(
+        job_env=job_env,
+        client=client,
+        log_level=log_level,
+        history_days=history_days,
+        input_tables_only=input_tables_only,
+    )
+    return []
+
+
 def create_missing_tables(
     *,
     job_env: str,
@@ -261,7 +351,7 @@ def recreate_tables(
 def run_operation(
     spark,
     *,
-    operation: str,
+    operation: str | None,
     job_env: str,
     client: str,
     catalog: str,
@@ -270,9 +360,24 @@ def run_operation(
     confirm_mutating: bool,
     confirm_destructive: bool,
     dry_run: bool,
+    history_days: int = 1,
+    input_tables_only: bool = True,
+    run_create_missing_tables: str | bool | None = None,
+    run_alter_tables: str | bool | None = None,
+    run_recreate_tables: str | bool | None = None,
+    run_drop_tables: str | bool | None = None,
+    run_copy_prod_tables_to_dev: str | bool | None = None,
     log_level: str = "INFO",
     logger: logging.Logger | None = None,
 ) -> list[str]:
+    operation = resolve_operation_from_flags(
+        operation=operation,
+        run_create_missing_tables=run_create_missing_tables,
+        run_alter_tables=run_alter_tables,
+        run_recreate_tables=run_recreate_tables,
+        run_drop_tables=run_drop_tables,
+        run_copy_prod_tables_to_dev=run_copy_prod_tables_to_dev,
+    )
     if operation not in SUPPORTED_OPERATIONS:
         raise ValueError(
             f"Unsupported operation {operation!r}; expected one of "
@@ -289,6 +394,18 @@ def run_operation(
             tables=tables,
             confirm_destructive=confirm_destructive,
             dry_run=dry_run,
+            logger=logger,
+        )
+
+    if operation == "copy_prod_tables_to_dev":
+        return copy_prod_tables_to_dev(
+            job_env=job_env,
+            client=client,
+            log_level=log_level,
+            confirm_mutating=confirm_mutating,
+            dry_run=dry_run,
+            history_days=history_days,
+            input_tables_only=input_tables_only,
             logger=logger,
         )
 
@@ -310,7 +427,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--operation",
-        default="create_missing_tables",
+        default=None,
         choices=sorted(SUPPORTED_OPERATIONS),
     )
     parser.add_argument("--job_env", default="dev")
@@ -321,6 +438,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--confirm_mutating", default="false")
     parser.add_argument("--confirm_destructive", default="false")
     parser.add_argument("--dry_run", default="true")
+    parser.add_argument("--history_days", default="1")
+    parser.add_argument("--input_tables_only", default="true")
+    parser.add_argument("--run_create_missing_tables", default=None)
+    parser.add_argument("--run_alter_tables", default=None)
+    parser.add_argument("--run_recreate_tables", default=None)
+    parser.add_argument("--run_drop_tables", default=None)
+    parser.add_argument("--run_copy_prod_tables_to_dev", default=None)
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -349,6 +473,13 @@ def main() -> None:
         confirm_mutating=parse_bool(args.confirm_mutating),
         confirm_destructive=parse_bool(args.confirm_destructive),
         dry_run=parse_bool(args.dry_run),
+        history_days=int(args.history_days),
+        input_tables_only=parse_bool(args.input_tables_only),
+        run_create_missing_tables=args.run_create_missing_tables,
+        run_alter_tables=args.run_alter_tables,
+        run_recreate_tables=args.run_recreate_tables,
+        run_drop_tables=args.run_drop_tables,
+        run_copy_prod_tables_to_dev=args.run_copy_prod_tables_to_dev,
         log_level=args.log_level,
         logger=logger,
     )
