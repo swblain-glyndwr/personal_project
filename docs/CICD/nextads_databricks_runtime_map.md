@@ -18,18 +18,24 @@ Durations are recent observed successful run durations, not SLAs. They should be
 
 ```mermaid
 flowchart TD
-  results["07:15 PROD\nmktg_next_uk_nextads_results_cicd\n~2h"]
-  realtime_results["07:30 PROD\nmktg_next_uk_nextads_realtime_results_cicd\n~9-11m"]
-  theme_affinity["09:00 PROD\nmktg_next_uk_nextads_theme_affinity\n~3h15-4h"]
-  candidate["18:00 PROD\nmktg_next_uk_nextads_candidate_build\n~3h20-3h50"]
-  realtime_inputs["18:00 PROD\nmktg_next_uk_nextads_realtime_inputs\n~18-20m"]
-  page_build["Triggered\nmktg_next_uk_nextads_page_build\n~41-51m"]
-  page_build_v2["Triggered\nmktg_next_uk_nextads_page_build_v2"]
-  qa["Triggered\nmktg_next_uk_nextads_assignment_validation\n~12-13m"]
-  masid["Triggered\nmktg_next_uk_nextads_masid_handoff\n~8-16m"]
-  payload["Triggered\nmktg_next_uk_nextads_payload_export\n~24-26m"]
-  plp["Triggered\nmktg_next_uk_nextads_plp_gs_delivery\n~10-12m"]
-  feature_store["21:00 DEV_FEATURE_STORE\nmktg_next_uk_nextads_feature_store\nno recent successful runs found"]
+  classDef sharedModel fill:#dbeafe,stroke:#2563eb,color:#111827
+  classDef sharedTask fill:#e0f2f1,stroke:#0f766e,color:#111827
+  classDef v1 fill:#dcfce7,stroke:#16a34a,color:#111827
+  classDef v2 fill:#ede9fe,stroke:#7c3aed,color:#111827
+  classDef reporting fill:#f1f5f9,stroke:#64748b,color:#111827
+
+  results["07:15 PROD\nmktg_next_uk_nextads_results_cicd\n~2h"]:::reporting
+  realtime_results["07:30 PROD\nmktg_next_uk_nextads_realtime_results_cicd\n~9-11m"]:::reporting
+  theme_affinity["09:00 PROD\nmktg_next_uk_nextads_theme_affinity\n~3h15-4h"]:::sharedModel
+  candidate["18:00 PROD\nmktg_next_uk_nextads_candidate_build\n~3h20-3h50"]:::sharedTask
+  realtime_inputs["18:00 PROD\nmktg_next_uk_nextads_realtime_inputs\n~18-20m"]:::reporting
+  page_build["Triggered\nmktg_next_uk_nextads_page_build\n~41-51m"]:::v1
+  page_build_v2["Triggered\nmktg_next_uk_nextads_page_build_v2"]:::v2
+  qa["Triggered\nmktg_next_uk_nextads_assignment_validation\n~12-13m"]:::v1
+  masid["Triggered\nmktg_next_uk_nextads_masid_handoff\n~8-16m"]:::v1
+  payload["Triggered\nmktg_next_uk_nextads_payload_export\n~24-26m"]:::v2
+  plp["Triggered\nmktg_next_uk_nextads_plp_gs_delivery\n~10-12m"]:::v1
+  feature_store["21:00 DEV_FEATURE_STORE\nmktg_next_uk_nextads_feature_store\nno recent successful runs found"]:::sharedModel
 
   candidate --> page_build
   candidate --> page_build_v2
@@ -61,25 +67,63 @@ This is the main evening operational route. It keeps customer cells, item attrib
 
 The v2 workbook owns the `Theme Mapping` tab. A Google Sheets Apps Script copies it into the v1 workbook, and `validate_theme_mapping_sync` checks that copy before the shared parser runs. `validate_theme_affinity_theme_coverage` then checks that active ad `Themes` from both loaded route control sheets exist in the shared Theme Affinity `NextTheme` output before either mapper runs.
 
+Colour key: blue = shared Theme Affinity model output; teal = shared candidate tasks; green = v1 route; purple = v2 route; amber = guardrail; yellow = external Google Sheet/App Script dependency.
+
 ```mermaid
 flowchart TD
+  classDef sharedModel fill:#dbeafe,stroke:#2563eb,color:#111827
+  classDef sharedTask fill:#e0f2f1,stroke:#0f766e,color:#111827
+  classDef v1 fill:#dcfce7,stroke:#16a34a,color:#111827
+  classDef v2 fill:#ede9fe,stroke:#7c3aed,color:#111827
+  classDef guardrail fill:#fef3c7,stroke:#d97706,color:#111827
+  classDef external fill:#fef9c3,stroke:#ca8a04,color:#111827
+
+  subgraph SHEETS["External Google Sheets"]
+    v2_theme_mapping["V2 Theme Mapping tab\nSource of truth"]:::external
+    app_script["Apps Script copy"]:::external
+    v1_theme_mapping["Copied/locked V1 Theme Mapping tab"]:::external
+    v2_theme_mapping --> app_script --> v1_theme_mapping
+  end
+
+  theme_affinity_latest["Shared upstream table\nnext_uk_nextads_theme_affinity_model_latest\nAccountNumber, NextTheme"]:::sharedModel
+
+  subgraph CANDIDATE_JOB["Job: mktg_next_uk_nextads_candidate_build"]
+    assign_customer_cells["assign_customer_cells\njobs/nextads_cells/assign_customer_cells.py"]:::sharedTask
+    combine_customer_cells["combine_customer_cells\njobs/nextads_cells/combine_customer_cells.py"]:::sharedTask
+    parse_attributes["parse_attributes\njobs/nextads_control/parse_attributes.py"]:::sharedTask
+    validate_theme_mapping_sync["validate_theme_mapping_sync\njobs/nextads_control/validate_theme_mapping_sync.py"]:::guardrail
+    parse_theme_mapping["parse_theme_mapping\njobs/nextads_control/parse_theme_mapping.py"]:::sharedTask
+    score_lightweight["score_lightweight\njobs/nextads_candidates/build_theme_scores.py"]:::sharedTask
+    load_control_sheet_v1["load_control_sheet_v1\njobs/nextads_control/load_control_sheet.py\nWrites: control_sheet_latest"]:::v1
+    load_control_sheet_v2["load_control_sheet_v2\njobs/nextads_control/load_control_sheet_v2.py\nWrites: control_sheet_latest_v2"]:::v2
+    validate_theme_affinity_theme_coverage["validate_theme_affinity_theme_coverage\njobs/nextads_candidates/validate_theme_affinity_theme_coverage.py"]:::guardrail
+    map_theme_scores_to_ads_v1["map_theme_scores_to_ads_v1\njobs/nextads_candidates/build_theme_ad_candidates.py\nJoin: NextTheme = control_sheet_latest.Themes"]:::v1
+    map_theme_scores_to_ads_v2["map_theme_scores_to_ads_v2\njobs/nextads_candidates/build_page_type_candidates_v2.py\nJoin: NextTheme = control_sheet_latest_v2.Themes"]:::v2
+    trigger_page_build_v1_job["trigger_page_build_v1_job\nSubmits v1 page-build job"]:::v1
+    trigger_page_build_v2_job["trigger_page_build_v2_job\nSubmits v2 page-build job"]:::v2
+  end
+
   assign_customer_cells --> combine_customer_cells
+  v1_theme_mapping --> validate_theme_mapping_sync
   validate_theme_mapping_sync --> parse_theme_mapping
   parse_attributes --> parse_theme_mapping --> score_lightweight
   load_control_sheet_v1 --> validate_theme_affinity_theme_coverage
   load_control_sheet_v2 --> validate_theme_affinity_theme_coverage
+  theme_affinity_latest --> validate_theme_affinity_theme_coverage
   load_control_sheet_v1 --> map_theme_scores_to_ads_v1
   validate_theme_affinity_theme_coverage --> map_theme_scores_to_ads_v1
+  theme_affinity_latest --> map_theme_scores_to_ads_v1
   score_lightweight --> map_theme_scores_to_ads_v1
   load_control_sheet_v2 --> map_theme_scores_to_ads_v2
   validate_theme_affinity_theme_coverage --> map_theme_scores_to_ads_v2
+  theme_affinity_latest --> map_theme_scores_to_ads_v2
   score_lightweight --> map_theme_scores_to_ads_v2
   combine_customer_cells --> trigger_page_build_v1_job
   map_theme_scores_to_ads_v1 --> trigger_page_build_v1_job
   combine_customer_cells --> trigger_page_build_v2_job
   map_theme_scores_to_ads_v2 --> trigger_page_build_v2_job
-  trigger_page_build_v1_job --> page_build["mktg_next_uk_nextads_page_build"]
-  trigger_page_build_v2_job --> page_build_v2["mktg_next_uk_nextads_page_build_v2"]
+  trigger_page_build_v1_job --> page_build["Separate job\nmktg_next_uk_nextads_page_build"]:::v1
+  trigger_page_build_v2_job --> page_build_v2["Separate job\nmktg_next_uk_nextads_page_build_v2"]:::v2
 ```
 
 Observed latest successful candidate-build task timing, from run `101421282112344`, with task names normalised to the target route. New guardrail tasks have no observed PROD baseline yet, so their durations are listed as new rather than historical measurements:
@@ -133,19 +177,30 @@ The v2 page-build job is page-type based and fans out to payload export.
 
 ```mermaid
 flowchart TD
-  subgraph v1["mktg_next_uk_nextads_page_build"]
+  classDef v1 fill:#dcfce7,stroke:#16a34a,color:#111827
+  classDef v2 fill:#ede9fe,stroke:#7c3aed,color:#111827
+  classDef trigger fill:#f8fafc,stroke:#64748b,color:#111827
+
+  subgraph V1_PAGE_BUILD["Databricks job: mktg_next_uk_nextads_page_build"]
+    build_page_primary["build_page_primary\njobs/nextads_assignment/build_page.py"]:::v1
+    build_page_secondary["build_page_secondary\njobs/nextads_assignment/build_page.py"]:::v1
+    trigger_assignment_validation_job["trigger_assignment_validation_job"]:::trigger
+    trigger_masid_handoff_check_job["trigger_masid_handoff_check_job"]:::trigger
+    trigger_plp_gs_delivery_job["trigger_plp_gs_delivery_job"]:::trigger
     build_page_primary --> build_page_secondary
     build_page_secondary --> trigger_assignment_validation_job
     build_page_secondary --> trigger_masid_handoff_check_job
     build_page_secondary --> trigger_plp_gs_delivery_job
   end
-  subgraph v2["mktg_next_uk_nextads_page_build_v2"]
+  subgraph V2_PAGE_BUILD["Databricks job: mktg_next_uk_nextads_page_build_v2"]
+    build_page_v2["build_page_v2\njobs/nextads_v2/build_page.py"]:::v2
+    trigger_payload_export_job["trigger_payload_export_job"]:::trigger
     build_page_v2 --> trigger_payload_export_job
   end
-  trigger_assignment_validation_job --> qa["mktg_next_uk_nextads_assignment_validation"]
-  trigger_masid_handoff_check_job --> masid["mktg_next_uk_nextads_masid_handoff"]
-  trigger_payload_export_job --> payload["mktg_next_uk_nextads_payload_export"]
-  trigger_plp_gs_delivery_job --> plp["mktg_next_uk_nextads_plp_gs_delivery"]
+  trigger_assignment_validation_job --> qa["Separate job\nmktg_next_uk_nextads_assignment_validation"]:::v1
+  trigger_masid_handoff_check_job --> masid["Separate job\nmktg_next_uk_nextads_masid_handoff"]:::v1
+  trigger_payload_export_job --> payload["Separate job\nmktg_next_uk_nextads_payload_export"]:::v2
+  trigger_plp_gs_delivery_job --> plp["Separate job\nmktg_next_uk_nextads_plp_gs_delivery"]:::v1
 ```
 
 Observed latest successful page-build task timing, from run `724497366216494`:
