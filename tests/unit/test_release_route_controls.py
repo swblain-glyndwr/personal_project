@@ -140,6 +140,43 @@ def test_dev_integration_setup_job_is_target_specific():
         assert "mktg_next_uk_nextads_dev_integration_migrate" not in target_jobs
         assert "mktg_next_uk_nextads_dev_integration_alter" not in target_jobs
     assert "mktg_next_uk_nextads_table_operations" in jobs
+    table_operations_job = jobs["mktg_next_uk_nextads_table_operations"]
+    table_operation_parameters = {
+        parameter["name"]: parameter["default"]
+        for parameter in table_operations_job["parameters"]
+    }
+    for action_parameter in [
+        "run_create_missing_tables",
+        "run_alter_tables",
+        "run_recreate_tables",
+        "run_drop_tables",
+        "run_copy_prod_tables_to_dev",
+    ]:
+        assert table_operation_parameters[action_parameter] == "false"
+    assert table_operation_parameters["history_days"] == "1"
+    assert table_operation_parameters["input_tables_only"] == "true"
+    assert "operation" not in table_operation_parameters
+
+    table_operation_task_parameters = table_operations_job["tasks"][0][
+        "spark_python_task"
+    ]["parameters"]
+    for action_parameter in [
+        "run_create_missing_tables",
+        "run_alter_tables",
+        "run_recreate_tables",
+        "run_drop_tables",
+        "run_copy_prod_tables_to_dev",
+    ]:
+        assert f"--{action_parameter}" in table_operation_task_parameters
+        assert (
+            f"{{{{job.parameters.{action_parameter}}}}}"
+            in table_operation_task_parameters
+        )
+    assert "--history_days" in table_operation_task_parameters
+    assert "{{job.parameters.history_days}}" in table_operation_task_parameters
+    assert "--input_tables_only" in table_operation_task_parameters
+    assert "{{job.parameters.input_tables_only}}" in table_operation_task_parameters
+
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
@@ -269,6 +306,16 @@ def test_preprod_setup_job_is_target_specific_and_non_destructive():
             continue
         assert "mktg_next_uk_nextads_preprod_setup" not in target_jobs
     assert "mktg_next_uk_nextads_table_operations" in jobs
+    table_operations_job = jobs["mktg_next_uk_nextads_table_operations"]
+    table_operation_parameters = {
+        parameter["name"]: parameter["default"]
+        for parameter in table_operations_job["parameters"]
+    }
+    assert table_operation_parameters["run_copy_prod_tables_to_dev"] == "false"
+    assert table_operation_parameters["history_days"] == "1"
+    assert table_operation_parameters["input_tables_only"] == "true"
+    assert "operation" not in table_operation_parameters
+
     assert setup_task["task_key"] == "create_tables"
     assert (
         setup_task["spark_python_task"]["python_file"]
