@@ -33,46 +33,46 @@ flowchart TD
   classDef external fill:#fef9c3,stroke:#ca8a04,color:#111827
 
   subgraph EXTERNAL["External workbook dependency"]
-    V2TM["V2 Theme Mapping tab<br/>Workbook: 1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4<br/>Source of truth"]:::external
-    COPY["Google Sheets Apps Script copy"]:::external
-    V1TM["Copied/locked V1 Theme Mapping tab<br/>Workbook used by current parser"]:::external
+    V2TM["V2 Theme Mapping<br/>source of truth"]:::external
+    COPY["Apps Script<br/>copy"]:::external
+    V1TM["Locked V1 Theme Mapping<br/>copied tab"]:::external
     V2TM --> COPY --> V1TM
   end
 
-  subgraph TA_JOB["Databricks job: mktg_next_uk_nextads_theme_affinity<br/>YAML: pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml<br/>Schedule: 09:00 Europe/London"]
-    TA_START["publish, predict, clean, sense-check"]:::sharedModel
-    TA_OUT["Writes: next_uk_nextads_theme_affinity_model_latest<br/>Grain: AccountNumber, NextTheme"]:::sharedModel
+  subgraph TA_JOB["Job: theme_affinity"]
+    TA_START["publish, predict,<br/>clean, sense-check"]:::sharedModel
+    TA_OUT["theme_affinity_model_latest<br/>AccountNumber, NextTheme"]:::sharedModel
     TA_START --> TA_OUT
   end
 
-  subgraph CAND_JOB["Databricks job: mktg_next_uk_nextads_candidate_build<br/>YAML: pipelines/databricks/jobs/mktg_next_uk_nextads.yml<br/>Schedule: 18:00 Europe/London"]
-    CAND_SHARED["Shared inputs and scoring tasks<br/>Customer cells, attributes, copied Theme Mapping, lightweight scoring"]:::sharedTask
-    CAND_GUARD["Guardrails<br/>Theme Mapping sync and Theme Affinity theme coverage"]:::guardrail
-    CAND_V1["V1 candidate mapping<br/>Writes: preranked_ads_from_themes_latest"]:::v1
-    CAND_V2["V2 candidate mapping<br/>Writes: preranked_ads_from_themes_v2_latest"]:::v2
-    TR1["trigger_page_build_v1_job<br/>Script: jobs/orchestration/trigger_databricks_job.py"]:::v1
-    TR2["trigger_page_build_v2_job<br/>Script: jobs/orchestration/trigger_databricks_job.py"]:::v2
+  subgraph CAND_JOB["Job: candidate_build"]
+    CAND_SHARED["shared cells,<br/>attributes, scoring"]:::sharedTask
+    CAND_GUARD["sync and coverage<br/>guardrails"]:::guardrail
+    CAND_V1["v1 candidates<br/>location grain"]:::v1
+    CAND_V2["v2 candidates<br/>page-type grain"]:::v2
+    TR1["trigger v1<br/>page build"]:::v1
+    TR2["trigger v2<br/>page build"]:::v2
     CAND_SHARED --> CAND_GUARD
     CAND_GUARD --> CAND_V1 --> TR1
     CAND_GUARD --> CAND_V2 --> TR2
   end
 
-  subgraph V1_PAGE_JOB["Databricks job: mktg_next_uk_nextads_page_build<br/>YAML: pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml"]
-    PB1["build_page_primary/build_page_secondary<br/>Script: jobs/nextads_assignment/build_page.py<br/>Route grain: Location"]:::v1
+  subgraph V1_PAGE_JOB["Job: page_build_v1"]
+    PB1["build page<br/>Location"]:::v1
   end
 
-  subgraph V2_PAGE_JOB["Databricks job: mktg_next_uk_nextads_page_build_v2<br/>YAML: pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml"]
-    PB2["build_page_v2<br/>Script: jobs/nextads_v2/build_page.py<br/>Route grain: PageType"]:::v2
+  subgraph V2_PAGE_JOB["Job: page_build_v2"]
+    PB2["build page<br/>PageType"]:::v2
   end
 
-  subgraph V1_DELIVERY["Triggered v1 downstream jobs"]
-    QA["mktg_next_uk_nextads_assignment_validation<br/>Script: jobs/nextads_reporting/assignment_validation.py"]:::v1
-    MASID["mktg_next_uk_nextads_masid_handoff<br/>Script: jobs/nextads_delivery/masid_handoff_check.py"]:::v1
-    PLP["mktg_next_uk_nextads_plp_gs_delivery<br/>Script: jobs/nextads_delivery/plp_gs.py"]:::v1
+  subgraph V1_DELIVERY["Triggered v1 jobs"]
+    QA["assignment_validation"]:::v1
+    MASID["masid_handoff"]:::v1
+    PLP["plp_gs_delivery"]:::v1
   end
 
-  subgraph V2_DELIVERY["Triggered v2 downstream job"]
-    PAYLOAD["mktg_next_uk_nextads_payload_export<br/>Script: jobs/nextads_delivery/build_v2_payload.py"]:::v2
+  subgraph V2_DELIVERY["Triggered v2 job"]
+    PAYLOAD["payload_export"]:::v2
   end
 
   V1TM --> CAND_GUARD
@@ -100,37 +100,37 @@ flowchart TD
   classDef guardrail fill:#fef3c7,stroke:#d97706,color:#111827
   classDef external fill:#fef9c3,stroke:#ca8a04,color:#111827
 
-  V2TM2["External: v2 Theme Mapping tab<br/>Source of truth"]:::external
-  COPY2["External: Apps Script copy"]:::external
-  V1TM2["External: copied/locked v1 Theme Mapping tab"]:::external
+  V2TM2["v2 Theme Mapping<br/>source"]:::external
+  COPY2["Apps Script<br/>copy"]:::external
+  V1TM2["locked v1 Theme Mapping<br/>copy"]:::external
   V2TM2 --> COPY2 --> V1TM2
 
-  TA_LATEST["Shared upstream table<br/>next_uk_nextads_theme_affinity_model_latest<br/>Columns include: AccountNumber, NextTheme"]:::sharedModel
+  TA_LATEST["theme_affinity_model_latest<br/>AccountNumber, NextTheme"]:::sharedModel
 
-  ASSIGN["assign_customer_cells<br/>Script: jobs/nextads_cells/assign_customer_cells.py"]:::sharedTask
-  COMBINE["combine_customer_cells<br/>Script: jobs/nextads_cells/combine_customer_cells.py<br/>Writes: customer_cells_latest"]:::sharedTask
+  ASSIGN["assign_customer_cells"]:::sharedTask
+  COMBINE["combine_customer_cells<br/>customer_cells_latest"]:::sharedTask
   ASSIGN --> COMBINE
 
-  LOAD_V1["load_control_sheet_v1<br/>Script: jobs/nextads_control/load_control_sheet.py<br/>Writes: control_sheet_latest<br/>Route fields: Location, Themes"]:::v1
-  LOAD_V2["load_control_sheet_v2<br/>Script: jobs/nextads_control/load_control_sheet_v2.py<br/>Writes: control_sheet_latest_v2<br/>Route fields: PageType, Themes"]:::v2
+  LOAD_V1["load_control_sheet_v1<br/>control_sheet_latest"]:::v1
+  LOAD_V2["load_control_sheet_v2<br/>control_sheet_latest_v2"]:::v2
 
-  ATTR["parse_attributes<br/>Script: jobs/nextads_control/parse_attributes.py"]:::sharedTask
-  SYNC["validate_theme_mapping_sync<br/>Script: jobs/nextads_control/validate_theme_mapping_sync.py<br/>Compares v2 source tab to copied v1 tab<br/>Stops on differences"]:::guardrail
-  THEME_MAP["parse_theme_mapping<br/>Script: jobs/nextads_control/parse_theme_mapping.py<br/>Reads copied v1 Theme Mapping<br/>Writes: theme_mapping_latest, item_themes_latest"]:::sharedTask
-  SCORE["score_lightweight<br/>Script: jobs/nextads_candidates/build_theme_scores.py"]:::sharedTask
+  ATTR["parse_attributes"]:::sharedTask
+  SYNC["validate_theme_mapping_sync<br/>stops on drift"]:::guardrail
+  THEME_MAP["parse_theme_mapping<br/>item_themes_latest"]:::sharedTask
+  SCORE["score_lightweight"]:::sharedTask
 
   V1TM2 --> SYNC
   ATTR --> THEME_MAP
   SYNC --> THEME_MAP
   THEME_MAP --> SCORE
 
-  COVER["validate_theme_affinity_theme_coverage<br/>Script: jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py<br/>Checks v1/v2 ad Themes exist in shared NextTheme output<br/>Stops on missing coverage"]:::guardrail
+  COVER["validate_theme_affinity<br/>theme coverage"]:::guardrail
   LOAD_V1 --> COVER
   LOAD_V2 --> COVER
   TA_LATEST --> COVER
 
-  MAP_V1["map_theme_scores_to_ads_v1<br/>Script: jobs/nextads_candidates/build_theme_ad_candidates.py<br/>Join: theme_affinity_model_latest.NextTheme = control_sheet_latest.Themes<br/>Writes: preranked_ads_from_themes_latest<br/>Output grain: Location"]:::v1
-  MAP_V2["map_theme_scores_to_ads_v2<br/>Script: jobs/nextads_candidates/build_page_type_candidates_v2.py<br/>Join: theme_affinity_model_latest.NextTheme = control_sheet_latest_v2.Themes<br/>Writes: preranked_ads_from_themes_v2_latest<br/>Output grain: PageType"]:::v2
+  MAP_V1["map_theme_scores_to_ads_v1<br/>Location grain"]:::v1
+  MAP_V2["map_theme_scores_to_ads_v2<br/>PageType grain"]:::v2
 
   TA_LATEST --> MAP_V1
   TA_LATEST --> MAP_V2
@@ -141,8 +141,8 @@ flowchart TD
   COVER --> MAP_V1
   COVER --> MAP_V2
 
-  TRIGGER_V1["trigger_page_build_v1_job<br/>Script: jobs/orchestration/trigger_databricks_job.py<br/>Submits: mktg_next_uk_nextads_page_build"]:::v1
-  TRIGGER_V2["trigger_page_build_v2_job<br/>Script: jobs/orchestration/trigger_databricks_job.py<br/>Submits: mktg_next_uk_nextads_page_build_v2"]:::v2
+  TRIGGER_V1["trigger_page_build_v1_job"]:::v1
+  TRIGGER_V2["trigger_page_build_v2_job"]:::v2
   COMBINE --> TRIGGER_V1
   MAP_V1 --> TRIGGER_V1
   COMBINE --> TRIGGER_V2
@@ -196,13 +196,3 @@ Inside `mktg_next_uk_nextads_candidate_build`, these are tasks, not standalone D
 | `trigger_page_build_v2_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
 If each node needs to be run as an independently addressable Databricks job, the YAML structure would need another split: separate job YAMLs for the control, scoring, and candidate-mapping nodes, plus an orchestration job using `run_job_task` or trigger tasks. That would improve manual rerun control, but it would add more deployed jobs, job ids, alert surfaces, and ordering contracts to maintain.
-
-## Alternatives
-
-| Option | Shape | Why not chosen |
-| --- | --- | --- |
-| Keep v2 dependent on v1 mapping | V2 reads `preranked_ads_from_themes_latest` and reshapes `Location` to `PageType`. | Couples v2 to v1 location eligibility and ranking, which is wrong for a long-lived page-type route. |
-| Split Theme Affinity into v1 and v2 jobs | Two scheduled model-scoring jobs feed two candidate routes. | Adds model scheduling, monitoring, and table risk without a control-sheet dependency to justify it. |
-| Split product Theme Mapping and lightweight scoring now | Separate `item_themes` and `next_theme_scores` tables are built from each workbook before candidate mapping. | Avoided because v2 is now the Theme Mapping source of truth and the v1 tab is a locked copy. The validation task catches copy drift without introducing duplicate scoring routes. |
-| Fully separate v1 and v2 candidate-build jobs now | Duplicate customer-cell and attribute tasks too. | More operational surface than needed while those inputs are still common. |
-| Fully switch off v1 | V2 becomes the only route. | Not valid because Home Page continues on v1 beyond the initial parallel-run period. |
