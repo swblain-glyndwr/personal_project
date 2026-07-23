@@ -264,17 +264,18 @@ def realtime_reranking_preranked_ads_build(
             ),
             how="inner",
         )
-    ).select(
-        F.col("UniqueAdID"),
-        F.col("AccountNumber"),
-        F.col("roamingprofileid"),
-        F.col("PageType"),
-        F.col("Score"),
-        F.col("TriggerScore"),
-        F.col("Rank"),
-        *cells_cols,
-        *features_cols,
-        F.lit(reference_date).cast("date").alias("rundate"),
+        .select(
+            F.col("UniqueAdID"),
+            F.col("AccountNumber"),
+            F.col("roamingprofileid"),
+            F.col("PageType"),
+            F.col("Score"),
+            F.col("TriggerScore"),
+            F.col("Rank"),
+            *cells_cols,
+            *features_cols,
+            F.lit(reference_date).cast("date").alias("rundate"),
+        )
     )
 
     logger.info("Running validation on pre-ranked advert features dataset")
@@ -352,7 +353,7 @@ def realtime_reranking_item_weights_build(
 
     # Columns to select
     weights_cols = weights.columns
-    [weights_cols.remove(i) for i in [cols_to_drop] if i in weights_cols]
+    [weights_cols.remove(i) for i in cols_to_drop if i in weights_cols]
 
     # Combined data view
     combined = items_data.crossJoin(weights).select(

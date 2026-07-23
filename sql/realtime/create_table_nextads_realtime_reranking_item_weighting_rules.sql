@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_rerankin
  brand STRING ,
  next_category STRING ,
  department STRING,
- prem_level_brand BOOL,
+ prem_level_brand BOOLEAN,
  action STRING NOT NULL,
  weighting_brand DOUBLE NOT NULL,
  weighting_department DOUBLE NOT NULL,
