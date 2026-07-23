@@ -472,7 +472,7 @@ def write_output_to_csv(
 
     logger.info(f"Writing output dataframe to CSV at: {payload_path}")
     (
-        df_output.coalesce(1)
+        df_output.repartition(4)
         .write.option("header", True)
         .option("quote", '"')
         .option("escape", '"')
