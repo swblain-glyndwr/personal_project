@@ -2,10 +2,7 @@
 
 Status: Target route for `feature/SWB/nextads-v1-v2-route-split`
 
-This route keeps customer cells and item attributes shared. Theme Mapping and
-lightweight theme scoring are split by route so v1 and v2 can read their
-respective workbook tabs before the candidate mapping layer joins route-specific
-theme scores to route-specific control-sheet ads.
+This route keeps customer cells and item attributes shared. Theme Mapping and lightweight theme scoring are split by route so v1 and v2 can read their respective workbook tabs before the candidate mapping layer joins route-specific theme scores to route-specific control-sheet ads.
 
 ```mermaid
 flowchart TD
@@ -53,14 +50,9 @@ flowchart TD
 
 ## Rationale
 
-The previous migration assumption was that v2 would fully replace v1 after a
-short parallel run. That is no longer true: Home Page remains on v1, while new
-page types need v2. Keeping the routes separate at the candidate mapping layer
-lets both routes run without v2 depending on either a v1 location-shaped output
-or a v1-only Theme Mapping tab.
+The previous migration assumption was that v2 would fully replace v1 after a short parallel run. That is no longer true: Home Page remains on v1, while new page types need v2. Keeping the routes separate at the candidate mapping layer lets both routes run without v2 depending on either a v1 location-shaped output or a v1-only Theme Mapping tab.
 
-This is the lowest-risk split because it only separates producers where the
-input contract now differs:
+This is the lowest-risk split because it only separates producers where the input contract now differs:
 
 | Boundary | Recommendation | Reason |
 | --- | --- | --- |
@@ -72,10 +64,7 @@ input contract now differs:
 
 ## Databricks Job Granularity
 
-The current YAMLs do not create a separate Databricks job for every node in the
-candidate-build DAG. They create one scheduled candidate-build job with multiple
-tasks, then trigger separate page-build and delivery jobs after candidate
-mapping completes.
+The current YAMLs do not create a separate Databricks job for every node in the candidate-build DAG. They create one scheduled candidate-build job with multiple tasks, then trigger separate page-build and delivery jobs after candidate mapping completes.
 
 | Databricks job | YAML | Runnable independently? | Contains / runs |
 | --- | --- | --- | --- |
@@ -88,8 +77,7 @@ mapping completes.
 | `mktg_next_uk_nextads_plp_gs_delivery` | `pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml` | Yes | V1 PLP Google Sheets delivery. |
 | `mktg_next_uk_nextads_payload_export` | `pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml` | Yes | V2 Bloomreach payload export. |
 
-Inside `mktg_next_uk_nextads_candidate_build`, these are tasks, not standalone
-Databricks jobs:
+Inside `mktg_next_uk_nextads_candidate_build`, these are tasks, not standalone Databricks jobs:
 
 | Candidate-build task | Script | Upstream task dependencies |
 | --- | --- | --- |
@@ -108,12 +96,7 @@ Databricks jobs:
 | `trigger_page_build_v1_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `trigger_page_build_v2_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
-If each node needs to be run as an independently addressable Databricks job,
-the YAML structure would need another split: separate job YAMLs for the control,
-theme-mapping, scoring, and candidate-mapping nodes, plus an orchestration job
-using `run_job_task` or trigger tasks. That would improve manual rerun control,
-but it would add more deployed jobs, job ids, alert surfaces, and ordering
-contracts to maintain.
+If each node needs to be run as an independently addressable Databricks job, the YAML structure would need another split: separate job YAMLs for the control, theme-mapping, scoring, and candidate-mapping nodes, plus an orchestration job using `run_job_task` or trigger tasks. That would improve manual rerun control, but it would add more deployed jobs, job ids, alert surfaces, and ordering contracts to maintain.
 
 ## Alternatives
 
