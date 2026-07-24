@@ -18,6 +18,9 @@ from jobs.table_operations.create_tables import (
 )
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
 class FakeSpark:
     def __init__(self):
         self.sql_calls = []
@@ -439,3 +442,19 @@ def test_table_selection_accepts_ref_full_name_or_table_name():
         table,
         {"next_uk_nextads_assignments_latest"},
     )
+
+
+def test_adsv2_control_sheet_tables_include_underperforming_flag_before_rundate():
+    for sql_path in [
+        PROJECT_ROOT / "sql/adsv2/create_table_control_sheet_v2.sql",
+        PROJECT_ROOT / "sql/adsv2/create_table_control_sheet_latest_v2.sql",
+    ]:
+        columns = extract_create_table_columns(sql_path.read_text())
+
+        assert ("IsUnderperforming", "BOOLEAN") in columns
+        assert columns.index(("ClusterID", "STRING")) < columns.index(
+            ("IsUnderperforming", "BOOLEAN")
+        )
+        assert columns.index(("IsUnderperforming", "BOOLEAN")) < columns.index(
+            ("rundate", "DATE NOT NULL")
+        )
