@@ -95,6 +95,22 @@ def get_payload_experiment_settings(client: str) -> dict:
     return cfg.get("payload_experiment_id", {})
 
 
+def normalize_audience_split_values(values) -> list[str]:
+    """Return audience split labels with the non-audience split included."""
+    normalized: list[str] = []
+    for value in values or []:
+        if value is None:
+            continue
+        text_value = str(value)
+        if text_value not in normalized:
+            normalized.append(text_value)
+
+    if "false" not in normalized:
+        normalized.append("false")
+
+    return normalized
+
+
 def get_fatigue_rotation_settings(spark):
     frd = [
         {
@@ -183,6 +199,9 @@ def assign_experiments(
         if split_col in customer_cells_latest.columns:
             audience_df = customer_cells_latest.select(
                 "AccountNumber", split_col
+            ).withColumn(
+                split_col,
+                F.coalesce(F.col(split_col).cast("string"), F.lit("false")),
             )
             if audience_split is None:
                 audience_split = [
@@ -197,6 +216,7 @@ def assign_experiments(
                     split_col,
                     audience_split,
                 )
+            audience_split = normalize_audience_split_values(audience_split)
         else:
             logger.warning(
                 "Audience experiment enabled but split column `%s` not found "

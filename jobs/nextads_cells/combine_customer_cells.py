@@ -20,6 +20,7 @@ from dsutils.argparser import get_job_parser
 from next_ads.utils import etl
 from next_ads.utils import config_manager
 from next_ads.common.paths import load_client_config
+from next_ads.decisioning.customer_cells import ensure_audience_column
 
 
 jobparser = get_job_parser()
@@ -114,6 +115,8 @@ if df_cells_transient.count() > 0:
                             0, subset=["IsPremium"])
 else:
     df_cells = df_cells_fixed
+
+df_cells = ensure_audience_column(df_cells)
 
 logger.info(f"Writing combined cells to {CELLS_TABLE_LATEST}")
 create_table_from_df(

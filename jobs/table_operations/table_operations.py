@@ -202,6 +202,7 @@ def run_configured_table_operation(
     job_env: str,
     client: str,
     log_level: str,
+    tables: str | None,
     confirm_mutating: bool,
     confirm_destructive: bool,
     dry_run: bool,
@@ -211,27 +212,29 @@ def run_configured_table_operation(
     if operation not in {"create_missing_tables", "alter_tables", "recreate_tables"}:
         raise ValueError(f"Unsupported configured table operation: {operation!r}")
 
-    if dry_run:
-        logger.info(
-            "Dry run enabled; would run %s for client=%s job_env=%s",
-            operation,
-            client,
-            job_env,
-        )
-        return []
-
-    if operation in {"create_missing_tables", "alter_tables"} and not confirm_mutating:
+    if (
+        not dry_run
+        and operation in {"create_missing_tables", "alter_tables"}
+        and not confirm_mutating
+    ):
         raise ValueError(
             "--confirm_mutating true is required for create_missing_tables "
             "and alter_tables when dry_run=false"
         )
-    if operation == "recreate_tables" and not confirm_destructive:
+    if not dry_run and operation == "recreate_tables" and not confirm_destructive:
         raise ValueError(
             "--confirm_destructive true is required for recreate_tables "
             "when dry_run=false"
         )
 
-    logger.info("Running %s for client=%s job_env=%s", operation, client, job_env)
+    logger.info(
+        "Running %s for client=%s job_env=%s dry_run=%s tables=%s",
+        operation,
+        client,
+        job_env,
+        dry_run,
+        tables or "<all configured tables>",
+    )
     create_tables = load_create_tables_module()
     create_tables.main(
         JOB_ENV=job_env,
@@ -241,6 +244,8 @@ def run_configured_table_operation(
         ALTER_TABLES=operation == "alter_tables",
         ALLOW_NON_DEV_DROP=operation == "recreate_tables",
         ALLOW_NON_DEV_ALTER=operation == "alter_tables",
+        DRY_RUN=dry_run,
+        TABLES=tables or "",
     )
     return []
 
@@ -292,6 +297,7 @@ def create_missing_tables(
     log_level: str,
     confirm_mutating: bool,
     dry_run: bool,
+    tables: str | None = None,
     logger: logging.Logger | None = None,
 ) -> list[str]:
     return run_configured_table_operation(
@@ -299,6 +305,7 @@ def create_missing_tables(
         job_env=job_env,
         client=client,
         log_level=log_level,
+        tables=tables,
         confirm_mutating=confirm_mutating,
         confirm_destructive=False,
         dry_run=dry_run,
@@ -313,6 +320,7 @@ def alter_tables(
     log_level: str,
     confirm_mutating: bool,
     dry_run: bool,
+    tables: str | None = None,
     logger: logging.Logger | None = None,
 ) -> list[str]:
     return run_configured_table_operation(
@@ -320,6 +328,7 @@ def alter_tables(
         job_env=job_env,
         client=client,
         log_level=log_level,
+        tables=tables,
         confirm_mutating=confirm_mutating,
         confirm_destructive=False,
         dry_run=dry_run,
@@ -334,6 +343,7 @@ def recreate_tables(
     log_level: str,
     confirm_destructive: bool,
     dry_run: bool,
+    tables: str | None = None,
     logger: logging.Logger | None = None,
 ) -> list[str]:
     return run_configured_table_operation(
@@ -341,6 +351,7 @@ def recreate_tables(
         job_env=job_env,
         client=client,
         log_level=log_level,
+        tables=tables,
         confirm_mutating=False,
         confirm_destructive=confirm_destructive,
         dry_run=dry_run,
@@ -414,6 +425,7 @@ def run_operation(
         job_env=job_env,
         client=client,
         log_level=log_level,
+        tables=tables,
         confirm_mutating=confirm_mutating,
         confirm_destructive=confirm_destructive,
         dry_run=dry_run,
