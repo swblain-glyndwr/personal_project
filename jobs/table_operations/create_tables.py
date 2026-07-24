@@ -1,4 +1,7 @@
+import re
 import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 try:
@@ -28,6 +31,80 @@ from dsutils.argparser import get_job_parser
 from next_ads.utils import config_manager
 from next_ads.common.paths import load_client_config, resolve_sql_contract_path
 from next_ads.utils import etl
+
+
+DEFAULT_COLUMN_VALUES = {
+    "Audience": "'false'",
+}
+
+
+@dataclass(frozen=True)
+class ColumnSpec:
+    name: str
+    data_type: str
+    nullable: bool
+    raw_definition: str
+
+
+@dataclass(frozen=True)
+class SchemaDrift:
+    missing_columns: list[ColumnSpec]
+    extra_columns: list[str]
+    order_drift: bool
+    type_drift: list[str]
+    nullability_drift: list[str]
+
+    @property
+    def has_drift(self) -> bool:
+        return bool(
+            self.missing_columns
+            or self.extra_columns
+            or self.order_drift
+            or self.type_drift
+            or self.nullability_drift
+        )
+
+    @property
+    def requires_rebuild(self) -> bool:
+        return bool(
+            self.extra_columns
+            or self.order_drift
+            or self.type_drift
+            or self.nullability_drift
+            or [
+                column
+                for column in self.missing_columns
+                if not can_auto_add_column(column.raw_definition)
+            ]
+        )
+
+    def summary(self) -> str:
+        details = []
+        if self.missing_columns:
+            details.append(
+                "missing="
+                + ", ".join(column.name for column in self.missing_columns)
+            )
+        if self.extra_columns:
+            details.append("extra=" + ", ".join(self.extra_columns))
+        if self.order_drift:
+            details.append("order_drift=true")
+        if self.type_drift:
+            details.append("type_drift=" + ", ".join(self.type_drift))
+        if self.nullability_drift:
+            details.append(
+                "nullability_drift=" + ", ".join(self.nullability_drift)
+            )
+        return "; ".join(details) if details else "none"
+
+    @property
+    def unsupported_missing_columns(self) -> list[str]:
+        return [
+            column.name
+            for column in self.missing_columns
+            if not can_auto_add_column(column.raw_definition)
+            and column.name not in DEFAULT_COLUMN_VALUES
+        ]
 
 
 def extract_table_paths(obj, parent_key=""):
@@ -129,6 +206,272 @@ def extract_create_table_columns(create_table_sql: str) -> list[tuple[str, str]]
     return columns
 
 
+def normalize_data_type(data_type: str) -> str:
+    """Normalize SQL/Spark type text for contract comparisons."""
+    upper_type = re.sub(r"\s+", " ", data_type.strip().upper())
+    upper_type = re.sub(r"\s+NOT\s+NULL\b", "", upper_type).strip()
+    upper_type = re.sub(r"\s+", "", upper_type)
+    aliases = {
+        "INTEGER": "INT",
+        "BOOLEAN": "BOOLEAN",
+        "BOOL": "BOOLEAN",
+    }
+    return aliases.get(upper_type, upper_type)
+
+
+def is_nullable_definition(data_type: str) -> bool:
+    return "NOT NULL" not in data_type.upper()
+
+
+def parse_column_specs(columns: list[tuple[str, str]]) -> list[ColumnSpec]:
+    return [
+        ColumnSpec(
+            name=name,
+            data_type=normalize_data_type(data_type),
+            nullable=is_nullable_definition(data_type),
+            raw_definition=data_type,
+        )
+        for name, data_type in columns
+    ]
+
+
+def spark_schema_column_specs(schema) -> list[ColumnSpec]:
+    return [
+        ColumnSpec(
+            name=field.name,
+            data_type=normalize_data_type(field.dataType.simpleString()),
+            nullable=field.nullable,
+            raw_definition=field.dataType.simpleString(),
+        )
+        for field in schema.fields
+    ]
+
+
+def compare_table_schema(
+    expected_columns: list[ColumnSpec],
+    actual_columns: list[ColumnSpec],
+) -> SchemaDrift:
+    expected_by_name = {column.name: column for column in expected_columns}
+    actual_by_name = {column.name: column for column in actual_columns}
+    expected_names = [column.name for column in expected_columns]
+    actual_names = [column.name for column in actual_columns]
+
+    missing_columns = [
+        column for column in expected_columns if column.name not in actual_by_name
+    ]
+    extra_columns = [name for name in actual_names if name not in expected_by_name]
+    common_expected_names = [
+        name for name in expected_names if name in actual_by_name
+    ]
+    common_actual_names = [name for name in actual_names if name in expected_by_name]
+    order_drift = common_expected_names != common_actual_names
+
+    type_drift = []
+    nullability_drift = []
+    for name in common_expected_names:
+        expected = expected_by_name[name]
+        actual = actual_by_name[name]
+        if expected.data_type != actual.data_type:
+            type_drift.append(
+                f"{name}: expected {expected.data_type}, found {actual.data_type}"
+            )
+        if expected.nullable is False and actual.nullable is True:
+            nullability_drift.append(
+                f"{name}: expected NOT NULL, found nullable"
+            )
+
+    return SchemaDrift(
+        missing_columns=missing_columns,
+        extra_columns=extra_columns,
+        order_drift=order_drift,
+        type_drift=type_drift,
+        nullability_drift=nullability_drift,
+    )
+
+
+def can_use_additive_alter_only(
+    expected_columns: list[ColumnSpec],
+    actual_columns: list[ColumnSpec],
+    drift: SchemaDrift,
+) -> bool:
+    if drift.extra_columns or drift.order_drift or drift.type_drift:
+        return False
+    if drift.nullability_drift:
+        return False
+    if any(
+        not can_auto_add_column(column.raw_definition)
+        for column in drift.missing_columns
+    ):
+        return False
+
+    actual_names = [column.name for column in actual_columns]
+    missing_names = [column.name for column in drift.missing_columns]
+    expected_names = [column.name for column in expected_columns]
+    return [*actual_names, *missing_names] == expected_names
+
+
+def build_repair_create_table_query(create_table_sql: str, repair_table: str) -> str:
+    column_start = create_table_sql.find("(")
+    if column_start == -1:
+        raise ValueError("Could not locate CREATE TABLE column block")
+    query = f"CREATE TABLE {repair_table} {create_table_sql[column_start:]}"
+    constraint_suffix = repair_table.split(".")[-1].replace("-", "_")
+
+    def suffix_constraint_name(match) -> str:
+        name = match.group(1)
+        if name.startswith("`") and name.endswith("`"):
+            return f"CONSTRAINT `{name.strip('`')}_{constraint_suffix}`"
+        return f"CONSTRAINT {name}_{constraint_suffix}"
+
+    return re.sub(
+        r"(?i)\bconstraint\s+([`A-Za-z0-9_]+)",
+        suffix_constraint_name,
+        query,
+    )
+
+
+def sql_repair_data_type(column: ColumnSpec) -> str:
+    return re.sub(
+        r"(?i)\s+NOT\s+NULL\b",
+        "",
+        column.raw_definition,
+    ).strip()
+
+
+def sql_select_expression(column: ColumnSpec, actual_names: set[str]) -> str:
+    quoted_name = f"`{column.name}`"
+    if column.name in actual_names:
+        return quoted_name
+    if column.name in DEFAULT_COLUMN_VALUES:
+        return (
+            f"CAST({DEFAULT_COLUMN_VALUES[column.name]} AS "
+            f"{sql_repair_data_type(column)}) AS {quoted_name}"
+        )
+    if column.nullable:
+        return f"CAST(NULL AS {sql_repair_data_type(column)}) AS {quoted_name}"
+    raise ValueError(
+        f"Missing required column {column.name!r} has no repair default"
+    )
+
+
+def build_repair_insert_query(
+    repair_table: str,
+    backup_table: str,
+    expected_columns: list[ColumnSpec],
+    actual_columns: list[ColumnSpec],
+) -> str:
+    actual_names = {column.name for column in actual_columns}
+    insert_columns = ", ".join(f"`{column.name}`" for column in expected_columns)
+    select_columns = ", ".join(
+        sql_select_expression(column, actual_names) for column in expected_columns
+    )
+    return (
+        f"INSERT INTO {repair_table} ({insert_columns}) "
+        f"SELECT {select_columns} FROM {backup_table}"
+    )
+
+
+def build_repair_table_statements(
+    *,
+    table: str,
+    create_table_sql: str,
+    expected_columns: list[ColumnSpec],
+    actual_columns: list[ColumnSpec],
+) -> list[str]:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    catalog, schema, table_name = table.split(".", maxsplit=2)
+    backup_table = f"{catalog}.{schema}.{table_name}__backup_{timestamp}"
+    repair_table = f"{catalog}.{schema}.{table_name}__repair_{timestamp}"
+    return [
+        f"CREATE TABLE {backup_table} AS SELECT * FROM {table}",
+        build_repair_create_table_query(create_table_sql, repair_table),
+        build_repair_insert_query(
+            repair_table,
+            backup_table,
+            expected_columns,
+            actual_columns,
+        ),
+        f"DROP TABLE {table}",
+        f"ALTER TABLE {repair_table} RENAME TO {table}",
+    ]
+
+
+def repair_table_to_contract(
+    spark,
+    *,
+    table: str,
+    create_table_sql: str,
+    expected_columns: list[ColumnSpec],
+    actual_columns: list[ColumnSpec],
+    job_env: str,
+    dry_run: bool,
+    logger,
+) -> None:
+    if job_env.lower() == "prod":
+        raise ValueError(
+            f"Table {table} requires rebuild repair, but PROD rebuild repair "
+            "is blocked. Use an explicit release/migration route."
+        )
+
+    unsupported_missing = [
+        column.name
+        for column in expected_columns
+        if column.name not in {actual.name for actual in actual_columns}
+        and not column.nullable
+        and column.name not in DEFAULT_COLUMN_VALUES
+    ]
+    if unsupported_missing:
+        raise ValueError(
+            f"Table {table} is missing required columns with no repair default: "
+            + ", ".join(unsupported_missing)
+        )
+
+    statements = build_repair_table_statements(
+        table=table,
+        create_table_sql=create_table_sql,
+        expected_columns=expected_columns,
+        actual_columns=actual_columns,
+    )
+    logger.warning("Rebuilding %s to match SQL contract", table)
+    for statement in statements:
+        logger.info("Planned repair SQL: %s", statement)
+
+    if dry_run:
+        logger.info("Dry run enabled; not executing rebuild repair for %s", table)
+        return
+
+    original_count = spark.table(table).count()
+    for statement in statements:
+        logger.info("Running: %s", statement)
+        spark.sql(statement)
+
+    repaired_count = spark.table(table).count()
+    if repaired_count != original_count:
+        raise ValueError(
+            f"Repair row count mismatch for {table}: "
+            f"before={original_count}, after={repaired_count}"
+        )
+
+    repaired_columns = spark_schema_column_specs(spark.table(table).schema)
+    repaired_drift = compare_table_schema(expected_columns, repaired_columns)
+    if repaired_drift.has_drift:
+        raise ValueError(
+            f"Repair did not produce expected schema for {table}: "
+            f"{repaired_drift.summary()}"
+        )
+
+
+def table_matches_selection(table_ref: str, table: str, selected_tables: set[str]) -> bool:
+    if not selected_tables:
+        return True
+    table_name = table.split(".")[-1]
+    return (
+        table_ref in selected_tables
+        or table in selected_tables
+        or table_name in selected_tables
+    )
+
+
 def can_auto_add_column(data_type: str) -> bool:
     """Return whether a column definition is safe for additive auto-alter."""
     upper_data_type = data_type.upper()
@@ -179,6 +522,8 @@ def main(
     ALTER_TABLES=False,
     ALLOW_NON_DEV_DROP=False,
     ALLOW_NON_DEV_ALTER=False,
+    DRY_RUN=False,
+    TABLES="",
 ):
     configure_logging(
         log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
@@ -197,6 +542,9 @@ def main(
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
     logger.info(f"Configuring run for client: {CLIENT}")
+    selected_tables = set(table.strip() for table in TABLES.split(",") if table.strip())
+    if selected_tables:
+        logger.info("Restricting table operation to: %s", ", ".join(selected_tables))
 
     # Try to load from Dynaconf first (new approach)
     try:
@@ -291,17 +639,7 @@ def main(
             "catalog": write_catalog,
         }
 
-    # Check for missing SQL scripts before proceeding
-    missing_scripts = []
-    for table_ref in tbls:
-        sql_script_path = resolve_sql_contract_path(table_ref)
-        if not sql_script_path.exists():
-            missing_scripts.append(str(sql_script_path))
-
-    if missing_scripts:
-        raise ValueError(
-            f"Missing SQL create scripts: {', '.join(missing_scripts)}")
-
+    resolved_tbls = {}
     for table_ref in tbls:
         if use_dynaconf:
             # Table is already resolved from Dynaconf
@@ -310,10 +648,34 @@ def main(
             # Legacy: use map_tbl to substitute placeholders
             table = etl.map_tbl(tbls[table_ref], **tbl_args)
 
+        if table_matches_selection(table_ref, table, selected_tables):
+            resolved_tbls[table_ref] = table
+
+    if selected_tables and not resolved_tbls:
+        raise ValueError(
+            "No configured tables matched --tables selection: "
+            + ", ".join(selected_tables)
+        )
+
+    # Check for missing SQL scripts before proceeding
+    missing_scripts = []
+    for table_ref in resolved_tbls:
+        sql_script_path = resolve_sql_contract_path(table_ref)
+        if not sql_script_path.exists():
+            missing_scripts.append(str(sql_script_path))
+
+    if missing_scripts:
+        raise ValueError(
+            f"Missing SQL create scripts: {', '.join(missing_scripts)}")
+
+    for table_ref, table in resolved_tbls.items():
         if DROP_TABLES and (JOB_ENV.lower() == "dev" or ALLOW_NON_DEV_DROP):
             logger.info(f"Dropping table {table} as --droptables is 'True'")
             logger.info(f"Running drop table if exists {table}")
-            spark.sql(f"drop table if exists {table}")
+            if DRY_RUN:
+                logger.info("Dry run enabled; not executing drop for %s", table)
+            else:
+                spark.sql(f"drop table if exists {table}")
 
         logger.info(f"Checking existence of table {table}")
         # replace . with "_" for nested dynaconf table refs
@@ -325,45 +687,77 @@ def main(
                 logger.debug(f"Table {table} already exists - skipping")
                 continue
 
-            logger.info(f"Checking {table} for missing columns")
-            expected_columns = extract_create_table_columns(query)
-            actual_columns = spark.table(table).columns
-            unsupported_missing_columns = get_unsupported_missing_columns(
-                expected_columns,
-                actual_columns,
+            logger.info(f"Checking {table} against SQL contract")
+            expected_columns = parse_column_specs(
+                extract_create_table_columns(query)
             )
-            alter_query = build_add_missing_columns_query(
-                table,
-                expected_columns,
-                actual_columns,
-            )
-            if not alter_query:
-                if unsupported_missing_columns:
-                    logger.warning(
-                        "Table %s is missing columns that cannot be "
-                        "auto-added safely: %s",
-                        table,
-                        ", ".join(unsupported_missing_columns),
-                    )
-                else:
-                    logger.info(f"Table {table} already has all expected columns")
+            actual_columns = spark_schema_column_specs(spark.table(table).schema)
+            drift = compare_table_schema(expected_columns, actual_columns)
+            if not drift.has_drift:
+                logger.info(f"Table {table} matches SQL contract")
                 continue
 
-            logger.info(f"Adding missing columns to {table}")
-            logger.info(f"Running: {alter_query}")
-            spark.sql(alter_query)
-            if unsupported_missing_columns:
-                logger.warning(
-                    "Table %s is still missing columns that cannot be "
-                    "auto-added safely: %s",
+            logger.warning("Table %s schema drift detected: %s", table, drift.summary())
+            if can_use_additive_alter_only(expected_columns, actual_columns, drift):
+                add_columns = [
+                    (column.name, column.raw_definition)
+                    for column in drift.missing_columns
+                ]
+                alter_query = build_add_missing_columns_query(
                     table,
-                    ", ".join(unsupported_missing_columns),
+                    add_columns,
+                    [column.name for column in actual_columns],
                 )
+                if alter_query:
+                    logger.info(f"Adding missing columns to {table}")
+                    logger.info(f"Running: {alter_query}")
+                    if DRY_RUN:
+                        logger.info(
+                            "Dry run enabled; not executing additive alter for %s",
+                            table,
+                        )
+                    else:
+                        spark.sql(alter_query)
+
+                    if not DRY_RUN:
+                        refreshed_columns = spark_schema_column_specs(
+                            spark.table(table).schema
+                        )
+                        refreshed_drift = compare_table_schema(
+                            expected_columns,
+                            refreshed_columns,
+                        )
+                        if refreshed_drift.has_drift:
+                            repair_table_to_contract(
+                                spark,
+                                table=table,
+                                create_table_sql=query,
+                                expected_columns=expected_columns,
+                                actual_columns=refreshed_columns,
+                                job_env=JOB_ENV,
+                                dry_run=DRY_RUN,
+                                logger=logger,
+                            )
+                continue
+
+            repair_table_to_contract(
+                spark,
+                table=table,
+                create_table_sql=query,
+                expected_columns=expected_columns,
+                actual_columns=actual_columns,
+                job_env=JOB_ENV,
+                dry_run=DRY_RUN,
+                logger=logger,
+            )
             continue
 
         logger.info(f"Creating {table_ref} table as: {table}")
         logger.info(f"Running: {query}")
-        spark.sql(query)
+        if DRY_RUN:
+            logger.info("Dry run enabled; not creating %s", table)
+        else:
+            spark.sql(query)
 
     logger.info("Run complete")
 
@@ -376,4 +770,14 @@ if __name__ == "__main__":
     LOG_LEVEL = jobparser.get_arg("--log_level")
     DROP_TABLES = jobparser.get_typed_arg("--droptables", bool)
     ALTER_TABLES = jobparser.get_typed_arg("--altertables", bool)
-    main(JOB_ENV, CLIENT, LOG_LEVEL, DROP_TABLES, ALTER_TABLES)
+    DRY_RUN = jobparser.get_typed_arg("--dry_run", bool)
+    TABLES = jobparser.get_arg("--tables")
+    main(
+        JOB_ENV,
+        CLIENT,
+        LOG_LEVEL,
+        DROP_TABLES,
+        ALTER_TABLES,
+        DRY_RUN=DRY_RUN,
+        TABLES=TABLES,
+    )
