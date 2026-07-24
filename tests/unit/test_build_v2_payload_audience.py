@@ -1,11 +1,6 @@
 from jobs.nextads_delivery import build_v2_payload
 
 
-class FakeRow(dict):
-    def __getitem__(self, key):
-        return super().__getitem__(key)
-
-
 class FakeDataFrame:
     def __init__(self, columns, rows=None):
         self.columns = columns
@@ -36,7 +31,7 @@ class FakeDataFrame:
             if value in seen:
                 continue
             seen.add(value)
-            rows.append(FakeRow({split_col: value}))
+            rows.append({split_col: value})
         return FakeDataFrame(self.columns, rows)
 
     def collect(self):
@@ -87,7 +82,7 @@ def test_assign_experiments_passes_false_audience_split(monkeypatch):
     )
     customer_cells = FakeDataFrame(
         ["AccountNumber", "Audience"],
-        [FakeRow({"Audience": "VIP"}), FakeRow({"Audience": "false"})],
+        [{"Audience": "VIP"}, {"Audience": "false"}],
     )
     captured = {}
 
