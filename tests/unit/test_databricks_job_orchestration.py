@@ -27,7 +27,10 @@ def test_main_job_submits_page_build_without_waiting_for_result():
     )
     assert "build_page_primary" not in tasks_by_key
     assert "build_page_v2" not in tasks_by_key
-    assert not any("run_job_task" in task for task in job["tasks"])
+    run_job_tasks = [
+        task["task_key"] for task in job["tasks"] if "run_job_task" in task
+    ]
+    assert run_job_tasks == ["trigger_data_pull_for_CMS_pull"]
     assert trigger_task["depends_on"] == [
         {"task_key": "combine_customer_cells"},
         {"task_key": "map_theme_scores_to_ads"},

@@ -38,6 +38,6 @@ default:
     url: "https://docs.google.com/spreadsheets/d/1793xIYCIfHw6bIWrYylclBw-5nbs1v687HiMnPyRkmY/edit?gid=0#gid=0"
     sheet: "Exclusions"
     read_schema:
-      - ["PageType", "string", "null"]
-      - ["Page", "string", "null"]
-      - ["Exclude_Campaign", "string", "null"]
+      - ["url", "string", "null"]
+      - ["masidSlot", "string", "null"]
+      - ["CMSPageID", "string", "null"]

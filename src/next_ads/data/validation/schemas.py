@@ -129,11 +129,9 @@ class ControlSheetPLXInputModel(DataFrameModel):
 class ControlSheetExclusionsInputModel(DataFrameModel):
     """Input schema for Google Sheets control sheet Exclusions data"""
 
-    PageType: StringType = pa.Field(
-        nullable=False,
-    )
-    Page: StringType = pa.Field(nullable=False)
-    Exclude_Campaign: StringType = pa.Field(nullable=False)
+    url: StringType = pa.Field(nullable=False)
+    masidSlot: StringType = pa.Field(nullable=False)
+    CMSPageID: StringType = pa.Field(nullable=False)
 
     class Config:
         """ControlSheetExclusionsInputModel config"""
