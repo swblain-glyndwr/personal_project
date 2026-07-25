@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 try:
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
     # __file__ is not defined when running as a Databricks notebook
     from dsutils.dbc import get_dbutils
@@ -17,7 +17,7 @@ except NameError:
     )  # type: ignore # noqa
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
-    PROJECT_ROOT = Path(notebook_path).parent.parent
+    PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -25,6 +25,7 @@ finally:
 import json
 import pyspark.sql.functions as F
 from datetime import date, timedelta
+from pyspark.sql.types import BooleanType
 
 # from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
@@ -40,7 +41,6 @@ from next_ads.Scoring import append_targeting_criteria
 from next_ads.utils import config_manager
 from dsutils.dbc import configure_spark
 from next_ads.data_validation import schemas
-from pyspark.sql.types import BooleanType
 from next_ads.data.schemas.CMS import cms_schema
 
 
@@ -51,7 +51,6 @@ def has_common_substring(s1, s2, min_length=4):
     s1 = s1.lower()
     s2 = s2.lower()
 
-    # Iterate over the shorter string for efficiency
     if len(s1) > len(s2):
         s1, s2 = s2, s1
 
@@ -285,13 +284,13 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     truncate_and_load(
         df=df_exclusions,
         table=config.tables_write.exclusions_latest,
-        pk_cols=["url", "masidSlot", "CMSPageID"],
+        pk_cols=["PageType", "Page", "Exclude_Campaign"],
     )
 
     delete_from_and_load(
         df=df_exclusions,
         table=config.tables_write.exclusions,
-        pk_cols=["url", "masidSlot", "CMSPageID"],
+        pk_cols=["PageType", "Page", "Exclude_Campaign"],
         del_where={"rundate": "current_date()"},
     )
 
@@ -465,19 +464,17 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         )
     )
 
-    ###############################################################################
-    # validate the control sheet vs the CMS
-    ###############################################################################
+    ################################################################################
+    # Validate the control sheet against CMS and item data
+    ################################################################################
 
-    logger.info("Checking the CMS data vs the Control Sheet (v1)")
-
-    # Collect all warnings and post to webhook at end of script (but don't fail the job)
+    logger.info("Checking the CMS data vs the Control Sheet (v2)")
     warnings = []
 
     cms = spark.table(config.tables_write.cms_content_latest).filter(
         "CMSPageID <> '' "
     )
-    ctrl_sheet = spark.table(config.tables_write.control_sheet_raw_latest)
+    ctrl_sheet = spark.table(config.tables_write.control_sheet_raw_latest_v2)
 
     cms_check = (
         ctrl_sheet.join(cms, ["CMSPageID"])
@@ -491,12 +488,12 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
             "cms_data.data.placements[0].content[0].items[0].target as cms_target_url",
             "from_unixtime(cms_data.data.lastChangedTimestamp  / 1000) as cms_LastChangedTimestamp",
             "case when (cms_Title is null and ctrl_status = 'Active') then 'Ad active but not found in CMS' else null end as error1",
-            "case when (cms_target_url <> ctrl_url)                   then 'Ad target urls do not match between CMS and Control Sheet' else null end as error2",
+            "case when (cms_target_url <> ctrl_url) then 'Ad target urls do not match between CMS and Control Sheet' else null end as error2",
             "case when (left(UniqueAdID,10) <> left(cms_Title, 10)) then 'Ad matches on CMSContentId but the UniqueAdID is different' else null end as error3",
             "concat_ws('-',error1, error2, error3) as errors",
         )
         .filter(
-            "(cms_Title is null and ctrl_status = 'Active') or (cms_target_url <> ctrl_url ) or (left(UniqueAdID,10) <> left(cms_Title, 10) ) "
+            "(cms_Title is null and ctrl_status = 'Active') or (cms_target_url <> ctrl_url) or (left(UniqueAdID,10) <> left(cms_Title, 10))"
         )
         .drop("error1", "error2", "error3")
         .select(
@@ -587,22 +584,20 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
             "struct(item_brand, item_gender, item_department, item_use) as item_data",
         )
         .selectExpr(
-            "UniqueAdID", "to_json(struct(ads_data, item_data)) as error "
+            "UniqueAdID", "to_json(struct(ads_data, item_data)) as error"
         )
     )
 
     for row in sort_order_check.select("error").collect():
         warnings.append(row.error)
 
-    for w in warnings:
-        logger.warning(w)
+    for warning in warnings:
+        logger.warning(warning)
 
-    # filter out ads that are active in control sheet but not found in CMS
     if cms_check_to_filter.count() > 0:
         logger.info(
             f"Filtering out {cms_check_to_filter.count():,} ads that are active in control sheet, but not found in CMS"
         )
-
         df_processed = df_processed.join(
             cms_check_to_filter.distinct(), on="UniqueAdID", how="left_anti"
         )
@@ -621,27 +616,30 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger.info(f"Reading underperforming ads from {UNDERPERFORMING_ADS}")
     df_underperforming_ids = (
         spark.table(UNDERPERFORMING_ADS)
-        .filter(F.col("rundate") == F.current_date())
-        .select("UniqueAdID")
+        .filter(F.col('rundate') == F.current_date())
+        .select('UniqueAdID')
         .distinct()
-        .withColumn("IsUnderperforming", F.lit(True))
+        .withColumn('IsUnderperforming', F.lit(True))
     )
-    df_processed = df_processed.join(
-        df_underperforming_ids, on="UniqueAdID", how="left"
-    ).withColumn(
-        "IsUnderperforming",
-        F.coalesce(F.col("IsUnderperforming"), F.lit(False)),
+    df_processed = (
+        df_processed
+        .join(df_underperforming_ids, on='UniqueAdID', how='left')
+        .withColumn(
+            'IsUnderperforming',
+            F.coalesce(F.col('IsUnderperforming'), F.lit(False)),
+        )
     )
     underperforming_ads = (
-        df_processed.filter(F.col("IsUnderperforming"))
-        .select("UniqueAdID")
+        df_processed
+        .filter(F.col('IsUnderperforming'))
+        .select('UniqueAdID')
         .distinct()
     )
     logger.info(
-        f"IsUnderperforming: {underperforming_ads.count():,} ads flagged"
+        f'IsUnderperforming: {underperforming_ads.count():,} ads flagged'
     )
     logger.info(
-        f"IsUnderperforming: {underperforming_ads.show(truncate=False)}"
+        f'IsUnderperforming: {underperforming_ads.show(truncate=False)}'
     )
 
     ################################################################################

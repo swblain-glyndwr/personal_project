@@ -23,7 +23,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
     tasks:
       - task_key: assign_customer_cells
         spark_python_task:
-          python_file: ../../jobs/nextads_main/assign_customer_cells.py
+          python_file: ../../../jobs/nextads_cells/assign_customer_cells.py
           parameters:
             - --client
             - "next_uk"
@@ -41,7 +41,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: assign_customer_cells
         spark_python_task:
-          python_file: ../../jobs/nextads_main/combine_customer_cells.py
+          python_file: ../../../jobs/nextads_cells/combine_customer_cells.py
           parameters:
             - --client
             - "next_uk"
@@ -53,7 +53,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         timeout_seconds: 3600
       - task_key: load_control_sheet
         spark_python_task:
-          python_file: ../../jobs/nextads_main/load_control_sheet.py
+          python_file: ../../../jobs/nextads_control/load_control_sheet.py
           parameters:
             - --client
             - "next_uk"
@@ -72,7 +72,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: trigger_data_pull_for_CMS_pull
         spark_python_task:
-          python_file: ../../scripts/load_control_sheet_v2.py
+          python_file: ../../../jobs/nextads_control/load_control_sheet_v2.py
           parameters:
             - --client
             - "next_uk"
@@ -86,7 +86,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         timeout_seconds: 3600
       - task_key: parse_attributes
         spark_python_task:
-          python_file: ../../jobs/nextads_main/parse_attributes.py
+          python_file: ../../../jobs/nextads_control/parse_attributes.py
           parameters:
             - --client
             - "next_uk"
@@ -102,7 +102,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: parse_attributes
         spark_python_task:
-          python_file: ../../jobs/nextads_main/parse_theme_mapping.py
+          python_file: ../../../jobs/nextads_control/parse_theme_mapping.py
           parameters:
             - --client
             - "next_uk"
@@ -118,7 +118,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: parse_theme_mapping
         spark_python_task:
-          python_file: ../../jobs/nextads_main/build_markov_chain.py
+          python_file: ../../../jobs/nextads_candidates/build_theme_scores.py
           parameters:
             - --client
             - "next_uk"
@@ -135,7 +135,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           - task_key: score_lightweight
           - task_key: load_control_sheet
         spark_python_task:
-          python_file: ../../jobs/nextads_main/map_theme_scores_to_ads.py
+          python_file: ../../../jobs/nextads_candidates/build_theme_ad_candidates.py
           parameters:
             - --client
             - "next_uk"
@@ -154,7 +154,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           - task_key: map_theme_scores_to_ads
           - task_key: load_control_sheet_v2
         spark_python_task:
-          python_file: ../../scripts/map_theme_scores_to_ads_v2.py
+          python_file: ../../../jobs/nextads_candidates/build_page_type_candidates_v2.py
           parameters:
             - --client
             - "next_uk"
@@ -171,7 +171,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           - task_key: combine_customer_cells
           - task_key: map_theme_scores_to_ads
         spark_python_task:
-          python_file: ../../jobs/nextads_main/trigger_databricks_job.py
+          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:
             - --job-id
             - ${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}
@@ -187,7 +187,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           - task_key: combine_customer_cells
           - task_key: map_theme_scores_to_ads_v2
         spark_python_task:
-          python_file: ../../jobs/nextads_main/trigger_databricks_job.py
+          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:
             - --job-id
             - ${resources.jobs.mktg_next_uk_nextads_page_build_cicd_v2.id}

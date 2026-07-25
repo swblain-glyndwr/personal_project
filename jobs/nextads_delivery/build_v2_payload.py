@@ -1,12 +1,9 @@
 import sys
 from pathlib import Path
-from time import time
 
-import requests
-from requests.auth import HTTPBasicAuth
 
 try:
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
     from dsutils.dbc import get_dbutils
 
@@ -20,7 +17,7 @@ except NameError:
     )  # type: ignore # noqa
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
-    PROJECT_ROOT = Path(notebook_path).parent.parent
+    PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -63,40 +60,6 @@ def get_input_dataframes(config, spark):
     )
 
 
-def start_import(
-    project_token: str,
-    url: str,
-    api_key_id: str,
-    api_secret: str,
-    import_id: str,
-):
-    start_url = (
-        f"{url}/data/v2/projects/{project_token}/imports/{import_id}/start"
-    )
-    response = requests.post(
-        url=start_url, auth=HTTPBasicAuth(api_key_id, api_secret)
-    )
-    if response.status_code == 200:
-        print("Import triggered successfully")
-    else:
-        print("Import trigger - Failed")
-    return None
-
-
-def fetch_credentials(config):
-    project_token = config.bloomreach_project_token
-    url = config.bloomreach_url
-    api_key_id = dbutils.secrets.get(
-        scope=config.bloomreach_secret_scope,
-        key=config.bloomreach_secret_key_id,
-    )
-    api_secret = dbutils.secrets.get(
-        scope=config.bloomreach_secret_scope,
-        key=config.bloomreach_secret_key_name,
-    )
-    return project_token, url, api_key_id, api_secret
-
-
 def get_experiments(
     payload_experiment_settings: dict | None = None,
 ) -> list[dict[str, object]] | None:
@@ -130,6 +93,22 @@ def get_experiments(
 def get_payload_experiment_settings(client: str) -> dict:
     cfg = load_client_config(client)
     return cfg.get("payload_experiment_id", {})
+
+
+def normalize_audience_split_values(values) -> list[str]:
+    """Return audience split labels with the non-audience split included."""
+    normalized: list[str] = []
+    for value in values or []:
+        if value is None:
+            continue
+        text_value = str(value)
+        if text_value not in normalized:
+            normalized.append(text_value)
+
+    if "false" not in normalized:
+        normalized.append("false")
+
+    return normalized
 
 
 def get_fatigue_rotation_settings(spark):
@@ -220,6 +199,9 @@ def assign_experiments(
         if split_col in customer_cells_latest.columns:
             audience_df = customer_cells_latest.select(
                 "AccountNumber", split_col
+            ).withColumn(
+                split_col,
+                F.coalesce(F.col(split_col).cast("string"), F.lit("false")),
             )
             if audience_split is None:
                 audience_split = [
@@ -234,6 +216,7 @@ def assign_experiments(
                     split_col,
                     audience_split,
                 )
+            audience_split = normalize_audience_split_values(audience_split)
         else:
             logger.warning(
                 "Audience experiment enabled but split column `%s` not found "
@@ -604,25 +587,11 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
             df_latest_payload, config.pii_exponea_next_uk_path, logger
         )
 
-        time.sleep(60)  # wait for 60 seconds before triggering the import
-
-        project_token, url, api_key_id, api_secret = fetch_credentials(config)
-
-        start_import(
-            project_token,
-            url,
-            api_key_id,
-            api_secret,
-            config.bloomreach_import_id,
-        )
-
-        # Blanking code
         # exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
         #                  where roamingprofileid is not null
         #                  and trim(roamingprofileid)!=''
         #                  and (next_ads is not null)""")
-        # in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti")
-        # GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
+        # in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti") #GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
         # distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", lit(""))
 
         # write_output_to_csv(distinct_nextads_blank, config.pii_exponea_next_uk_path, logger, process="next_ads_blanking")
