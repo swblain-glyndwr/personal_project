@@ -165,6 +165,21 @@ def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
     ]
 
 
+def test_data_pull_pipeline_passes_user_schema_to_python_config():
+    pipeline_config = yaml.safe_load(
+        (
+            PROJECT_ROOT
+            / "pipelines/databricks/pipelines/mktg_next_uk_nextads_data_pull.yml"
+        ).read_text()
+    )
+    pipeline = pipeline_config["mktg_next_uk_nextads_data_pull"][
+        "mktg_next_uk_nextads_data_pull"
+    ]
+
+    assert pipeline["schema"] == "${var.user_schema}"
+    assert pipeline["configuration"]["pipeline.user_schema"] == "${var.user_schema}"
+
+
 def test_assignment_validation_job_has_independent_definition_and_internal_notifications():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml",
