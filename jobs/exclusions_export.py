@@ -43,8 +43,8 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         with a as (
         select
             'next-uk' as id,
-            Page as url,
-            Exclude_Campaign as Ad
+            url,
+            CMSPageID as Ad
         from
             exclusions
         ),
