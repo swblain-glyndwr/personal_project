@@ -1,6 +1,9 @@
 import sys
 from pathlib import Path
+from time import sleep
 
+import requests
+from requests.auth import HTTPBasicAuth
 
 try:
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -58,6 +61,75 @@ def get_input_dataframes(config, spark):
         control_sheet_latest_v2,
         rpid_with_accounts,
     )
+
+
+def is_bloomreach_import_enabled(config) -> bool:
+    bloomreach_import = getattr(config, "bloomreach_import", None)
+    return bool(
+        bloomreach_import and getattr(bloomreach_import, "enabled", False)
+    )
+
+
+def require_bloomreach_import_config(config):
+    bloomreach_import = getattr(config, "bloomreach_import", None)
+    required_fields = [
+        "url",
+        "project_token",
+        "secret_scope",
+        "secret_key_id",
+        "secret_key_name",
+        "import_id",
+    ]
+    missing_fields = [
+        field
+        for field in required_fields
+        if not bloomreach_import or not getattr(bloomreach_import, field, None)
+    ]
+    if missing_fields:
+        raise ValueError(
+            "Bloomreach import is enabled but missing config fields: "
+            + ", ".join(missing_fields)
+        )
+    return bloomreach_import
+
+
+def fetch_bloomreach_credentials(config):
+    bloomreach_import = require_bloomreach_import_config(config)
+    try:
+        dbutils_handle = dbutils
+    except NameError:
+        from dsutils.dbc import get_dbutils
+
+        dbutils_handle = get_dbutils()
+    api_key_id = dbutils_handle.secrets.get(
+        scope=bloomreach_import.secret_scope,
+        key=bloomreach_import.secret_key_id,
+    )
+    api_secret = dbutils_handle.secrets.get(
+        scope=bloomreach_import.secret_scope,
+        key=bloomreach_import.secret_key_name,
+    )
+    return bloomreach_import, api_key_id, api_secret
+
+
+def start_bloomreach_import(config, logger):
+    bloomreach_import, api_key_id, api_secret = fetch_bloomreach_credentials(
+        config
+    )
+    start_url = (
+        f"{bloomreach_import.url}/data/v2/projects/"
+        f"{bloomreach_import.project_token}/imports/"
+        f"{bloomreach_import.import_id}/start"
+    )
+    response = requests.post(
+        url=start_url, auth=HTTPBasicAuth(api_key_id, api_secret)
+    )
+    if response.status_code != 200:
+        raise RuntimeError(
+            "Bloomreach import trigger failed with status "
+            f"{response.status_code}: {response.text}"
+        )
+    logger.info("Bloomreach import triggered successfully")
 
 
 def get_experiments(
@@ -586,6 +658,13 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
         write_output_to_csv(
             df_latest_payload, config.pii_exponea_next_uk_path, logger
         )
+
+        if is_bloomreach_import_enabled(config):
+            logger.info("Waiting before triggering Bloomreach import")
+            sleep(60)
+            start_bloomreach_import(config, logger)
+        else:
+            logger.info("Bloomreach import trigger is disabled")
 
         # exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
         #                  where roamingprofileid is not null

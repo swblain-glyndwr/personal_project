@@ -16,6 +16,8 @@ default:
   next_search_endpoint: "https://ci-test.next.co.uk/api/search/next/gb/en/v1/item-numbers"
   next_search_wrapper: "https://preprod-search-provider.platform.next/api/v1/core/?account_id"
   next_cms: "https://cms.platform.next/cms2/api/v1/next/gb/en/data-app/"
+  bloomreach_import:
+    enabled: false
 
   gcp:
     scope: mktg_gcp
@@ -58,10 +60,12 @@ prod:
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
   search_volume_path: "/Volumes/marketingdata_prod/search_sandbox/search_volume/PF/next_ads"
-  bloomreach_url: https://api.e.nextdirect.com
-  bloomreach_account_id: 2917bfb4-eed8-11eb-9277-ca5aec699482
-  bloomreach_project_token: 2917bfb4-eed8-11eb-9277-ca5aec699482
-  bloomreach_secret_scope: exponea
-  bloomreach_secret_key_name: next_uk_catalog_secret
-  bloomreach_secret_key_id: next_uk_catalog_key_id
-  bloomreach_import_id: 6a61d5c47a7b140959fb111c
+  bloomreach_import:
+    enabled: true
+    url: https://api.e.nextdirect.com
+    account_id: 2917bfb4-eed8-11eb-9277-ca5aec699482
+    project_token: 2917bfb4-eed8-11eb-9277-ca5aec699482
+    secret_scope: exponea
+    secret_key_name: next_uk_catalog_secret
+    secret_key_id: next_uk_catalog_key_id
+    import_id: 6a61d5c47a7b140959fb111c
