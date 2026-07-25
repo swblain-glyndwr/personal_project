@@ -7,7 +7,7 @@ bundle:
 
 include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
-  - resources/jobs/mktg_next_uk_nextads_page_build.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml
   - resources/jobs/mktg_next_uk_nextads_masid_handoff.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml
@@ -21,7 +21,6 @@ include:
   - resources/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
-  - resources/jobs/mktg_next_uk_nextads_qa.yml
   - resources/jobs/mktg_next_uk_nextads_data_pull.yaml
   - resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
   - resources/pipelines/mktg_next_uk_nextads_data_pull.yml

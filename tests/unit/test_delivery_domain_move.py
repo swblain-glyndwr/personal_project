@@ -77,15 +77,15 @@ def test_delivery_jobs_use_delivery_entrypoints():
 
 def test_v2_payload_export_routes_stay_on_scripts():
     payload_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_payload_export.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml",
         "mktg_next_uk_nextads_payload_export_cicd",
     )
     page_build_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd_v2",
     )
     main_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
     )
 
@@ -93,14 +93,14 @@ def test_v2_payload_export_routes_stay_on_scripts():
     main_tasks = {task["task_key"]: task for task in main_job["tasks"]}
 
     assert payload_job["tasks"][0]["spark_python_task"]["python_file"] == (
-        "../../scripts/build_v2_payload.py"
+        "../../../jobs/nextads_delivery/build_v2_payload.py"
     )
     assert page_tasks["build_page_v2"]["for_each_task"]["task"][
         "spark_python_task"
-    ]["python_file"] == "../../scripts/build_page_v2.py"
+    ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
     assert main_tasks["load_control_sheet_v2"]["spark_python_task"][
         "python_file"
-    ] == "../../scripts/load_control_sheet_v2.py"
+    ] == "../../../jobs/nextads_control/load_control_sheet_v2.py"
     assert main_tasks["map_theme_scores_to_ads_v2"]["spark_python_task"][
         "python_file"
-    ] == "../../scripts/map_theme_scores_to_ads_v2.py"
+    ] == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"

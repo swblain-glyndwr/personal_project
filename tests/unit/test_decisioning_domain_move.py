@@ -41,8 +41,8 @@ def test_legacy_assignment_wrapper_reexports_moved_helpers():
 
 def test_v1_job_entrypoints_import_decisioning_package():
     for path in [
-        "jobs/nextads_main/assign_customer_cells.py",
-        "jobs/nextads_main/build_page.py",
+        "jobs/nextads_cells/assign_customer_cells.py",
+        "jobs/nextads_assignment/build_page.py",
         "src/next_ads/ranking/theme_score_mapping.py",
     ]:
         source = _read(path)
@@ -52,12 +52,12 @@ def test_v1_job_entrypoints_import_decisioning_package():
 
 def test_v2_build_page_route_stays_on_legacy_script_and_wrapper_import():
     job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd_v2",
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
     assert tasks_by_key["build_page_v2"]["for_each_task"]["task"][
         "spark_python_task"
-    ]["python_file"] == "../../scripts/build_page_v2.py"
-    assert "from next_ads.Assignment import" in _read("scripts/build_page_v2.py")
+    ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
+    assert "from next_ads.Assignment import" in _read("jobs/nextads_v2/build_page.py")

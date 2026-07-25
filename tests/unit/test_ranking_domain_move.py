@@ -28,7 +28,7 @@ def test_package_code_uses_moved_scoring_import():
 
 def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     entrypoint = (
-        PROJECT_ROOT / "jobs/nextads_main/map_theme_scores_to_ads.py"
+        PROJECT_ROOT / "jobs/nextads_candidates/build_theme_ad_candidates.py"
     ).read_text()
     package_module = (
         PROJECT_ROOT / "src/next_ads/ranking/theme_score_mapping.py"
@@ -77,14 +77,14 @@ def test_theme_affinity_legacy_wrappers_are_importable():
 
 def test_v2_entrypoints_stay_on_scripts():
     job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
     )
     tasks = {task["task_key"]: task for task in job["tasks"]}
 
     assert tasks["load_control_sheet_v2"]["spark_python_task"]["python_file"] == (
-        "../../scripts/load_control_sheet_v2.py"
+        "../../../jobs/nextads_control/load_control_sheet_v2.py"
     )
     assert tasks["map_theme_scores_to_ads_v2"]["spark_python_task"][
         "python_file"
-    ] == "../../scripts/map_theme_scores_to_ads_v2.py"
+    ] == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"

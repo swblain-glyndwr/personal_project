@@ -14,7 +14,7 @@ def _load_job(path, key):
 
 def test_main_job_submits_qa_without_waiting_for_qa_result():
     job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
     )
 
@@ -27,14 +27,14 @@ def test_main_job_submits_qa_without_waiting_for_qa_result():
     )
     assert "build_page_primary" not in tasks_by_key
     assert "build_page_v2" not in tasks_by_key
-    assert not any("run_job_task" in task for task in job["tasks"])
+    assert "trigger_data_pull_for_CMS_pull" in tasks_by_key
     assert trigger_task["depends_on"] == [
         {"task_key": "combine_customer_cells"},
         {"task_key": "map_theme_scores_to_ads"},
         # {"task_key": "map_theme_scores_to_ads_v2"},
     ]
     assert trigger_task["spark_python_task"]["python_file"] == (
-        "../../jobs/nextads_main/trigger_databricks_job.py"
+        "../../../jobs/orchestration/trigger_databricks_job.py"
     )
     assert trigger_task["spark_python_task"]["parameters"] == [
         "--job-id",
@@ -47,7 +47,7 @@ def test_main_job_submits_qa_without_waiting_for_qa_result():
 
 def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
     job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_page_build.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml",
         "mktg_next_uk_nextads_page_build_cicd",
     )
 
@@ -58,7 +58,7 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
         "${var.data_team_notification_emails}"
     )
     assert not any("run_job_task" in task for task in job["tasks"])
-    assert tasks_by_key["trigger_qa_job"]["depends_on"] == [
+    assert tasks_by_key["trigger_assignment_validation_job"]["depends_on"] == [
         {"task_key": "build_page_secondary"},
     ]
     assert tasks_by_key["trigger_masid_handoff_check_job"]["run_if"] == "ALL_DONE"
@@ -73,7 +73,7 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
 
 def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
     job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_page_build_v2.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd_v2",
     )
 
@@ -89,17 +89,12 @@ def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
         {"task_key": "build_page_v2"},
     ]
 
-def test_qa_job_has_independent_definition_and_internal_notifications():
-    job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_qa.yml",
-        "mktg_next_uk_nextads_qa_cicd",
-    )
+def test_control_sheet_qa_is_folded_into_v2_loader():
+    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+    assert "resources/jobs/mktg_next_uk_nextads_qa.yml" not in bundle_config["include"]
 
-    assert job["name"] == "mktg_next_uk_nextads_qa"
-    assert "schedule" not in job
-    assert job["email_notifications"]["on_failure"] == (
-        "${var.data_team_notification_emails}"
-    )
+    source = (PROJECT_ROOT / "jobs/nextads_control/load_control_sheet_v2.py").read_text()
+    assert "Checking the CMS data vs the Control Sheet (v2)" in source
 
 
 def test_prod_data_team_notifications_are_internal_only():
@@ -126,7 +121,7 @@ def test_delivery_jobs_have_external_notifications():
         "mktg_next_uk_nextads_masid_handoff_cicd",
     )
     payload_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_payload_export.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml",
         "mktg_next_uk_nextads_payload_export_cicd",
     )
     plp_job = _load_job(
