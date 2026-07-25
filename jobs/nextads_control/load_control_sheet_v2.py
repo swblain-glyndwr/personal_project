@@ -261,6 +261,13 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     ################################################################################
 
     df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
+    df_exclusions_filtered = df_exclusions.filter(
+        ~(
+            (F.trim(F.coalesce(F.col("url"), F.lit(""))) == "")
+            & (F.trim(F.coalesce(F.col("masidSlot"), F.lit(""))) == "")
+            & (F.trim(F.coalesce(F.col("CMSPageID"), F.lit(""))) == "")
+        )
+    )
 
     delete_from_and_load(
         df=df_ctrl_raw_filtered,
@@ -282,15 +289,15 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         f"Writing Exclusions Sheet to {config.tables_write.exclusions_latest}"
     )
     truncate_and_load(
-        df=df_exclusions,
+        df=df_exclusions_filtered,
         table=config.tables_write.exclusions_latest,
-        pk_cols=["PageType", "Page", "Exclude_Campaign"],
+        pk_cols=["url", "masidSlot", "CMSPageID"],
     )
 
     delete_from_and_load(
-        df=df_exclusions,
+        df=df_exclusions_filtered,
         table=config.tables_write.exclusions,
-        pk_cols=["PageType", "Page", "Exclude_Campaign"],
+        pk_cols=["url", "masidSlot", "CMSPageID"],
         del_where={"rundate": "current_date()"},
     )
 
@@ -316,7 +323,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
 
     logger.info("Validating Control Sheet Exclusions data schema")
     df_exclusions = schemas.ControlSheetExclusionsInputModel.validate(
-        df_exclusions, lazy=True
+        df_exclusions_filtered, lazy=True
     )
     errors_json = json.dumps(
         dict(df_exclusions.pandera.errors),
