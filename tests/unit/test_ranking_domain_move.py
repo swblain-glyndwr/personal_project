@@ -1,4 +1,5 @@
 import importlib
+import importlib.util
 from pathlib import Path
 
 from next_ads.ranking import scoring
@@ -33,6 +34,15 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     package_module = (
         PROJECT_ROOT / "src/next_ads/ranking/theme_score_mapping.py"
     ).read_text()
+    retrieval_module = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_score_retrieval.py"
+    ).read_text()
+    eligibility_module = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_score_eligibility.py"
+    ).read_text()
+    ranking_module = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_score_ranking.py"
+    ).read_text()
 
     assert (
         "from next_ads.ranking.theme_score_mapping "
@@ -42,37 +52,48 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     assert "def run_theme_score_mapping(" in package_module
     assert "truncate_and_load(" in package_module
     assert "delete_from_and_load(" in package_module
+    assert "def build_ad_location_mappings(" in retrieval_module
+    assert "def apply_greedy_theme_assignment(" in eligibility_module
+    assert "def rank_top_ads_per_adset(" in ranking_module
 
 
 def test_theme_affinity_job_uses_model_entrypoints():
     job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_theme_affinity.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml",
         "mktg_next_uk_nextads_theme_affinity_cicd",
     )
     tasks = {task["task_key"]: task for task in job["tasks"]}
 
     assert tasks["model_predict"]["spark_python_task"]["python_file"] == (
-        "../../jobs/model/theme_affinity/model_predict.py"
+        "../../../jobs/model/theme_affinity/model_predict.py"
     )
     assert tasks["clean_output"]["spark_python_task"]["python_file"] == (
-        "../../jobs/model/theme_affinity/clean_output.py"
+        "../../../jobs/model/theme_affinity/clean_output.py"
     )
     assert tasks["sense_check_dlt_data"]["spark_python_task"]["python_file"] == (
-        "../../jobs/model/theme_affinity/sense_check.py"
+        "../../../jobs/model/theme_affinity/sense_check.py"
     )
     assert tasks["sense_check_model_outputs"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/model/theme_affinity/sense_check.py"
+    ] == "../../../jobs/model/theme_affinity/sense_check.py"
 
 
-def test_theme_affinity_legacy_wrappers_are_importable():
+def test_theme_affinity_scripts_live_under_model_jobs():
+    try:
+        legacy_theme_affinity_spec = importlib.util.find_spec("scripts.theme_affinity")
+    except ModuleNotFoundError:
+        legacy_theme_affinity_spec = None
+
+    assert legacy_theme_affinity_spec is None
+
     for module_name in [
-        "scripts.theme_affinity.model_predict",
-        "scripts.theme_affinity.clean_output",
-        "scripts.theme_affinity.sense_check",
+        "model_predict",
+        "clean_output",
+        "sense_check",
     ]:
-        module = importlib.import_module(module_name)
-        assert hasattr(module, "main")
+        assert (
+            PROJECT_ROOT / "jobs" / "model" / "theme_affinity" / f"{module_name}.py"
+        ).is_file()
 
 
 def test_v2_entrypoints_stay_on_scripts():

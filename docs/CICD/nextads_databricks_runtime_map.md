@@ -10,7 +10,7 @@ This is a runtime map, not a deployment policy. For target availability rules, s
 
 ## How to Read This
 
-The diagrams below show the Databricks Asset Bundle job structure currently defined under `resources/jobs`. Schedules and recent runtimes were pulled from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Triggered jobs do not have their own fixed schedule; they are launched by an upstream task.
+The diagrams below show the Databricks Asset Bundle job structure currently defined under `pipelines/databricks/jobs`. Schedules and recent runtimes were pulled from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Triggered jobs do not have their own fixed schedule; they are launched by an upstream task.
 
 Durations are recent observed successful run durations, not SLAs. They should be treated as a guide for debugging, planning model refreshes, and understanding where a new model, feature-store table, or challenger route would attach.
 

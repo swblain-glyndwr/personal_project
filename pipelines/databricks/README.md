@@ -1,8 +1,10 @@
-# Databricks Pipelines
+# Databricks Bundle Resources
 
-Databricks Asset Bundle, DLT, Lakeflow, and job resource definitions should
-move here after current resource paths are stable and validation has been
-agreed.
+Databricks Asset Bundle job, pipeline, and variable definitions live here.
 
-Root bundle files and `resources/` remain active during the controlled
-restructure.
+- `jobs/` contains bundle job resources.
+- `pipelines/` contains Lakeflow/DLT pipeline resources.
+- `variables/` contains shared cluster and library variables.
+
+The root `databricks.yml` remains at the repository root because Databricks
+tooling expects the bundle definition there.

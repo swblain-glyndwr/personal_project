@@ -1858,7 +1858,7 @@
             "nextads_advert_items_profile_similarity": "{catalog}.{schema}.{client}_nextads_advert_items_profile_similarity",
             "nextads_advert_advert_association":"{catalog}.{schema}.{client}_nextads_advert_advert_association",
             "nextads_advert_items_catid": "{catalog}.{schema}.{client}_nextads_advert_items_catid"
-  
+
         }
     },
 

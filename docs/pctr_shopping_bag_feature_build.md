@@ -19,7 +19,7 @@ one customer
 -> predicted probability of click
 ```
 
-This is deliberately separate from the existing Hackathon-derived Theme Affinity route:
+This is deliberately separate from the existing Theme Affinity/LTR-style theme model:
 
 - Theme Affinity model: which themes does this customer like?
 - pCTR model: which of these actual ads will this customer click here?
@@ -28,7 +28,7 @@ This is deliberately separate from the existing Hackathon-derived Theme Affinity
 The intended future flow is:
 
 ```text
-Hackathon model
+Theme Affinity model
 -> AccountNumber x Theme score
 -> map themes to ads
 -> join pCTR scores
@@ -41,23 +41,23 @@ Hackathon model
 The simplest integration is to keep the existing NextAds assignment process intact and use pCTR as an additional ad-level reranking signal. A first combined score could be:
 
 ```text
-combined_score = hackathon_theme_score * predicted_pctr
+combined_score = theme_affinity_score * predicted_pctr
 ```
 
 or a calibrated weighted blend after model testing.
 
-The initial integration can treat the Hackathon score as the theme-level preference signal and pCTR as the ad-level click-propensity signal. The weighting does not have to stay equal or fixed. If testing shows pCTR is more predictive, the combined score can upweight pCTR and downweight the Hackathon theme score.
+The initial integration can treat the Theme Affinity score as the theme-level preference signal and pCTR as the ad-level click-propensity signal. The weighting does not have to stay equal or fixed. If testing shows pCTR is more predictive, the combined score can upweight pCTR and downweight the Theme Affinity score.
 
 For example:
 
 ```text
-combined_score = (theme_score_weight * hackathon_theme_score) + (pctr_weight * predicted_pctr)
+combined_score = (theme_score_weight * theme_affinity_score) + (pctr_weight * predicted_pctr)
 ```
 
 or:
 
 ```text
-combined_score = hackathon_theme_score ^ theme_weight * predicted_pctr ^ pctr_weight
+combined_score = theme_affinity_score ^ theme_weight * predicted_pctr ^ pctr_weight
 ```
 
 That gives a migration path:
@@ -522,7 +522,7 @@ Account A + Advert 2 + Shopping Bag -> predicted_pctr = 0.031
 Account A + Advert 3 + Shopping Bag -> predicted_pctr = 0.006
 ```
 
-Those probabilities can then be combined with the existing Theme Affinity score before NextAds decides the final ranked advert order.
+Those probabilities can then be combined with the existing theme/LTR score before NextAds decides the final ranked advert order.
 
 Outputs:
 
@@ -565,7 +565,7 @@ Next branch:
 feature/pctr-productionisation
 ```
 
-That branch should create the production-shaped daily job, stable UC feature tables, target table, model-ready scoring table, QA checks, and config structure.
+That branch should create the production-shaped daily job, stable UC feature tables, target table, model-ready scoring table, validation checks, and config structure.
 
 Separate modelling/placement branch:
 
@@ -607,7 +607,7 @@ If pCTR is later moved earlier into the ranking process, the join point should b
 
 The production version should move from notebook-first feature exploration to a scheduled Databricks job that writes stable UC tables. The model should be able to read one model-ready DataFrame rather than rebuilding every dependency inline.
 
-The purpose of productionisation is to turn this exploratory feature build into a repeatable daily data product. Instead of a person running notebooks in order, a Databricks job should refresh the required feature tables, run QA checks, and produce a stable scoring table that the NextAds ranking step can consume.
+The purpose of productionisation is to turn this exploratory feature build into a repeatable daily data product. Instead of a person running notebooks in order, a Databricks job should refresh the required feature tables, run validation checks, and produce a stable scoring table that the NextAds ranking step can consume.
 
 Recommended production tables:
 
@@ -712,5 +712,5 @@ customer features
 -> label from tagged clicks
 -> train pCTR
 -> score candidate account/ad rows
--> combine with Hackathon theme score
+-> combine with Theme Affinity score
 ```

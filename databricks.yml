@@ -9,40 +9,41 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml
-  - resources/jobs/mktg_next_uk_nextads_masid_handoff.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml
-  - resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
-  - resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml
-  - resources/jobs/mktg_next_uk_nextads_theme_affinity.yml
-  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml
-  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
-  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
-  - resources/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
-  - resources/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
-  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
-  - resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
-  - resources/jobs/mktg_next_uk_nextads_data_pull.yaml
-  - resources/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
-  - resources/pipelines/mktg_next_uk_nextads_data_pull.yml
-  - resources/variables/clusters.yml
-  - resources/variables/libraries.yml
-  - resources/jobs/mktg_next_uk_nextads_results.yml
-  - resources/jobs/mktg_next_uk_nextads_realtime_results.yml
-  - resources/jobs/table_size_monitoring.yml
-  - resources/jobs/mktg_next_uk_nextads_analytics_pctr.yml
-  - resources/jobs/dev_setup.yml
-  - resources/jobs/table_operations.yml
-  - resources/jobs/preprod_dependency_smoke.yml
-  - resources/jobs/prod_table_contract_smoke.yml
-  - resources/jobs/mktg_next_uk_nextads_feature_store.yml
-  - resources/jobs/mktg_next_uk_nextads_realtime_data.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_inputs.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml
+  - pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
+  - pipelines/databricks/pipelines/mktg_next_uk_nextads_data_pull.yml
+  - pipelines/databricks/variables/clusters.yml
+  - pipelines/databricks/variables/libraries.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_results.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml
+  - pipelines/databricks/jobs/table_size_monitoring.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml
+  - pipelines/databricks/jobs/dev_setup.yml
+  - pipelines/databricks/jobs/table_operations.yml
+  - pipelines/databricks/jobs/preprod_dependency_smoke.yml
+  - pipelines/databricks/jobs/prod_table_contract_smoke.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_data.yml
 sync:
   include:
     - configs/**
+    - experiments/analytics_pctr/**
     - jobs/**
     - next_ads/**
     - next_ads/data/**
-    - scripts/**
     - sql/**
     - src/next_ads/**
     - src/next_ads/data/**

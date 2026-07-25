@@ -12,7 +12,7 @@ def _load_job(path, key):
     return load_job(path, key)
 
 
-def test_main_job_submits_qa_without_waiting_for_qa_result():
+def test_main_job_submits_page_build_without_waiting_for_result():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
@@ -27,7 +27,10 @@ def test_main_job_submits_qa_without_waiting_for_qa_result():
     )
     assert "build_page_primary" not in tasks_by_key
     assert "build_page_v2" not in tasks_by_key
-    assert "trigger_data_pull_for_CMS_pull" in tasks_by_key
+    run_job_tasks = [
+        task["task_key"] for task in job["tasks"] if "run_job_task" in task
+    ]
+    assert run_job_tasks == ["trigger_data_pull_for_CMS_pull"]
     assert trigger_task["depends_on"] == [
         {"task_key": "combine_customer_cells"},
         {"task_key": "map_theme_scores_to_ads"},
@@ -82,19 +85,25 @@ def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
     assert job["name"] == "mktg_next_uk_nextads_page_build_v2"
     assert job["email_notifications"]["on_failure"] == (
         "${var.data_and_downstream_notification_emails}"
-    )#
+    )
 
     assert tasks_by_key["trigger_payload_export_job"]["run_if"] == "ALL_DONE"
     assert tasks_by_key["trigger_payload_export_job"]["depends_on"] == [
         {"task_key": "build_page_v2"},
     ]
 
-def test_control_sheet_qa_is_folded_into_v2_loader():
-    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
-    assert "resources/jobs/mktg_next_uk_nextads_qa.yml" not in bundle_config["include"]
 
-    source = (PROJECT_ROOT / "jobs/nextads_control/load_control_sheet_v2.py").read_text()
-    assert "Checking the CMS data vs the Control Sheet (v2)" in source
+def test_assignment_validation_job_has_independent_definition_and_internal_notifications():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml",
+        "mktg_next_uk_nextads_assignment_validation_cicd",
+    )
+
+    assert job["name"] == "mktg_next_uk_nextads_assignment_validation"
+    assert "schedule" not in job
+    assert job["email_notifications"]["on_failure"] == (
+        "${var.data_team_notification_emails}"
+    )
 
 
 def test_prod_data_team_notifications_are_internal_only():
@@ -117,7 +126,7 @@ def test_prod_data_team_notifications_are_internal_only():
 
 def test_delivery_jobs_have_external_notifications():
     masid_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_masid_handoff.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml",
         "mktg_next_uk_nextads_masid_handoff_cicd",
     )
     payload_job = _load_job(
@@ -125,7 +134,7 @@ def test_delivery_jobs_have_external_notifications():
         "mktg_next_uk_nextads_payload_export_cicd",
     )
     plp_job = _load_job(
-        "resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml",
         "mktg_next_uk_nextads_plp_gs_delivery_cicd",
     )
 

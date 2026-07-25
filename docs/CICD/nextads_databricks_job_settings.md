@@ -2,7 +2,7 @@
 
 Status: Working reference
 
-This page explains the runtime settings declared in `resources/jobs/*.yml`.
+This page explains the runtime settings declared in `pipelines/databricks/jobs/*.yml`.
 For target availability and release-route rules, see
 `docs/CICD/nextads_databricks_job_environment_matrix.md`.
 
@@ -52,18 +52,28 @@ candidate scoring.
 
 ### `mktg_next_uk_nextads_table_operations`
 
-Manual table maintenance. Defaults are inert.
+Manual table maintenance. Defaults are inert: every `run_*` action defaults to `false`, and `dry_run` defaults to `true`. Select exactly one `run_*` action for each run.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
-| `operation` | Operation to prepare or execute. | `create_missing_tables`, `alter_tables`, `recreate_tables`, `drop_tables`. |
+| `run_create_missing_tables` | Create configured tables that do not already exist. | Set to `true` for this action only. Requires `confirm_mutating=true` when `dry_run=false`. |
+| `run_alter_tables` | Repair configured tables to match their SQL contracts. | Set to `true` for this action only. It adds safe trailing nullable columns directly and rebuilds drifted DEV/PREPROD tables by column name when order, type, nullability, or required defaulted columns need repair. PROD rebuild repair is blocked. Requires `confirm_mutating=true` when `dry_run=false`. |
+| `run_recreate_tables` | Drop and recreate configured tables. | Set to `true` for this action only. Requires `confirm_destructive=true` when `dry_run=false`. |
+| `run_drop_tables` | Drop explicit tables listed in `tables`. | Set to `true` for this action only. Requires `confirm_destructive=true` when `dry_run=false`. |
+| `run_copy_prod_tables_to_dev` | Copy configured PROD read/source tables into the selected DEV schema. | Set to `true` for this action only. Requires `job_env=dev` and `confirm_mutating=true` when `dry_run=false`. |
 | `client` | Client config key. | Usually `next_uk`. |
 | `job_env` | Environment config to use. | Target-provided `dev`, `preprod`, or `prod`. |
 | `catalog`, `schema` | Namespace for explicit table operations. | Required for `drop_tables`; defaults come from target variables. |
-| `tables` | Comma-separated table list for `drop_tables`. | Unqualified names resolve under `catalog.schema`; fully qualified names must match `catalog.schema`. Wildcards are rejected. |
-| `confirm_mutating` | Allows non-destructive mutation. | Must be `true` with `dry_run=false` for `create_missing_tables` and `alter_tables`. |
+| `tables` | Optional comma-separated table list. | Blank means all configured tables for create/alter/recreate. For `drop_tables`, explicit names are required when `dry_run=false`. Unqualified names resolve under `catalog.schema`; fully qualified names must match `catalog.schema`. Wildcards are rejected. |
+| `history_days` | Number of days copied by `run_copy_prod_tables_to_dev`. | Defaults to `1`. |
+| `input_tables_only` | Skips generated ranking output tables during PROD-to-DEV copy. | Defaults to `true`. |
+| `confirm_mutating` | Allows non-destructive mutation. | Must be `true` with `dry_run=false` for `run_create_missing_tables`, `run_alter_tables`, and `run_copy_prod_tables_to_dev`. |
 | `confirm_destructive` | Allows destructive mutation. | Must be `true` with `dry_run=false` for `recreate_tables` and `drop_tables`. |
 | `dry_run` | Preview without executing. | Defaults to `true`; set `false` only with the relevant confirmation. |
+
+To copy PROD source tables into a personal DEV schema, run `mktg_next_uk_nextads_table_operations` with `run_copy_prod_tables_to_dev=true`, `job_env=dev`, `client=next_uk`, `history_days=1`, `input_tables_only=true`, `confirm_mutating=true`, and `dry_run=false`. Leave `dry_run=true` first when you only want to check the selected action.
+
+To repair stale DEV table layouts before running candidate/page-build jobs, run the same job with `run_alter_tables=true`, `job_env=dev`, `client=next_uk`, `tables` blank, `confirm_mutating=true`, and `dry_run=false`. This checks all configured write tables against the repo SQL contracts. For the known control-sheet drift, it rebuilds the stale table from a backup using column names rather than positional writes, so `IsUnderperforming` sits before `rundate` as expected. For `customer_cells_latest`, missing `Audience` is repaired with the literal string value `"false"`.
 
 ### DEV Integration And PREPROD Table Setup Jobs
 

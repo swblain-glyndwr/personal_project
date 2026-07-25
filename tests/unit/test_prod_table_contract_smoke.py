@@ -1,6 +1,6 @@
 import pytest
 
-from scripts.smoke.prod_table_contract_smoke import (
+from jobs.smoke.prod_table_contract_smoke import (
     compare_expected_columns,
     normalize_type,
     validate_prod_route,

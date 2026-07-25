@@ -43,7 +43,7 @@ def test_v1_job_entrypoints_import_decisioning_package():
     for path in [
         "jobs/nextads_cells/assign_customer_cells.py",
         "jobs/nextads_assignment/build_page.py",
-        "src/next_ads/ranking/theme_score_mapping.py",
+        "src/next_ads/ranking/theme_score_eligibility.py",
     ]:
         source = _read(path)
         assert "next_ads.decisioning.assignment" in source

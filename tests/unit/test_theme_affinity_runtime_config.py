@@ -142,7 +142,7 @@ def test_theme_affinity_clean_output_writes_inference_log():
 
 def test_theme_affinity_inference_log_label_enrichment_uses_results_outcomes():
     source = (
-        PROJECT_ROOT / "jobs/results/enrich_theme_affinity_inference_log.py"
+        PROJECT_ROOT / "jobs/nextads_reporting/enrich_theme_affinity_inference_log.py"
     ).read_text()
 
     assert "df_sessions_master_meta" in source

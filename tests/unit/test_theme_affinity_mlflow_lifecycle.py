@@ -293,7 +293,7 @@ def test_copy_model_version_tags_source_model_details():
 def test_train_and_promote_scripts_use_native_mlflow_not_marketingdata_utils():
     train_script = (
         __import__("pathlib").Path(__file__).resolve().parents[2]
-        / "scripts/theme_affinity/train_model.py"
+        / "jobs/model/theme_affinity/train_model.py"
     ).read_text()
     promote_script = (
         __import__("pathlib").Path(__file__).resolve().parents[2]
@@ -301,11 +301,11 @@ def test_train_and_promote_scripts_use_native_mlflow_not_marketingdata_utils():
     ).read_text()
     monitor_script = (
         __import__("pathlib").Path(__file__).resolve().parents[2]
-        / "scripts/theme_affinity/monitor_model.py"
+        / "jobs/model/theme_affinity/monitor_model.py"
     ).read_text()
     gpu_train_script = (
         __import__("pathlib").Path(__file__).resolve().parents[2]
-        / "scripts/theme_affinity/train_gpu_xgboost_model.py"
+        / "jobs/model/theme_affinity/train_gpu_xgboost_model.py"
     ).read_text()
     assert "marketingdata_utils" not in train_script
     assert "marketingdata_utils" not in gpu_train_script

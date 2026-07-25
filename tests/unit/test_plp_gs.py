@@ -199,7 +199,7 @@ def test_process_control_sheet_basic(
     mock_plx_placements_data
 ):
     """Test basic processing of control sheet data."""
-    with patch("scripts.plp_gs.spark") as mock_spark:
+    with patch("next_ads.delivery.google_sheets.spark") as mock_spark:
         # Setup mock spark.table() to return our test data
         def spark_table_side_effect(table_name):
             if "control_sheet_raw_latest" in table_name:
@@ -216,7 +216,7 @@ def test_process_control_sheet_basic(
         mock_spark.sql = local_spark.sql
 
         # Import after patching
-        from scripts.plp_gs import process_control_sheet
+        from next_ads.delivery.google_sheets import process_control_sheet
 
         # Run the function
         result_df = process_control_sheet(config=config_dev)
@@ -288,7 +288,7 @@ def test_process_control_sheet_filters_active_plp(
     mock_plx_placements_data
 ):
     """Test basic processing of control sheet data."""
-    with patch("scripts.plp_gs.spark") as mock_spark:
+    with patch("next_ads.delivery.google_sheets.spark") as mock_spark:
         # Setup mock spark.table() to return our test data
         def spark_table_side_effect(table_name):
             if "control_sheet_raw_latest" in table_name:
@@ -305,7 +305,7 @@ def test_process_control_sheet_filters_active_plp(
         mock_spark.sql = local_spark.sql
 
         # Import after patching
-        from scripts.plp_gs import process_control_sheet
+        from next_ads.delivery.google_sheets import process_control_sheet
 
         result_df = process_control_sheet(
             config=config_dev

@@ -1,4 +1,3 @@
-import importlib
 from pathlib import Path
 
 from tests.job_resource_helpers import load_job
@@ -82,7 +81,6 @@ def test_v2_page_build_job_uses_moved_non_v2_entrypoints():
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
-
     trigger_tasks = [
         "trigger_payload_export_job",
     ]
@@ -90,6 +88,7 @@ def test_v2_page_build_job_uses_moved_non_v2_entrypoints():
         assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
             "../../../jobs/orchestration/trigger_databricks_job.py"
         )
+
 
 def test_v2_page_build_entrypoint_stays_on_scripts():
     job = _load_job(
@@ -103,30 +102,31 @@ def test_v2_page_build_entrypoint_stays_on_scripts():
     ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
 
 
-def test_moved_entrypoint_files_exist_with_legacy_wrappers():
-    entrypoints = [
-        "build_markov_chain",
-    ]
-
-    for entrypoint in entrypoints:
-        assert (PROJECT_ROOT / "jobs" / "nextads_main" / f"{entrypoint}.py").is_file()
-        assert (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").is_file()
-
-    moved_entrypoints = [
+def test_route_oriented_entrypoint_files_exist_without_domain_wrappers():
+    expected_entrypoints = [
         "jobs/nextads_cells/assign_customer_cells.py",
         "jobs/nextads_cells/combine_customer_cells.py",
+        "jobs/nextads_candidates/build_theme_scores.py",
         "jobs/nextads_candidates/build_theme_ad_candidates.py",
         "jobs/nextads_assignment/build_page.py",
         "jobs/orchestration/trigger_databricks_job.py",
     ]
-    for entrypoint in moved_entrypoints:
+
+    for entrypoint in expected_entrypoints:
         assert (PROJECT_ROOT / entrypoint).is_file()
 
+    for folder in ["nextads_main", "decisioning", "ranking", "retrieval", "results"]:
+        assert not (PROJECT_ROOT / "jobs" / folder).exists()
 
-def test_legacy_wrappers_are_importable_without_running_jobs():
-    for module_name in [
-        "scripts.build_markov_chain",
-        "scripts.trigger_databricks_job",
+
+def test_obsolete_main_wrappers_are_removed():
+    for entrypoint in [
+        "assign_customer_cells",
+        "combine_customer_cells",
+        "build_markov_chain",
+        "map_theme_scores_to_ads",
+        "build_page",
+        "trigger_databricks_job",
     ]:
-        module = importlib.import_module(module_name)
-        assert hasattr(module, "main")
+        assert not (PROJECT_ROOT / "scripts" / f"{entrypoint}.py").exists()
+        assert not (PROJECT_ROOT / "jobs" / "nextads_main" / f"{entrypoint}.py").exists()

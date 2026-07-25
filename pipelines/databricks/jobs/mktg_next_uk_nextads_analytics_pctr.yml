@@ -1,0 +1,219 @@
+analytics_pctr_model_config: &analytics_pctr_model_config
+  mktg_next_uk_nextads_analytics_pctr_model:
+    name: mktg_next_uk_nextads_analytics_pctr
+    queue:
+      enabled: true
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: analytics_pctr
+    email_notifications:
+      on_failure: ${var.data_team_notification_emails}
+    notification_settings:
+      no_alert_for_skipped_runs: true
+      no_alert_for_canceled_runs: true
+    schedule:
+      quartz_cron_expression: 01 0 10 * * ?
+      timezone_id: Europe/London
+      pause_status: "PAUSED"
+    parameters:
+      - name: catalog_schema_prefix
+        default: ${var.mktgdata_catalog}.${var.user_schema}
+      - name: table_prefix
+        default: next_uk_nextAds_analytics_pctr
+      - name: lookback_period
+        default: 30
+      - name: affinity_weighting_factor
+        default: 4
+      - name: regressor_model_uri
+        default: models:/${var.mktgdata_catalog}.${var.user_schema}.nextads_analytics_pctr_affinity_regression_model/2
+      - name: classifier_model_uri
+        default: models:/${var.mktgdata_catalog}.${var.user_schema}.nextads_analytics_pctr_popularity_classification_model/2
+    tasks:
+      - task_key: base_sessions
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/00_base_sessions
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            start_date: "{{job.start_time.iso_date}}"
+            end_date : "{{job.start_time.iso_date}}"
+            lookback_period: 30
+            year_lookback_period : 365
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+
+      - task_key: core_datasets
+        depends_on:
+          - task_key: base_sessions
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/01_core_datasets
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            start_date: "{{job.start_time.iso_date}}"
+            end_date : "{{job.start_time.iso_date}}"
+            lookback_period: 30
+            year_lookback_period : 365
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 7200
+
+      - task_key: customer_advert_base
+        depends_on:
+          - task_key: core_datasets
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/02_customer_advert_base-predictions
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            lookback_period: 30
+            year_lookback_period : 365
+            start_date: "{{job.start_time.iso_date}}"
+            end_date : "{{job.start_time.iso_date}}"
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+
+      - task_key: session_aggregation
+        depends_on:
+          - task_key: customer_advert_base
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/03_session_aggregation
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            lookback_period: 30
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+
+      - task_key: ctr_metrics
+        depends_on:
+          - task_key: customer_advert_base
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/04_ctr_metrics
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            lookback_period: 30
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+        
+      - task_key: page_views
+        depends_on:
+          - task_key: customer_advert_base
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/05_page_views
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            lookback_period: 30
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+
+      - task_key: purchases
+        depends_on:
+          - task_key: customer_advert_base
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/06_purchases
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            lookback_period: 30
+            year_lookback_period: 365
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+
+      - task_key: customer_ad_exposure
+        depends_on:
+          - task_key: customer_advert_base
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/07_customer_advert_exposure
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            lookback_period: 30
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+
+      - task_key: view_advert_affinity
+        depends_on:
+          - task_key: customer_advert_base
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/08_view_advert_affinity
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            lookback_period: 30
+            table_prefix: next_uk_nextAds_analytics_pctr
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 3600
+
+      - task_key: feature_build
+        depends_on:
+          - task_key: session_aggregation
+          - task_key: ctr_metrics
+          - task_key: page_views
+          - task_key: purchases
+          - task_key: customer_ad_exposure
+          - task_key: view_advert_affinity
+        notebook_task:
+          notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/09_combining_data
+          base_parameters:
+            catalog_schema_prefix: ${var.mktgdata_catalog}.${var.user_schema}
+            table_prefix: next_uk_nextAds_analytics_pctr
+            output_table_name: _features
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        timeout_seconds: 7200
+
+      - task_key: predict
+        depends_on:
+          - task_key: feature_build
+        spark_python_task:
+          python_file: ${workspace.file_path}/experiments/analytics_pctr/run_predictions.py
+          parameters:
+            - --catalog_schema_prefix
+            - "{{job.parameters.catalog_schema_prefix}}"
+            - --table_prefix
+            - "{{job.parameters.table_prefix}}"
+            - --lookback_period
+            - "{{job.parameters.lookback_period}}"
+            - --affinity_weighting_factor
+            - "{{job.parameters.affinity_weighting_factor}}"
+            - --regressor_model_uri
+            - "{{job.parameters.regressor_model_uri}}"
+            - --classifier_model_uri
+            - "{{job.parameters.classifier_model_uri}}"
+        job_cluster_key: next_ads_job_cluster_E16ds_v5_4_pctr
+        libraries: ${var.analytics_pctr_libraries}
+        timeout_seconds: 7200
+
+targets:
+  DEV:
+    resources:
+      jobs:
+        <<: *analytics_pctr_model_config
+  # DEV_INTEGRATION:
+  #   resources:
+  #     jobs:
+  #       <<: *analytics_pctr_model_config
+  # PREPROD:
+  #   resources:
+  #     jobs:
+  #       <<: *analytics_pctr_model_config
+  # PROD:
+  #   resources:
+  #     jobs:
+  #       <<: *analytics_pctr_model_config
