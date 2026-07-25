@@ -20,7 +20,7 @@ mktg_next_uk_nextads_payload_export_config: &mktg_next_uk_nextads_payload_export
     tasks:
       - task_key: Export_for_Bloomreach
         spark_python_task:
-          python_file: ../../scripts/build_v2_payload.py
+          python_file: ../../../jobs/nextads_delivery/build_v2_payload.py
           parameters:
             - --client
             - "next_uk"

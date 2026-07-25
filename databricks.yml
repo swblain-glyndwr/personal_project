@@ -6,11 +6,11 @@ bundle:
   name: next-ads
 
 include:
-  - resources/jobs/mktg_next_uk_nextads.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
   - resources/jobs/mktg_next_uk_nextads_page_build.yml
-  - resources/jobs/mktg_next_uk_nextads_page_build_v2.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml
   - resources/jobs/mktg_next_uk_nextads_masid_handoff.yml
-  - resources/jobs/mktg_next_uk_nextads_payload_export.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml
   - resources/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
   - resources/jobs/mktg_next_uk_nextads_realtime_inputs.yml
   - resources/jobs/mktg_next_uk_nextads_theme_affinity.yml

@@ -25,7 +25,7 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
           task:
             task_key: build_page_v2_iteration
             spark_python_task:
-              python_file: ../../scripts/build_page_v2.py
+              python_file: ../../../jobs/nextads_v2/build_page.py
               parameters:
                 - --client
                 - "next_uk"
@@ -43,7 +43,7 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
           - task_key: build_page_v2
         run_if: ALL_DONE
         spark_python_task:
-          python_file: ../../jobs/nextads_main/trigger_databricks_job.py
+          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:
             - --job-id
             - ${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}
