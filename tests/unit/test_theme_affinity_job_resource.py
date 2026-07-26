@@ -671,6 +671,10 @@ def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
             == "${workspace.file_path}/src/next_ads/ranking/theme_affinity/sql"
         )
         assert (
+            pipeline_config["configuration"]["pipeline.source_path"]
+            == "${workspace.file_path}/src"
+        )
+        assert (
             pipeline_config["libraries"][0]["glob"]["include"]
             == "${workspace.file_path}/src/next_ads/ranking/theme_affinity/dlt_pipeline.py"
         )

@@ -208,6 +208,10 @@ def test_data_pull_pipeline_passes_user_schema_to_python_config():
         pipeline["configuration"]["pipeline.user_schema"]
         == "${var.user_schema}"
     )
+    assert (
+        pipeline["configuration"]["pipeline.source_path"]
+        == "${workspace.file_path}/src"
+    )
 
 
 def test_assignment_validation_job_has_independent_definition_and_internal_notifications():

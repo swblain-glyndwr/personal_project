@@ -10,26 +10,21 @@ from pyspark.sql import functions as F
 spark = SparkSession.builder.getOrCreate()
 
 
-def _candidate_bootstrap_paths():
-    module_file = globals().get("__file__")
-    if module_file:
-        yield from Path(module_file).resolve().parents
-
-    sql_path = spark.conf.get("pipeline.sql_path", None)
-    if sql_path:
-        yield from Path(sql_path).parents
-
-
 def _bootstrap_repo_paths():
-    for parent in _candidate_bootstrap_paths():
-        src_path = parent / "src"
-        if (src_path / "next_ads").exists():
-            sys.path.insert(0, str(src_path))
-            sys.path.insert(1, str(parent))
-            return
-        if (parent / "next_ads").exists():
-            sys.path.insert(0, str(parent))
-            return
+    src_root = Path(spark.conf.get("pipeline.source_path"))
+    if not (src_root / "next_ads").is_dir():
+        raise RuntimeError(
+            "Canonical NextAds package not found under configured "
+            f"pipeline.source_path: {src_root}"
+        )
+    project_root = src_root.parent
+
+    for path in (src_root, project_root):
+        path_text = str(path)
+        if path_text in sys.path:
+            sys.path.remove(path_text)
+    sys.path.insert(0, str(src_root))
+    sys.path.insert(1, str(project_root))
 
 
 _bootstrap_repo_paths()

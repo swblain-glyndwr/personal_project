@@ -7,6 +7,7 @@ mktg_next_uk_nextads_data_pull: &mktg_next_uk_nextads_data_pull
       pipeline.job_env: ${var.job_parameter_environment_name}
       pipeline.table_prefix: nextads
       pipeline.user_schema: ${var.user_schema}
+      pipeline.source_path: ${workspace.file_path}/src
     clusters: ${var.pipeline_clusters_config}
     libraries:
       - glob:
