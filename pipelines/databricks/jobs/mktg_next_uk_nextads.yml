@@ -20,6 +20,9 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
       quartz_cron_expression: 0 0 18 * * ?
       timezone_id: Europe/London
     timeout_seconds: 21600 # required by Engineering at job level as Monitoring Dashboard doesnt handle for_each_task type
+    parameters:
+      - name: refresh_theme_mapping
+        default: "false"
     tasks:
       - task_key: assign_customer_cells
         spark_python_task:
@@ -124,6 +127,8 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --refresh_themes_date
             - "2026-06-15"
+            - --refresh_theme_mapping
+            - "{{job.parameters.refresh_theme_mapping}}"
         job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
         libraries: ${var.shared_libraries}
         max_retries: 2

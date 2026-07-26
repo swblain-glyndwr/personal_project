@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 import yaml
 
@@ -77,23 +77,39 @@ def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
     )
 
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+    job_parameters = {
+        param["name"]: param["default"] for param in job["parameters"]
+    }
 
+    assert job_parameters["refresh_theme_mapping"] == "false"
     assert "depends_on" not in tasks_by_key["validate_theme_mapping_sync"]
     assert tasks_by_key["parse_theme_mapping"]["depends_on"] == [
         {"task_key": "parse_attributes"},
         {"task_key": "validate_theme_mapping_sync"},
+    ]
+    assert (
+        tasks_by_key["parse_theme_mapping"]["spark_python_task"]["parameters"]
+    )[-2:] == [
+        "--refresh_theme_mapping",
+        "{{job.parameters.refresh_theme_mapping}}",
     ]
     assert tasks_by_key["score_lightweight"]["depends_on"] == [
         {"task_key": "parse_theme_mapping"},
     ]
     assert "parse_theme_mapping_v2" not in tasks_by_key
     assert "score_lightweight_v2" not in tasks_by_key
-    assert tasks_by_key["validate_theme_mapping_sync"]["spark_python_task"][
-        "python_file"
-    ] == "../../../jobs/nextads_control/validate_theme_mapping_sync.py"
-    assert "--warn-only" not in tasks_by_key["validate_theme_mapping_sync"][
-        "spark_python_task"
-    ]["parameters"]
+    assert (
+        tasks_by_key["validate_theme_mapping_sync"]["spark_python_task"][
+            "python_file"
+        ]
+        == "../../../jobs/nextads_control/validate_theme_mapping_sync.py"
+    )
+    assert (
+        "--warn-only"
+        not in tasks_by_key["validate_theme_mapping_sync"][
+            "spark_python_task"
+        ]["parameters"]
+    )
 
 
 def test_theme_affinity_coverage_validation_gates_both_route_mappers():
@@ -115,15 +131,18 @@ def test_theme_affinity_coverage_validation_gates_both_route_mappers():
     ]["python_file"] == (
         "../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py"
     )
-    assert "--warn-only" in tasks_by_key["validate_theme_affinity_theme_coverage"][
-        "spark_python_task"
-    ]["parameters"]
-    assert {"task_key": "validate_theme_affinity_theme_coverage"} in tasks_by_key[
-        "map_theme_scores_to_ads_v1"
-    ]["depends_on"]
-    assert {"task_key": "validate_theme_affinity_theme_coverage"} in tasks_by_key[
-        "map_theme_scores_to_ads_v2"
-    ]["depends_on"]
+    assert (
+        "--warn-only"
+        in tasks_by_key["validate_theme_affinity_theme_coverage"][
+            "spark_python_task"
+        ]["parameters"]
+    )
+    assert {
+        "task_key": "validate_theme_affinity_theme_coverage"
+    } in tasks_by_key["map_theme_scores_to_ads_v1"]["depends_on"]
+    assert {
+        "task_key": "validate_theme_affinity_theme_coverage"
+    } in tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"]
 
 
 def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
@@ -142,7 +161,9 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
     assert tasks_by_key["trigger_assignment_validation_job"]["depends_on"] == [
         {"task_key": "build_page_secondary"},
     ]
-    assert tasks_by_key["trigger_masid_handoff_check_job"]["run_if"] == "ALL_DONE"
+    assert (
+        tasks_by_key["trigger_masid_handoff_check_job"]["run_if"] == "ALL_DONE"
+    )
     assert tasks_by_key["trigger_masid_handoff_check_job"]["depends_on"] == [
         {"task_key": "build_page_secondary"},
     ]
@@ -183,7 +204,10 @@ def test_data_pull_pipeline_passes_user_schema_to_python_config():
     ]
 
     assert pipeline["schema"] == "${var.user_schema}"
-    assert pipeline["configuration"]["pipeline.user_schema"] == "${var.user_schema}"
+    assert (
+        pipeline["configuration"]["pipeline.user_schema"]
+        == "${var.user_schema}"
+    )
 
 
 def test_assignment_validation_job_has_independent_definition_and_internal_notifications():
@@ -200,7 +224,9 @@ def test_assignment_validation_job_has_independent_definition_and_internal_notif
 
 
 def test_prod_data_team_notifications_are_internal_only():
-    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+    bundle_config = yaml.safe_load(
+        (PROJECT_ROOT / "databricks.yml").read_text()
+    )
     prod_variables = bundle_config["targets"]["PROD"]["variables"]
 
     assert "qa_notification_emails" not in prod_variables
@@ -243,7 +269,9 @@ def test_delivery_jobs_have_external_notifications():
 
 
 def test_prod_notifications_are_split_by_owner_group():
-    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+    bundle_config = yaml.safe_load(
+        (PROJECT_ROOT / "databricks.yml").read_text()
+    )
     prod_variables = bundle_config["targets"]["PROD"]["variables"]
 
     external_recipients = [
@@ -270,7 +298,9 @@ def test_prod_notifications_are_split_by_owner_group():
     assert prod_variables["data_and_downstream_notification_emails"] == (
         prod_variables["data_team_notification_emails"] + external_recipients
     )
-    assert prod_variables["reporting_notification_emails"] == reporting_recipients
+    assert (
+        prod_variables["reporting_notification_emails"] == reporting_recipients
+    )
     assert set(external_recipients).isdisjoint(
         set(prod_variables["data_team_notification_emails"])
     )

@@ -22,7 +22,11 @@ finally:
 from dsutils import gcp
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import delete_from_and_load, post_to_webhook, truncate_and_load
+from dsutils.etl import (
+    delete_from_and_load,
+    post_to_webhook,
+    truncate_and_load,
+)
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.control.theme_mapping import (
@@ -38,8 +42,31 @@ from next_ads.utils import config_manager, etl
 from next_ads.common.paths import load_client_config
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=None):
-    configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+def parse_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+
+    normalised = str(value).strip().lower()
+    if normalised in {"true", "1", "yes", "y"}:
+        return True
+    if normalised in {"false", "0", "no", "n", ""}:
+        return False
+    raise ValueError(f"Unsupported boolean value: {value!r}")
+
+
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    REFRESH_THEMES_DATE,
+    THEME_RANKING_MODE=None,
+    REFRESH_THEME_MAPPING=False,
+):
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
     logger.info(f"Running in job environment: {JOB_ENV}")
@@ -56,7 +83,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
     cfg = load_client_config(CLIENT)
 
     today = date.today().strftime(format="%Y-%m-%d")
-    set_theme_attributes = REFRESH_THEMES_DATE == today or False
+    set_theme_attributes = (
+        REFRESH_THEME_MAPPING or REFRESH_THEMES_DATE == today
+    )
     if not THEME_RANKING_MODE:
         THEME_RANKING_MODE = "adtype-themetype"
         logger.info(
@@ -74,7 +103,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
         "client": CLIENT,
     }
     theme_mapping = etl.map_tbl(tbls["theme_mapping"], **tbl_args)
-    theme_mapping_latest = etl.map_tbl(tbls["theme_mapping_latest"], **tbl_args)
+    theme_mapping_latest = etl.map_tbl(
+        tbls["theme_mapping_latest"], **tbl_args
+    )
     item_attributes_latest = etl.map_tbl(
         tbls["item_attributes_latest"],
         **tbl_args,
@@ -86,7 +117,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
 
     logger.info(
         "Parsing theme mapping from control sheet tab: "
-        f'{cfg["theme_mapping"]["sheet"]}'
+        f"{cfg['theme_mapping']['sheet']}"
     )
     df_themes = normalise_theme_mapping(
         gcp.spark_df_from_sheets(
@@ -98,7 +129,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
         )
     )
 
-    invalid_theme_count = df_themes.filter(~valid_theme_rank_condition()).count()
+    invalid_theme_count = df_themes.filter(
+        ~valid_theme_rank_condition()
+    ).count()
     if invalid_theme_count > 0:
         invalid_themes = collect_invalid_theme_ranks(df_themes)
         msg_invalid_ranks = (
@@ -114,7 +147,10 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
     df_themes = filter_valid_theme_ranks(df_themes)
 
     if set_theme_attributes:
-        logger.info(f"REFRESH_THEMES_DATE matches today ({today})")
+        if REFRESH_THEME_MAPPING:
+            logger.info("REFRESH_THEME_MAPPING flag set")
+        else:
+            logger.info(f"REFRESH_THEMES_DATE matches today ({today})")
         logger.info("Setting theme-to-attribute mapping")
         theme_attributes = build_theme_attributes(df_themes)
 
@@ -140,7 +176,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_THEMES_DATE, THEME_RANKING_MODE=Non
         logger.info("Reading existing theme mapping for item-theme mapping")
         theme_attributes = spark.table(theme_mapping_latest)
     else:
-        logger.info("Using newly refreshed theme mapping for item-theme mapping")
+        logger.info(
+            "Using newly refreshed theme mapping for item-theme mapping"
+        )
 
     item_attributes = spark.table(item_attributes_latest)
     item_themes_ranked = rank_item_themes(
@@ -175,6 +213,9 @@ def parse_args():
         "LOG_LEVEL": jobparser.get_arg("--log_level"),
         "REFRESH_THEMES_DATE": jobparser.get_arg("--refresh_themes_date"),
         "THEME_RANKING_MODE": jobparser.get_arg("--theme-ranking-mode"),
+        "REFRESH_THEME_MAPPING": parse_bool(
+            jobparser.get_arg("--refresh_theme_mapping")
+        ),
     }
 
 
