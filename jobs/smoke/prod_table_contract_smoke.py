@@ -29,25 +29,15 @@ from dsutils.logtools import configure_logging, get_logger
 from next_ads.utils import config_manager
 from next_ads.common.paths import resolve_sql_contract_path
 from jobs.table_operations.create_tables import (
+    compare_table_schema,
     extract_create_table_columns,
     extract_table_paths,
+    parse_column_specs,
+    spark_schema_column_specs,
 )
 
 
 TABLE_NAME_RE = re.compile(r"^[A-Za-z0-9_]+[.][A-Za-z0-9_]+[.][A-Za-z0-9_]+$")
-COMPLEX_TYPE_PREFIXES = ("array<", "map<", "struct<")
-SPARK_TYPE_ALIASES = {
-    "bigint": "bigint",
-    "boolean": "boolean",
-    "date": "date",
-    "double": "double",
-    "float": "float",
-    "int": "int",
-    "integer": "int",
-    "long": "bigint",
-    "string": "string",
-    "timestamp": "timestamp",
-}
 
 
 def _as_dict(obj):
@@ -61,59 +51,32 @@ def validate_prod_route(job_env, config):
         raise ValueError("This smoke check must run with job_env=prod")
 
     if config.catalog_write != "marketingdata_prod":
-        raise ValueError("PROD catalog_write must resolve to marketingdata_prod")
+        raise ValueError(
+            "PROD catalog_write must resolve to marketingdata_prod"
+        )
 
     if config.schema_write != "warehouse":
         raise ValueError("PROD schema_write must resolve to warehouse")
 
 
-def normalize_type(type_name):
-    """Return comparable simple scalar type, or None for complex types."""
-    cleaned = " ".join(type_name.lower().replace("`", "").split())
-    cleaned = cleaned.replace(" not null", "")
-
-    if cleaned.startswith(COMPLEX_TYPE_PREFIXES):
-        return None
-
-    base_type = cleaned.split("(", maxsplit=1)[0].split(maxsplit=1)[0]
-    return SPARK_TYPE_ALIASES.get(base_type)
-
-
-def compare_expected_columns(expected_columns, actual_fields, allow_extra_columns=False):
-    expected_names = {name for name, _ in expected_columns}
-    actual_types_by_name = {name: normalize_type(data_type) for name, data_type in actual_fields}
-    actual_names = set(actual_types_by_name)
-
-    missing_columns = []
-    extra_columns = sorted(actual_names - expected_names)
-    type_mismatches = []
-    for name, expected_type in expected_columns:
-        if name not in actual_names:
-            missing_columns.append(name)
-            continue
-
-        normalized_expected = normalize_type(expected_type)
-        normalized_actual = actual_types_by_name[name]
-        if (
-            normalized_expected is not None
-            and normalized_actual is not None
-            and normalized_expected != normalized_actual
-        ):
-            type_mismatches.append(
-                f"{name}: expected {normalized_expected}, found {normalized_actual}"
-            )
-
-    if allow_extra_columns:
-        extra_columns = []
-
-    return missing_columns, extra_columns, type_mismatches
-
-
-def get_actual_fields(spark, table):
-    return [
-        (field.name, field.dataType.simpleString())
-        for field in spark.table(table).schema.fields
-    ]
+def describe_schema_drift(drift, allow_extra_columns=False):
+    details = []
+    if drift.missing_columns:
+        details.append(
+            "missing columns: "
+            + ", ".join(column.name for column in drift.missing_columns)
+        )
+    if drift.extra_columns and not allow_extra_columns:
+        details.append("unexpected columns: " + ", ".join(drift.extra_columns))
+    if drift.order_drift:
+        details.append("column order does not match SQL contract")
+    if drift.type_drift:
+        details.append("type drift: " + "; ".join(drift.type_drift))
+    if drift.nullability_drift:
+        details.append(
+            "nullability drift: " + "; ".join(drift.nullability_drift)
+        )
+    return details
 
 
 def collect_contract_failures(
@@ -125,12 +88,16 @@ def collect_contract_failures(
     failures = []
     for table_ref, table in table_contracts.items():
         if not TABLE_NAME_RE.match(table):
-            failures.append(f"{table_ref}: expected fully qualified table, found {table}")
+            failures.append(
+                f"{table_ref}: expected fully qualified table, found {table}"
+            )
             continue
 
         sql_script_path = resolve_sql_contract_path(table_ref)
         if not sql_script_path.exists():
-            failures.append(f"{table_ref}: missing SQL contract {sql_script_path}")
+            failures.append(
+                f"{table_ref}: missing SQL contract {sql_script_path}"
+            )
             continue
 
         logger.info(f"Checking table contract for {table_ref}: {table}")
@@ -138,28 +105,18 @@ def collect_contract_failures(
             failures.append(f"{table_ref}: missing table {table}")
             continue
 
-        expected_columns = extract_create_table_columns(sql_script_path.read_text())
-        actual_fields = get_actual_fields(spark, table)
-        missing_columns, extra_columns, type_mismatches = compare_expected_columns(
-            expected_columns,
-            actual_fields,
+        expected_columns = parse_column_specs(
+            extract_create_table_columns(sql_script_path.read_text())
+        )
+        actual_columns = spark_schema_column_specs(spark.table(table).schema)
+        drift = compare_table_schema(expected_columns, actual_columns)
+        drift_details = describe_schema_drift(
+            drift,
             allow_extra_columns=allow_extra_columns,
         )
-
-        if missing_columns:
-            failures.append(
-                f"{table_ref}: {table} missing columns {', '.join(missing_columns)}"
-            )
-        if extra_columns:
-            failures.append(
-                f"{table_ref}: {table} has unexpected columns "
-                + ", ".join(extra_columns)
-            )
-        if type_mismatches:
-            failures.append(
-                f"{table_ref}: {table} type mismatches: "
-                + "; ".join(type_mismatches)
-            )
+        if drift_details:
+            failures.append(f"{table_ref}: {table} has schema drift")
+            failures.extend(f"  - {detail}" for detail in drift_details)
 
     return failures
 
@@ -178,8 +135,12 @@ def main(job_env, client, allow_extra_columns=False):
 
     validate_prod_route(job_env, config)
 
-    table_contracts = extract_table_paths(_as_dict(config.get("tables_write", {})))
-    logger.info(f"Checking {len(table_contracts)} configured write table contracts")
+    table_contracts = extract_table_paths(
+        _as_dict(config.get("tables_write", {}))
+    )
+    logger.info(
+        f"Checking {len(table_contracts)} configured write table contracts"
+    )
 
     failures = collect_contract_failures(
         spark=spark,
@@ -200,11 +161,15 @@ if __name__ == "__main__":
     jobparser = get_job_parser()
     jobparser._parse_args()
     LOG_LEVEL = jobparser.get_arg("--log_level")
-    configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
 
     JOB_ENV = jobparser.get_arg("--job_env")
     CLIENT = jobparser.get_arg("--client") or "next_uk"
-    ALLOW_EXTRA_COLUMNS = jobparser.get_typed_arg("--allow_extra_columns", bool)
+    ALLOW_EXTRA_COLUMNS = jobparser.get_typed_arg(
+        "--allow_extra_columns", bool
+    )
 
     main(
         job_env=JOB_ENV,
