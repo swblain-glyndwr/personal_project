@@ -264,11 +264,12 @@ default:
     - Beauty
   payload_experiment_id:
     experiments:
-      Test_Exp_1: AdHocABTest6
-      Test_Exp_2: AdHocABTest1
+      NextAds: FallowControl
+      PageIsolation: PageTypeIsolation
+      NextGenAds: AdHocABTest1
     audience_experiment:
-      enabled: true
-      name: fathers_day_audience
+      enabled: false
+      name: fathers_day
       split_col: Audience
       sample:
       - Best

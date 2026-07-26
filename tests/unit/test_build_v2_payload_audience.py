@@ -76,6 +76,22 @@ def test_normalize_audience_split_values_includes_false_once():
     ]
 
 
+def test_disabled_audience_is_omitted_from_experiments():
+    experiments = build_v2_payload.get_experiments(
+        {
+            "experiments": {"NextAds": "FallowControl"},
+            "audience_experiment": {
+                "enabled": False,
+                "name": "fathers_day",
+                "split_col": "Audience",
+                "sample": ["Best"],
+            },
+        }
+    )
+
+    assert experiments == [{"NextAds": "FallowControl"}]
+
+
 def test_assign_experiments_passes_false_audience_split(monkeypatch):
     fixed_cells = FakeDataFrame(
         ["AccountNumber", "FallowControl", "ShoppingBagTest1", "AdHocABTest1"]

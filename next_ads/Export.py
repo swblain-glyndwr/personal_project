@@ -56,45 +56,73 @@ def generate_experimentid(
     for col_name, split_col in exp_map.items():
         if is_audience_exp.get(col_name):
             expr = F.when(
-                F.col("FallowControl") == "NoAds", F.lit(f"Aud{col_name}_CT")
+                F.col("FallowControl") == "NoAds", F.lit(f"Aud_{col_name}_Z")
             )
 
             # Audience targeting needs to be dynamic to apply to Best only customers, or Best and Basic
             if "Best" in audience_sample and "Basic" not in audience_sample:
                 expr = expr.when(
                     F.col("ShoppingBagTest1") == "Basic",
-                    F.lit(f"Aud{col_name}_BA"),
+                    F.lit(f"Aud_{col_name}_Z"),
                 )
             # Look for values defined in audience_split list
             if audience_split:
                 for val in audience_split:
+                    # "false" is the stored non-audience value, not an
+                    # experiment pot exposed in the ExperimentID.
+                    experiment_val = (
+                        "Z" if str(val).lower() == "false" else val
+                    )
                     expr = expr.when(
-                        F.col(split_col) == val, F.lit(f"Aud{col_name}_{val}")
+                        F.col(split_col) == val,
+                        F.lit(f"Aud_{col_name}_{experiment_val}"),
                     )
             # If customer not in audience default to _Z
-            expr = expr.otherwise(F.lit(f"Aud{col_name}_Z"))
-
-        else:
-            # For standard experiment, the following structure is used
+            expr = expr.otherwise(F.lit(f"Aud_{col_name}_Z"))
+        elif col_name == 'NextAds':
             expr = (
                 F.when(
                     F.col("FallowControl") == "NoAds", F.lit(f"{col_name}_CT")
                 )
                 .when(
-                    F.col("ShoppingBagTest1") == "Basic",
-                    F.lit(f"{col_name}_BA"),
+                    F.col("ShoppingBagTest1") == "Basic", F.lit(f"{col_name}_BA")
                 )
                 .when(
-                    (F.col("ShoppingBagTest1") == "Best")
-                    & (F.col(split_col) == "A"),
-                    F.lit(f"{col_name}_BE0"),
+                    F.col("ShoppingBagTest1") == "Best", F.lit(f"{col_name}_BE")
+                )
+                .otherwise(F.lit(f"{col_name}_Z"))
+            )
+        elif col_name == 'PageIsolation':
+            expr = (
+                F.when(
+                    F.col(split_col) == "AllPages", F.lit(f"{col_name}_AP")
                 )
                 .when(
-                    (F.col("ShoppingBagTest1") == "Best")
-                    & (F.col(split_col) == "B"),
-                    F.lit(f"{col_name}_BE1"),
+                    F.col(split_col) == "PLP_Only", F.lit(f"{col_name}_PL")
                 )
-                .otherwise(None)
+                .when(
+                    F.col(split_col) == "SB_Only", F.lit(f"{col_name}_SB")
+                )
+                .when(
+                    F.col(split_col) == "HP_Only", F.lit(f"{col_name}_HP")
+                )
+                .when(
+                    F.col(split_col) == "OC_Only", F.lit(f"{col_name}_OC")
+                )
+                .otherwise(F.lit(f"{col_name}_Z"))
+            )
+        else:
+            # For standard experiment, the following structure is used
+            expr = (
+                F.when(
+                    (F.col(split_col) == "A"),
+                    F.lit(f"{col_name}_A"),
+                )
+                .when(
+                    (F.col(split_col) == "B"),
+                    F.lit(f"{col_name}_B"),
+                )
+                .otherwise(F.lit(f"{col_name}_Z"))
             )
 
         new_cols.append(expr.alias(col_name))
@@ -105,7 +133,7 @@ def generate_experimentid(
     df = df.withColumn(
         "ExperimentID",
         F.concat_ws(
-            " | ", F.lit("NextAds"), *[F.col(c) for c in experiment_names]
+            " | ", *[F.col(c) for c in experiment_names]
         ),
     ).select("AccountNumber", "ExperimentID")
 
