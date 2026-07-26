@@ -15,7 +15,7 @@ Key conclusion: there are **two distinct contributors** to `NoAdFound` for `Best
 	- `UniqueAdIDBasic` via `assign_random_ads()`
 	- `UniqueAdIDBest` via `assign_preranked_ads(..., preranked_ads_from_themes_latest)`
 	- `UniqueAdIDBestChallenger` via `assign_preranked_ads(..., preranked_ads_from_themes_hackathon_latest)`
-- The config `configs/clients/next_uk.json` maps customers to the treatment (Basic/Best/BestChallenger) via `chain_when_thens()`.
+- The config `configs/clients/next_uk.yaml` maps customers to the treatment (Basic/Best/BestChallenger) via `chain_when_thens()`.
 - Any NULL `UniqueAdIDMeasurement` is replaced with `'NoAdFound'` before writing assignments.
 
 ## What we observed

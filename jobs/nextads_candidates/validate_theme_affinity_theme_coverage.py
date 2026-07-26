@@ -24,12 +24,16 @@ from dsutils.etl import post_to_webhook
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common.paths import load_client_config
-from next_ads.ranking.theme_coverage import build_missing_theme_affinity_coverage
+from next_ads.ranking.theme_coverage import (
+    build_missing_theme_affinity_coverage,
+)
 from next_ads.utils import config_manager, etl
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL, WARN_ONLY=False):
-    configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
     logger.info(f"Running in job environment: {JOB_ENV}")
@@ -41,7 +45,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, WARN_ONLY=False):
         CLIENT = "next_uk"
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     cfg = load_client_config(CLIENT)
     tbl_args = {
         "catalog": config.catalog_write,

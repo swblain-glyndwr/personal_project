@@ -38,7 +38,9 @@ from next_ads.common.paths import load_client_config
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
-    configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
     logger.info(f"Running in job environment: {JOB_ENV}")
@@ -50,7 +52,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
         CLIENT = "next_uk"
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
@@ -73,13 +75,15 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
         "client": CLIENT,
     }
     attribute_set = etl.map_tbl(tbls["attribute_set"], **tbl_args)
-    attribute_set_latest = etl.map_tbl(tbls["attribute_set_latest"], **tbl_args)
+    attribute_set_latest = etl.map_tbl(
+        tbls["attribute_set_latest"], **tbl_args
+    )
     item_attributes_latest = etl.map_tbl(
         tbls["item_attributes_latest"],
         **tbl_args,
     )
 
-    logger.info(f'Parsing attributes with parameters: {cfg["attributes"]}')
+    logger.info(f"Parsing attributes with parameters: {cfg['attributes']}")
     attributes = cfg["attributes"]["active"]
     lookback_days = cfg["attributes"]["lookback_days"]
     frequency_cutoff_pc = cfg["attributes"]["frequency_cutoff_pc"]
@@ -146,7 +150,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
             pk_cols=["attribute", "value"],
         )
 
-        logger.info("Refreshing latest item-attribute mapping (using new attribute set)")
+        logger.info(
+            "Refreshing latest item-attribute mapping (using new attribute set)"
+        )
         truncate_and_load(
             df_attributes_master,
             item_attributes_latest,
@@ -174,7 +180,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
                 bq_options["item_attributes_dashboard"],
                 **tbl_args,
             )
-            logger.info(f"Exporting item attributes to Big Query: {target_bq_table}")
+            logger.info(
+                f"Exporting item attributes to Big Query: {target_bq_table}"
+            )
             (
                 bq_item_attributes.write.format("bigquery")
                 .mode("overwrite")
@@ -194,7 +202,9 @@ def parse_args():
         "JOB_ENV": jobparser.get_arg("--job_env"),
         "CLIENT": jobparser.get_arg("--client"),
         "LOG_LEVEL": jobparser.get_arg("--log_level"),
-        "REFRESH_ATTRIBUTES_DATE": jobparser.get_arg("--refresh_attributes_date"),
+        "REFRESH_ATTRIBUTES_DATE": jobparser.get_arg(
+            "--refresh_attributes_date"
+        ),
         "BQ_EXPORT": jobparser.has_arg("--bq") or False,
     }
 

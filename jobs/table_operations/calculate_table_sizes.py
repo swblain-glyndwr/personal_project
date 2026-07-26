@@ -1,4 +1,5 @@
 """Job script designed to run only in DEV environment to calculate tables sizes."""
+
 import sys
 from pathlib import Path
 
@@ -68,7 +69,7 @@ def get_table_size_gb(table_path: str) -> float:
         result = spark.sql(f"DESCRIBE DETAIL {table_path}").collect()
         if result:
             size_bytes = result[0]["sizeInBytes"]
-            size_gb = size_bytes / (1024 ** 3)
+            size_gb = size_bytes / (1024**3)
             return size_gb
         return 0.0
     except Exception as e:
@@ -76,7 +77,7 @@ def get_table_size_gb(table_path: str) -> float:
         return None
 
 
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 schemas = config.databricks_user_names + ["ds_sandbox"]
 
 df_summary = pd.DataFrame()
@@ -84,7 +85,7 @@ df_summary = pd.DataFrame()
 for schema in schemas:
     # reload config file with USER_SCHEMA set to current schema to get correct table paths
     os.environ["USER_SCHEMA"] = schema
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     tbls_write = config.get("tables_write", {})
 
     """Calculate and report table sizes."""
@@ -119,7 +120,7 @@ sdf_summary = spark.createDataFrame(df_summary)
 
 # Write results to table to ds_sandbox schema
 os.environ["USER_SCHEMA"] = "ds_sandbox"
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 delete_from_and_load(
     sdf_summary,
     config.tables_write.nextads_table_sizes,

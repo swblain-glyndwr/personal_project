@@ -66,7 +66,9 @@ def enrich_theme_affinity_inference_log(
     ).collect()[0]
     max_session_date = max_session_date_row["max_session_date"]
     if max_session_date is None:
-        logger.warning("No result SessionDate values found, skipping label enrichment")
+        logger.warning(
+            "No result SessionDate values found, skipping label enrichment"
+        )
         return
 
     inference_rows = (
@@ -94,9 +96,9 @@ def enrich_theme_affinity_inference_log(
         results.select(
             F.col("AccountNumber").alias("account_number"),
             F.col("SessionDate").alias("session_date"),
-            F.when(F.col("Revenue") > 0, F.lit(1)).otherwise(F.lit(0)).alias(
-                "converted"
-            ),
+            F.when(F.col("Revenue") > 0, F.lit(1))
+            .otherwise(F.lit(0))
+            .alias("converted"),
         )
         .where(F.col("account_number").isNotNull())
         .where(F.col("session_date").isNotNull())
@@ -106,13 +108,12 @@ def enrich_theme_affinity_inference_log(
             outcomes,
             on=(
                 (inference_rows.account_number == outcomes.account_number)
+                & (outcomes.session_date > inference_rows.inference_date)
                 & (
                     outcomes.session_date
-                    > inference_rows.inference_date
-                )
-                & (
-                    outcomes.session_date
-                    <= F.date_add(inference_rows.inference_date, label_window_days)
+                    <= F.date_add(
+                        inference_rows.inference_date, label_window_days
+                    )
                 )
             ),
             how="left",
@@ -123,7 +124,9 @@ def enrich_theme_affinity_inference_log(
             inference_rows.account_number,
             inference_rows.theme,
         )
-        .agg(F.coalesce(F.max("converted"), F.lit(0)).cast("int").alias("label"))
+        .agg(
+            F.coalesce(F.max("converted"), F.lit(0)).cast("int").alias("label")
+        )
         .withColumn(
             "label_observed_until",
             F.date_add(F.col("inference_date"), label_window_days),
@@ -161,14 +164,14 @@ if __name__ == "__main__":
     LOG_LEVEL = jobparser.get_arg("--log_level")
     LABEL_WINDOW_DAYS = _int_arg(jobparser.get_arg("--label_window_days"), 28)
 
-    configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     client_config = load_client_config(CLIENT)
-    results_path = (
-        f"{client_config['dbfs_base_path']}/{JOB_ENV}/tmp/df_sessions_master_meta"
-    )
+    results_path = f"{client_config['dbfs_base_path']}/{JOB_ENV}/tmp/df_sessions_master_meta"
     logger.info(
         "Enriching %s using %s with a %s day label window",
         config.ranking_model_tables.inference_log,

@@ -49,7 +49,7 @@ ALIAS_SUFFIX = jobparser.get_arg("--alias_suffix") or "gpu_xgboost"
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 
 logger.info(
     "Training Theme Affinity GPU XGBoost MLflow model for %s/%s",

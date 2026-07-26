@@ -50,7 +50,8 @@ def main(
     MIN_NODE_WEIGHT=1000,
 ):
     configure_logging(
-        log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
     spark.conf.set("spark.sql.shuffle.partitions", "auto")
@@ -65,7 +66,7 @@ def main(
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
     # load configuration
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
@@ -81,18 +82,27 @@ def main(
 
     tbls = cfg["tables"]["write"]
     SCHEMA = config.schema_write
-    logger.info(f'Write schema set to {SCHEMA}')
+    logger.info(f"Write schema set to {SCHEMA}")
 
     # Map write schema to parameterised write table names
 
-    tbl_args = {'catalog': config.catalog_write,
-                'schema': SCHEMA, 'client': CLIENT}
+    tbl_args = {
+        "catalog": config.catalog_write,
+        "schema": SCHEMA,
+        "client": CLIENT,
+    }
     ITEM_THEMES = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
-    THEME_TRANSITIONS_LATEST = etl.map_tbl(tbls["theme_transitions_latest"], **tbl_args)  # noqa
+    THEME_TRANSITIONS_LATEST = etl.map_tbl(
+        tbls["theme_transitions_latest"], **tbl_args
+    )  # noqa
     THEME_TRANSITIONS = etl.map_tbl(tbls["theme_transitions"], **tbl_args)
-    NEXT_THEME_SCORES_LATEST = etl.map_tbl(tbls["next_theme_scores_latest"], **tbl_args)  # noqa
+    NEXT_THEME_SCORES_LATEST = etl.map_tbl(
+        tbls["next_theme_scores_latest"], **tbl_args
+    )  # noqa
     NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
-    THEME_SCORING_EVENTS_LATEST = etl.map_tbl(tbls["theme_scoring_events_latest"], **tbl_args)  # noqa
+    THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
+        tbls["theme_scoring_events_latest"], **tbl_args
+    )  # noqa
 
     ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
 
@@ -116,7 +126,9 @@ def main(
         .select("pid", "title")
     )
     msg = "Duplicate PIDs found when retrieving item titles"
-    assert item_titles.count() == item_titles.select("pid").distinct().count(), msg
+    assert (
+        item_titles.count() == item_titles.select("pid").distinct().count()
+    ), msg
 
     item_themes = (
         spark.table(ITEM_THEMES)
@@ -139,7 +151,12 @@ def main(
         .withColumn("order_no", F.dense_rank().over(w_acc) - 1)
         .join(item_titles, on="pid", how="left")
         .select(
-            "account_number", "order_no", "ordertakendate", "pid", "title", "theme"
+            "account_number",
+            "order_no",
+            "ordertakendate",
+            "pid",
+            "title",
+            "theme",
         )
         .distinct()
         .cache()
@@ -188,7 +205,8 @@ def main(
 
     # Self join to get next theme in sequence
     w_acc_order_theme = Window.partitionBy(
-        "account_number", "order_no", "theme")
+        "account_number", "order_no", "theme"
+    )
     baskets_with_themes_next = baskets_with_themes.select(
         "account_number", "order_no", "theme"
     ).join(
@@ -240,18 +258,22 @@ def main(
                 on="next_theme",
                 how="inner",
             )
-            .withColumn("prob_rebased", F.col("probability") - F.col("prob_base"))
+            .withColumn(
+                "prob_rebased", F.col("probability") - F.col("prob_base")
+            )
             .withColumnRenamed("prob_base", "base_probability")
             .withColumnRenamed("prob_rebased", "probability_rebased")
             .withColumn(
-                "transition_freq", F.col(
-                    "transition_freq").cast("decimal(12,2)")
+                "transition_freq",
+                F.col("transition_freq").cast("decimal(12,2)"),
             )
             .withColumn("theme_total", F.col("theme_total").cast("integer"))
-            .withColumn("probability", F.col("probability").cast("decimal(10,9)"))
             .withColumn(
-                "base_probability", F.col(
-                    "base_probability").cast("decimal(10,9)")
+                "probability", F.col("probability").cast("decimal(10,9)")
+            )
+            .withColumn(
+                "base_probability",
+                F.col("base_probability").cast("decimal(10,9)"),
             )
             .withColumn(
                 "probability_rebased",
@@ -347,7 +369,9 @@ def main(
             views_raw = views_raw.unionByName(
                 spark.table(VIEWS_APP)
                 .where(F.col("date").between(ACTIONS_START, ACTIONS_END))
-                .select("UniqueVisitID", "date", F.col("ProductSKU").alias("pid"))
+                .select(
+                    "UniqueVisitID", "date", F.col("ProductSKU").alias("pid")
+                )
             )
 
         account_view_themes = (
@@ -404,8 +428,8 @@ def main(
             )
             .na.fill(0)
             .withColumn(
-                "prob_agg", F.col("score_buy") +
-                (F.col("score_view") * F.lit(0.1))
+                "prob_agg",
+                F.col("score_buy") + (F.col("score_view") * F.lit(0.1)),
             )
         )
     else:

@@ -29,7 +29,9 @@ from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
 from next_ads.ml.lifecycle.monitoring import log_table_drift_to_mlflow
-from next_ads.ranking.theme_affinity.lifecycle_spec import resolve_lifecycle_config
+from next_ads.ranking.theme_affinity.lifecycle_spec import (
+    resolve_lifecycle_config,
+)
 
 
 jobparser = get_job_parser()
@@ -44,13 +46,17 @@ SAMPLE_LIMIT = jobparser.get_arg("--sample_limit")
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
-config = config_manager.load_config(JOB_ENV)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
 lifecycle_config = resolve_lifecycle_config(config)
 
 baseline_table = BASELINE_TABLE or lifecycle_config.train_table
-candidate_table = CANDIDATE_TABLE or config.ranking_model_tables.predict_input_table
+candidate_table = (
+    CANDIDATE_TABLE or config.ranking_model_tables.predict_input_table
+)
 sample_limit = (
-    int(SAMPLE_LIMIT) if SAMPLE_LIMIT else lifecycle_config.monitoring_sample_limit
+    int(SAMPLE_LIMIT)
+    if SAMPLE_LIMIT
+    else lifecycle_config.monitoring_sample_limit
 )
 
 import mlflow

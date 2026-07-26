@@ -11,7 +11,8 @@ def project_root():
 
 @pytest.fixture
 def json_config(project_root):
-    return load_client_config("next_uk")
+    with pytest.warns(DeprecationWarning, match="load_client_config"):
+        return load_client_config("next_uk")
 
 
 @pytest.fixture

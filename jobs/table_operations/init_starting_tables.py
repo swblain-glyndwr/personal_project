@@ -42,8 +42,8 @@ def main(CLIENT, LOG_LEVEL):
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
     # load configuration
-    config_dev = config_manager.load_config("dev")
-    config_prod = config_manager.load_config("prod")
+    config_dev = config_manager.load_config("dev", client=CLIENT)
+    config_prod = config_manager.load_config("prod", client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
 
     sql_scripts = [

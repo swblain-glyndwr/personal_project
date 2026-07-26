@@ -29,7 +29,7 @@ from next_ads.utils.cosmos import get_cosmos_config, sdk_write_to_cosmos
 def main(JOB_ENV, CLIENT, LOG_LEVEL):
     logger = get_logger(__name__)
     configure_logging(LOG_LEVEL)
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
 
     spark = configure_spark()
     dbutils = get_dbutils()

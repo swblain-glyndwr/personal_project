@@ -46,7 +46,7 @@ def setup_run_context(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         CLIENT = "next_uk"
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
 
     return logger, spark, CLIENT, config

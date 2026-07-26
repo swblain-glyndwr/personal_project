@@ -73,7 +73,7 @@ src/
 | `jobs/nextads_v2/` | Target home for Ads v2 entrypoints that do not naturally belong to another route folder. | `jobs/nextads_v2/` | Operational-transition | Low | Keep current v2 route folders stable unless a file is clearly misplaced. | Path/import checks until real jobs move. | Ads v2 is active strategic work, not an experiment. `jobs/nextads_control`, `jobs/nextads_candidates`, and `jobs/nextads_delivery` remain valid homes for v2 control, candidate, and delivery entrypoints. |
 | `pipelines/databricks/jobs/` | Databricks Asset Bundle job definitions. | `pipelines/databricks/jobs/` | Deployment | Medium | With DAB include-path update. | DAB validate for DEV Integration, PREPROD, PROD. | Keep `databricks.yml` at root unless agreed otherwise. |
 | `pipelines/databricks/variables/` | Databricks cluster/library variables. | `pipelines/databricks/variables/` | Deployment | Medium | With DAB include-path update. | DAB validate. | Move with Databricks job resources or immediately after. |
-| `config/` | Current Dynaconf and JSON/table settings. | `configs/` | Production | Medium | After config loader supports target path. | Config manager tests, table config tests, DAB validate. | Use compatibility fallback during transition. |
+| `config/` | Legacy fallback path for config files. | `configs/` | Production | Medium | Dynaconf is the active source under `configs/`; keep fallback only while old paths are retired. | Config manager tests, table config tests, DAB validate. | Client config now loads from Dynaconf YAML rather than JSON. |
 | `sql/` | Production table/view/reporting SQL. | `sql/` | Production | Medium | Stay as canonical SQL folder; add grouping docs. | Table setup tests, DAB validate, table creation smoke where relevant. | Do not move unless grouping is agreed. |
 | `experiments/sb_pctr/` | Retained pCTR/response-model feature and model scripts. | `experiments/sb_pctr/` initially, then `src/next_ads/features/pctr/`, `src/next_ads/ranking/pctr/`, and `jobs/model/pctr/` where productised. | Operational-transition | High | Future pCTR/Feature Store story. | Feature/model/table contract checks, Databricks run evidence. | Moved from `response_model/`; not currently used by scheduled jobs. |
 | `experiments/analytics_pctr/` | DEV-only analytics pCTR notebook graph with feature build, prediction, training, and ranking evaluation. | `experiments/analytics_pctr/` initially, then split into `src/next_ads/features/pctr/`, `src/next_ads/ranking/pctr/`, and `jobs/model/pctr/` only when productised. | Operational-transition | High | Retain as experiment until model lifecycle and feature contracts are agreed. | DEV job validation, model/table contract checks before promotion. | The SQL notebooks are not just ranking; they include feature/data prep and training-history build. |
@@ -223,8 +223,8 @@ while preserving existing output contracts during the restructure.
 | `config/load_control_sheet_v2_settings.yaml` | Ads v2 control sheet settings. | `configs/adsv2/load_control_sheet_v2_settings.yaml` | Operational-transition | High | Moved with v2 config fallback. | Config tests proving v2 settings load. | Keep separate from v1 control settings. |
 | `config/global_solution_settings.yaml` | Global solution settings. | `configs/delivery/global_solution_settings.yaml` | Production | Medium | Moved with config migration. | Config manager tests. | Delivery/global solution settings. |
 | `config/model_settings.yaml` | Model settings. | `configs/model/model_settings.yaml` | Operational-transition | Medium | Moved with config migration. | Config manager tests. | Model/runtime settings. |
-| `config/next_uk.json` | Client config. | `configs/clients/next_uk.json` | Production | High | Moved with config loader support. | Client config tests, DAB validate. | Client-specific operational settings. |
-| `config/next_gb.json` | Client config. | `configs/clients/next_gb.json` | Production | High | Moved with config loader support. | Client config tests. | Client-specific operational settings. |
+| `config/next_uk.json` | Legacy client config. | `configs/clients/next_uk.yaml` | Production | High | Moved to Dynaconf YAML. | Client config tests, validators, DAB validate. | JSON is no longer an operational source; `load_client_config()` is a deprecated Dynaconf-backed wrapper. |
+| `config/next_gb.json` | Legacy client config. | `configs/clients/next_gb.yaml` | Production | High | Moved to Dynaconf YAML. | Client config tests, validators. | JSON is no longer an operational source; `load_client_config()` is a deprecated Dynaconf-backed wrapper. |
 | `config/users.yaml` | User/schema config. | `configs/runtime/users.yaml` | Deployment | Medium | Moved with config migration. | DEV/user schema tests. | Affects dev deployment/schema. |
 
 ## SQL Map
@@ -426,7 +426,7 @@ Do not move these until their contracts and validation are agreed:
 - behavioural or downstream-contract changes to `jobs/nextads_reporting/results_to_bigquery.py`
 - `jobs/table_operations/create_tables.py`
 - `configs/runtime/tables_settings.yaml`
-- `configs/clients/next_uk.json`
+- `configs/clients/next_uk.yaml`
 - `adsv2/` / NextAds v2 output-contract route
 - `experiments/hackathon_theme_affinity_model/` / legacy Theme Affinity outputs
 - `experiments/sb_pctr/` / pCTR model route

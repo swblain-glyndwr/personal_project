@@ -124,7 +124,7 @@ def collect_contract_failures(
 def main(job_env, client, allow_extra_columns=False):
     logger = get_logger(__name__)
     spark = configure_spark()
-    config = config_manager.load_config(job_env)
+    config = config_manager.load_config(job_env, client=client)
 
     logger.info("Running read-only PROD table contract smoke")
     logger.info(f"Resolved job_env: {job_env}")

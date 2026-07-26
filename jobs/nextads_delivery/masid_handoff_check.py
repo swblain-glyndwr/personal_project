@@ -8,7 +8,13 @@ from dsutils.logtools import configure_logging, get_logger
 try:
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
-    notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()  # type: ignore # noqa
+    notebook_path = (
+        dbutils.notebook.entry_point.getDbutils()
+        .notebook()
+        .getContext()
+        .notebookPath()
+        .get()
+    )  # type: ignore # noqa
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
     PROJECT_ROOT = Path(notebook_path).parents[2]
@@ -32,7 +38,9 @@ def main(
     expected_run_date: str | None = None,
 ) -> None:
     expected_run_date = expected_rundate(expected_run_date)
-    configure_logging(log_level=log_level) if log_level else configure_logging()
+    configure_logging(
+        log_level=log_level
+    ) if log_level else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
     logger.info(f"Running in job environment: {job_env}")
@@ -44,7 +52,7 @@ def main(
         client = "next_uk"
         logger.warning(f"Client not specified (defaulting to {client})")
 
-    config = config_manager.load_config(job_env)
+    config = config_manager.load_config(job_env, client=client)
     logger.info(f"Configuring MASID handoff check for client: {client}")
     cfg = load_client_config(client)
 

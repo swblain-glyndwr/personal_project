@@ -45,7 +45,7 @@ if not CLIENT:
     logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
 # load configuration
-config_dev = config_manager.load_config("dev")
+config_dev = config_manager.load_config("dev", client=CLIENT)
 logger.info(f"Configuring run for client: {CLIENT}")
 cfg = load_client_config(CLIENT)
 
