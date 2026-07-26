@@ -12,7 +12,9 @@ def calculate_score_range(df_theme_scores, logger):
     return min_score, score_range
 
 
-def build_score_components(df_theme_scores, df_theme2ad, min_score, score_range):
+def build_score_components(
+    df_theme_scores, df_theme2ad, min_score, score_range
+):
     return (
         df_theme_scores.withColumn(
             "RelevanceScore",
@@ -25,7 +27,9 @@ def build_score_components(df_theme_scores, df_theme2ad, min_score, score_range)
             on=df_theme2ad["Themes"] == df_theme_scores["NextTheme"],
             how="inner",
         )
-        .withColumn("Score", F.col("RelevanceScore") * F.col("IncrementalScore"))
+        .withColumn(
+            "Score", F.col("RelevanceScore") * F.col("IncrementalScore")
+        )
         .select(
             "AccountNumber",
             F.col("NextTheme").alias("Theme"),
@@ -39,20 +43,29 @@ def build_score_components(df_theme_scores, df_theme2ad, min_score, score_range)
     )
 
 
-def apply_multi_session_downweighting(df_score_components, sessions_table, actions_table):
-    multi_session_ad_df = generate_repeat_ad_sessions(sessions_table, actions_table)
+def apply_multi_session_downweighting(
+    df_score_components, sessions_table, actions_table
+):
+    multi_session_ad_df = generate_repeat_ad_sessions(
+        sessions_table, actions_table
+    )
     fm_window = Window.partitionBy("RowID").orderBy(
         F.col("StringDistance").asc_nulls_last()
     )
     max_distance_threshold = 10
 
     return (
-        df_score_components.join(multi_session_ad_df, on="AccountNumber", how="left")
+        df_score_components.join(
+            multi_session_ad_df, on="AccountNumber", how="left"
+        )
         .withColumn(
             "RowID",
             F.concat_ws("_", F.col("AccountNumber"), F.col("UniqueAdID")),
         )
-        .withColumn("StringDistance", F.levenshtein(F.col("AdSeen"), F.col("UniqueAdID")))
+        .withColumn(
+            "StringDistance",
+            F.levenshtein(F.col("AdSeen"), F.col("UniqueAdID")),
+        )
         .withColumn("MatchRank", F.row_number().over(fm_window))
         .filter(F.col("MatchRank") == 1)
         .withColumn(
@@ -62,7 +75,9 @@ def apply_multi_session_downweighting(df_score_components, sessions_table, actio
                 F.col("MultiSessionDownweightScore"),
             ).otherwise(F.lit(1.0)),
         )
-        .withColumn("Score", F.col("Score") * F.col("MultiSessionDownweightScore"))
+        .withColumn(
+            "Score", F.col("Score") * F.col("MultiSessionDownweightScore")
+        )
         .drop(
             "MatchRank",
             "StringDistance",
@@ -78,8 +93,18 @@ def rank_top_ads_per_adset(
     df_ad2adset,
     customer_prefs,
     age_order_map,
-    top_ads_per_group: int,
+    top_ads_per_group: int | None = None,
+    *,
+    top_ads_per_location: int | None = None,
 ):
+    if top_ads_per_group is None:
+        top_ads_per_group = top_ads_per_location
+    if top_ads_per_group is None:
+        raise ValueError("top_ads_per_group must be provided")
+    top_ads_per_group = int(top_ads_per_group)
+    if top_ads_per_group <= 0:
+        raise ValueError("top_ads_per_group must be greater than zero")
+
     return (
         df_score_components.join(customer_prefs, "AccountNumber", how="left")
         .withColumn("ad_age_order", age_order_map[F.col("AdVariant")])
@@ -96,27 +121,47 @@ def rank_top_ads_per_adset(
             | F.col("customer_age_order").isNull()
             | ((F.col("age_diff") >= 0) & (F.col("age_diff") <= 1))
         )
-        .withColumn("Rand", F.rand(seed=13))
+        # Remains stable if autoscaling forces cached partitions to recompute.
+        .withColumn(
+            "ThemeTieBreaker",
+            F.xxhash64(
+                F.lit(13),
+                F.col("AccountNumber"),
+                F.col("Theme"),
+                F.col("UniqueAdID"),
+            ),
+        )
         .withColumn(
             "AdPerThemeRank",
-            F.rank().over(
+            F.row_number().over(
                 Window.partitionBy("AccountNumber", "Theme").orderBy(
                     F.coalesce(F.col("age_diff"), F.lit(99)).asc(),
                     F.coalesce(F.col("customer_rank"), F.lit(999)).asc(),
-                    F.col("Rand").asc(),
+                    F.col("ThemeTieBreaker").asc(),
+                    F.col("UniqueAdID").asc(),
                 )
             ),
         )
         .where(F.col("AdPerThemeRank") == 1)
         .select("AccountNumber", "UniqueAdID", "Score", "TriggerScore")
         .join(df_ad2adset, on="UniqueAdID", how="inner")
-        .withColumn("TieBreaker", F.rand(seed=17))
+        # Keeps top-ad selection independent of Spark partition assignment.
+        .withColumn(
+            "AdSetTieBreaker",
+            F.xxhash64(
+                F.lit(17),
+                F.col("AccountNumber"),
+                F.col("AdSetID"),
+                F.col("UniqueAdID"),
+            ),
+        )
         .withColumn(
             "Rank",
-            F.rank().over(
+            F.row_number().over(
                 Window.partitionBy("AccountNumber", "AdSetID").orderBy(
                     F.desc("Score"),
-                    F.desc("TieBreaker"),
+                    F.desc("AdSetTieBreaker"),
+                    F.col("UniqueAdID").asc(),
                 )
             ),
         )
@@ -125,16 +170,15 @@ def rank_top_ads_per_adset(
 
 
 def map_ranked_ads_to_groups(df_adset_scores, df_adset2group, group_col: str):
-    return (
-        df_adset_scores.join(df_adset2group, on="AdSetID", how="inner")
-        .select(
-            "AccountNumber",
-            "UniqueAdID",
-            group_col,
-            "Score",
-            "TriggerScore",
-            "Rank",
-        )
+    return df_adset_scores.join(
+        df_adset2group, on="AdSetID", how="inner"
+    ).select(
+        "AccountNumber",
+        "UniqueAdID",
+        group_col,
+        "Score",
+        "TriggerScore",
+        "Rank",
     )
 
 
