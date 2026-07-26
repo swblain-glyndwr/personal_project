@@ -65,11 +65,11 @@ src/
 |---|---|---|---|---|---|---|---|
 | `src/` | New target package root introduced for reusable production code. | `src/` | Production | Low | Keep as the target home; expand package contents through controlled stories. | Import tests, package discovery tests, Ruff on changed Python. | This is already the destination, not a legacy folder to migrate away from. |
 | `src/next_ads/features/` | Target home for reusable feature definitions, grains, keys, contracts, and quality checks. | `src/next_ads/features/` | Operational-transition | Low | Keep as first-class feature-layer home. | Import tests and package discovery tests. | Provides a package home for feature logic without changing current jobs or outputs. |
-| `next_ads/` | Existing importable package with reusable production logic. | `src/next_ads/` | Production | High | Move module-by-module with compatibility wrappers. | Old and new imports, unit tests, output comparison for decisioning/ranking. | Do not big-bang move. |
+| Retired root `next_ads/` package | Former import bridge and compatibility wrappers. | `src/next_ads/` | Production | Low | Removed after all repository callers moved to canonical imports. | Canonical import tests, wheel inspection, unit tests, DAB validation. | Do not recreate the root package; `src/next_ads` is the only package root. |
 | `scripts/` | Retired legacy entrypoint area. | Route-oriented `jobs/nextads_*` folders. | Deprecated candidate | Low | Removed after v2 entrypoints moved into route folders. | DAB validate and job-path tests. | Do not add new entrypoints here. |
 | `jobs/features/` | Target home for feature-materialisation Databricks entrypoints. | `jobs/features/` | Operational-transition | Low | Keep as first-class target folder; populate when feature contracts are agreed. | Path/import checks until real jobs move. | Current jobs remain unchanged until entrypoint moves are agreed. |
 | `jobs/model/` | Target home for model training/scoring entrypoints. | `jobs/model/` | Operational-transition | Low | Keep as target folder; populate only when model lifecycle is agreed. | Path/import checks until real jobs move. | Theme Affinity and pCTR should separate feature generation from model and scoring steps. |
-| `jobs/nextads_*` route folders | Target home for current NextAds Databricks entrypoints, grouped by operational route rather than package domain. | `jobs/nextads_control/`, `jobs/nextads_cells/`, `jobs/nextads_candidates/`, `jobs/nextads_assignment/`, `jobs/nextads_v2/`, `jobs/nextads_delivery/`, `jobs/nextads_reporting/`, and `jobs/orchestration/`. | Production | Medium | Keep as target route folders; reusable domain logic lives under `src/next_ads/...`. | Path/import checks, DAB validate, focused unit tests, DEV Integration smoke where output-affecting. | Avoid recreating domain-named job folders such as `jobs/ranking/` or `jobs/decisioning/`. |
+| `jobs/nextads_*` route folders | Target home for current NextAds Databricks entrypoints, grouped by operational route rather than package domain. | `jobs/nextads_control/`, `jobs/nextads_cells/`, `jobs/nextads_candidates/`, `jobs/nextads_assignment/`, `jobs/nextads_data/`, `jobs/nextads_v2/`, `jobs/nextads_delivery/`, `jobs/nextads_reporting/`, and `jobs/orchestration/`. | Production | Medium | Keep as target route folders; reusable domain logic lives under `src/next_ads/...`. | Path/import checks, DAB validate, focused unit tests, DEV Integration smoke where output-affecting. | Avoid recreating domain-named job folders such as `jobs/ranking/` or `jobs/decisioning/`. |
 | `jobs/nextads_v2/` | Target home for Ads v2 entrypoints that do not naturally belong to another route folder. | `jobs/nextads_v2/` | Operational-transition | Low | Keep current v2 route folders stable unless a file is clearly misplaced. | Path/import checks until real jobs move. | Ads v2 is active strategic work, not an experiment. `jobs/nextads_control`, `jobs/nextads_candidates`, and `jobs/nextads_delivery` remain valid homes for v2 control, candidate, and delivery entrypoints. |
 | `pipelines/databricks/jobs/` | Databricks Asset Bundle job definitions. | `pipelines/databricks/jobs/` | Deployment | Medium | With DAB include-path update. | DAB validate for DEV Integration, PREPROD, PROD. | Keep `databricks.yml` at root unless agreed otherwise. |
 | `pipelines/databricks/variables/` | Databricks cluster/library variables. | `pipelines/databricks/variables/` | Deployment | Medium | With DAB include-path update. | DAB validate. | Move with Databricks job resources or immediately after. |
@@ -110,21 +110,19 @@ behaviour, dependency installation, and Databricks bundle packaging.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
-| `next_ads/__init__.py` | Existing package init; now also transitional bridge to `src/next_ads`. | `src/next_ads/__init__.py` eventually. | Production | Low | Retire bridge last. | Old and new import tests. | Keep until all callers move. |
+| `src/next_ads/__init__.py` | Canonical package root. | `src/next_ads/__init__.py` | Production | Low | Complete. | Isolated `PYTHONPATH=src` import test and wheel inspection. | The former root-package bridge has been removed. |
 | `src/next_ads/features/__init__.py` | Feature-layer package marker. | `src/next_ads/features/__init__.py` | Operational-transition | Low | Keep as target package home. | Import test. | This prepares for feature store work without implementing feature store behaviour. |
-| `next_ads/Assignment.py` | Compatibility wrapper for assignment, greedy allocation, preranked ads, NextGenAds, algorithm division logic. | `src/next_ads/decisioning/assignment.py` | Production | High | Moved; keep wrapper until legacy imports are retired. | Unit tests plus representative assignment output comparison before behavioural edits. | Decision-affecting. Current branch is an import-preserving package move only. |
-| `next_ads/Attributes.py` | Compatibility wrapper for attribute parsing and theme/control attribute helpers. | `src/next_ads/control/attributes.py` | Production | Medium | Moved; keep wrapper until legacy imports are retired. | Attribute unit tests and old/new import compatibility. | Affects input/control interpretation. |
-| `next_ads/Scoring.py` | Model score retrieval and aggregation. | `src/next_ads/ranking/scoring.py` | Production | High | After ranking output comparison exists. | Unit tests plus representative score output comparison. | Ranking-affecting. |
-| `next_ads/Results.py` | Compatibility wrapper for result aggregation, checks, and reporting helpers. | `src/next_ads/reporting/results.py` | Production | Medium | Moved; keep wrapper until legacy imports are retired. | Results tests and reporting output sanity checks. | Import-preserving structural move only. |
-| `next_ads/Plotting.py` | Compatibility wrapper for graph plotting helpers. | `src/next_ads/reporting/plotting.py` | Operational-transition | Low | Moved; keep wrapper until legacy imports are retired. | Import test. | Low production risk unless used in job. |
-| `next_ads/Export.py` | Export helpers. | `src/next_ads/delivery/export.py` | Operational-transition | Medium | After usage confirmed. | Import test, export smoke if used. | Confirm downstream route before moving. |
-| `next_ads/utils/config_manager.py` | Compatibility wrapper for Dynaconf config loading and environment resolution. | `src/next_ads/common/config_manager.py` | Production | Medium | Moved; keep wrapper until legacy imports are retired. | Config manager tests for dev/preprod/prod and old/new import compatibility. | Central dependency for many scripts. Current `config/` paths remain primary, with `configs/` fallback support for later migration. |
-| `next_ads/utils/etl.py` | Shared ETL/table helpers. | `src/next_ads/common/etl.py` | Production | Medium | Moved with compatibility wrapper. | Old/new import tests and existing behaviour checks. | Current helper is table-name formatting only; future table IO helpers still need separate write-route review. |
-| `next_ads/utils/gs_helpers.py` | Google Sheets / PLP GS helper logic. | `src/next_ads/control/google_sheets.py` or `src/next_ads/delivery/google_sheets.py` | Production | Medium | After PLP/control sheet usage documented. | PLP GS tests and smoke. | Decide final target based on actual role. |
-| `next_ads/utils/__init__.py` | Utils package init. | `src/next_ads/common/__init__.py` | Production | Low | With utils migration. | Import tests. | Keep compatibility wrapper. |
-| `next_ads/data_validation/schemas.py` | Pandera schemas/data contracts. | `src/next_ads/data/validation/schemas.py` | Production | Medium | Early, after package skeleton. | Schema import and table setup tests. | Good candidate after pure utilities. |
-| `next_ads/data_validation/custom_checks.py` | Pandera custom checks. | `src/next_ads/data/validation/custom_checks.py` | Production | Medium | With schemas. | Schema tests. | Keep old import wrapper. |
-| `next_ads/data_validation/__init__.py` | Data validation package init. | `src/next_ads/data/validation/__init__.py` | Production | Low | With schemas. | Import tests. | Keep old import wrapper. |
+| `src/next_ads/decisioning/assignment.py` | Assignment, greedy allocation, preranked ads, NextGenAds, and algorithm-division logic. | Same | Production | High | Complete. | Assignment unit tests and representative output comparison before behavioural edits. | Canonical replacement for the removed `Assignment` wrapper. |
+| `src/next_ads/control/attributes.py` | Attribute parsing and theme/control helpers. | Same | Production | Medium | Complete. | Attribute tests. | Canonical replacement for the removed `Attributes` wrapper. |
+| `src/next_ads/ranking/scoring.py` | Model score retrieval and aggregation. | Same | Production | High | Complete. | Scoring and ranking tests. | Canonical replacement for the removed `Scoring` wrapper. |
+| `src/next_ads/reporting/results.py` | Result aggregation, checks, and reporting helpers. | Same | Production | Medium | Complete. | Reporting tests and output sanity checks. | Canonical replacement for the removed `Results` wrapper. |
+| `src/next_ads/reporting/plotting.py` | Graph plotting helpers. | Same | Operational-transition | Low | Complete. | Import test. | Canonical replacement for the removed `Plotting` wrapper. |
+| `src/next_ads/delivery/export.py` | Experiment-ID and delivery export helpers. | Same | Production | Medium | Complete. | Export behaviour tests. | Moved with history after the accepted experiment-ID change. |
+| `src/next_ads/delivery/cosmos.py` | Cosmos configuration and exclusions-export delivery helpers. | Same | Operational-transition | Medium | Complete. | Mocked configuration, SDK write, and error tests. | External-write behaviour remains unchanged. |
+| `src/next_ads/common/config_manager.py` | Dynaconf configuration loading and environment resolution. | Same | Production | Medium | Complete. | Config tests for dev/preprod/prod and supported clients. | All repository callers use the canonical import. |
+| `src/next_ads/common/etl.py` | Shared ETL/table-name helpers. | Same | Production | Medium | Complete. | ETL behaviour tests. | All repository callers use the canonical import. |
+| `src/next_ads/delivery/google_sheets.py` | Google Sheets and PLP delivery helpers. | Same | Production | Medium | Complete. | PLP GS tests and smoke. | Canonical delivery owner. |
+| `src/next_ads/data/validation/` | Pandera schemas and custom checks. | Same | Production | Medium | Complete. | Schema and isolated import tests. | The former `data_validation` alias has been removed. |
 
 ## Current Main Job Entrypoint Map
 
@@ -160,7 +158,7 @@ while preserving existing output contracts during the restructure.
 | `jobs/realtime/viewed_bought.py` | Compatibility wrapper for the realtime input `viewed_bought` task. | `jobs/realtime/viewed_bought.py` | Production | Medium | Moved with realtime/reporting branch; keep wrapper until references are gone. | Viewed-bought output sanity. | Feeds realtime/recommendation logic; table and config contracts unchanged. |
 | `jobs/nextads_v2/build_page.py` | Alternative/v2 page build entrypoint. | `jobs/nextads_v2/build_page.py`; reusable output logic can later move to `src/next_ads/delivery/adsv2/` or `src/next_ads/decisioning/adsv2/` depending on final ownership. | Operational-transition | High | Keep current route path until behavioural productisation is agreed. | Import checks, v1/v2 output comparison, DEV Integration run, PREPROD validation if retained. | V2 output changes are production-transition work rather than experiment. |
 | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `map_theme_scores_to_ads_v2` task. Reads shared Theme Affinity customer-theme scores and v2 control-sheet ad themes directly, then calls the shared ranking mapper at page-type grain. | `jobs/nextads_candidates/build_page_type_candidates_v2.py`; reusable ranking/mapping logic remains in `src/next_ads/ranking/theme_score_mapping.py` until a v2-specific package split is justified. | Operational-transition | High | Active parallel route. | Output checks, ranking comparison, DEV Integration run, PREPROD validation if retained. | Reads `control_sheet_latest_v2` plus `theme_affinity_model_latest`, writes `preranked_ads_from_themes_v2_latest`, and does not depend on `preranked_ads_from_themes_latest`. |
-| `jobs/nextads_candidates/build_targeting_scores.py` | Targeting score build utility. | `jobs/nextads_candidates/build_targeting_scores.py` | Operational-transition | High | Moved as a route-oriented candidate/scoring utility. | Score output checks. | Uses `next_ads.Scoring`. |
+| `jobs/nextads_candidates/build_targeting_scores.py` | Targeting score build utility. | `jobs/nextads_candidates/build_targeting_scores.py` | Operational-transition | High | Moved as a route-oriented candidate/scoring utility. | Score output checks. | Uses `next_ads.ranking.scoring`. |
 | `jobs/nextads_candidates/conditional_probability_recs.py` | Compatibility wrapper for conditional-probability retrieval. | `jobs/nextads_candidates/conditional_probability_recs.py`; reusable logic can later move under `src/next_ads/retrieval/conditional_probability/`. | Dormant candidate / operational-transition | Medium | Moved as an entrypoint only. | Output checks if retained or reactivated. | No active DAB job reference found during mapping, but it writes recommender-style outputs and should not be deleted without a product/domain decision. |
 | `jobs/nextads_candidates/get_ad_items.py` | Compatibility wrapper for ad item retrieval. | `jobs/nextads_candidates/get_ad_items.py`; reusable logic can later move under `src/next_ads/retrieval/`. | Operational-transition | Medium | Moved as an entrypoint only. | Retrieval output checks. | May become package logic plus entrypoint. |
 | `jobs/table_operations/truncate_assignments_latest.py` | Truncation utility. | `jobs/table_operations/truncate_assignments_latest.py` | Production/Deployment | High | Only with explicit operational need. | Manual approval and table safety evidence. | Destructive operation. |
@@ -312,7 +310,8 @@ parallel-run evidence.
 CMS/data-pull work was reconciled through completed PR `249403`
 (`feature/TL/cmsdata`). The current data-pull route now lives in the
 Databricks data-pull job/pipeline resources plus `src/next_ads/data/sort_order/`
-and `jobs/data_pull.py`; do not treat it as deferred Ads v2 cleanup.
+and `jobs/nextads_data/archive_sort_order_data.py`; do not treat it as deferred
+Ads v2 cleanup.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -370,9 +369,8 @@ and `jobs/data_pull.py`; do not treat it as deferred Ads v2 cleanup.
 
 ## Recommended Move Order
 
-The current plan is an aggressive domain-by-domain move: package code and
-Databricks entrypoints can move together when the branch is explicitly scoped,
-wrappers remain where needed, and output contracts are preserved.
+The migration used domain-by-domain moves so package code and Databricks
+entrypoints could move together while output contracts remained stable.
 
 1. `feature/SWB/5128910-control-domain-move`
    Move control sheet, attribute parsing, theme mapping, control helpers, and
@@ -398,9 +396,8 @@ wrappers remain where needed, and output contracts are preserved.
 7. `feature/SWB/5128910-adsv2-domain-move`
    Keep v2 entrypoints in clear route folders, move reusable logic into Ads v2
    package subdomains after active v2 PRs and contracts are clear. CMS/data
-   pull has already been reconciled through PR `249403`, so leave the current
-   data-pull job/pipeline route in place unless a later data-domain story
-   explicitly changes it.
+   pull has already been reconciled through PR `249403`; its archive
+   entrypoint now lives in `jobs/nextads_data`.
 8. `feature/SWB/5128910-realtime-reporting-move`
    Move realtime and reporting/results helpers into `src/next_ads/realtime`
    and `src/next_ads/reporting`.
@@ -413,10 +410,11 @@ wrappers remain where needed, and output contracts are preserved.
 
 ## High-Risk Items Requiring Separate Stories
 
-Do not move these until their contracts and validation are agreed:
+Do not change the behaviour of these until their contracts and validation are
+agreed:
 
-- `next_ads/Assignment.py`
-- `next_ads/Scoring.py`
+- `src/next_ads/decisioning/assignment.py`
+- `src/next_ads/ranking/scoring.py`
 - `jobs/nextads_cells/assign_customer_cells.py`
 - `jobs/nextads_assignment/build_page.py`
 - `jobs/nextads_candidates/build_theme_ad_candidates.py`

@@ -48,9 +48,9 @@ next-ads/
   deployment/    # release setup and operational deployment support
 ```
 
-The current repo will not jump to this layout in one PR. The migration should
-happen in controlled stories with compatibility wrappers, output checks and
-release evidence where needed.
+The reusable package and job-entrypoint migration was completed through
+controlled stories with output checks and release evidence. New work must use
+the canonical `src/next_ads` package and route-oriented `jobs/` folders.
 
 ## Folder Purposes
 
@@ -139,6 +139,7 @@ jobs/nextads_control/
 jobs/nextads_cells/
 jobs/nextads_candidates/
 jobs/nextads_assignment/
+jobs/nextads_data/
 jobs/nextads_v2/
 jobs/nextads_delivery/
 jobs/nextads_reporting/
@@ -296,12 +297,12 @@ and should not become a second source of truth.
 ## Migration Principles
 
 1. Move low-risk reusable utilities before output-affecting logic.
-2. Keep compatibility wrappers while old imports remain in jobs or explicitly
-   deferred v2 scripts.
-3. Add tests that prove old and new import paths behave the same.
+2. Use canonical imports from `src/next_ads`; legacy package wrappers are no
+   longer supported.
+3. Add tests that prove package imports work with `src` as the package root.
 4. Move Databricks job entry points with core business logic only when the PR is
-   explicitly domain-scoped, keeps compatibility wrappers where needed, and
-   updates DAB paths and tests in the same change.
+   explicitly domain-scoped and updates DAB paths and tests in the same
+   change.
 5. Treat assignment, scoring, delivery, model and table-definition changes as
    output-affecting until proven otherwise.
 6. Use DEV Integration and PREPROD validation where the release route requires

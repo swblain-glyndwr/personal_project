@@ -17,7 +17,9 @@ except NameError:
     PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 import datetime
 from datetime import date, timedelta
@@ -27,9 +29,9 @@ from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import post_to_webhook, delete_from_and_load
 from dsutils.argparser import get_job_parser
 from next_ads.reporting.results import check_control_ratio
-from next_ads.utils import config_manager
+from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
-from next_ads.utils import etl
+from next_ads.common import etl
 
 
 jobparser = get_job_parser()

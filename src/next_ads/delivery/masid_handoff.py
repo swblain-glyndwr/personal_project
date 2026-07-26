@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from pyspark.sql import functions as F
 
-from next_ads.utils import etl
+from next_ads.common import etl
 
 
 REQUIRED_ASSIGNMENT_COLUMNS = frozenset(

@@ -21,7 +21,7 @@ from next_ads.ranking.theme_score_retrieval import (
     load_customer_base,
     load_theme_scores,
 )
-from next_ads.utils import etl
+from next_ads.common import etl
 
 
 def run_theme_score_mapping(

@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -18,7 +21,11 @@ from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 from pyspark.sql.functions import udf
 
-from next_ads.utils import config_manager
+SRC_ROOT = Path(__file__).resolve().parents[3]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from next_ads.common import config_manager
 
 JOB_ENV = spark.conf.get("pipeline.job_env", "dev")
 CLIENT = spark.conf.get("pipeline.client", "next_uk")

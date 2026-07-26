@@ -7,7 +7,6 @@ from pyspark.sql import SparkSession
 
 from next_ads.ranking import scoring
 from next_ads.ranking.theme_coverage import build_missing_theme_affinity_coverage
-from next_ads import Scoring
 from tests.job_resource_helpers import load_job
 
 
@@ -31,17 +30,16 @@ def _load_job(path, key):
     return load_job(path, key)
 
 
-def test_scoring_legacy_wrapper_exports_moved_functions():
-    assert Scoring.append_targeting_criteria is scoring.append_targeting_criteria
-    assert Scoring.get_model_scores is scoring.get_model_scores
-    assert Scoring.aggregate_model_scores is scoring.aggregate_model_scores
+def test_scoring_package_exports_expected_functions():
+    assert callable(scoring.append_targeting_criteria)
+    assert callable(scoring.get_model_scores)
+    assert callable(scoring.aggregate_model_scores)
 
 
 def test_package_code_uses_moved_scoring_import():
     source = (PROJECT_ROOT / "src/next_ads/control/load_control_sheet.py").read_text()
 
     assert "from next_ads.ranking.scoring import append_targeting_criteria" in source
-    assert "from next_ads.Scoring import append_targeting_criteria" not in source
 
 
 def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():

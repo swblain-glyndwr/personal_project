@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 try:
-    PROJECT_ROOT = Path(__file__).resolve().parents[1]
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
     # __file__ is not defined when running as a Databricks notebook
     notebook_path = (
@@ -14,16 +14,18 @@ except NameError:
     )  # type: ignore # noqa
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
-    PROJECT_ROOT = Path(notebook_path).parents[1]
+    PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
-from next_ads.utils import config_manager
-from next_ads.utils.cosmos import get_cosmos_config, sdk_write_to_cosmos
+from next_ads.common import config_manager
+from next_ads.delivery.cosmos import get_cosmos_config, sdk_write_to_cosmos
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL):

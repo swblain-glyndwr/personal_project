@@ -1,4 +1,3 @@
-import importlib
 import importlib.util
 from pathlib import Path
 
@@ -18,21 +17,10 @@ def _load_job(path: str, key: str) -> dict:
     return load_job(path, key)
 
 
-def test_reporting_results_imports_work_from_new_and_legacy_paths():
-    legacy_results = importlib.import_module("next_ads.Results")
-
-    assert (
-        legacy_results.check_control_ratio
-        is reporting_results.check_control_ratio
-    )
-    assert (
-        legacy_results.summarise_sessions
-        is reporting_results.summarise_sessions
-    )
-    assert (
-        legacy_results.validate_assignments_match_pf
-        is reporting_results.validate_assignments_match_pf
-    )
+def test_reporting_results_exposes_expected_helpers():
+    assert callable(reporting_results.check_control_ratio)
+    assert callable(reporting_results.summarise_sessions)
+    assert callable(reporting_results.validate_assignments_match_pf)
 
 
 def test_realtime_unknown_lives_under_src_package():

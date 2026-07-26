@@ -29,16 +29,6 @@ def test_decisioning_assignment_package_exposes_helpers():
         assert hasattr(assignment, helper)
 
 
-def test_legacy_assignment_wrapper_reexports_moved_helpers():
-    legacy = importlib.import_module("next_ads.Assignment")
-    moved = importlib.import_module("next_ads.decisioning.assignment")
-
-    assert legacy is moved
-    assert legacy.assign_random_ads is moved.assign_random_ads
-    assert legacy.assign_preranked_ads_v2 is moved.assign_preranked_ads_v2
-    assert legacy.greedy_assignment is moved.greedy_assignment
-
-
 def test_v1_job_entrypoints_import_decisioning_package():
     for path in [
         "jobs/nextads_cells/assign_customer_cells.py",
@@ -47,7 +37,6 @@ def test_v1_job_entrypoints_import_decisioning_package():
     ]:
         source = _read(path)
         assert "next_ads.decisioning.assignment" in source
-        assert "next_ads.Assignment" not in source
 
 
 def test_v2_build_page_route_uses_jobs_folder():
@@ -60,4 +49,6 @@ def test_v2_build_page_route_uses_jobs_folder():
     assert tasks_by_key["build_page_v2"]["for_each_task"]["task"][
         "spark_python_task"
     ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
-    assert "from next_ads.Assignment import" in _read("jobs/nextads_v2/build_page.py")
+    assert "from next_ads.decisioning.assignment import" in _read(
+        "jobs/nextads_v2/build_page.py"
+    )

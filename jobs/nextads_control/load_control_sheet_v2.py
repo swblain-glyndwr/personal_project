@@ -20,7 +20,9 @@ except NameError:
     PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 import json
 import pyspark.sql.functions as F
@@ -37,10 +39,10 @@ from dsutils.etl import (
 )
 from dsutils.argparser import get_job_parser
 import dsutils.gcp as gcp
-from next_ads.Scoring import append_targeting_criteria
-from next_ads.utils import config_manager
+from next_ads.ranking.scoring import append_targeting_criteria
+from next_ads.common import config_manager
 from dsutils.dbc import configure_spark
-from next_ads.data_validation import schemas
+from next_ads.data.validation import schemas
 from next_ads.data.schemas.CMS import cms_schema
 
 

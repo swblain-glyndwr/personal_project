@@ -23,8 +23,8 @@ from pyspark.sql.types import StringType, StructField, StructType
 from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 
-from next_ads.data_validation import schemas
-from next_ads.utils import config_manager
+from next_ads.common import config_manager
+from next_ads.data.validation import schemas
 
 spark = None
 dbutils = None

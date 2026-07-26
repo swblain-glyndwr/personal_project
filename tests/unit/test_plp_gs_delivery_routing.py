@@ -1,5 +1,5 @@
 from next_ads.delivery.google_sheets import resolve_plp_gs_delivery_config
-from next_ads.utils.config_manager import load_config
+from next_ads.common.config_manager import load_config
 
 
 def test_plp_gs_delivery_route_uses_personal_dev_outputs(monkeypatch):

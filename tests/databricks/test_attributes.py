@@ -4,8 +4,8 @@ from next_ads.control.attributes import (
     collect_attribute_set as new_collect_attribute_set,
 )
 from next_ads.control.attributes import parse_ad_attributes as new_parse_ad_attributes
-from next_ads.Attributes import collect_attribute_set
-from next_ads.Attributes import parse_ad_attributes
+from next_ads.control.attributes import collect_attribute_set
+from next_ads.control.attributes import parse_ad_attributes
 from dsutils.dbc import configure_spark
 from dsutils.etl import build_spark_schema
 

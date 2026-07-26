@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-import jobs.data_pull as data_pull
+import jobs.nextads_data.archive_sort_order_data as data_pull
 
 
 class FakeDataFrame:
