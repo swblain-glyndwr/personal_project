@@ -587,6 +587,7 @@ sort_order_schema = StructType(
         StructField("Tags", StringType(), True),
         StructField("Themes", StringType(), True),
         StructField("AdVariant", StringType(), True),
+        StructField("ClusterID", StringType(), True),
         StructField("rundate", DateType(), True),
     ]
 )

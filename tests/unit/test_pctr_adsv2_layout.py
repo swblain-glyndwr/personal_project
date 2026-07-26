@@ -111,3 +111,22 @@ def test_sort_order_latest_projects_declared_schema_after_control_sheet_join():
     assert "for field in sort_order_schema.fields" in data_pull
     assert "F.col(field.name).cast(field.dataType).alias(field.name)" in data_pull
     assert ").select(\n        *[" in data_pull
+
+
+def test_sort_order_contract_retains_cluster_id_hotfix():
+    data_pull = (
+        PROJECT_ROOT / "src" / "next_ads" / "data" / "sort_order" / "data_pull.py"
+    ).read_text()
+    sort_order_ddl = (
+        PROJECT_ROOT / "sql" / "adsv2" / "create_table_sort_order_v2.sql"
+    ).read_text()
+    latest_ddl = (
+        PROJECT_ROOT
+        / "sql"
+        / "adsv2"
+        / "create_table_sort_order_v2_latest.sql"
+    ).read_text()
+
+    assert 'StructField("ClusterID", StringType(), True)' in data_pull
+    assert "AdVariant STRING,\n    ClusterID STRING,\n    rundate DATE" in sort_order_ddl
+    assert "AdVariant STRING,\n    ClusterID STRING,\n    rundate DATE" in latest_ddl

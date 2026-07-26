@@ -28,6 +28,7 @@ CREATE TABLE {catalog}.{schema}.nextads_sort_order_v2_latest (
     Tags STRING,
     Themes STRING,
     AdVariant STRING,
+    ClusterID STRING,
     rundate DATE,
   constraint pk_{client}_nextads_sort_order_latest_v2 primary key (UniqueAdID, item_pos)
     )
