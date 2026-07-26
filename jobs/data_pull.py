@@ -56,13 +56,14 @@ def write_history_table(
     df_output,
     table: str,
     logger,
+    pk_cols: list[str],
 ):
     logger.info(f"Loading payload output to {table}")
 
     delete_from_and_load(
         df_output.drop("run_date").drop("rundate"),
         table,
-        pk_cols=["UniqueAdID", "item_pos"],
+        pk_cols=pk_cols,
         del_where={"rundate": "current_date()"},
     )
 
@@ -79,6 +80,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         sort_order_latest,
         config.tables_write.sort_order_v2,
         logger,
+        pk_cols=["UniqueAdID", "item_pos"],
     )
 
     cms_content_latest = spark.table(config.tables_write.cms_content_latest)
@@ -88,6 +90,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         cms_content_latest,
         config.tables_write.cms_content,
         logger,
+        pk_cols=["CMSPageID"],
     )
 
     logger.info("Ads Data Pull history updated successfully!")
