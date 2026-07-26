@@ -68,8 +68,14 @@ def generate_experimentid(
             # Look for values defined in audience_split list
             if audience_split:
                 for val in audience_split:
+                    # "false" is the stored non-audience value, not an
+                    # experiment pot exposed in the ExperimentID.
+                    experiment_val = (
+                        "Z" if str(val).lower() == "false" else val
+                    )
                     expr = expr.when(
-                        F.col(split_col) == val, F.lit(f"Aud_{col_name}_{val}")
+                        F.col(split_col) == val,
+                        F.lit(f"Aud_{col_name}_{experiment_val}"),
                     )
             # If customer not in audience default to _Z
             expr = expr.otherwise(F.lit(f"Aud_{col_name}_Z"))
