@@ -68,7 +68,7 @@ The smoke workflow for this route is:
 
 1. Deploy `DEV_INTEGRATION` from `develop`.
 2. Run the DEV integration table setup job to create any missing shared DEV tables.
-3. Run `load_control_sheet`, and run `load_control_sheet_v2` when the v2 control sheet path is in scope.
+3. Run `load_control_sheet_v1`, and run `load_control_sheet_v2` when the v2 control sheet path is in scope.
 4. Confirm the created or updated control sheet tables are in `marketingdata_dev.nextads_integration`.
 5. Confirm no `marketingdata_prod.ds_sandbox` or `marketingdata_prod.warehouse` outputs changed.
 

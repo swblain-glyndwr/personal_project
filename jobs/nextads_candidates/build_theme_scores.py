@@ -96,14 +96,6 @@ def main(
 
     ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
 
-    NEXT_THEME_SCORES_LATEST = etl.map_tbl(
-        tbls["next_theme_scores_latest"], **tbl_args
-    )  # noqa
-    NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
-    THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
-        tbls["theme_scoring_events_latest"], **tbl_args
-    )  # noqa
-
     ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
 
     if isinstance(ACTIONS_END, str):

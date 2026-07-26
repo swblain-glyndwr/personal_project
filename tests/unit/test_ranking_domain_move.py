@@ -1,13 +1,30 @@
-import importlib
+﻿import importlib
 import importlib.util
 from pathlib import Path
 
+import pytest
+from pyspark.sql import SparkSession
+
 from next_ads.ranking import scoring
+from next_ads.ranking.theme_coverage import build_missing_theme_affinity_coverage
 from next_ads import Scoring
 from tests.job_resource_helpers import load_job
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture
+def local_spark():
+    try:
+        spark = (
+            SparkSession.builder.master("local[1]")
+            .appName("next-ads-ranking-domain-move-tests")
+            .getOrCreate()
+        )
+    except RuntimeError as exc:
+        pytest.skip(f"Local Spark unavailable: {exc}")
+    yield spark
 
 
 def _load_job(path, key):
@@ -52,9 +69,60 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     assert "def run_theme_score_mapping(" in package_module
     assert "truncate_and_load(" in package_module
     assert "delete_from_and_load(" in package_module
+    assert "control_sheet_latest_table" in package_module
+    assert "output_preranked_table" in package_module
+    assert "output_grain" in package_module
+    assert "top_ads_per_group" in package_module
+    assert "config.theme_affinity_assignment_sources.champion" in package_module
     assert "def build_ad_location_mappings(" in retrieval_module
+    assert "def build_ad_group_mappings(" in retrieval_module
     assert "def apply_greedy_theme_assignment(" in eligibility_module
+    assert "def assert_eligible_groups(" in eligibility_module
     assert "def rank_top_ads_per_adset(" in ranking_module
+    assert "def map_ranked_ads_to_groups(" in ranking_module
+
+
+def test_v2_theme_score_mapping_uses_v2_control_sheet_directly():
+    v2_entrypoint = (
+        PROJECT_ROOT / "jobs/nextads_candidates/build_page_type_candidates_v2.py"
+    ).read_text()
+
+    assert "run_theme_score_mapping(" in v2_entrypoint
+    assert (
+        "control_sheet_latest_table=config.tables_write.control_sheet_latest_v2"
+        in v2_entrypoint
+    )
+    assert "output_grain=\"page_type\"" in v2_entrypoint
+    assert "next_theme_scores_latest_v2" not in v2_entrypoint
+    assert "theme_scores_table" not in v2_entrypoint
+    assert "write_score_components=False" in v2_entrypoint
+    assert "preranked_ads_from_themes_latest" not in v2_entrypoint
+
+
+def test_theme_affinity_coverage_finds_ad_themes_missing_from_model(local_spark):
+    spark = local_spark
+    control_ads = spark.createDataFrame(
+        [
+            ("ad1", "Summer", "0"),
+            ("ad2", "denim", "0"),
+            ("ad3", "ignored", "1"),
+        ],
+        ["UniqueAdID", "Themes", "AudienceOnly"],
+    )
+    theme_affinity_scores = spark.createDataFrame(
+        [("acc1", "summer")],
+        ["AccountNumber", "NextTheme"],
+    )
+
+    missing = build_missing_theme_affinity_coverage(
+        control_ads,
+        theme_affinity_scores,
+        route="v2",
+    )
+
+    assert [(row.route, row.Theme, row.ad_count) for row in missing.collect()] == [
+        ("v2", "denim", 1)
+    ]
 
 
 def test_theme_affinity_job_uses_model_entrypoints():
@@ -96,7 +164,7 @@ def test_theme_affinity_scripts_live_under_model_jobs():
         ).is_file()
 
 
-def test_v2_entrypoints_stay_on_scripts():
+def test_v2_entrypoints_use_jobs_folder():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",

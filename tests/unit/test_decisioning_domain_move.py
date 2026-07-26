@@ -1,4 +1,4 @@
-import importlib
+﻿import importlib
 from pathlib import Path
 
 from tests.job_resource_helpers import load_job
@@ -50,7 +50,7 @@ def test_v1_job_entrypoints_import_decisioning_package():
         assert "next_ads.Assignment" not in source
 
 
-def test_v2_build_page_route_stays_on_legacy_script_and_wrapper_import():
+def test_v2_build_page_route_uses_jobs_folder():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd_v2",

@@ -2,7 +2,7 @@ from pyspark.sql.types import (
     StructType,
     StructField,
     StringType,
-    IntegerType,
+    LongType,
     DateType,
     ArrayType,
     MapType,
@@ -561,7 +561,7 @@ sort_order_schema = StructType(
         StructField("UniqueAdID", StringType(), True),
         StructField("URL", StringType(), True),
         StructField("MASIDtoken", StringType(), True),
-        StructField("item_pos", IntegerType(), True),
+        StructField("item_pos", LongType(), True),
         StructField("item", StringType(), True),
         StructField("UniqueAdIDPremium", StringType(), True),
         StructField("CMSPageID", StringType(), True),
@@ -605,6 +605,11 @@ def sort_order_latest():
         s_control_sheet.drop("URL", "MASIDToken"),
         on=["UniqueAdID"],
         how="inner",
+    ).select(
+        *[
+            F.col(field.name).cast(field.dataType).alias(field.name)
+            for field in sort_order_schema.fields
+        ]
     )
     output = output.orderBy("UniqueAdID", "item_pos")
 

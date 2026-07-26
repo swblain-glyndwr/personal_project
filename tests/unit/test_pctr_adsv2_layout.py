@@ -100,3 +100,14 @@ def test_moved_sql_contracts_resolve_from_domain_folders():
     assert common_paths.resolve_sql_contract_path(
         "sort_order_v2_latest"
     ).as_posix().endswith("sql/adsv2/create_table_sort_order_v2_latest.sql")
+
+
+def test_sort_order_latest_projects_declared_schema_after_control_sheet_join():
+    data_pull = (
+        PROJECT_ROOT / "src" / "next_ads" / "data" / "sort_order" / "data_pull.py"
+    ).read_text()
+
+    assert 'StructField("item_pos", LongType(), True)' in data_pull
+    assert "for field in sort_order_schema.fields" in data_pull
+    assert "F.col(field.name).cast(field.dataType).alias(field.name)" in data_pull
+    assert ").select(\n        *[" in data_pull
