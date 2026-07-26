@@ -155,6 +155,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --warn-only
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         max_retries: 2

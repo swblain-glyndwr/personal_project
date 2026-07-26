@@ -91,6 +91,9 @@ def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
     assert tasks_by_key["validate_theme_mapping_sync"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/validate_theme_mapping_sync.py"
+    assert "--warn-only" not in tasks_by_key["validate_theme_mapping_sync"][
+        "spark_python_task"
+    ]["parameters"]
 
 
 def test_theme_affinity_coverage_validation_gates_both_route_mappers():
@@ -112,6 +115,9 @@ def test_theme_affinity_coverage_validation_gates_both_route_mappers():
     ]["python_file"] == (
         "../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py"
     )
+    assert "--warn-only" in tasks_by_key["validate_theme_affinity_theme_coverage"][
+        "spark_python_task"
+    ]["parameters"]
     assert {"task_key": "validate_theme_affinity_theme_coverage"} in tasks_by_key[
         "map_theme_scores_to_ads_v1"
     ]["depends_on"]
