@@ -178,7 +178,7 @@ class TestLoadControlSheetConfigParityHighLevel:
         )
 
     def test_tables_write_config_matches(self, json_config, dynaconf_config):
-        from next_ads.utils import etl
+        from next_ads.common import etl
 
         JOB_ENV = "prod"
         CLIENT = "next_uk"

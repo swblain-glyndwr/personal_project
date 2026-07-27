@@ -3,7 +3,7 @@ import sys
 
 # get dbutils and resolve project root for both local and databricks environments
 try:
-    PROJECT_ROOT = Path(__file__).resolve().parents[1]
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
     from dsutils.dbc import get_dbutils
 
@@ -17,15 +17,17 @@ except NameError:
     )  # type: ignore # noqa
     if not notebook_path.startswith("/Workspace"):
         notebook_path = "/Workspace" + notebook_path
-    PROJECT_ROOT = Path(notebook_path).parents[1]
+    PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils.dbc import get_dbutils, configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from next_ads.utils import config_manager
+from next_ads.common import config_manager
 from dsutils.etl import delete_from_and_load
 
 

@@ -14,7 +14,8 @@ mktg_next_uk_nextads_predict_data_prep_config: &mktg_next_uk_nextads_predict_dat
     schema: ${var.theme_affinity_pipeline_schema}
     edition: CORE
     catalog: ${var.mktgdata_catalog}
-    root_path: ${workspace.file_path}
+    root_path: ${workspace.file_path}/src
+    environment: ${var.pipeline_libraries}
 
 targets:
   SANDBOX:

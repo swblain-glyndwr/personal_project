@@ -107,7 +107,7 @@ def test_load_config_accepts_client(clean_env, mock_dotenv):
     "relative_path,expected_loader",
     [
         (
-            "jobs/data_pull.py",
+            "jobs/nextads_data/archive_sort_order_data.py",
             "config_manager.load_config(JOB_ENV, client=CLIENT)",
         ),
         (

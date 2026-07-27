@@ -43,16 +43,16 @@ def test_dev_integration_target_uses_dev_workspace_and_schema():
     assert target["presets"]["trigger_pause_status"] == "PAUSED"
 
 
-def test_bundle_sync_explicitly_includes_transitional_package_roots():
+def test_bundle_sync_includes_only_canonical_package_root():
     bundle = load_yaml("databricks.yml")
     sync_includes = bundle["sync"]["include"]
 
     assert "configs/**" in sync_includes
     assert "sql/**" in sync_includes
-    assert "next_ads/**" in sync_includes
-    assert "next_ads/data/**" in sync_includes
     assert "src/next_ads/**" in sync_includes
-    assert "src/next_ads/data/**" in sync_includes
+    assert "next_ads/**" not in sync_includes
+    assert "next_ads/data/**" not in sync_includes
+    assert "src/next_ads/data/**" not in sync_includes
 
 
 def test_gitignore_does_not_exclude_package_data_directories():

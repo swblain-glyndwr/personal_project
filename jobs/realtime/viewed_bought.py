@@ -17,7 +17,9 @@ except NameError:
     PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from pyspark.sql import functions as F
 from pyspark.sql import Window
@@ -26,9 +28,9 @@ from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import truncate_and_load
-from next_ads.utils import config_manager
+from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
-from next_ads.utils import etl
+from next_ads.common import etl
 
 import math
 

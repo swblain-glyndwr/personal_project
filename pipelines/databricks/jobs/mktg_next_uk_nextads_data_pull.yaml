@@ -28,7 +28,7 @@ mktg_next_uk_nextads_data_pull_config: &mktg_next_uk_nextads_data_pull_config
         depends_on:
           - task_key: pull_sort_order_data_for_today
         spark_python_task:
-          python_file: ../../../jobs/data_pull.py
+          python_file: ../../../jobs/nextads_data/archive_sort_order_data.py
           parameters:
             - --client
             - next_uk

@@ -1,6 +1,6 @@
 # Repo Restructure Wrap-Up Audit
 
-Last updated: 2026-06-30.
+Last updated: 2026-07-26.
 
 Branch: `feature/SWB/5128910-restructure-wrap-up`
 Baseline: `origin/develop` at `a891c0284d665441dff49afbceb00c8d8f46f34c`
@@ -92,8 +92,9 @@ Repo-wide references cleaned or intentionally retained:
   split.
 - `docs/repo_migration_map.md` now lists retained experiment folders,
   route-oriented job folders, and v2 migration constraints explicitly.
-- Unit tests still assert old wrapper existence where compatibility delegates
-  are intentionally retained.
+- The follow-up cleanup branch removes the root `next_ads/` compatibility
+  package, moves the remaining implementations into `src/next_ads`, and
+  updates tests to use canonical imports only.
 
 ## Scope Boundary
 

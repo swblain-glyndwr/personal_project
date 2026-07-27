@@ -18,7 +18,7 @@ from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 from pyspark.sql.functions import udf
 
-from next_ads.utils import config_manager
+from next_ads.common import config_manager
 
 JOB_ENV = spark.conf.get("pipeline.job_env", "dev")
 CLIENT = spark.conf.get("pipeline.client", "next_uk")
@@ -65,7 +65,7 @@ def call_next_cms_api_duf(url):
     return json.dumps(result)
 
 
-def call_next_api_fn(api_endpoint, url):
+def call_next_api_fn(api_endpoint, url, next_search_wrapper):
     querystring = {
         "ShowSearchProviderRequestUrl": "true",
         "Criteria": url,
@@ -144,7 +144,7 @@ def call_next_api_fn(api_endpoint, url):
 
     # remove the url in the response
     ha.pop(
-        config.next_search_wrapper,
+        next_search_wrapper,
         None,
     )
 
@@ -176,14 +176,14 @@ def call_next_api_fn(api_endpoint, url):
 
 
 @udf(returnType=nextschema)
-def call_next_api(api_endpoint, url):
+def call_next_api(api_endpoint, url, next_search_wrapper):
     """Args:
         url (str): The category url we want a Bloomreach API query for
 
     Returns:
         dict: a dict object that can be used later to query the BR API for the items returned from this category URL
     """
-    result = call_next_api_fn(api_endpoint, url)
+    result = call_next_api_fn(api_endpoint, url, next_search_wrapper)
     return result
 
 
@@ -517,7 +517,12 @@ def query_prep():
     df_direct_qry = df_qry.filter("url_type <> 'category'")
 
     df_via_next_qry_queried = df_via_next_qry.withColumn(
-        "searchProviderRequest", call_next_api(F.col("next_url"), F.col("url"))
+        "searchProviderRequest",
+        call_next_api(
+            F.col("next_url"),
+            F.col("url"),
+            F.lit(str(config.next_search_wrapper)),
+        ),
     )
     df_via_next_qry_queried = df_via_next_qry_queried.drop(
         "query_struct"

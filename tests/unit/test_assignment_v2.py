@@ -3,8 +3,8 @@ from pyspark.sql import SparkSession
 from pyspark.testing import assertDataFrameEqual
 
 from dsutils.etl import build_spark_schema
-import next_ads.Assignment as assignment
-from next_ads.Assignment import (
+import next_ads.decisioning.assignment as assignment
+from next_ads.decisioning.assignment import (
     assign_preranked_ads_v2,
 )
 

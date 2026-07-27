@@ -20,14 +20,16 @@ except NameError:
     PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from next_ads.delivery.masid_handoff import (  # noqa: E402
     check_masid_handoff_table,
     expected_rundate,
     resolve_assignments_latest_table,
 )
-from next_ads.utils import config_manager  # noqa: E402
+from next_ads.common import config_manager  # noqa: E402
 from next_ads.common.paths import load_client_config
 
 

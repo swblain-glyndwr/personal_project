@@ -17,7 +17,9 @@ except NameError:
     PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from datetime import date, timedelta
 from pyspark.sql import functions as F
@@ -35,9 +37,9 @@ from next_ads.reporting.results import (
     patch_missing_dates,
     validate_assignments_match_pf,
 )
-from next_ads.utils import config_manager
+from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
-from next_ads.utils import etl
+from next_ads.common import etl
 from pyspark.sql.functions import broadcast
 
 

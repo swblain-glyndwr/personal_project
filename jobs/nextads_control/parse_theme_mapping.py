@@ -17,7 +17,9 @@ except NameError:
     PROJECT_ROOT = Path(notebook_path).parents[2]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils import gcp
 from dsutils.argparser import get_job_parser
@@ -38,7 +40,7 @@ from next_ads.control.theme_mapping import (
     rank_item_themes,
     valid_theme_rank_condition,
 )
-from next_ads.utils import config_manager, etl
+from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
 
 

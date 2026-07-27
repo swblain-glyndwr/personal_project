@@ -1,6 +1,6 @@
 import pytest
 
-from next_ads import Export
+from next_ads.delivery import export
 
 
 class FakeCondition:
@@ -113,7 +113,7 @@ class FakeDataFrame:
 
 @pytest.fixture(autouse=True)
 def fake_spark_functions(monkeypatch):
-    monkeypatch.setattr(Export, "F", FakeFunctions())
+    monkeypatch.setattr(export, "F", FakeFunctions())
 
 
 CURRENT_EXPERIMENTS = [
@@ -158,7 +158,7 @@ def test_current_experiment_id_format(row, expected):
         ]
     )
 
-    result = Export.generate_experimentid(df, CURRENT_EXPERIMENTS)
+    result = export.generate_experimentid(df, CURRENT_EXPERIMENTS)
 
     assert result.rows == [
         {"AccountNumber": "account-1", "ExperimentID": expected}
@@ -186,7 +186,7 @@ def test_page_isolation_mappings(page_isolation, expected_suffix):
         ]
     )
 
-    result = Export.generate_experimentid(
+    result = export.generate_experimentid(
         df,
         [{"PageIsolation": "PageTypeIsolation"}],
     )
@@ -203,7 +203,7 @@ def test_standard_experiment_mappings(split, expected_suffix):
         [{"AccountNumber": "account-1", "AdHocABTest2": split}]
     )
 
-    result = Export.generate_experimentid(
+    result = export.generate_experimentid(
         df,
         [{"Rank": "AdHocABTest2"}],
     )
@@ -231,7 +231,7 @@ def test_additional_experiments_preserve_configured_order():
         {"NextGenAds": "AdHocABTest1"},
     ]
 
-    result = Export.generate_experimentid(df, experiments)
+    result = export.generate_experimentid(df, experiments)
 
     assert result.rows[0]["ExperimentID"] == (
         "NextAds_BE | PageIsolation_AP | Rank_A | NextGenAds_B"
@@ -264,7 +264,7 @@ def test_audience_experiment_mappings(
         ]
     )
 
-    result = Export.generate_experimentid(
+    result = export.generate_experimentid(
         df,
         [{"Audience": {"AudienceTest": "Audience"}}],
         audience_sample=["Best"],
