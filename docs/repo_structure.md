@@ -29,7 +29,7 @@ The target structure separates:
 
 This makes it easier to understand what a change can affect. A move into
 `src/next_ads` means code is becoming reusable production package logic. A
-change to `resources/jobs` or `azure-pipelines.yml` means deployment behaviour
+change to `pipelines/databricks/jobs` or `azure-pipelines.yml` means deployment behaviour
 may change. A change under `experiments` should not be treated as production
 logic unless a later story promotes it.
 
@@ -48,16 +48,16 @@ next-ads/
   deployment/    # release setup and operational deployment support
 ```
 
-The current repo will not jump to this layout in one PR. The migration should
-happen in controlled stories with compatibility wrappers, output checks and
-release evidence where needed.
+The reusable package and job-entrypoint migration was completed through
+controlled stories with output checks and release evidence. New work must use
+the canonical `src/next_ads` package and route-oriented `jobs/` folders.
 
 ## Folder Purposes
 
 | Folder | Purpose | What belongs here | What should not be placed here |
 | --- | --- | --- | --- |
 | `src/` | Reusable production package code. | Python modules used by scripts, jobs, tests and future Databricks entry points. | One-off notebooks, ad hoc scripts, generated files or deployment YAML. |
-| `pipelines/` | Process-flow definitions, if introduced. | Higher-level pipeline orchestration or flow definitions that are not Databricks bundle resource YAML. | Python business logic or Databricks job YAML currently owned by `resources/jobs`. |
+| `pipelines/` | Process-flow definitions, if introduced. | Higher-level pipeline orchestration or flow definitions that are not Databricks bundle resource YAML. | Python business logic or Databricks job YAML currently owned by `pipelines/databricks/jobs`. |
 | `jobs/` | Databricks job entry points. | Thin executable scripts that parse job parameters and call reusable package code. | Shared business logic that should be testable in `src/next_ads`. |
 | `configs/` | Settings, policy and environment configuration. | YAML/JSON settings, model settings, route config and policy-like config. | Secrets, credentials or generated runtime files. |
 | `sql/` | Table, view and reporting SQL. | DDL, view definitions, SQL checks and reporting SQL grouped by functional area. | Python transformations or notebook-only exploration. |
@@ -129,19 +129,37 @@ Entry points should:
 - write/log run evidence;
 - stay thin enough to review easily.
 
-During transition, existing production jobs can remain in `scripts/` until a
-specific story moves them.
+The old `scripts/` entrypoint area has been retired. Ads v2 entrypoints now
+live under route-oriented `jobs/nextads_*` folders.
+
+Current NextAds production entry points are split by route:
+
+```text
+jobs/nextads_control/
+jobs/nextads_cells/
+jobs/nextads_candidates/
+jobs/nextads_assignment/
+jobs/nextads_data/
+jobs/nextads_v2/
+jobs/nextads_delivery/
+jobs/nextads_reporting/
+jobs/realtime/
+jobs/orchestration/
+jobs/table_operations/
+jobs/smoke/
+```
+
+Avoid adding route entrypoints to domain-named folders such as
+`jobs/decisioning/`, `jobs/ranking/`, or `jobs/retrieval/`; the reusable
+domain logic belongs under `src/next_ads/...`.
 
 ### New Databricks Bundle Resources
 
-Databricks bundle resource YAML remains under `resources/` until a separate
-deployment restructure is agreed.
-
 Use:
 
-- `resources/jobs/` for Databricks job definitions;
-- `resources/pipelines/` for Databricks pipeline definitions, where present;
-- `resources/variables/` for bundle variables and environment-specific resource
+- `pipelines/databricks/jobs/` for Databricks job definitions;
+- `pipelines/databricks/pipelines/` for Databricks pipeline definitions, where present;
+- `pipelines/databricks/variables/` for bundle variables and environment-specific resource
   settings.
 
 Any change here may affect deployment behaviour and should include bundle
@@ -209,11 +227,12 @@ Experimental work can later be promoted into `src/next_ads`, `jobs/`,
 Operational model work should not stay named after its original experiment if
 that name no longer helps the team understand the domain.
 
-For example, the historical `hackathon_model` work should be treated as the
-Theme Affinity model area:
+For example, the historical `hackathon_model` work is retained under
+`experiments/hackathon_theme_affinity_model` and should be treated as the Theme
+Affinity model area:
 
 ```text
-experiments/theme_affinity/              # reference notebooks and historical work
+experiments/hackathon_theme_affinity_model/ # reference notebooks and historical work
 src/next_ads/ranking/theme_affinity/     # reusable scoring/model logic
 src/next_ads/data/theme_affinity/        # feature contracts and model input data
 src/next_ads/delivery/theme_affinity/    # model output shaping
@@ -223,6 +242,11 @@ configs/model/theme_affinity.yml         # model settings
 
 Do not drop experimental/reference material if its outputs are currently used.
 Move it into a named domain and document its operational status.
+
+The historical response-model/pCTR scripts are retained under
+`experiments/sb_pctr/` until a future Feature Store/model lifecycle story
+promotes reusable pieces into `src/next_ads/features`, `src/next_ads/ranking`,
+or `jobs/model`.
 
 ### Docs and AI Context
 
@@ -247,12 +271,14 @@ and should not become a second source of truth.
 - `src/next_ads` is the future home for reusable production package code.
 - Low-risk reusable code can move into `src/next_ads` before Databricks job
   entry points move, as long as old imports keep working.
-- Existing Databricks job entry points remain in `scripts/` until moved by a
-  specific story.
+- New or moved Databricks job entry points should live under route-oriented
+  `jobs/` folders.
+- Thin wrappers can remain only where runbooks, Databricks references, or
+  manual users still depend on those paths.
 - When a story explicitly scopes a domain move, the package code and matching
   Databricks entry points can move together in one PR, provided compatibility
   wrappers remain and job paths are validated.
-- Existing Databricks job definitions remain in `resources/jobs/` until the
+- Existing Databricks job definitions remain in `pipelines/databricks/jobs/` until the
   deployment layout is changed by a specific story.
 - Operational config now lives under grouped `configs/` folders, with loader
   fallbacks retained for legacy flat `config/` paths during the transition.
@@ -271,11 +297,12 @@ and should not become a second source of truth.
 ## Migration Principles
 
 1. Move low-risk reusable utilities before output-affecting logic.
-2. Keep compatibility wrappers while old imports remain in scripts/jobs.
-3. Add tests that prove old and new import paths behave the same.
+2. Use canonical imports from `src/next_ads`; legacy package wrappers are no
+   longer supported.
+3. Add tests that prove package imports work with `src` as the package root.
 4. Move Databricks job entry points with core business logic only when the PR is
-   explicitly domain-scoped, keeps compatibility wrappers where needed, and
-   updates DAB paths and tests in the same change.
+   explicitly domain-scoped and updates DAB paths and tests in the same
+   change.
 5. Treat assignment, scoring, delivery, model and table-definition changes as
    output-affecting until proven otherwise.
 6. Use DEV Integration and PREPROD validation where the release route requires

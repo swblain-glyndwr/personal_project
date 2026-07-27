@@ -6,6 +6,9 @@ This is the current DS-facing path for testing the Next Ads model lifecycle proc
 
 This runbook documents the jobs as they operate today. Do not run PREPROD or PROD model movement without release-owner agreement.
 
+For the visual model movement path, see
+[architecture/mlflow_model_lifecycle.md](architecture/mlflow_model_lifecycle.md).
+
 ## Reference Files
 
 - Shared lifecycle contract: [`src/next_ads/ml/lifecycle/spec.py`](../src/next_ads/ml/lifecycle/spec.py)
@@ -14,8 +17,8 @@ This runbook documents the jobs as they operate today. Do not run PREPROD or PRO
 - Theme Affinity config-to-lifecycle mapping example: [`src/next_ads/ranking/theme_affinity/lifecycle_spec.py`](../src/next_ads/ranking/theme_affinity/lifecycle_spec.py)
 - Theme Affinity Spark training example: [`src/next_ads/ranking/theme_affinity/mlflow_lifecycle.py`](../src/next_ads/ranking/theme_affinity/mlflow_lifecycle.py)
 - Theme Affinity GPU training example: [`src/next_ads/ranking/theme_affinity/gpu_xgboost_lifecycle.py`](../src/next_ads/ranking/theme_affinity/gpu_xgboost_lifecycle.py)
-- Model lifecycle job resources: [`resources/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml`](../resources/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml), [`resources/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml`](../resources/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml), [`resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml`](../resources/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml)
-- Theme Affinity training examples: [`resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml`](../resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml), [`resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml`](../resources/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml)
+- Model lifecycle job resources: [`pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml)
+- Theme Affinity training examples: [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml)
 
 ## Principles
 

@@ -26,7 +26,7 @@ from next_ads.control.load_control_sheet import (
     resolve_duplicate_masid_conflicts,
 )
 from next_ads.common.paths import load_client_config, resolve_sql_contract_path
-from next_ads.utils.config_manager import load_config
+from next_ads.common.config_manager import load_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

@@ -1,534 +1,259 @@
-from pyspark.sql import Window
-from pyspark.sql import functions as F
-
-from dsutils.etl import delete_from_and_load, post_to_webhook, truncate_and_load
+from dsutils.etl import delete_from_and_load, truncate_and_load
 from dsutils.logtools import get_logger
-from next_ads.decisioning.assignment import (
-    generate_repeat_ad_sessions,
-    get_ad_feedback_scores,
-    greedy_assignment,
+from next_ads.ranking.theme_score_eligibility import (
+    append_ad_feedback_scores,
+    apply_auto_trading_filter,
+    apply_greedy_theme_assignment,
+    assert_eligible_groups,
+    load_customer_age_preferences,
 )
-from next_ads.utils import etl
+from next_ads.ranking.theme_score_ranking import (
+    apply_multi_session_downweighting,
+    build_score_components,
+    calculate_score_range,
+    map_ranked_ads_to_groups,
+    rank_top_ads_per_adset,
+)
+from next_ads.ranking.theme_score_retrieval import (
+    build_ad_group_mappings,
+    build_theme_to_ad_mapping,
+    load_control_ads,
+    load_customer_base,
+    load_theme_scores,
+)
+from next_ads.common import etl
 
 
 def run_theme_score_mapping(
-        *,
-        spark,
-        config,
-        cfg: dict,
-        client: str,
-        job_env: str,
-        algo: str = "champion",
-        apply_ad_feedback: bool = False,
-        ad_feedback_weight=0.05,
-        top_ads_per_location: int = 20,
-        logger=None):
+    *,
+    spark,
+    config,
+    cfg: dict,
+    client: str,
+    job_env: str,
+    algo: str = "champion",
+    apply_ad_feedback: bool = False,
+    ad_feedback_weight=0.05,
+    top_ads_per_location: int = 20,
+    control_sheet_latest_table: str | None = None,
+    output_preranked_table: str | None = None,
+    output_grain: str = "location",
+    top_ads_per_group: int | None = None,
+    write_score_components: bool = True,
+    logger=None,
+):
     logger = logger or get_logger(__name__)
-    CLIENT = client
-    JOB_ENV = job_env
-    ALGO = algo
-    APPLY_AD_FEEDBACK = apply_ad_feedback
-    AD_FEEDBACK_WEIGHT = ad_feedback_weight
-    TOP_ADS_PER_LOCATION = int(top_ads_per_location)
-    assert TOP_ADS_PER_LOCATION > 0, 'top-ads-per-location must be greater than zero'
+    top_ads = int(
+        top_ads_per_group
+        if top_ads_per_group is not None
+        else top_ads_per_location
+    )
+    assert top_ads > 0, "top ads per group must be greater than zero"
 
-    MIN_C_SESSIONS = cfg['results_prm']['min_c_sessions']
-    INCREMENTAL_LOOKBACK = cfg['incrementality']['incremental_lookback']
-    AUTO_TRADING_SWITCH = cfg['incrementality']['auto_trading_switch']
+    output_group_cols = {
+        "location": "Location",
+        "page_type": "PageType",
+    }
+    output_grain = output_grain.lower()
+    if output_grain not in output_group_cols:
+        raise ValueError(
+            "output_grain must be one of: "
+            + ", ".join(sorted(output_group_cols))
+        )
+    output_group_col = output_group_cols[output_grain]
 
+    min_c_sessions = cfg["results_prm"]["min_c_sessions"]
+    incremental_lookback = cfg["incrementality"]["incremental_lookback"]
+    auto_trading_switch = cfg["incrementality"]["auto_trading_switch"]
     tbls = cfg["tables"]["write"]
-    SCHEMA = config.schema_write
-    logger.info(f'Write schema set to {SCHEMA}')
+    schema = config.schema_write
+    logger.info(f"Write schema set to {schema}")
 
-    tbl_args = {'catalog': config.catalog_write, 'schema': SCHEMA, 'client': CLIENT}
-    # Read tables
-    CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
-    CUSTOMER_CELLS_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
-    KIDS_AGE_GROUPS = cfg['tables']['read']['kids_age_groups_latest']
-    UNDERPERFORMING_ADS = etl.map_tbl(tbls['results_underperforming_ads'],
-                                      **tbl_args)
-    SESSIONS = cfg['tables']['read']['bq_sessions']
-    ACTIONS = cfg['tables']['read']['bq_actions']
+    tbl_args = {
+        "catalog": config.catalog_write,
+        "schema": schema,
+        "client": client,
+    }
+    control_sheet_latest = control_sheet_latest_table or etl.map_tbl(
+        tbls["control_sheet_latest"], **tbl_args
+    )
+    customer_cells_latest = etl.map_tbl(
+        tbls["customer_cells_latest"], **tbl_args
+    )
+    kids_age_groups = cfg["tables"]["read"]["kids_age_groups_latest"]
+    sessions = cfg["tables"]["read"]["bq_sessions"]
+    actions = cfg["tables"]["read"]["bq_actions"]
 
-    if ALGO == 'challenger':
-        logger.info('Running script as Challenger')
-        # read
-        NEXT_THEME_SCORES_LATEST = (
+    if algo == "challenger":
+        logger.info("Running script as Challenger")
+        next_theme_scores_latest = (
             config.theme_affinity_assignment_sources.challenger
         )
-        # write
-        THEME_SCORE_COMPONENTS_LATEST = etl.map_tbl(tbls["theme_score_components_latest"],**tbl_args)
-        THEME_SCORE_COMPONENTS = etl.map_tbl(tbls["theme_score_components"],**tbl_args)
-        PRERANKED_ADS_FROM_THEMES_LATEST = etl.map_tbl(tbls['preranked_ads_from_themes_latest'],**tbl_args)
     else:
-        logger.info('Running script as default (Champion)')
-        # read
-        NEXT_THEME_SCORES_LATEST = (
+        logger.info("Running script as default (Champion)")
+        next_theme_scores_latest = (
             config.theme_affinity_assignment_sources.champion
         )
-        # write
-        THEME_SCORE_COMPONENTS_LATEST = etl.map_tbl(
-            tbls["theme_score_components_latest"],
-            **tbl_args)
-        THEME_SCORE_COMPONENTS = etl.map_tbl(
-            tbls["theme_score_components"],
-            **tbl_args)
-        PRERANKED_ADS_FROM_THEMES_LATEST = etl.map_tbl(
-            tbls["preranked_ads_from_themes_latest"],
-            **tbl_args)
 
-    WEBHOOK_URL = cfg['webhooks']['DS Warnings']
-
-    # Force read from prod results tables for ad feedback scores
-    AD_RESULTS = etl.map_tbl(
+    theme_score_components_latest = etl.map_tbl(
+        tbls["theme_score_components_latest"],
+        **tbl_args,
+    )
+    theme_score_components = etl.map_tbl(
+        tbls["theme_score_components"],
+        **tbl_args,
+    )
+    preranked_ads_from_themes_latest = output_preranked_table or etl.map_tbl(
+        tbls["preranked_ads_from_themes_latest"],
+        **tbl_args,
+    )
+    webhook_url = cfg["webhooks"]["DS Warnings"]
+    ad_results = etl.map_tbl(
         cfg["tables"]["write"]["results_ads"],
-        catalog='marketingdata_prod',
-        schema='warehouse',
-        client=CLIENT
+        catalog="marketingdata_prod",
+        schema="warehouse",
+        client=client,
     )
 
+    logger.info(f"Getting theme to ad mappings from {control_sheet_latest}")
+    df_ads = load_control_ads(spark, control_sheet_latest)
+    df_ads = apply_auto_trading_filter(
+        df_ads,
+        auto_trading_switch,
+        logger,
+    )
+    df_theme2ad = build_theme_to_ad_mapping(df_ads)
 
-    logger.info(f'Getting theme to ad mappings from {CONTROL_SHEET_LATEST}')
+    logger.info(f"Getting customer base from {customer_cells_latest}")
+    df_cust = load_customer_base(spark, customer_cells_latest)
 
-    # AutoTrading/ remove underperforming ads from best targeting
-    # based on recent performance checks.
-    df_ads = (
-        spark.table(CONTROL_SHEET_LATEST)
+    logger.info(f"Getting theme scores from {next_theme_scores_latest}")
+    df_theme_scores = load_theme_scores(
+        spark, next_theme_scores_latest, df_cust
     )
 
-
-    if AUTO_TRADING_SWITCH:
-        count_df_ads = df_ads.select('UniqueAdID').distinct().count()
-
-        df_ads = (
-            df_ads
-            .join(spark.table(UNDERPERFORMING_ADS),
-                  on=['UniqueAdID', 'rundate'],
-                  how='left_anti')
-            .cache()
-        )
-
-        count_df_ads_pruned = df_ads.select('UniqueAdID').distinct().count()
-
-        logger.info(f'AutoTrading: removed {count_df_ads - count_df_ads_pruned:,} underperforming ads.')
-
-    df_theme2ad = (
-        df_ads
-        .where(F.col('AudienceOnly') != 1)
-        .select('Themes', 'UniqueAdID', 'AdVariant')
-        .where(F.col('Themes').isNotNull())
-        .where(F.col('Themes') != '')
-        .distinct()
+    logger.info("Normalising theme scores")
+    min_score, score_range = calculate_score_range(df_theme_scores, logger)
+    df_theme_scores = apply_greedy_theme_assignment(
+        df_theme_scores,
+        cfg.get("greedy_themes", {}),
+        job_env,
+        webhook_url,
+        logger,
+    )
+    df_theme2ad = append_ad_feedback_scores(
+        df_theme2ad,
+        enabled=apply_ad_feedback,
+        ad_results_table=ad_results,
+        control_sheet_latest_table=control_sheet_latest,
+        ad_feedback_weight=ad_feedback_weight,
+        sessions_threshold=min_c_sessions,
+        lookback_period_days=incremental_lookback,
+        logger=logger,
     )
 
-    logger.info(f'Getting customer base from {CUSTOMER_CELLS_LATEST}')
-    df_cust = spark.table(CUSTOMER_CELLS_LATEST).select('AccountNumber')
-
-    logger.info(f'Getting theme scores from {NEXT_THEME_SCORES_LATEST}')
-    # Limit to customers with cells so we don't waste processing accounts
-    # that will be dropped downstream
-    df_theme_scores = (
-        spark
-        .table(NEXT_THEME_SCORES_LATEST)
-        .join(df_cust, on='AccountNumber', how='inner')
+    logger.info("Normalising theme scores and mapping to ads")
+    df_score_components = build_score_components(
+        df_theme_scores,
+        df_theme2ad,
+        min_score,
+        score_range,
     )
 
-    logger.info('Normalising theme scores')
-    min_score = df_theme_scores.agg(F.min('ProbAggRebased')).collect()[0][0]
-    max_score = df_theme_scores.agg(F.max('ProbAggRebased')).collect()[0][0]
-    score_range = max_score - min_score
-    logger.info(f'Norm min/max/range: {min_score}/{max_score}/{score_range}')
-
-    GREEDY_CFG = cfg.get('greedy_themes', {})
-
-    # Validate greedy quota format
-    gcfg_isdict = isinstance(GREEDY_CFG.get('quotas', None), dict)
-    if gcfg_isdict:
-        gcfg_val_int = all(
-            [isinstance(k, int) for k in GREEDY_CFG['quotas'].values()]
-            )
-    else:
-        gcfg_val_int = False
-
-    if all([gcfg_isdict, gcfg_val_int]):
-        # Process greedy config
-        greedy_quotas = GREEDY_CFG.get('quotas')
-        max_quota = max(greedy_quotas.values())
-        logger.info(f'Greedy quotas: {greedy_quotas}')
-        # Default options for switching ntiles and switching behaviour
-        switch_tiles = GREEDY_CFG.get('switch_tiles', True)
-        tiles = GREEDY_CFG.get('tiles', 1000)
-        logger.info(f'Greedy tiles: {tiles} (switching: {switch_tiles})')
-        switch_multiplier = -1 if switch_tiles else 1
-
-        # Rank themes from most niche to least niche
-        df_theme_order = (
-            df_theme_scores
-            .where(F.col('NextTheme').isin(list(greedy_quotas.keys())))
-            .groupBy('NextTheme')
-            .agg(F.first('ProbBase').alias('ProbBase'))
-            .orderBy(F.col('ProbBase'))
-            .withColumn('ThemeOrder', F.monotonically_increasing_id() + 1)
-        )
-
-        df_theme_scores_global_rank = (
-            df_theme_scores
-            .join(df_theme_order, on='NextTheme', how='inner')
-            .withColumn(
-                'RankInTheme',
-                F.row_number().over(
-                    Window
-                    .partitionBy('NextTheme')
-                    .orderBy(F.col('ProbAggRebased').desc())
-                )
-            )
-            .where(F.col('RankInTheme') <= (len(greedy_quotas.keys()) * max_quota))
-            .withColumn(
-                'nTile',
-                F.ntile(1000).over(
-                    Window
-                    .partitionBy('NextTheme')
-                    .orderBy(F.col('ProbAggRebased').desc())
-                )
-            )
-            .withColumn(
-                'SwitchRank',
-                F.when(
-                    F.col('nTile') % 2 == 0,
-                    F.col('ThemeOrder') * F.lit(switch_multiplier)
-                ).otherwise(F.col('ThemeOrder'))
-            )
-            .orderBy(
-                F.col('nTile'),
-                F.col('SwitchRank'),
-                F.col('ProbAggRebased').desc()
-            )
-            .withColumn('GlobalRank', F.monotonically_increasing_id() + 1)
-        )
-
-        df_theme_scores_global_rank.cache()
-        gr_records = df_theme_scores_global_rank.count()
-        logger.info(f'{gr_records:,} records passed to greedy assignment')
-
-        df_theme_scores_greedy = greedy_assignment(
-            df_theme_scores_global_rank,
-            greedy_quotas,
-            item_col='NextTheme',
-            user_col='AccountNumber',
-            rank_col='GlobalRank'
-        )
-
-        df_theme_scores = (
-            df_theme_scores
-            .join(df_theme_scores_greedy.withColumn('GreedyScore', F.lit(1)),
-                  on=['AccountNumber', 'NextTheme'], how='left')
-            .fillna(0, subset=['GreedyScore'])
-        )
-    else:
-        if GREEDY_CFG:
-            bad_gcfg_msg = 'Invalid greedy theme config, skipping greedy assignment' # noqa
-            logger.warning(bad_gcfg_msg)
-            if JOB_ENV == "prod":
-                post_to_webhook(WEBHOOK_URL, bad_gcfg_msg)
-        logger.info('Greedy assignment not enabled')
-        logger.info('Defaulting to greedy score of 0 for all themes')
-        df_theme_scores = df_theme_scores.withColumn('GreedyScore', F.lit(0))
-
-
-    if APPLY_AD_FEEDBACK:
-        logger.info(f'Getting ad feedback scores (weight: {AD_FEEDBACK_WEIGHT})')
-        df_ad_feedback_scores = get_ad_feedback_scores(
-            ad_results_table=AD_RESULTS,
-            control_sheet_latest_table=CONTROL_SHEET_LATEST,
-            ad_feedback_weight=AD_FEEDBACK_WEIGHT,
-            sessions_threshold=MIN_C_SESSIONS,
-            lookback_period_days = INCREMENTAL_LOOKBACK
-        )
-
-        if not df_ad_feedback_scores or df_ad_feedback_scores.isEmpty():
-            logger.warning('No ad feedback scores returned')
-            logger.info('Defaulting to incremental score of 1.0 for all ads')
-            df_theme2ad = df_theme2ad.withColumn('IncrementalScore', F.lit(1.0))
-        else:
-            n_afs = df_ad_feedback_scores.count()
-            logger.info(f'{n_afs:,} ad feedback scores returned, appending')
-            df_theme2ad = (
-                df_theme2ad
-                .join(df_ad_feedback_scores, on='UniqueAdID', how='left')
-                .withColumnRenamed('AdFeedbackScore', 'IncrementalScore')
-                .fillna(1.0, subset=['IncrementalScore'])
-            )
-
-    else:
-        logger.info('Ad feedback loop not enabled')
-        logger.info('Defaulting to incremental score of 1.0 for all ads')
-        df_theme2ad = df_theme2ad.withColumn('IncrementalScore', F.lit(1.0))
-
-    logger.info('Normalising theme scores and mapping to ads')
-    # Add GreedyScore after normalisation so greedy assignments exist in
-    # range [1, 2), which normal scores fall in range [0, 1)
-    df_score_components = (
-        df_theme_scores
-        .withColumn(
-            'RelevanceScore',
-            ((F.col('ProbAggRebased') - F.lit(min_score)) / F.lit(score_range))
-            + F.col('GreedyScore')
-        )
-        .fillna(0, subset=['RelevanceScore'])
-        .join(df_theme2ad,
-              on=df_theme2ad['Themes'] == df_theme_scores['NextTheme'],
-              how='inner')
-        .withColumn('Score',
-                    F.col('RelevanceScore') * F.col('IncrementalScore'))
-        .select('AccountNumber',
-                F.col('NextTheme').alias('Theme'),
-                'UniqueAdID',
-                'AdVariant',
-                F.col('ProbAggRebased').alias('TriggerScore'),
-                'RelevanceScore',
-                'IncrementalScore',
-                'Score')
+    logger.info("Getting multi-session ad score")
+    logger.info(
+        "Joining multi-sessions onto score_components, and downweighting ads "
+        "seen more than 3 times in 7 days"
     )
-
-    logger.info('Getting multi-session ad score')
-    multi_session_ad_df = generate_repeat_ad_sessions(SESSIONS,ACTIONS)
-
-    logger.info('Joining multi-sessions onto score_components, and downweighting ads seen more than 3 times in 7 days')
-    df_score_components = (
-        df_score_components
-        .join(multi_session_ad_df,
-              on='AccountNumber',
-              how = 'left'
-              )
-        .withColumn(
-            'RowID',
-            F.concat_ws('_', F.col('AccountNumber'), F.col('UniqueAdID'))
-        )
-        .withColumn(
-            'StringDistance',
-            F.levenshtein(F.col("AdSeen"), F.col("UniqueAdID"))
-        )
+    df_score_components = apply_multi_session_downweighting(
+        df_score_components,
+        sessions,
+        actions,
     )
-    fm_window = Window.partitionBy("RowID").orderBy(F.col("StringDistance").asc_nulls_last())
-    max_distance_threshold = 10
-
-    df_score_components = (
-        df_score_components
-        .withColumn(
-            'MatchRank',
-            F.row_number().over(fm_window)
-        )
-        .filter(
-            F.col('MatchRank') == 1
-        )
-        .withColumn(
-            "MultiSessionDownweightScore",
-            F.when(
-                F.col("StringDistance") <= max_distance_threshold,
-                F.col("MultiSessionDownweightScore")
-            )
-            .otherwise(
-                F.lit(1.0)
-            )
-        )
-        .withColumn(
-            "Score",
-            F.col("Score") * F.col("MultiSessionDownweightScore")
-        )
-        .drop(
-            'MatchRank',
-            'StringDistance',
-            'AdSeen',
-            'RowID',
-            'sessions_seen_ad_in_last_7_days'
-        )
-        )
     df_score_components.cache()
     df_score_components.count()
 
     df_score_components_for_write = df_score_components.drop(
-        'AdVariant',
-        'TriggerScore')
-
-    logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS_LATEST}')
-    truncate_and_load(
-        df_score_components_for_write,
-        THEME_SCORE_COMPONENTS_LATEST,
-        pk_cols=['AccountNumber', 'Theme', 'UniqueAdID']
+        "AdVariant",
+        "TriggerScore",
     )
+    if write_score_components:
+        logger.info(
+            f"Loading score components to {theme_score_components_latest}"
+        )
+        truncate_and_load(
+            df_score_components_for_write,
+            theme_score_components_latest,
+            pk_cols=["AccountNumber", "Theme", "UniqueAdID"],
+        )
 
-    logger.info(f'Loading score components to {THEME_SCORE_COMPONENTS}')
-    delete_from_and_load(
-        df_score_components_for_write,
-        THEME_SCORE_COMPONENTS,
-        pk_cols=['AccountNumber', 'Theme', 'UniqueAdID'],
-        del_where={"rundate": "current_date()"}
-    )
+        logger.info(f"Loading score components to {theme_score_components}")
+        delete_from_and_load(
+            df_score_components_for_write,
+            theme_score_components,
+            pk_cols=["AccountNumber", "Theme", "UniqueAdID"],
+            del_where={"rundate": "current_date()"},
+        )
+    else:
+        logger.info("Skipping score component table writes for this route")
 
-
-    # Locations commonly have the same set of eligible ads, so to avoid repeating
-    # ranking processes multiple times (which is computationally expensive), we
-    # identify distinct ad sets across locations and rank ads per ad set first, and
-    # then map back to locations.
-    # Also, we can't just perform a global ranking and select the top ad per loc
-    # as the top ad according to the global ranking may not be eligible for that
-    # location. Another solution would be to take the max score per location during
-    # the task_build_page step, which would be less computationally expensive, but
-    # could be limiting if we needed to assign more than one ads per location.
-    logger.info('Fetching ad location mappings')
-    df_ad2loc = (
-        spark
-        .table(CONTROL_SHEET_LATEST)
-        .where(F.col('AudienceOnly') != 1)
-        .select('UniqueAdID', 'Location')
-        .distinct()
-    )
-
+    logger.info(f"Fetching ad {output_group_col} mappings")
     logger.info(
-        'Finding distinct ad sets across locations to minimise repeated ranking')
-    # Use string of sorted ad IDs as ad set identifier (effectively a hash key)
-    df_adsets = (
-        df_ad2loc
-        .groupBy('Location')
-        .agg(F.array_sort(F.collect_list('UniqueAdID')).alias('AdSetSorted'))
-        .withColumn('AdSet', F.concat_ws('|', F.col('AdSetSorted')))
-        .groupBy('AdSet')
-        .agg(F.collect_set('Location').alias('LocationSet'))
-        .withColumn(
-            'AdSetID',
-            F.row_number().over(
-                # Deterministic ordering is important here: ordering by a constant
-                # makes row_number assignment non-deterministic across retries.
-                Window.partitionBy(F.lit(1)).orderBy(F.col('AdSet'))
-                )
-            )
-        .select('AdSetID', 'LocationSet')
+        f"Finding distinct ad sets across {output_group_col} "
+        "to minimise repeated ranking"
+    )
+    df_ad2group, df_adset2group, df_ad2adset = build_ad_group_mappings(
+        spark,
+        control_sheet_latest,
+        logger,
+        group_col=output_group_col,
     )
 
-    df_adset2loc = (
-        df_adsets
-        .select('AdSetID', F.explode('LocationSet').alias('Location'))
+    logger.info(f"Ranking and returning top {top_ads} ads per ad set")
+    customer_prefs, age_order_map = load_customer_age_preferences(
+        spark, kids_age_groups
     )
-
-    n_locs = df_adset2loc.select('Location').distinct().count()
-    n_ad_sets = df_adsets.count()
-    logger.info(f'{n_ad_sets:,} distinct ad sets found across {n_locs:,} locations')
-
-    adsets_rows = df_adsets.collect()
-    for row in adsets_rows:
-        locations = ', '.join(sorted(row['LocationSet']))
-        logger.info(f"AdSetID {row['AdSetID']}: Locations [{locations}]")
-
-    df_ad2adset = (
-        df_ad2loc
-        .join(df_adset2loc, on='Location', how='inner')
-        .select('UniqueAdID', 'AdSetID')
-        .distinct()
-    )
-
-    logger.info(f'Ranking and returning top {TOP_ADS_PER_LOCATION} ads per ad set')
-    # De-duplicate multi-ad themes (random uniform selection)
-
-    # Create map to get age group to numeric value
-    age_order_map = F.create_map([F.lit(x) for pair in [
-        ('newborn', 0), ('toddler', 1), ('younger', 2), ('older', 3), ('teen', 4)
-    ] for x in pair])
-
-    # Use map to get customer age group to numeric value
-    customer_prefs = (
-        spark.table(KIDS_AGE_GROUPS)
-        .drop('rundate')
-        .withColumnRenamed('account_number', 'AccountNumber')
-        .withColumnRenamed('rank', 'customer_rank')
-        .withColumn('customer_age_order', age_order_map[F.col('kids_age_group')])
-        .select('AccountNumber', 'customer_age_order', 'customer_rank')
-    )
-
-    df_adset_scores = (
-        df_score_components
-        .join(customer_prefs, 'AccountNumber', how='left')
-        .withColumn('ad_age_order', age_order_map[F.col('AdVariant')])
-        # Calculate age_diff only for variant ads
-        .withColumn('age_diff',
-                    F.when(F.col('ad_age_order').isNotNull() &
-                           F.col('customer_age_order').isNotNull(),
-                           F.col('ad_age_order') - F.col('customer_age_order')))
-        # Filter: variant ads must be within 1 age group, or customer has no preference # noqa
-        .filter(
-            F.col('ad_age_order').isNull() |  # Non-variant themes always pass
-            F.col('customer_age_order').isNull() |  # No customer preference - all variants pass # noqa
-            ((F.col('age_diff') >= 0) & (F.col('age_diff') <= 1))
-        )
-        # Use seeded randomness so results are stable across Spark task retries.
-        .withColumn('Rand', F.rand(seed=13))
-        .withColumn(
-            'AdPerThemeRank',
-            F.rank().over(
-                Window.partitionBy('AccountNumber', 'Theme')
-                .orderBy(
-                    F.coalesce(F.col('age_diff'), F.lit(99)).asc(),  # Exact match first, nulls last # noqa
-                    F.coalesce(F.col('customer_rank'), F.lit(999)).asc(),  # Customer's preference order # noqa
-                    F.col('Rand').asc()
-                )
-            )
-        )
-        .where(F.col('AdPerThemeRank') == 1)
-        .select('AccountNumber', 'UniqueAdID', 'Score', 'TriggerScore')
-        .join(df_ad2adset, on='UniqueAdID', how='inner')
-        .withColumn('TieBreaker', F.rand(seed=17))
-        .withColumn(
-            'Rank',
-            F.rank().over(
-                Window
-                .partitionBy('AccountNumber', 'AdSetID')
-                .orderBy(F.desc('Score'), F.desc('TieBreaker'))
-            )
-        )
-        .where(F.col('Rank') <= TOP_ADS_PER_LOCATION)
+    df_adset_scores = rank_top_ads_per_adset(
+        df_score_components,
+        df_ad2adset,
+        customer_prefs,
+        age_order_map,
+        top_ads,
     )
     df_adset_scores.cache()
 
-    logger.info('Mapping ranked ads back to locations')
-    df_ad_scores = (
-        df_adset_scores
-        .join(df_adset2loc, on='AdSetID', how='inner')
-        .select(
-            'AccountNumber',
-            'UniqueAdID',
-            'Location',
-            'Score',
-            'TriggerScore',
-            'Rank')
+    logger.info(f"Mapping ranked ads back to {output_group_col}")
+    df_ad_scores = map_ranked_ads_to_groups(
+        df_adset_scores,
+        df_adset2group,
+        group_col=output_group_col,
     )
 
-    logger.info('Checking for ads assigned to ineligible locations')
-    df_violations = (
-        df_ad_scores
-        .join(df_ad2loc, on=['Location', 'UniqueAdID'], how='left_anti')
+    logger.info(f"Checking for ads assigned to ineligible {output_group_col}")
+    assert_eligible_groups(
+        df_ad_scores,
+        df_ad2group,
+        group_col=output_group_col,
     )
-    assert df_violations.count() == 0, 'Ads assigned to ineligible locations'
 
-    logger.info(
-        'Persisting final results to break lineage and prevent '
-        'shuffle retry issues'
-    )
+    logger.info("Caching deterministic final results for downstream reuse")
     df_ad_scores = df_ad_scores.persist()
     row_count = df_ad_scores.count()
-    logger.info(f'Materialized {row_count} rows in final result set')
+    logger.info(f"Materialized {row_count} rows in final result set")
 
     logger.info(
-        f'Loading preranked theme ads to {PRERANKED_ADS_FROM_THEMES_LATEST}')
+        f"Loading preranked theme ads to {preranked_ads_from_themes_latest}"
+    )
     truncate_and_load(
         df_ad_scores,
-        PRERANKED_ADS_FROM_THEMES_LATEST,
-        pk_cols=['AccountNumber', 'UniqueAdID', 'Location']
+        preranked_ads_from_themes_latest,
+        pk_cols=["AccountNumber", "UniqueAdID", output_group_col],
     )
 
     df_ad_scores.show()
 
-    logger.info('Unpersisting cached dataframes')
+    logger.info("Unpersisting cached dataframes")
     df_score_components.unpersist()
     df_adset_scores.unpersist()
     df_ad_scores.unpersist()
-
-    logger.info('Run complete')
+    logger.info("Run complete")

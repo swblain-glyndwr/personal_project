@@ -1,8 +1,9 @@
-import pytest
 from typing import Generator
 
+import pytest
 from pyspark.sql import DataFrame
-from scripts import plp_gs
+
+from next_ads.delivery import google_sheets as plp_gs
 
 
 class TestProcessControlSheetFromTableIntegration:
@@ -10,24 +11,23 @@ class TestProcessControlSheetFromTableIntegration:
 
     @pytest.fixture(scope="class")
     def processed_result(self, spark, config_prod) -> Generator[DataFrame, None, None]:
-        """
-        Process control sheet once for entire test class.
-        
+        """Process control sheet once for entire test class.
+
         Args:
             spark: Spark session
             config_prod: Production config
-            
+
         Returns:
             Generator[DataFrame, None, None]: Processed control sheet result
         """
         result = plp_gs.process_control_sheet(config_prod)
-        
+
         # Cache the result to avoid re-computation
         result.cache()
         result.count()  # Force evaluation
-        
+
         yield result
-        
+
         # Cleanup
         result.unpersist()
 
@@ -64,7 +64,6 @@ class TestProcessControlSheetFromTableIntegration:
     @pytest.mark.controlsheettable_integration
     def test_integration_masidcmsid_format(self, processed_result):
         """Test that MASIDCMSid is properly formatted."""
-
         result = processed_result
         result_pdf = result.toPandas()
 

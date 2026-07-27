@@ -30,8 +30,8 @@ next-ads/
           custom_checks.py  # Custom validation checks
 ```
 
-During the package migration, existing imports from
-`next_ads.data_validation` remain supported by compatibility wrappers.
+The package migration is complete. Use `next_ads.data.validation`; the former
+`next_ads.data_validation` compatibility path has been removed.
 
 ### 3. Create Schema (DataFrameModel)
 

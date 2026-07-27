@@ -1,7 +1,7 @@
 import pytest
 from dsutils.dbc import configure_spark
 from next_ads.common.paths import load_client_config, resolve_client_config_path
-from next_ads.utils import etl
+from next_ads.common import etl
 
 
 clients = [resolve_client_config_path("next_uk").stem]

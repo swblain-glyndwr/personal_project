@@ -1,85 +1,45 @@
-# Dynaconf Configuration Management
+# NextAds Dynaconf Configuration
 
-Dynaconf is a powerful configuration management tool for Python applications. It supports multiple config file formats (YAML, TOML, JSON, INI) and environment-based overrides.
+Dynaconf is the source of truth for NextAds runtime and client configuration. Shared environment settings live under `configs/runtime/`, route settings live under folders such as `configs/control/` and `configs/adsv2/`, and client settings live under `configs/clients/`.
 
-**Official Documentation:** https://www.dynaconf.org/
+The migration away from `configs/clients/*.json` removes a duplicated configuration source. Before this change, jobs loaded table paths, Google Sheet sources, locations, and theme mapping values from JSON while other runtime settings already came from Dynaconf YAML. That made it possible for JSON and YAML to drift. With Dynaconf, the same environment-aware loader resolves dev, preprod, and prod settings before a Databricks job starts.
 
----
+## Loading Config
 
-## **Quick Start**
+Use `load_config()` for new code:
 
-### 1. Install Dynaconf
-
-```bash
-poetry add dynaconf
-```
-
-### 2. Create Configuration Files
-
-Create configuration files under `configs/runtime` in your project root:
-
-```
-next-ads/
-  configs/
-    runtime/
-      settings.yaml          # Base configuration
-      settings.local.yaml    # Local overrides (git-ignored)
-      .env.local             # Local environment variable overrides (git-ignored)
-```
-
-### 3. Define Settings (YAML Format)
-
-**`configs/runtime/settings.yaml`**
-
-Default takes precedence, if ENV is set when loading config then environment specific values overwrite defaults.
-```yaml
-default:
-  warehouse: marketingdata_dev
-  schema: ds_sandbox
-  NEW_VAR: 123
-
-dev:
-  warehouse: marketingdata_dev
-  schema: ds_sandbox
-
-prod:
-  warehouse: marketingdata_prod
-  schema: warehouse
-```
-
-**`configs/runtime/.env.local`**
-
-Local environment variable overrides for configurations.
-```env
-USER_SCHEMA=first_lastname
-```
-
-### 4. Load Configuration in Your Code
-
-**`next_ads/config/config_manager.py`**
 ```python
-# Usage
-from next_ads.utils import config_manager
-JOB_ENV = "dev"
-config = config_manager.load_config(JOB_ENV)
-WAREHOUSE = config.catalog_read
+from next_ads.common.config_manager import load_config
+
+config = load_config(job_env="prod", client="next_uk")
+theme_mapping_url = config.theme_mapping.url
+control_sheet_v2_url = config.control_sheet_v2.url
+assignments_table = config.tables_write.assignments_latest
 ```
 
----
+`JOB_ENV` remains the Databricks/DAB environment selector. In Databricks, `JOB_ENV` must be supplied explicitly. `DATABRICKS_RUNTIME_VERSION` is used only to detect that a missing environment selector should fail loudly instead of falling back silently.
 
-## **Environment Variables Override**
+Client-aware jobs must pass the selected client into the loader, for example `load_config(JOB_ENV, client=CLIENT)`. This keeps `next_uk` and `next_gb` table paths, sheet sources, locations, and route settings separate at runtime.
 
-Any setting can be overridden via environment variables with prefix `NEXT_ADS_`:
+## Compatibility Wrapper
 
-```bash
-# Override via environment variable
-export NEXT_ADS_DATABASE__HOST=staging-db.example.com
-export NEXT_ADS_SPARK__MASTER=spark://staging-cluster:7077
+`load_client_config(client)` still exists for older jobs, but it is now backed by Dynaconf and emits a `DeprecationWarning`. New code should not call it. Existing callers should move to `load_config(job_env, client)` as they are touched.
 
-python your_script.py
+The compatibility wrapper keeps the legacy dict shape available during the transition, including the older `tables.read` and `tables.write` keys. This is intentional so the config source can move first without changing job outputs.
+
+## Validation
+
+`config_manager.py` registers Dynaconf validators during load. Required config such as `tables_read`, `tables_write`, `gcp`, `control_sheet`, `control_sheet_v2`, `exclusions_sheet`, `theme_mapping`, `theme_mapping_v2`, `locations`, catalogs, schemas, and client id must exist before the job can continue. Table path leaves must be non-empty strings.
+
+This turns missing or malformed configuration into an immediate startup failure instead of allowing a Spark job to initialise and then fail later with a less useful error.
+
+## Client Config
+
+Client-specific settings are loaded from:
+
+```text
+configs/clients/next_uk.yaml
+configs/clients/next_gb.yaml
 ```
----
 
-## **Useful Resources**
-
-- 📚 [Dynaconf Official Docs](https://www.dynaconf.com/)
+The JSON client files are no longer an operational configuration source. If legacy JSON values are needed for migration evidence, keep them as fixtures rather than job-loaded config.

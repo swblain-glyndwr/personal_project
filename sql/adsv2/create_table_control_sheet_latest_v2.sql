@@ -23,6 +23,7 @@ create table {catalog}.{schema}.{client}_nextads_control_sheet_latest_v2 (
   Themes STRING,
   AdVariant STRING,
   ClusterID STRING,
+  IsUnderperforming BOOLEAN,
   rundate DATE NOT NULL,
   constraint pk_{client}_nextads_control_sheet_latest_v2 primary key (
     UniqueAdID,

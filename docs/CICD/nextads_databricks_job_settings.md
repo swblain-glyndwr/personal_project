@@ -2,7 +2,7 @@
 
 Status: Working reference
 
-This page explains the runtime settings declared in `resources/jobs/*.yml`.
+This page explains the runtime settings declared in `pipelines/databricks/jobs/*.yml`.
 For target availability and release-route rules, see
 `docs/CICD/nextads_databricks_job_environment_matrix.md`.
 
@@ -22,19 +22,25 @@ For target availability and release-route rules, see
 
 ### `mktg_next_uk_nextads_candidate_build`
 
-Main NextAds candidate-generation graph.
+Main NextAds candidate-generation graph. Customer cells, item attributes, product Theme Mapping, and lightweight theme scoring are shared. V1 and v2 split at the loaded control-sheet join layer. Theme Affinity is not a task in this graph; its 09:00 scheduled job writes the shared customer-theme score source used by both candidate mappers.
+
+The v2 workbook is the source of truth for the `Theme Mapping` tab. An external Google Sheets Apps Script copies it to the v1 workbook, where the tab should be locked. The candidate-build job validates that copy before parsing the shared product Theme Mapping.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
 | `assign_customer_cells` | `client`, `job_env`, `refresh_control_date` | `refresh_control_date` is date-gated; use a current `YYYY-MM-DD` only when deliberately refreshing control assignments. |
 | `combine_customer_cells` | `client`, `job_env` | Combines outputs from assignment. |
-| `load_control_sheet`, `load_control_sheet_v2` | `client`, `job_env` | Loads current control-sheet data for the target environment. |
+| `load_control_sheet_v1` | `client`, `job_env` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
+| `load_control_sheet_v2` | `client`, `job_env` | Loads v2 page-type control-sheet data and writes `control_sheet_latest_v2`. |
 | `parse_attributes` | `client`, `job_env`, `refresh_attributes_date` | Refreshes the attribute set only when the date is today; otherwise remaps using latest attributes. |
-| `parse_theme_mapping` | `client`, `job_env`, `refresh_themes_date` | Refreshes theme mapping only when the date is today; otherwise uses latest mapping. |
-| `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs Markov scoring. Refreshes transition probabilities only when the date is today. |
-| `map_theme_scores_to_ads` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | `apply-ad-feedback` is a flag. `top-ads-per-location` is a positive integer. |
-| `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | `top-ads-per-page-type` is a positive integer. |
-| `trigger_page_build_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local page-build job id. `fail-on-submit-error` is a flag. |
+| `validate_theme_mapping_sync` | `client`, `job_env`, optional `warn-only` flag | Compares the v2 source Theme Mapping tab with the copied v1 Theme Mapping tab. The default is a hard stop on differences. |
+| `parse_theme_mapping` | `client`, `job_env`, `refresh_theme_mapping`, `refresh_themes_date` | Reads the copied v1 product Theme Mapping tab and writes `theme_mapping_latest` / `item_themes_latest`. Set `refresh_theme_mapping=true` to refresh the Theme Mapping snapshot; the old date trigger remains for compatibility. |
+| `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs Markov scoring. Refreshes transition probabilities only when the date is today. This remains a shared upstream task dependency, but the candidate mapper's customer-theme source is Theme Affinity model latest. |
+| `validate_theme_affinity_theme_coverage` | `client`, `job_env`, `warn-only` flag | Checks active v1/v2 ad `Themes` from the loaded control sheets exist in shared `theme_affinity_model_latest.NextTheme`. Candidate build passes `warn-only`, so missing coverage is reported but does not block the route mappers. |
+| `map_theme_scores_to_ads_v1` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest`, joins `NextTheme` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. `apply-ad-feedback` is a flag. |
+| `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest_v2`, joins `NextTheme` to ad `Themes`, ranks by `PageType`, and writes `preranked_ads_from_themes_v2_latest`; it does not read v1 preranked output. |
+| `trigger_page_build_v1_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build` job id. `fail-on-submit-error` is a flag. |
+| `trigger_page_build_v2_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build_v2` job id. `fail-on-submit-error` is a flag. |
 
 ### `mktg_next_uk_nextads_dev_setup`
 
@@ -52,18 +58,28 @@ candidate scoring.
 
 ### `mktg_next_uk_nextads_table_operations`
 
-Manual table maintenance. Defaults are inert.
+Manual table maintenance. Defaults are inert: every `run_*` action defaults to `false`, and `dry_run` defaults to `true`. Select exactly one `run_*` action for each run.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
-| `operation` | Operation to prepare or execute. | `create_missing_tables`, `alter_tables`, `recreate_tables`, `drop_tables`. |
+| `run_create_missing_tables` | Create configured tables that do not already exist. | Set to `true` for this action only. Requires `confirm_mutating=true` when `dry_run=false`. |
+| `run_alter_tables` | Repair configured tables to match their SQL contracts. | Set to `true` for this action only. It adds safe trailing nullable columns directly and rebuilds drifted DEV/PREPROD tables by column name when order, type, nullability, or required defaulted columns need repair. PROD rebuild repair is blocked. Requires `confirm_mutating=true` when `dry_run=false`. |
+| `run_recreate_tables` | Drop and recreate configured tables. | Set to `true` for this action only. Requires `confirm_destructive=true` when `dry_run=false`. |
+| `run_drop_tables` | Drop explicit tables listed in `tables`. | Set to `true` for this action only. Requires `confirm_destructive=true` when `dry_run=false`. |
+| `run_copy_prod_tables_to_dev` | Copy configured PROD read/source tables into the selected DEV schema. | Set to `true` for this action only. Requires `job_env=dev` and `confirm_mutating=true` when `dry_run=false`. |
 | `client` | Client config key. | Usually `next_uk`. |
 | `job_env` | Environment config to use. | Target-provided `dev`, `preprod`, or `prod`. |
 | `catalog`, `schema` | Namespace for explicit table operations. | Required for `drop_tables`; defaults come from target variables. |
-| `tables` | Comma-separated table list for `drop_tables`. | Unqualified names resolve under `catalog.schema`; fully qualified names must match `catalog.schema`. Wildcards are rejected. |
-| `confirm_mutating` | Allows non-destructive mutation. | Must be `true` with `dry_run=false` for `create_missing_tables` and `alter_tables`. |
+| `tables` | Optional comma-separated table list. | Blank means all configured tables for create/alter/recreate. For `drop_tables`, explicit names are required when `dry_run=false`. Unqualified names resolve under `catalog.schema`; fully qualified names must match `catalog.schema`. Wildcards are rejected. |
+| `history_days` | Number of days copied by `run_copy_prod_tables_to_dev`. | Defaults to `1`. |
+| `input_tables_only` | Skips generated ranking output tables during PROD-to-DEV copy. | Defaults to `true`. |
+| `confirm_mutating` | Allows non-destructive mutation. | Must be `true` with `dry_run=false` for `run_create_missing_tables`, `run_alter_tables`, and `run_copy_prod_tables_to_dev`. |
 | `confirm_destructive` | Allows destructive mutation. | Must be `true` with `dry_run=false` for `recreate_tables` and `drop_tables`. |
 | `dry_run` | Preview without executing. | Defaults to `true`; set `false` only with the relevant confirmation. |
+
+To copy PROD source tables into a personal DEV schema, run `mktg_next_uk_nextads_table_operations` with `run_copy_prod_tables_to_dev=true`, `job_env=dev`, `client=next_uk`, `history_days=1`, `input_tables_only=true`, `confirm_mutating=true`, and `dry_run=false`. Leave `dry_run=true` first when you only want to check the selected action.
+
+To repair stale DEV table layouts before running candidate/page-build jobs, run the same job with `run_alter_tables=true`, `job_env=dev`, `client=next_uk`, `tables` blank, `confirm_mutating=true`, and `dry_run=false`. This checks all configured write tables against the repo SQL contracts. For the known control-sheet drift, it rebuilds the stale table from a backup using column names rather than positional writes, so `IsUnderperforming` sits before `rundate` as expected. For `customer_cells_latest`, missing `Audience` is repaired with the literal string value `"false"`.
 
 ### DEV Integration And PREPROD Table Setup Jobs
 
@@ -93,6 +109,9 @@ Shared DEV feature-store build.
 ### `mktg_next_uk_nextads_theme_affinity`
 
 Operational Theme Affinity publish, predict, clean, and sense-check graph.
+This job is a shared upstream producer for candidate mapping. It does not depend
+on either v1 or v2 control sheets; the route split happens later inside
+`mktg_next_uk_nextads_candidate_build`.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |

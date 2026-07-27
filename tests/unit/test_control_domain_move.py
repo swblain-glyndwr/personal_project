@@ -16,6 +16,7 @@ from next_ads.control.theme_mapping import (
     normalise_theme_mapping,
     rank_item_themes,
 )
+from next_ads.control.theme_mapping_sync import build_theme_mapping_differences
 from tests.job_resource_helpers import load_job
 
 
@@ -158,22 +159,58 @@ def test_theme_mapping_filters_and_ranks_item_themes(local_spark):
     ]
 
 
+def test_theme_mapping_sync_detects_v2_source_differences(local_spark):
+    spark = local_spark
+    columns = [
+        "Theme",
+        "TargetingAttributes",
+        "ThemeType",
+        "ThemeTypeRank",
+        "AdType",
+        "AdTypeRank",
+    ]
+    v1 = spark.createDataFrame(
+        [
+            (" Summer ", "gender:women", "Seasonal", "01", "Promo", "2"),
+            ("party", "occasion:party", "Occasion", "2", "Promo", "3"),
+        ],
+        columns,
+    )
+    v2 = spark.createDataFrame(
+        [
+            ("summer", "GENDER:WOMEN", "seasonal", "1", "promo", "02"),
+            ("denim", "category:jeans", "Category", "2", "Promo", "3"),
+        ],
+        columns,
+    )
+
+    differences = build_theme_mapping_differences(v1, v2)
+
+    assert _sorted_rows(differences, "difference_type", "Theme") == [
+        ("v1_only", "party"),
+        ("v2_only", "denim"),
+    ]
+
+
 def test_main_job_uses_control_domain_entrypoints():
     job = load_job(
-        "resources/jobs/mktg_next_uk_nextads.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
-    assert tasks_by_key["load_control_sheet"]["spark_python_task"][
+    assert tasks_by_key["load_control_sheet_v1"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/nextads_main/load_control_sheet.py"
+    ] == "../../../jobs/nextads_control/load_control_sheet.py"
     assert tasks_by_key["parse_attributes"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/nextads_main/parse_attributes.py"
+    ] == "../../../jobs/nextads_control/parse_attributes.py"
     assert tasks_by_key["parse_theme_mapping"]["spark_python_task"][
         "python_file"
-    ] == "../../jobs/nextads_main/parse_theme_mapping.py"
+    ] == "../../../jobs/nextads_control/parse_theme_mapping.py"
+    assert tasks_by_key["validate_theme_mapping_sync"]["spark_python_task"][
+        "python_file"
+    ] == "../../../jobs/nextads_control/validate_theme_mapping_sync.py"
 
 
 def test_databricks_sync_includes_job_entrypoints():

@@ -1,9 +1,11 @@
 import sys
-import types
+from pathlib import Path
 
 import pytest
 
 from jobs.table_operations import setup_dev_tables
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_dev_setup_rejects_non_dev_environment():
@@ -126,40 +128,12 @@ def test_legacy_standard_flag_maps_to_create_only():
     assert args.mode == "create_only"
 
 
-def test_legacy_setup_wrapper_main_maps_sample_bool(monkeypatch):
-    calls = []
-
-    import scripts.table_operations.setup_dev_tables as wrapper
-
-    monkeypatch.setattr(
-        wrapper,
-        "run_dev_setup",
-        lambda **kwargs: calls.append(kwargs),
-    )
-
-    wrapper.main(True)
-    wrapper.main(False)
-
-    assert calls == [{"mode": "seed_latest"}, {"mode": "create_only"}]
-
-
-def test_build_markov_chain_wrapper_delegates_kwargs(monkeypatch):
-    calls = []
-    fake_module = types.ModuleType("jobs.nextads_main.build_markov_chain")
-    fake_module.main = lambda *args, **kwargs: calls.append((args, kwargs))
-    monkeypatch.setitem(
-        sys.modules,
-        "jobs.nextads_main.build_markov_chain",
-        fake_module,
-    )
-
-    import scripts.build_markov_chain as wrapper
-
-    wrapper.main(JOB_ENV="DEV", CLIENT="next_uk", LOG_LEVEL="INFO")
-
-    assert calls == [
-        (
-            (),
-            {"JOB_ENV": "DEV", "CLIENT": "next_uk", "LOG_LEVEL": "INFO"},
-        )
+def test_legacy_setup_and_candidate_wrappers_are_removed():
+    obsolete_wrappers = [
+        PROJECT_ROOT / "scripts" / "table_operations" / "setup_dev_tables.py",
+        PROJECT_ROOT / "scripts" / "build_markov_chain.py",
+        PROJECT_ROOT / "jobs" / "nextads_main" / "build_markov_chain.py",
     ]
+
+    for wrapper in obsolete_wrappers:
+        assert not wrapper.exists()

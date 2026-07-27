@@ -1,12 +1,12 @@
 create table {catalog}.{schema}.{client}_nextads_exclusions (
-    PageType string not null,
-    Page string not null,
-    Exclude_Campaign string not null,
+    url string not null,
+    masidSlot string not null,
+    CMSPageID string not null,
     rundate date not null,
   constraint pk_{client}_nextads_exclusions primary key (
-    PageType,
-    Page,
-    Exclude_Campaign,
+    url,
+    masidSlot,
+    CMSPageID,
     rundate
     )
 )

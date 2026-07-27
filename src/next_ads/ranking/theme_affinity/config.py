@@ -28,12 +28,19 @@ def resolve_runtime(
     client: str,
     model_uri: str | None = None,
 ) -> ThemeAffinityRuntime:
-    config = config_manager.load_config(job_env)
+    config = config_manager.load_config(job_env, client=client)
     project_root = _project_root()
     namespace = f"{config.catalog_write}.{config.schema_write}"
     table_prefix = config.ranking_model_table_prefix
     resolved_model_uri = model_uri or config.ranking_model.model_uri
-    sql_path = project_root / "src" / "next_ads" / "ranking" / "theme_affinity" / "sql"
+    sql_path = (
+        project_root
+        / "src"
+        / "next_ads"
+        / "ranking"
+        / "theme_affinity"
+        / "sql"
+    )
 
     return ThemeAffinityRuntime(
         config=config,
