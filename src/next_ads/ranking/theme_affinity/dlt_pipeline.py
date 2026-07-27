@@ -1,6 +1,4 @@
-from pathlib import Path
 import re
-import sys
 
 from pyspark import pipelines as dp
 from pyspark.sql import SparkSession
@@ -8,26 +6,6 @@ from pyspark.sql import functions as F
 
 
 spark = SparkSession.builder.getOrCreate()
-
-
-def _bootstrap_repo_paths():
-    src_root = Path(spark.conf.get("pipeline.source_path"))
-    if not (src_root / "next_ads").is_dir():
-        raise RuntimeError(
-            "Canonical NextAds package not found under configured "
-            f"pipeline.source_path: {src_root}"
-        )
-    project_root = src_root.parent
-
-    for path in (src_root, project_root):
-        path_text = str(path)
-        if path_text in sys.path:
-            sys.path.remove(path_text)
-    sys.path.insert(0, str(src_root))
-    sys.path.insert(1, str(project_root))
-
-
-_bootstrap_repo_paths()
 
 from next_ads.ranking.theme_affinity.data_prep import (
     apply_post_process,

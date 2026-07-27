@@ -1,6 +1,10 @@
 import ast
+import os
+import pickle
 from pathlib import Path
-from types import SimpleNamespace
+import subprocess
+import sys
+import tomllib
 
 import yaml
 
@@ -123,48 +127,16 @@ def _pipeline_python_sources():
     ):
         config = yaml.safe_load(config_path.read_text())
         for mapping in _walk_mappings(config):
-            configuration = mapping.get("configuration")
             libraries = mapping.get("libraries")
-            if not isinstance(configuration, dict) or not isinstance(
-                libraries, list
-            ):
+            if not isinstance(libraries, list):
                 continue
+            configuration = mapping.get("configuration", {})
+            if not isinstance(configuration, dict):
+                configuration = {}
             for library in libraries:
                 source_path = library.get("glob", {}).get("include")
                 if isinstance(source_path, str) and source_path.endswith(".py"):
-                    yield config_path, configuration, source_path
-
-
-def _execute_pipeline_bootstrap_without_file(
-    source_path: Path,
-    configured_src_root: Path,
-):
-    tree = ast.parse(source_path.read_text(), filename=str(source_path))
-    bootstrap_nodes = [
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef)
-        and node.name == "_bootstrap_repo_paths"
-    ]
-    module = ast.fix_missing_locations(
-        ast.Module(body=bootstrap_nodes, type_ignores=[])
-    )
-
-    class _PipelineConfig:
-        def get(self, key, default=None):
-            if key == "pipeline.source_path":
-                return str(configured_src_root)
-            return default
-
-    fake_sys = SimpleNamespace(path=["legacy-repository-root"])
-    namespace = {
-        "Path": Path,
-        "spark": SimpleNamespace(conf=_PipelineConfig()),
-        "sys": fake_sys,
-    }
-    exec(compile(module, str(source_path), "exec"), namespace)
-    namespace["_bootstrap_repo_paths"]()
-    return fake_sys.path
+                    yield config_path, mapping, configuration, source_path
 
 
 def test_legacy_package_roots_are_removed():
@@ -263,6 +235,7 @@ def test_bundle_sync_and_data_pull_use_canonical_routes():
     sync_includes = bundle["sync"]["include"]
 
     assert "src/next_ads/**" in sync_includes
+    assert "deployment/lakeflow_package/**" in sync_includes
     assert "next_ads/**" not in sync_includes
     assert "next_ads/data/**" not in sync_includes
 
@@ -336,50 +309,86 @@ def test_all_databricks_source_routes_exist():
     assert not violations, "\n".join(violations)
 
 
-def test_lakeflow_sources_resolve_src_without_file(tmp_path):
-    deployed_src_root = tmp_path / "src"
-    (deployed_src_root / "next_ads").mkdir(parents=True)
-
-    pipeline_sources = {
+def test_lakeflow_sources_install_canonical_package_for_workers():
+    libraries = yaml.safe_load(
         (
-            config_path,
-            source_path,
-        ): configuration.get("pipeline.source_path")
-        for config_path, configuration, source_path in _pipeline_python_sources()
+            PROJECT_ROOT / "pipelines/databricks/variables/libraries.yml"
+        ).read_text()
+    )
+    dependencies = libraries["variables"]["pipeline_libraries"]["default"][
+        "dependencies"
+    ]
+    assert dependencies[-1] == (
+        "--editable ${workspace.file_path}/deployment/lakeflow_package"
+    )
+
+    with (
+        PROJECT_ROOT / "deployment/lakeflow_package/pyproject.toml"
+    ).open("rb") as package_file:
+        package_config = tomllib.load(package_file)
+    with (PROJECT_ROOT / "pyproject.toml").open("rb") as project_file:
+        project_config = tomllib.load(project_file)
+    assert (
+        package_config["project"]["version"]
+        == project_config["project"]["version"]
+    )
+    assert package_config["project"]["dependencies"] == []
+    assert package_config["tool"]["setuptools"]["package-dir"] == {
+        "": "../../src"
+    }
+    assert package_config["tool"]["setuptools"]["packages"]["find"] == {
+        "where": ["../../src"],
+        "include": ["next_ads*"],
     }
 
+    pipeline_sources = list(_pipeline_python_sources())
     assert pipeline_sources
     for (
         config_path,
+        pipeline,
+        configuration,
         configured_source,
-    ), configured_src in pipeline_sources.items():
-        assert configured_src == "${workspace.file_path}/src", config_path
+    ) in pipeline_sources:
+        assert pipeline["environment"] == "${var.pipeline_libraries}", config_path
+        assert "pipeline.source_path" not in configuration, config_path
 
         source_path = _resolve_bundle_source_path(
             config_path, configured_source
         )
         tree = ast.parse(source_path.read_text(), filename=str(source_path))
-        bootstrap_call_line = min(
-            node.lineno
-            for node in tree.body
-            if isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Call)
-            and isinstance(node.value.func, ast.Name)
-            and node.value.func.id == "_bootstrap_repo_paths"
-        )
-        package_import_line = min(
-            node.lineno for node in tree.body if _imports_next_ads(node)
-        )
+        assert any(_imports_next_ads(node) for node in tree.body), source_path
+        assert "_bootstrap_repo_paths" not in source_path.read_text()
+        assert "sys.path" not in source_path.read_text()
 
-        assert bootstrap_call_line < package_import_line, source_path
-        resolved_paths = _execute_pipeline_bootstrap_without_file(
-            source_path,
-            deployed_src_root,
-        )
-        assert resolved_paths[:2] == [
-            str(deployed_src_root),
-            str(tmp_path),
-        ]
+
+def test_canonical_function_unpickles_with_src_package_available(tmp_path):
+    from next_ads.common.paths import find_project_root
+
+    payload_path = tmp_path / "worker-payload.pkl"
+    payload_path.write_bytes(pickle.dumps(find_project_root))
+
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(PROJECT_ROOT / "src")
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import pickle, sys; "
+                "function = pickle.load(open(sys.argv[1], 'rb')); "
+                "assert function.__module__ == 'next_ads.common.paths'; "
+                "assert function().name == 'next-ads'"
+            ),
+            str(payload_path),
+        ],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_feature_job_bootstrap_uses_its_declared_file_location():
