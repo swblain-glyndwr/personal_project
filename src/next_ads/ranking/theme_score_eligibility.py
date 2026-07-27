@@ -2,7 +2,10 @@ from pyspark.sql import Window
 from pyspark.sql import functions as F
 
 from dsutils.etl import post_to_webhook
-from next_ads.decisioning.assignment import get_ad_feedback_scores, greedy_assignment
+from next_ads.decisioning.assignment import (
+    get_ad_feedback_scores,
+    greedy_assignment,
+)
 
 
 def apply_auto_trading_filter(df_ads, enabled: bool, logger):
@@ -28,13 +31,17 @@ def apply_greedy_theme_assignment(
 ):
     gcfg_isdict = isinstance(greedy_cfg.get("quotas", None), dict)
     if gcfg_isdict:
-        gcfg_val_int = all(isinstance(k, int) for k in greedy_cfg["quotas"].values())
+        gcfg_val_int = all(
+            isinstance(k, int) for k in greedy_cfg["quotas"].values()
+        )
     else:
         gcfg_val_int = False
 
     if not all([gcfg_isdict, gcfg_val_int]):
         if greedy_cfg:
-            bad_gcfg_msg = "Invalid greedy theme config, skipping greedy assignment"
+            bad_gcfg_msg = (
+                "Invalid greedy theme config, skipping greedy assignment"
+            )
             logger.warning(bad_gcfg_msg)
             if job_env == "prod":
                 post_to_webhook(webhook_url, bad_gcfg_msg)
@@ -50,27 +57,46 @@ def apply_greedy_theme_assignment(
     logger.info(f"Greedy tiles: {tiles} (switching: {switch_tiles})")
     switch_multiplier = -1 if switch_tiles else 1
 
+    theme_order_window = Window.orderBy(
+        F.col("ProbBase").asc_nulls_last(),
+        F.col("NextTheme").asc(),
+    )
     df_theme_order = (
-        df_theme_scores.where(F.col("NextTheme").isin(list(greedy_quotas.keys())))
+        df_theme_scores.where(
+            F.col("NextTheme").isin(list(greedy_quotas.keys()))
+        )
         .groupBy("NextTheme")
-        .agg(F.first("ProbBase").alias("ProbBase"))
-        .orderBy(F.col("ProbBase"))
-        .withColumn("ThemeOrder", F.monotonically_increasing_id() + 1)
+        .agg(F.max("ProbBase").alias("ProbBase"))
+        .withColumn(
+            "ThemeOrder",
+            F.row_number().over(theme_order_window),
+        )
     )
 
+    score_order = [
+        F.col("ProbAggRebased").desc_nulls_last(),
+        F.col("AccountNumber").asc(),
+    ]
+    global_rank_window = Window.orderBy(
+        F.col("nTile").asc(),
+        F.col("SwitchRank").asc(),
+        F.col("ProbAggRebased").desc_nulls_last(),
+        F.col("NextTheme").asc(),
+        F.col("AccountNumber").asc(),
+    )
     df_theme_scores_global_rank = (
         df_theme_scores.join(df_theme_order, on="NextTheme", how="inner")
         .withColumn(
             "RankInTheme",
             F.row_number().over(
-                Window.partitionBy("NextTheme").orderBy(F.col("ProbAggRebased").desc())
+                Window.partitionBy("NextTheme").orderBy(*score_order)
             ),
         )
         .where(F.col("RankInTheme") <= (len(greedy_quotas.keys()) * max_quota))
         .withColumn(
             "nTile",
             F.ntile(1000).over(
-                Window.partitionBy("NextTheme").orderBy(F.col("ProbAggRebased").desc())
+                Window.partitionBy("NextTheme").orderBy(*score_order)
             ),
         )
         .withColumn(
@@ -80,8 +106,10 @@ def apply_greedy_theme_assignment(
                 F.col("ThemeOrder") * F.lit(switch_multiplier),
             ).otherwise(F.col("ThemeOrder")),
         )
-        .orderBy(F.col("nTile"), F.col("SwitchRank"), F.col("ProbAggRebased").desc())
-        .withColumn("GlobalRank", F.monotonically_increasing_id() + 1)
+        .withColumn(
+            "GlobalRank",
+            F.row_number().over(global_rank_window),
+        )
     )
 
     df_theme_scores_global_rank.cache()
@@ -96,13 +124,11 @@ def apply_greedy_theme_assignment(
         rank_col="GlobalRank",
     )
 
-    return (
-        df_theme_scores.join(
-            df_theme_scores_greedy.withColumn("GreedyScore", F.lit(1)),
-            on=["AccountNumber", "NextTheme"],
-            how="left",
-        ).fillna(0, subset=["GreedyScore"])
-    )
+    return df_theme_scores.join(
+        df_theme_scores_greedy.withColumn("GreedyScore", F.lit(1)),
+        on=["AccountNumber", "NextTheme"],
+        how="left",
+    ).fillna(0, subset=["GreedyScore"])
 
 
 def append_ad_feedback_scores(
@@ -164,7 +190,9 @@ def load_customer_age_preferences(spark, kids_age_groups: str):
         .drop("rundate")
         .withColumnRenamed("account_number", "AccountNumber")
         .withColumnRenamed("rank", "customer_rank")
-        .withColumn("customer_age_order", age_order_map[F.col("kids_age_group")])
+        .withColumn(
+            "customer_age_order", age_order_map[F.col("kids_age_group")]
+        )
         .select("AccountNumber", "customer_age_order", "customer_rank")
     )
     return customer_prefs, age_order_map
@@ -176,7 +204,9 @@ def assert_eligible_groups(df_ad_scores, df_ad2group, group_col: str):
         on=[group_col, "UniqueAdID"],
         how="left_anti",
     )
-    assert df_violations.count() == 0, f"Ads assigned to ineligible {group_col}"
+    assert df_violations.count() == 0, (
+        f"Ads assigned to ineligible {group_col}"
+    )
 
 
 def assert_eligible_locations(df_ad_scores, df_ad2loc):
