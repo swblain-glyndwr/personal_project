@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_rerankin
     constraint pk_{client}_nextads_realtime_reranking_preranked_ads primary key (
         UniqueAdID,
         roamingprofileid,
+         PageType,
         rundate)
 )
 USING DELTA

@@ -16,6 +16,5 @@ rundate date not null,
         rundate)
 )
 USING DELTA
-PARTITIONED BY (pid)
 TBLPROPERTIES('delta.enableChangeDataFeed'= 'true' )
 ;
