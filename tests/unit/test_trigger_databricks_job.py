@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from scripts import trigger_databricks_job
+from jobs.orchestration import trigger_databricks_job
 
 
 class FakeJobsClient:
@@ -22,7 +22,7 @@ def test_trigger_job_submits_run_without_waiting_for_completion():
 
     run_id = trigger_databricks_job.trigger_job(
         job_id=67890,
-        job_name="mktg_next_uk_nextads_qa",
+        job_name="mktg_next_uk_nextads_assignment_validation",
         client=client,
     )
 

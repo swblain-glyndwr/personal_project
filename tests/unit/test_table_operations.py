@@ -8,13 +8,16 @@ import jobs.table_operations.table_operations as table_operations_module
 from jobs.table_operations.table_operations import (
     alter_tables,
     build_drop_table_statement,
+    copy_prod_tables_to_dev,
     create_missing_tables,
     drop_tables,
     parse_bool,
     recreate_tables,
+    resolve_operation_from_flags,
     resolve_project_root,
     resolve_table_name,
     run_configured_table_operation,
+    run_operation,
     split_table_names,
 )
 
@@ -28,6 +31,14 @@ class FakeSpark:
 
 
 class FakeCreateTablesModule:
+    def __init__(self):
+        self.calls = []
+
+    def main(self, **kwargs):
+        self.calls.append(kwargs)
+
+
+class FakeMirrorProdTablesModule:
     def __init__(self):
         self.calls = []
 
@@ -135,7 +146,7 @@ def test_drop_tables_executes_confirmed_drop_statements():
 
 
 def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
-    monkeypatch.delitem(sys.modules, "scripts.table_operations.create_tables", raising=False)
+    monkeypatch.delitem(sys.modules, "jobs.table_operations.create_tables", raising=False)
     monkeypatch.setattr(
         table_operations_module,
         "bootstrap_project_imports",
@@ -151,7 +162,7 @@ def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
         dry_run=False,
     )
 
-    assert "scripts.table_operations.create_tables" not in sys.modules
+    assert "jobs.table_operations.create_tables" not in sys.modules
 
 
 def test_resolve_project_root_handles_databricks_exec_without_file(monkeypatch):
@@ -241,6 +252,34 @@ def test_recreate_tables_requires_destructive_confirmation_when_executing():
         )
 
 
+def test_resolve_operation_from_flags_requires_one_selected_action():
+    with pytest.raises(ValueError, match="Exactly one run_\\*"):
+        resolve_operation_from_flags(
+            run_create_missing_tables="false",
+            run_alter_tables="false",
+            run_recreate_tables="false",
+            run_drop_tables="false",
+            run_copy_prod_tables_to_dev="false",
+        )
+
+    assert (
+        resolve_operation_from_flags(run_copy_prod_tables_to_dev="true")
+        == "copy_prod_tables_to_dev"
+    )
+
+
+def test_resolve_operation_from_flags_rejects_multiple_selected_actions():
+    with pytest.raises(ValueError, match="Exactly one run_\\*"):
+        resolve_operation_from_flags(
+            run_create_missing_tables="true",
+            run_copy_prod_tables_to_dev="true",
+        )
+
+
+def test_resolve_operation_from_flags_keeps_operation_backwards_compatible():
+    assert resolve_operation_from_flags(operation="drop_tables") == "drop_tables"
+
+
 def test_configured_operations_are_dry_run_by_default(monkeypatch):
     create_tables = FakeCreateTablesModule()
     monkeypatch.setattr(
@@ -254,13 +293,26 @@ def test_configured_operations_are_dry_run_by_default(monkeypatch):
             job_env="preprod",
             client="next_uk",
             log_level="INFO",
+            tables="",
             confirm_mutating=False,
             confirm_destructive=False,
             dry_run=True,
         )
         == []
     )
-    assert create_tables.calls == []
+    assert create_tables.calls == [
+        {
+            "JOB_ENV": "preprod",
+            "CLIENT": "next_uk",
+            "LOG_LEVEL": "INFO",
+            "DROP_TABLES": False,
+            "ALTER_TABLES": True,
+            "ALLOW_NON_DEV_DROP": False,
+            "ALLOW_NON_DEV_ALTER": True,
+            "DRY_RUN": True,
+            "TABLES": "",
+        }
+    ]
 
 
 def test_create_missing_tables_delegates_to_create_tables(monkeypatch):
@@ -274,6 +326,7 @@ def test_create_missing_tables_delegates_to_create_tables(monkeypatch):
         job_env="preprod",
         client="next_uk",
         log_level="INFO",
+        tables="control_sheet_latest",
         confirm_mutating=True,
         dry_run=False,
     )
@@ -287,6 +340,8 @@ def test_create_missing_tables_delegates_to_create_tables(monkeypatch):
             "ALTER_TABLES": False,
             "ALLOW_NON_DEV_DROP": False,
             "ALLOW_NON_DEV_ALTER": False,
+            "DRY_RUN": False,
+            "TABLES": "control_sheet_latest",
         }
     ]
 
@@ -302,6 +357,7 @@ def test_alter_tables_delegates_with_non_dev_alter_enabled(monkeypatch):
         job_env="prod",
         client="next_uk",
         log_level="INFO",
+        tables="",
         confirm_mutating=True,
         dry_run=False,
     )
@@ -309,6 +365,8 @@ def test_alter_tables_delegates_with_non_dev_alter_enabled(monkeypatch):
     assert create_tables.calls[0]["ALTER_TABLES"] is True
     assert create_tables.calls[0]["ALLOW_NON_DEV_ALTER"] is True
     assert create_tables.calls[0]["DROP_TABLES"] is False
+    assert create_tables.calls[0]["DRY_RUN"] is False
+    assert create_tables.calls[0]["TABLES"] == ""
 
 
 def test_recreate_tables_delegates_with_non_dev_drop_enabled(monkeypatch):
@@ -322,6 +380,7 @@ def test_recreate_tables_delegates_with_non_dev_drop_enabled(monkeypatch):
         job_env="preprod",
         client="next_uk",
         log_level="INFO",
+        tables="table_a,table_b",
         confirm_destructive=True,
         dry_run=False,
     )
@@ -329,6 +388,133 @@ def test_recreate_tables_delegates_with_non_dev_drop_enabled(monkeypatch):
     assert create_tables.calls[0]["DROP_TABLES"] is True
     assert create_tables.calls[0]["ALLOW_NON_DEV_DROP"] is True
     assert create_tables.calls[0]["ALTER_TABLES"] is False
+    assert create_tables.calls[0]["TABLES"] == "table_a,table_b"
+
+
+def test_copy_prod_tables_to_dev_is_dev_only():
+    with pytest.raises(ValueError, match="only supports job_env=dev"):
+        copy_prod_tables_to_dev(
+            job_env="preprod",
+            client="next_uk",
+            log_level="INFO",
+            confirm_mutating=True,
+            dry_run=False,
+            history_days=1,
+            input_tables_only=True,
+        )
+
+
+def test_copy_prod_tables_to_dev_requires_confirmation_when_executing():
+    with pytest.raises(ValueError, match="confirm_mutating"):
+        copy_prod_tables_to_dev(
+            job_env="dev",
+            client="next_uk",
+            log_level="INFO",
+            confirm_mutating=False,
+            dry_run=False,
+            history_days=1,
+            input_tables_only=True,
+        )
+
+
+def test_copy_prod_tables_to_dev_dry_run_does_not_load_mirror_module(monkeypatch):
+    monkeypatch.setattr(
+        "jobs.table_operations.table_operations.load_mirror_prod_tables_module",
+        lambda: pytest.fail("dry-run copy must not load mirror module"),
+    )
+
+    assert (
+        copy_prod_tables_to_dev(
+            job_env="dev",
+            client="next_uk",
+            log_level="INFO",
+            confirm_mutating=False,
+            dry_run=True,
+            history_days=1,
+            input_tables_only=True,
+        )
+        == []
+    )
+
+
+def test_copy_prod_tables_to_dev_delegates_to_mirror_module(monkeypatch):
+    mirror_prod_tables = FakeMirrorProdTablesModule()
+    monkeypatch.setattr(
+        "jobs.table_operations.table_operations.load_mirror_prod_tables_module",
+        lambda: mirror_prod_tables,
+    )
+
+    copy_prod_tables_to_dev(
+        job_env="dev",
+        client="next_uk",
+        log_level="INFO",
+        confirm_mutating=True,
+        dry_run=False,
+        history_days=3,
+        input_tables_only=False,
+    )
+
+    assert mirror_prod_tables.calls == [
+        {
+            "job_env": "dev",
+            "client": "next_uk",
+            "log_level": "INFO",
+            "history_days": 3,
+            "input_tables_only": False,
+        }
+    ]
+
+
+def test_run_operation_uses_explicit_action_flags(monkeypatch):
+    mirror_prod_tables = FakeMirrorProdTablesModule()
+    monkeypatch.setattr(
+        "jobs.table_operations.table_operations.load_mirror_prod_tables_module",
+        lambda: mirror_prod_tables,
+    )
+
+    run_operation(
+        FakeSpark(),
+        operation=None,
+        job_env="dev",
+        client="next_uk",
+        catalog="marketingdata_dev",
+        schema="ds_sandbox",
+        tables="",
+        confirm_mutating=True,
+        confirm_destructive=False,
+        dry_run=False,
+        history_days=2,
+        input_tables_only=True,
+        run_copy_prod_tables_to_dev="true",
+    )
+
+    assert mirror_prod_tables.calls[0]["history_days"] == 2
+    assert mirror_prod_tables.calls[0]["input_tables_only"] is True
+
+
+def test_run_operation_passes_table_filter_to_configured_operation(monkeypatch):
+    create_tables = FakeCreateTablesModule()
+    monkeypatch.setattr(
+        "jobs.table_operations.table_operations.load_create_tables_module",
+        lambda: create_tables,
+    )
+
+    run_operation(
+        FakeSpark(),
+        operation=None,
+        job_env="dev",
+        client="next_uk",
+        catalog="marketingdata_dev",
+        schema="ds_sandbox",
+        tables="control_sheet_latest",
+        confirm_mutating=True,
+        confirm_destructive=False,
+        dry_run=False,
+        run_alter_tables="true",
+    )
+
+    assert create_tables.calls[0]["ALTER_TABLES"] is True
+    assert create_tables.calls[0]["TABLES"] == "control_sheet_latest"
 
 
 def test_parse_bool_accepts_expected_values():

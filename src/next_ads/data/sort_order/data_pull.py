@@ -1,12 +1,11 @@
-
 from pyspark.sql.types import (
     StructType,
     StructField,
     StringType,
-    IntegerType,
+    LongType,
     DateType,
     ArrayType,
-    MapType
+    MapType,
 )
 
 from urllib.parse import urlparse, parse_qs
@@ -19,7 +18,7 @@ from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 from pyspark.sql.functions import udf
 
-from next_ads.utils import config_manager
+from next_ads.common import config_manager
 
 JOB_ENV = spark.conf.get("pipeline.job_env", "dev")
 CLIENT = spark.conf.get("pipeline.client", "next_uk")
@@ -30,8 +29,10 @@ USER_SCHEMA = spark.conf.get("pipeline.user_schema", "")
 if USER_SCHEMA:
     os.environ["USER_SCHEMA"] = USER_SCHEMA
 
-config = config_manager.load_config(JOB_ENV)
-nextschema = ArrayType(ArrayType(StringType(), containsNull=False), containsNull=False)
+config = config_manager.load_config(JOB_ENV, client=CLIENT)
+nextschema = ArrayType(
+    ArrayType(StringType(), containsNull=False), containsNull=False
+)
 
 
 def call_next_cms_api_fn(url):
@@ -64,7 +65,7 @@ def call_next_cms_api_duf(url):
     return json.dumps(result)
 
 
-def call_next_api_fn(api_endpoint, url):
+def call_next_api_fn(api_endpoint, url, next_search_wrapper):
     querystring = {
         "ShowSearchProviderRequestUrl": "true",
         "Criteria": url,
@@ -136,11 +137,14 @@ def call_next_api_fn(api_endpoint, url):
     searchProviderRequestUrlp = parse_qs(searchProviderRequestUrl)
 
     # flatten the values in the requesturl
-    ha = {k: v[0] if k != "fq" else v for k, v in searchProviderRequestUrlp.items()}
+    ha = {
+        k: v[0] if k != "fq" else v
+        for k, v in searchProviderRequestUrlp.items()
+    }
 
     # remove the url in the response
     ha.pop(
-        config.next_search_wrapper,
+        next_search_wrapper,
         None,
     )
 
@@ -172,14 +176,14 @@ def call_next_api_fn(api_endpoint, url):
 
 
 @udf(returnType=nextschema)
-def call_next_api(api_endpoint, url):
+def call_next_api(api_endpoint, url, next_search_wrapper):
     """Args:
         url (str): The category url we want a Bloomreach API query for
 
     Returns:
         dict: a dict object that can be used later to query the BR API for the items returned from this category URL
     """
-    result = call_next_api_fn(api_endpoint, url)
+    result = call_next_api_fn(api_endpoint, url, next_search_wrapper)
     return result
 
 
@@ -265,9 +269,9 @@ def url_type(url):
 
 
 def lookup_key(search_type):
-    col = F.when(F.col(search_type) == "promotion", F.lit("promotion")).otherwise(
-        F.lit("search?w")
-    )
+    col = F.when(
+        F.col(search_type) == "promotion", F.lit("promotion")
+    ).otherwise(F.lit("search?w"))
     return col
 
 
@@ -277,7 +281,8 @@ def parse_url_udf(url):
     if parsed.query:
         # parse_qs returns lists, convert to single values for convenience
         return {
-            k: v[0] if len(v) == 1 else v for k, v in parse_qs(parsed.query).items()
+            k: v[0] if len(v) == 1 else v
+            for k, v in parse_qs(parsed.query).items()
         }
     else:
         return parsed.path.strip("/").split("/")
@@ -294,7 +299,10 @@ def parse_url_struct(url):
             for k, v in parse_qs(parsed.query).items()
         }
     else:
-        return {str(i): seg for i, seg in enumerate(parsed.path.strip("/").split("/"))}
+        return {
+            str(i): seg
+            for i, seg in enumerate(parsed.path.strip("/").split("/"))
+        }
 
 
 parse_udf = udf(parse_url_struct, MapType(StringType(), StringType()))
@@ -340,11 +348,11 @@ def parse_and_prep_data(data):
             "parts_kv1",
             F.expr("""
             IF(size(parts1) >= 2,
-                map_from_arrays(
-                    transform(sequence(0, CAST(size(parts1) / 2 AS INT) - 1), x -> parts1[x * 2]),
-                    transform(sequence(0, CAST(size(parts1) / 2 AS INT) - 1), x -> parts1[x * 2 + 1])
+                transform(
+                    sequence(0, CAST(size(parts1) / 2 AS INT) - 1),
+                    x -> named_struct('key', parts1[x * 2], 'value', parts1[x * 2 + 1])
                 ),
-                map_from_arrays(CAST(array() AS ARRAY<STRING>), CAST(array() AS ARRAY<STRING>))
+                CAST(array() AS ARRAY<STRUCT<key:STRING,value:STRING>>)
             )
         """),
         )
@@ -352,36 +360,38 @@ def parse_and_prep_data(data):
             "parts_kv2",
             F.expr("""
         IF(size(parts2) >= 2,
-            map_from_arrays(
-                transform(sequence(0, CAST(size(parts2) / 2 AS INT) - 1), x -> parts2[x * 2]),
-                transform(sequence(0, CAST(size(parts2) / 2 AS INT) - 1), x -> parts2[x * 2 + 1])
+            transform(
+                sequence(0, CAST(size(parts2) / 2 AS INT) - 1),
+                x -> named_struct('key', parts2[x * 2], 'value', parts2[x * 2 + 1])
             ),
-            map_from_arrays(CAST(array() AS ARRAY<STRING>), CAST(array() AS ARRAY<STRING>))
+            CAST(array() AS ARRAY<STRUCT<key:STRING,value:STRING>>)
         )
     """),
         )
-        .withColumn(  # get all the key value pairs from the url into a single map
-            "parts_kv_s", F.map_concat(F.col("parts_kv1"), F.col("parts_kv2"))
+        .withColumn(  # keep all key value pairs from the url, including duplicates
+            "parts_kv_s", F.concat(F.col("parts_kv1"), F.col("parts_kv2"))
         )
         .withColumn(  # extract the promotion from where it is stored in the url
             "promotion",
             F.expr(
                 """
-            CASE
-            WHEN map_contains_key(parts_kv_s, 'promotion')
-            THEN parts_kv_s['promotion']
-            ELSE NULL
-            END
+            element_at(
+                transform(
+                    filter(parts_kv_s, x -> x.key = 'promotion'),
+                    x -> x.value
+                ),
+                1
+            )
         """
             ),
         )
-        .drop("parts_kv_1, parts_kv2")
+        .drop("parts_kv1", "parts_kv2")
     )
 
-    # Convert fq struct/map to array of arrays: [["fq", "key:\"escaped_value\""], ...]
+    # Convert fq key/value structs to array of arrays: [["fq", "key:\"escaped_value\""], ...]
     fq_array_expr = F.expr("""
         transform(
-            map_entries(fq),
+            fq,
             x -> array(
                 'fq',
                 concat(
@@ -445,7 +455,9 @@ def parse_and_prep_data(data):
 
 @dp.view(name="control_sheet")
 def control_sheet():
-    s_control_sheet = spark.table(config.tables_write.control_sheet_raw_latest_v2)
+    s_control_sheet = spark.table(
+        config.tables_write.control_sheet_raw_latest_v2
+    )
     return s_control_sheet
 
 
@@ -505,7 +517,12 @@ def query_prep():
     df_direct_qry = df_qry.filter("url_type <> 'category'")
 
     df_via_next_qry_queried = df_via_next_qry.withColumn(
-        "searchProviderRequest", call_next_api(F.col("next_url"), F.col("url"))
+        "searchProviderRequest",
+        call_next_api(
+            F.col("next_url"),
+            F.col("url"),
+            F.lit(str(config.next_search_wrapper)),
+        ),
     )
     df_via_next_qry_queried = df_via_next_qry_queried.drop(
         "query_struct"
@@ -549,7 +566,7 @@ sort_order_schema = StructType(
         StructField("UniqueAdID", StringType(), True),
         StructField("URL", StringType(), True),
         StructField("MASIDtoken", StringType(), True),
-        StructField("item_pos", IntegerType(), True),
+        StructField("item_pos", LongType(), True),
         StructField("item", StringType(), True),
         StructField("UniqueAdIDPremium", StringType(), True),
         StructField("CMSPageID", StringType(), True),
@@ -575,6 +592,7 @@ sort_order_schema = StructType(
         StructField("Tags", StringType(), True),
         StructField("Themes", StringType(), True),
         StructField("AdVariant", StringType(), True),
+        StructField("ClusterID", StringType(), True),
         StructField("rundate", DateType(), True),
     ]
 )
@@ -593,6 +611,11 @@ def sort_order_latest():
         s_control_sheet.drop("URL", "MASIDToken"),
         on=["UniqueAdID"],
         how="inner",
+    ).select(
+        *[
+            F.col(field.name).cast(field.dataType).alias(field.name)
+            for field in sort_order_schema.fields
+        ]
     )
     output = output.orderBy("UniqueAdID", "item_pos")
 

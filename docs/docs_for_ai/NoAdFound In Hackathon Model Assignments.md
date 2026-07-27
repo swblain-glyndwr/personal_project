@@ -1,5 +1,5 @@
 
-# NoAdFound in Hackathon Model Assignments (BestChallenger)
+# NoAdFound in Theme Affinity Assignments (BestChallenger)
 
 ## Summary
 We observed a large imbalance in `UniqueAdIDAssigned == 'NoAdFound'` for the `BestChallenger` treatment in `marketingdata_prod.warehouse.next_uk_nextads_assignments_latest`.
@@ -7,15 +7,15 @@ We observed a large imbalance in `UniqueAdIDAssigned == 'NoAdFound'` for the `Be
 Key conclusion: there are **two distinct contributors** to `NoAdFound` for `BestChallenger`.
 
 1. **Acute incident (2026-03-25):** a **race condition** where the hackathon preranked table was **TRUNCATED** while `build_page.py` was running, causing some locations to read an *empty* table and produce **100% NULL** `UniqueAdIDBestChallenger`.
-2. **Chronic baseline (most days):** the hackathon model/prerank pipeline covers **fewer customers** than the customer-cell base, causing a stable ~**23%** NULL `UniqueAdIDBestChallenger` rate (and therefore ~21% `NoAdFound` after accounting for the 10% fallow control).
+2. **Chronic baseline (most days):** the Theme Affinity/prerank pipeline covers **fewer customers** than the customer-cell base, causing a stable ~**23%** NULL `UniqueAdIDBestChallenger` rate (and therefore ~21% `NoAdFound` after accounting for the 10% fallow control).
 
 ## Context / What the pipeline does
-- Customer/treatment assignment is created in `scripts/assign_customer_cells.py` and stored in `{client}_nextads_customer_cells_latest`.
-- `scripts/build_page.py` reads eligible ads for a location from `{client}_nextads_control_sheet_latest` and computes:
+- Customer/treatment assignment is created in `jobs/nextads_cells/assign_customer_cells.py` and stored in `{client}_nextads_customer_cells_latest`.
+- `jobs/nextads_assignment/build_page.py` reads eligible ads for a location from `{client}_nextads_control_sheet_latest` and computes:
 	- `UniqueAdIDBasic` via `assign_random_ads()`
 	- `UniqueAdIDBest` via `assign_preranked_ads(..., preranked_ads_from_themes_latest)`
 	- `UniqueAdIDBestChallenger` via `assign_preranked_ads(..., preranked_ads_from_themes_hackathon_latest)`
-- The config `config/next_uk.json` maps customers to the treatment (Basic/Best/BestChallenger) via `chain_when_thens()`.
+- The config `configs/clients/next_uk.yaml` maps customers to the treatment (Basic/Best/BestChallenger) via `chain_when_thens()`.
 - Any NULL `UniqueAdIDMeasurement` is replaced with `'NoAdFound'` before writing assignments.
 
 ## What we observed
@@ -83,12 +83,12 @@ This exactly matches:
 - the fact that later locations revert to the baseline
 
 ### Cause B — Customer coverage gap (baseline)
-Even when there is no race condition, the hackathon model/prerank pipeline covers only ~76.8% of the customer base. Customers missing from the hackathon preranked table cannot receive a `BestChallenger` ad and end up as NULL → `NoAdFound`.
+Even when there is no race condition, the Theme Affinity/prerank pipeline covers only ~76.8% of the customer base. Customers missing from the legacy hackathon-named preranked table cannot receive a `BestChallenger` ad and end up as NULL → `NoAdFound`.
 
 This explains the stable ~20.8–20.9% `NoAdFound` on 2026-03-19 to 2026-03-24.
 
 ### Minor code issue (not root cause)
-In `scripts/build_page.py`, the `.drop()` call before `.withColumns()` is missing commas and therefore drops an unintended concatenated column name.
+In `jobs/nextads_assignment/build_page.py`, the `.drop()` call before `.withColumns()` is missing commas and therefore drops an unintended concatenated column name.
 This is unlikely to be driving `NoAdFound` (because `.withColumns()` overwrites those columns anyway), but it should be corrected.
 
 ## Fix and next steps
@@ -112,5 +112,5 @@ Add a daily QA check after assignments build:
 - A threshold alert for sudden spikes (e.g. >30% for SB1)
 
 ### 4) Code hygiene
-Fix the missing commas in the `.drop(...)` call in `scripts/build_page.py`.
+Fix the missing commas in the `.drop(...)` call in `jobs/nextads_assignment/build_page.py`.
 

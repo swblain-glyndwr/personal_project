@@ -1,10 +1,11 @@
 import os
+from pathlib import Path
 import pytest
 from unittest.mock import patch
 from next_ads.common import config_manager as new_config_manager
 from next_ads.common import paths as common_paths
 from next_ads.common.config_manager import load_config as new_load_config
-from next_ads.utils.config_manager import load_config
+from next_ads.common.config_manager import load_config
 
 
 @pytest.fixture
@@ -43,10 +44,39 @@ def test_config_paths_prefer_current_config_folder():
     settings_files = new_config_manager._settings_files()
 
     assert "configs/runtime/settings.yaml" in settings_files
-    assert "configs/adsv2/load_control_sheet_v2_settings.yaml" in settings_files
+    assert (
+        "configs/adsv2/load_control_sheet_v2_settings.yaml" in settings_files
+    )
     assert "configs/runtime/tables_settings.yaml" in settings_files
+    assert "configs/clients/next_uk.yaml" in settings_files
     assert "adsv2/load_control_sheet_v2_settings.yaml" not in settings_files
     assert "adsv2/tables_settings.yaml" not in settings_files
+
+
+def test_v2_control_sheet_uses_page_type_sheet(clean_env, mock_dotenv):
+    config = load_config("dev")
+    expected_sheet_id = "1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4"
+
+    assert expected_sheet_id in config.control_sheet_v2.url
+    assert expected_sheet_id in config.exclusions_sheet.url
+
+
+def test_client_configs_define_v2_theme_mapping_source():
+    expected_sheet_id = "1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4"
+
+    for client in ["next_uk", "next_gb"]:
+        cfg = common_paths.load_client_config(client)
+
+        assert expected_sheet_id in cfg["theme_mapping_v2"]["url"]
+        assert (
+            cfg["theme_mapping_v2"]["sheet"] == cfg["theme_mapping"]["sheet"]
+        )
+        assert cfg["theme_mapping_v2"]["source_of_truth"] is True
+        assert cfg["theme_mapping_v2"]["copied_to"] == "theme_mapping"
+        assert (
+            cfg["theme_mapping_v2"]["read_schema"]
+            == (cfg["theme_mapping"]["read_schema"])
+        )
 
 
 def test_config_paths_fall_back_to_legacy_config_folder(monkeypatch, tmp_path):
@@ -57,29 +87,221 @@ def test_config_paths_fall_back_to_legacy_config_folder(monkeypatch, tmp_path):
     assert "config/settings.yaml" in settings_files
     assert "config/tables_settings.yaml" in settings_files
     assert "config/load_control_sheet_v2_settings.yaml" in settings_files
+    assert "config/next_uk.yaml" in settings_files
 
 
-def test_client_config_path_prefers_configs_clients_folder():
+def test_client_config_path_prefers_configs_clients_yaml():
     path = common_paths.resolve_client_config_path("next_uk")
 
-    assert path.as_posix().endswith("configs/clients/next_uk.json")
+    assert path.as_posix().endswith("configs/clients/next_uk.yaml")
+
+
+def test_load_config_accepts_client(clean_env, mock_dotenv):
+    config = load_config("prod", client="next_gb")
+
+    assert config.client == "next_gb"
+    assert config.theme_mapping_v2.source_of_truth is True
+
+
+@pytest.mark.parametrize(
+    "relative_path,expected_loader",
+    [
+        (
+            "jobs/nextads_data/archive_sort_order_data.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "jobs/nextads_control/load_control_sheet.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "jobs/nextads_control/load_control_sheet_v2.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "jobs/nextads_candidates/build_theme_ad_candidates.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "jobs/nextads_candidates/build_page_type_candidates_v2.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "jobs/nextads_delivery/build_v2_payload.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "jobs/nextads_v2/build_page.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "src/next_ads/data/sort_order/data_pull.py",
+            "config_manager.load_config(JOB_ENV, client=CLIENT)",
+        ),
+        (
+            "src/next_ads/ranking/theme_affinity/config.py",
+            "config_manager.load_config(job_env, client=client)",
+        ),
+    ],
+)
+def test_client_aware_entrypoints_pass_client_to_dynaconf(
+    relative_path, expected_loader
+):
+    repo_root = Path(__file__).resolve().parents[2]
+    source = (repo_root / relative_path).read_text()
+
+    assert expected_loader in source
+
+
+def test_load_client_config_is_deprecated_wrapper(clean_env, mock_dotenv):
+    with pytest.warns(DeprecationWarning, match="load_client_config"):
+        cfg = common_paths.load_client_config("next_uk")
+
+    assert cfg["client"] == "next_uk"
+    assert cfg["theme_mapping_v2"]["source_of_truth"] is True
+    assert "tables" in cfg
+
+
+def test_load_config_fails_in_databricks_without_job_env(
+    clean_env, mock_dotenv, monkeypatch
+):
+    monkeypatch.delenv("JOB_ENV", raising=False)
+    monkeypatch.setenv("DATABRICKS_RUNTIME_VERSION", "15.4")
+
+    with pytest.raises(ValueError, match="JOB_ENV must be set"):
+        load_config(None)
+
+
+def test_dynaconf_validators_require_client_config(
+    clean_env, mock_dotenv, monkeypatch, tmp_path
+):
+    runtime_dir = tmp_path / "configs" / "runtime"
+    client_dir = tmp_path / "configs" / "clients"
+    runtime_dir.mkdir(parents=True)
+    client_dir.mkdir(parents=True)
+    (runtime_dir / "settings.yaml").write_text(
+        "\n".join(
+            [
+                "default:",
+                "  client: next_uk",
+                "  catalog_read: marketingdata_prod",
+                "  catalog_write: marketingdata_prod",
+                "  schema_read: warehouse",
+                "  schema_write: warehouse",
+            ]
+        )
+    )
+    (runtime_dir / "tables_settings.yaml").write_text(
+        "\n".join(
+            [
+                "default:",
+                "  tables_read:",
+                "    product_catalog: marketingdata_prod.warehouse.product_catalog",
+                "  tables_write:",
+                "    ad_items: marketingdata_prod.warehouse.next_uk_nextads_ad_items",
+            ]
+        )
+    )
+    (client_dir / "next_uk.yaml").write_text(
+        "\n".join(
+            [
+                "default:",
+                "  locations: {}",
+                "  control_sheet: {}",
+                "  control_sheet_v2: {}",
+                "  exclusions_sheet: {}",
+                "  theme_mapping: {}",
+                "  theme_mapping_v2: {}",
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        new_config_manager,
+        "_settings_files",
+        lambda client="next_uk": [
+            str(runtime_dir / "settings.yaml"),
+            str(runtime_dir / "tables_settings.yaml"),
+            str(client_dir / f"{client}.yaml"),
+        ],
+    )
+
+    with pytest.raises(Exception, match="gcp"):
+        load_config("prod", client="next_uk")
+
+
+def test_table_path_validation_rejects_non_string_values(
+    clean_env, mock_dotenv, monkeypatch, tmp_path
+):
+    runtime_dir = tmp_path / "configs" / "runtime"
+    client_dir = tmp_path / "configs" / "clients"
+    runtime_dir.mkdir(parents=True)
+    client_dir.mkdir(parents=True)
+    (runtime_dir / "settings.yaml").write_text(
+        "\n".join(
+            [
+                "default:",
+                "  client: next_uk",
+                "  catalog_read: marketingdata_prod",
+                "  catalog_write: marketingdata_prod",
+                "  schema_read: warehouse",
+                "  schema_write: warehouse",
+                "  gcp: {}",
+            ]
+        )
+    )
+    (runtime_dir / "tables_settings.yaml").write_text(
+        "\n".join(
+            [
+                "default:",
+                "  tables_read:",
+                "    product_catalog: 123",
+                "  tables_write:",
+                "    ad_items: marketingdata_prod.warehouse.next_uk_nextads_ad_items",
+            ]
+        )
+    )
+    (client_dir / "next_uk.yaml").write_text(
+        "\n".join(
+            [
+                "default:",
+                "  locations: {}",
+                "  control_sheet: {}",
+                "  control_sheet_v2: {}",
+                "  exclusions_sheet: {}",
+                "  theme_mapping: {}",
+                "  theme_mapping_v2: {}",
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        new_config_manager,
+        "_settings_files",
+        lambda client="next_uk": [
+            str(runtime_dir / "settings.yaml"),
+            str(runtime_dir / "tables_settings.yaml"),
+            str(client_dir / f"{client}.yaml"),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="tables_read"):
+        load_config("prod", client="next_uk")
 
 
 def test_sql_contract_resolver_finds_grouped_sql_files():
-    assert common_paths.resolve_sql_contract_path(
-        "control_sheet_raw"
-    ).as_posix().endswith(
-        "sql/control/create_table_control_sheet_raw.sql"
+    assert (
+        common_paths.resolve_sql_contract_path("control_sheet_raw")
+        .as_posix()
+        .endswith("sql/control/create_table_control_sheet_raw.sql")
     )
-    assert common_paths.resolve_sql_contract_path(
-        "results_topline"
-    ).as_posix().endswith(
-        "sql/reporting/create_table_results_topline.sql"
+    assert (
+        common_paths.resolve_sql_contract_path("results_topline")
+        .as_posix()
+        .endswith("sql/reporting/create_table_results_topline.sql")
     )
-    assert common_paths.resolve_sql_contract_path(
-        "viewed_bought_latest"
-    ).as_posix().endswith(
-        "sql/realtime/create_table_viewed_bought_latest.sql"
+    assert (
+        common_paths.resolve_sql_contract_path("viewed_bought_latest")
+        .as_posix()
+        .endswith("sql/realtime/create_table_viewed_bought_latest.sql")
     )
 
 

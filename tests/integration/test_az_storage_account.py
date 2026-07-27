@@ -7,7 +7,7 @@ class TestABFSConnection:
     @pytest.mark.abfs_integration
     def test_connection_to_abfs(self, spark, dbutils, config_prod):
         """Test spark connection to ABFS."""
-        from next_ads.utils import gs_helpers
+        from next_ads.delivery import google_sheets as gs_helpers
 
         # Load config
         config = config_prod

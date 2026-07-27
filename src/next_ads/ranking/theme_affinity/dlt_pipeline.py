@@ -1,6 +1,4 @@
-from pathlib import Path
 import re
-import sys
 
 from pyspark import pipelines as dp
 from pyspark.sql import SparkSession
@@ -8,31 +6,6 @@ from pyspark.sql import functions as F
 
 
 spark = SparkSession.builder.getOrCreate()
-
-
-def _candidate_bootstrap_paths():
-    module_file = globals().get("__file__")
-    if module_file:
-        yield from Path(module_file).resolve().parents
-
-    sql_path = spark.conf.get("pipeline.sql_path", None)
-    if sql_path:
-        yield from Path(sql_path).parents
-
-
-def _bootstrap_repo_paths():
-    for parent in _candidate_bootstrap_paths():
-        src_path = parent / "src"
-        if (src_path / "next_ads").exists():
-            sys.path.insert(0, str(src_path))
-            sys.path.insert(1, str(parent))
-            return
-        if (parent / "next_ads").exists():
-            sys.path.insert(0, str(parent))
-            return
-
-
-_bootstrap_repo_paths()
 
 from next_ads.ranking.theme_affinity.data_prep import (
     apply_post_process,

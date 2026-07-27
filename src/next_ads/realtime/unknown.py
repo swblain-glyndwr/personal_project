@@ -237,7 +237,7 @@ def run_realtime_unknown(
         logger.warning(f"Client not specified (defaulting to {client})")
 
     logger.info(f"Configuring real-time run for client: {client}")
-    with open(f"real_time/config/{client}.json") as f:
+    with open(f"configs/realtime/{client}.json") as f:
         cfg = json.load(f)
     rtu_cfg = cfg["real_time_unknown"]
 

@@ -40,7 +40,7 @@ def bootstrap_project_imports() -> None:
 
 def seed_latest_tables(*, client: str, log_level: str) -> None:
     bootstrap_project_imports()
-    from scripts.table_operations import init_starting_tables
+    from jobs.table_operations import init_starting_tables
 
     init_starting_tables.main(CLIENT=client, LOG_LEVEL=log_level)
 

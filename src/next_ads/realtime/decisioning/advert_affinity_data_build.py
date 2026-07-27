@@ -147,7 +147,7 @@ def build_advert_items_df(
 ):
     """Build the advert items & catid list by advert for all currently live adverts"""
     from pyspark.sql import functions as F
-    from next_ads.utils import etl
+    from next_ads.common import etl
 
     read_tables = cfg["tables"]["read"]
     write_tables = cfg["tables"]["write"]
@@ -257,7 +257,7 @@ def determine_ad_profile_similiarity(
 ):
 
     from pyspark.sql import functions as F
-    from next_ads.utils import etl
+    from next_ads.common import etl
 
     write_tables = cfg["tables"]["write"]
 
@@ -367,7 +367,7 @@ def build_item_action_data(
     aggregation_level: str,
 ):
     from pyspark.sql import functions as F
-    from next_ads.utils import etl
+    from next_ads.common import etl
 
     read_tables = cfg["tables"]["read"]
     write_tables = cfg["tables"]["write"]
@@ -441,7 +441,7 @@ def build_advert_affinity(
 
     from pyspark.sql import functions as F
     from pyspark.sql import Window
-    from next_ads.utils import etl
+    from next_ads.common import etl
 
     write_tables = cfg["tables"]["write"]
 

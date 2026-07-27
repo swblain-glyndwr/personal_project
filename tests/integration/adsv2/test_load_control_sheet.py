@@ -1,5 +1,5 @@
 import pytest
-from scripts.load_control_sheet_v2 import check_primary_key
+from jobs.nextads_control.load_control_sheet_v2 import check_primary_key
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
@@ -20,25 +20,25 @@ def logger():
 @pytest.fixture
 def sample_data_no_duplicates(spark):
     data = [
-        ("ad1", "loc1", "div1", "masid1"),
-        ("ad2", "loc1", "div1", "masid2"),
-        ("ad3", "loc2", "div1", "masid3"),
+        ("ad1", "page1", "div1", "masid1"),
+        ("ad2", "page1", "div1", "masid2"),
+        ("ad3", "page2", "div1", "masid3"),
     ]
-    columns = ["UniqueAdID", "Location", "AlgoDivision", "MASIDToken"]
+    columns = ["UniqueAdID", "PageType", "AlgoDivision", "MASIDToken"]
     return spark.createDataFrame(data, columns)
 
 
 @pytest.fixture
 def sample_data_with_duplicates(spark):
     data = [
-        ("ad1", "loc1", "div1", "masid1"),
-        # Duplicate masid1 in same AlgoDivision and Location
-        ("ad2", "loc1", "div1", "masid1"),
-        ("ad3", "loc2", "div1", "masid2"),
-        ("ad4", "loc1", "div1", "masid3"),
-        ("ad5", "loc1", "div1", "masid1"),  # another duplicate masid1
+        ("ad1", "page1", "div1", "masid1"),
+        # Duplicate masid1 in same AlgoDivision and PageType
+        ("ad2", "page1", "div1", "masid1"),
+        ("ad3", "page2", "div1", "masid2"),
+        ("ad4", "page1", "div1", "masid3"),
+        ("ad5", "page1", "div1", "masid1"),  # another duplicate masid1
     ]
-    columns = ["UniqueAdID", "Location", "AlgoDivision", "MASIDToken"]
+    columns = ["UniqueAdID", "PageType", "AlgoDivision", "MASIDToken"]
     return spark.createDataFrame(data, columns)
 
 
@@ -69,10 +69,10 @@ def test_check_primary_key_with_duplicates(
 
 def test_check_primary_key_pk_assertion(spark, logger):
     data = [
-        ("ad1", "loc1", "div1", "masid1"),
-        ("ad1", "loc1", "div1", "masid2"),  # Duplicate UniqueAdID and Location
+        ("ad1", "page1", "div1", "masid1"),
+        ("ad1", "page1", "div1", "masid2"),  # Duplicate UniqueAdID and PageType
     ]
-    columns = ["UniqueAdID", "Location", "AlgoDivision", "MASIDToken"]
+    columns = ["UniqueAdID", "PageType", "AlgoDivision", "MASIDToken"]
     df = spark.createDataFrame(data, columns)
 
     with pytest.raises(Exception):

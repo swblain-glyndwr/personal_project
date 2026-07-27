@@ -410,7 +410,7 @@ def build_account_theme_affinity_df(
             F.col("model_score"),
             F.col("adjusted_score"),
             F.col("rank"),
-            F.lit("hackathon_theme_affinity").alias("model_name"),
+            F.lit("theme_affinity").alias("model_name"),
             F.lit(None).cast("string").alias("model_version"),
             F.current_timestamp().alias("created_at"),
             F.current_timestamp().alias("updated_at"),

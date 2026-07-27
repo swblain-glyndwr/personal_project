@@ -1,6 +1,6 @@
 from pyspark.testing import assertDataFrameEqual
 import pytest
-from next_ads.Assignment import greedy_assignment
+from next_ads.decisioning.assignment import greedy_assignment
 from dsutils.dbc import configure_spark
 from dsutils.etl import build_spark_schema
 

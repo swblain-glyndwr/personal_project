@@ -1,11 +1,6 @@
 import pytest
 
 from next_ads.common import etl as new_etl
-from next_ads.utils import etl as legacy_etl
-
-
-def test_etl_imports_work_from_new_and_legacy_paths():
-    assert legacy_etl.map_tbl is new_etl.map_tbl
 
 
 def test_map_tbl_formats_table_template():

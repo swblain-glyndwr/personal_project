@@ -8,12 +8,12 @@ import sys
 from pathlib import Path
 
 
-try:
-    PROJECT_ROOT = Path(__file__).resolve().parents[3]
-except NameError:
-    PROJECT_ROOT = Path("/Workspace")
-finally:
-    sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+SRC_ROOT = PROJECT_ROOT / "src"
+if not (SRC_ROOT / "next_ads").is_dir():
+    raise RuntimeError(f"Canonical NextAds package not found under {SRC_ROOT}")
+sys.path.insert(0, str(SRC_ROOT))
+sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from next_ads.features import load_feature_store_registry

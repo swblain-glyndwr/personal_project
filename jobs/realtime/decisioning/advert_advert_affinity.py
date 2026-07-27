@@ -17,12 +17,14 @@ except NameError:
     PROJECT_ROOT = Path(notebook_path).parents[3]
 finally:
     print(f"Project root resolved to: {PROJECT_ROOT}")
-    sys.path.insert(0, str(PROJECT_ROOT))
+    SRC_ROOT = PROJECT_ROOT / "src"
+    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from next_ads.utils import config_manager, etl
+from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
 
 from next_ads.realtime.decisioning.advert_affinity_data_build import (
@@ -62,7 +64,7 @@ def main(
         logger.warning(f"Client not specified (defaulting to {CLIENT})")
 
     # load configuration
-    config = config_manager.load_config(JOB_ENV)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
     SCHEMA = config.schema_write

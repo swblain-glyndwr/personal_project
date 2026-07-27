@@ -42,7 +42,10 @@ def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
         config.ranking_model_tables.model_train_input_table
         == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
     )
-    assert "complete_ranked" not in config.ranking_model_tables.model_train_input_table
+    assert (
+        "complete_ranked"
+        not in config.ranking_model_tables.model_train_input_table
+    )
     assert (
         config.theme_affinity_assignment_sources.champion
         == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_model_latest"
@@ -105,11 +108,13 @@ def test_map_theme_scores_uses_config_led_assignment_sources():
     assert "theme_affinity_assignment_sources.champion" in script
     assert "theme_affinity_assignment_sources.challenger" in script
     assert "config.ranking_model_tables.model_latest" not in script
-    assert 'cfg[\'tables\'][\'read\']["hackathon_assignments"]' not in script
+    assert "cfg['tables']['read'][\"hackathon_assignments\"]" not in script
     assert 'cfg["tables"]["read"]["hackathon_assignments"]' not in script
 
-    settings = (PROJECT_ROOT / "configs/runtime/tables_settings.yaml").read_text()
-    client_config = (PROJECT_ROOT / "configs/clients/next_uk.json").read_text()
+    settings = (
+        PROJECT_ROOT / "configs/runtime/tables_settings.yaml"
+    ).read_text()
+    client_config = (PROJECT_ROOT / "configs/clients/next_uk.yaml").read_text()
     assert "hackathon_assignments" not in settings
     assert "hackathon_assignments" not in client_config
 
@@ -120,7 +125,10 @@ def test_theme_affinity_runtime_uses_new_outputs_for_assignments(monkeypatch):
 
     config = load_config("dev")
 
-    assert "theme_affinity_model_latest" in config.ranking_model_tables.model_latest
+    assert (
+        "theme_affinity_model_latest"
+        in config.ranking_model_tables.model_latest
+    )
     assert (
         config.ranking_model_tables.model_latest
         == config.theme_affinity_assignment_sources.champion
@@ -135,22 +143,27 @@ def test_theme_affinity_clean_output_writes_inference_log():
     assert "model_tables.inference_log" in source
     assert "runtime.model_uri" in source
     assert 'F.lit(model_id).alias("model_id")' in source
-    assert 'F.col("ProbAggRebased").cast("double").alias("prediction")' in source
+    assert (
+        'F.col("ProbAggRebased").cast("double").alias("prediction")' in source
+    )
     assert 'F.lit(None).cast("int").alias("label")' in source
     assert 'F.lit(None).cast("date").alias("label_observed_until")' in source
 
 
 def test_theme_affinity_inference_log_label_enrichment_uses_results_outcomes():
     source = (
-        PROJECT_ROOT / "jobs/results/enrich_theme_affinity_inference_log.py"
+        PROJECT_ROOT
+        / "jobs/nextads_reporting/enrich_theme_affinity_inference_log.py"
     ).read_text()
 
     assert "df_sessions_master_meta" in source
     assert 'F.col("Revenue") > 0' in source
-    assert 'F.date_sub(F.lit(max_session_date), label_window_days)' in source
+    assert "F.date_sub(F.lit(max_session_date), label_window_days)" in source
     assert "MERGE INTO {inference_log_table}" in source
     assert "target.label = source.label" in source
-    assert "target.label_observed_until = source.label_observed_until" in source
+    assert (
+        "target.label_observed_until = source.label_observed_until" in source
+    )
 
 
 def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
@@ -223,7 +236,9 @@ def test_payload_and_feedback_write_tables_are_available_under_tables_write(
     )
     assert not hasattr(config.ranking_model_tables, "nextads_payload")
     assert not hasattr(config.ranking_model_tables, "nextads_payload_latest")
-    assert not hasattr(config.ranking_model_tables, "results_underperforming_ads")
+    assert not hasattr(
+        config.ranking_model_tables, "results_underperforming_ads"
+    )
 
 
 def test_theme_affinity_reference_date_uses_current_operational_mode():
@@ -253,10 +268,14 @@ def test_theme_affinity_last_year_windows_are_not_inverted():
 
     sql_entries = build_sql_entries("2026-05-01", "prefix")
     baskets_ly_params = next(
-        entry["params"] for entry in sql_entries[0] if entry["file"] == "0_baskets_ly.sql"
+        entry["params"]
+        for entry in sql_entries[0]
+        if entry["file"] == "0_baskets_ly.sql"
     )
     views_ly_params = next(
-        entry["params"] for entry in sql_entries[0] if entry["file"] == "0_views_ly.sql"
+        entry["params"]
+        for entry in sql_entries[0]
+        if entry["file"] == "0_views_ly.sql"
     )
 
     assert baskets_ly_params == {

@@ -606,6 +606,7 @@ def process_control_sheet(
     date_regex: str,
     target_cols: Sequence[str],
     reference_date: date | None = None,
+    df_underperforming_ads: DataFrame | None = None,
 ) -> ProcessedControlSheet:
     """Process control-sheet rows into the output table shape."""
     df_control_not_empty = filter_non_empty_unique_ads(df_control_sheet)
@@ -651,6 +652,25 @@ def process_control_sheet(
 
     df_processed = clean_theme_strings(df_processed)
     df_processed = clear_missing_premium_ad_ids(df_processed)
+
+    if df_underperforming_ads is not None:
+        df_underperforming_ids = (
+            df_underperforming_ads
+            .filter(F.col('rundate') == F.current_date())
+            .select('UniqueAdID')
+            .distinct()
+            .withColumn('IsUnderperforming', F.lit(True))
+        )
+        df_processed = (
+            df_processed
+            .join(df_underperforming_ids, on='UniqueAdID', how='left')
+            .withColumn(
+                'IsUnderperforming',
+                F.coalesce(F.col('IsUnderperforming'), F.lit(False)),
+            )
+        )
+    else:
+        df_processed = df_processed.withColumn('IsUnderperforming', F.lit(False))
 
     target_alignment = align_control_sheet_to_target_columns(
         df_processed,

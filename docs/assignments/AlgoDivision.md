@@ -15,7 +15,7 @@ The new engine relies on historical customer interaction logs over a lookback wi
 Both activities are pivoted by product department attributes ('womenswear', 'menswear', etc.), combined per account, and divided by the max division value to form final affinity scores.
 ___
 ## Technical Architecture & File Changes
-### 1. Configuration (`next_uk.json`)
+### 1. Configuration (`next_uk.yaml`)
 Added a dictionary block to allow the framework to map and locate internal SQL logic payloads dynamically:
 - **Added Key:**
 ```json
