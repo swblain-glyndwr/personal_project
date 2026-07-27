@@ -377,7 +377,9 @@ def test_canonical_function_unpickles_with_src_package_available(tmp_path):
                 "import pickle, sys; "
                 "function = pickle.load(open(sys.argv[1], 'rb')); "
                 "assert function.__module__ == 'next_ads.common.paths'; "
-                "assert function().name == 'next-ads'"
+                "project_root = function(); "
+                "assert (project_root / 'pyproject.toml').is_file(); "
+                "assert (project_root / 'src/next_ads/__init__.py').is_file()"
             ),
             str(payload_path),
         ],
