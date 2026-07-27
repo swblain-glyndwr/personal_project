@@ -31,7 +31,7 @@ import pyspark.sql.functions as F
 from pyspark.sql.window import Window
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import delete_from_and_load
+from dsutils.etl import delete_from_and_load, truncate_and_load
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.utils import config_manager
@@ -547,11 +547,10 @@ def write_payload_tables(
     )
 
     logger.info(f"Loading payload output to {payload_latest_table}")
-    delete_from_and_load(
+    truncate_and_load(
         df_output,
         payload_latest_table,
         pk_cols=["roamingprofileid"],
-        del_where={"rundate": "current_date()"},
     )
 
 
