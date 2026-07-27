@@ -50,7 +50,8 @@ def apply_multi_session_downweighting(
         sessions_table, actions_table
     )
     fm_window = Window.partitionBy("RowID").orderBy(
-        F.col("StringDistance").asc_nulls_last()
+        F.col("StringDistance").asc_nulls_last(),
+        F.col("AdSeen").asc_nulls_last(),
     )
     max_distance_threshold = 10
 

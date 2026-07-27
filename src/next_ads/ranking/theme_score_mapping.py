@@ -74,21 +74,26 @@ def run_theme_score_mapping(
         "schema": schema,
         "client": client,
     }
-    control_sheet_latest = (
-        control_sheet_latest_table
-        or etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
+    control_sheet_latest = control_sheet_latest_table or etl.map_tbl(
+        tbls["control_sheet_latest"], **tbl_args
     )
-    customer_cells_latest = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
+    customer_cells_latest = etl.map_tbl(
+        tbls["customer_cells_latest"], **tbl_args
+    )
     kids_age_groups = cfg["tables"]["read"]["kids_age_groups_latest"]
     sessions = cfg["tables"]["read"]["bq_sessions"]
     actions = cfg["tables"]["read"]["bq_actions"]
 
     if algo == "challenger":
         logger.info("Running script as Challenger")
-        next_theme_scores_latest = config.theme_affinity_assignment_sources.challenger
+        next_theme_scores_latest = (
+            config.theme_affinity_assignment_sources.challenger
+        )
     else:
         logger.info("Running script as default (Champion)")
-        next_theme_scores_latest = config.theme_affinity_assignment_sources.champion
+        next_theme_scores_latest = (
+            config.theme_affinity_assignment_sources.champion
+        )
 
     theme_score_components_latest = etl.map_tbl(
         tbls["theme_score_components_latest"],
@@ -98,12 +103,9 @@ def run_theme_score_mapping(
         tbls["theme_score_components"],
         **tbl_args,
     )
-    preranked_ads_from_themes_latest = (
-        output_preranked_table
-        or etl.map_tbl(
-            tbls["preranked_ads_from_themes_latest"],
-            **tbl_args,
-        )
+    preranked_ads_from_themes_latest = output_preranked_table or etl.map_tbl(
+        tbls["preranked_ads_from_themes_latest"],
+        **tbl_args,
     )
     webhook_url = cfg["webhooks"]["DS Warnings"]
     ad_results = etl.map_tbl(
@@ -126,7 +128,9 @@ def run_theme_score_mapping(
     df_cust = load_customer_base(spark, customer_cells_latest)
 
     logger.info(f"Getting theme scores from {next_theme_scores_latest}")
-    df_theme_scores = load_theme_scores(spark, next_theme_scores_latest, df_cust)
+    df_theme_scores = load_theme_scores(
+        spark, next_theme_scores_latest, df_cust
+    )
 
     logger.info("Normalising theme scores")
     min_score, score_range = calculate_score_range(df_theme_scores, logger)
@@ -174,7 +178,9 @@ def run_theme_score_mapping(
         "TriggerScore",
     )
     if write_score_components:
-        logger.info(f"Loading score components to {theme_score_components_latest}")
+        logger.info(
+            f"Loading score components to {theme_score_components_latest}"
+        )
         truncate_and_load(
             df_score_components_for_write,
             theme_score_components_latest,
@@ -204,7 +210,9 @@ def run_theme_score_mapping(
     )
 
     logger.info(f"Ranking and returning top {top_ads} ads per ad set")
-    customer_prefs, age_order_map = load_customer_age_preferences(spark, kids_age_groups)
+    customer_prefs, age_order_map = load_customer_age_preferences(
+        spark, kids_age_groups
+    )
     df_adset_scores = rank_top_ads_per_adset(
         df_score_components,
         df_ad2adset,
@@ -228,14 +236,14 @@ def run_theme_score_mapping(
         group_col=output_group_col,
     )
 
-    logger.info(
-        "Persisting final results to break lineage and prevent shuffle retry issues"
-    )
+    logger.info("Caching deterministic final results for downstream reuse")
     df_ad_scores = df_ad_scores.persist()
     row_count = df_ad_scores.count()
     logger.info(f"Materialized {row_count} rows in final result set")
 
-    logger.info(f"Loading preranked theme ads to {preranked_ads_from_themes_latest}")
+    logger.info(
+        f"Loading preranked theme ads to {preranked_ads_from_themes_latest}"
+    )
     truncate_and_load(
         df_ad_scores,
         preranked_ads_from_themes_latest,
