@@ -40,7 +40,6 @@ include:
 sync:
   include:
     - configs/**
-    - deployment/lakeflow_package/**
     - experiments/analytics_pctr/**
     - jobs/**
     - sql/**

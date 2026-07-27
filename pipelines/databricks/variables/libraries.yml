@@ -28,7 +28,6 @@ variables:
         - /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
         - "python-dotenv==1.2.1"
         - "dynaconf==3.2.12"
-        - "--editable ${workspace.file_path}/deployment/lakeflow_package"
   analytics_pctr_libraries:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl

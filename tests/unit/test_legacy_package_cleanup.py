@@ -4,7 +4,6 @@ import pickle
 from pathlib import Path
 import subprocess
 import sys
-import tomllib
 
 import yaml
 
@@ -235,7 +234,6 @@ def test_bundle_sync_and_data_pull_use_canonical_routes():
     sync_includes = bundle["sync"]["include"]
 
     assert "src/next_ads/**" in sync_includes
-    assert "deployment/lakeflow_package/**" in sync_includes
     assert "next_ads/**" not in sync_includes
     assert "next_ads/data/**" not in sync_includes
 
@@ -309,7 +307,7 @@ def test_all_databricks_source_routes_exist():
     assert not violations, "\n".join(violations)
 
 
-def test_lakeflow_sources_install_canonical_package_for_workers():
+def test_lakeflow_sources_use_canonical_package_root():
     libraries = yaml.safe_load(
         (
             PROJECT_ROOT / "pipelines/databricks/variables/libraries.yml"
@@ -318,28 +316,10 @@ def test_lakeflow_sources_install_canonical_package_for_workers():
     dependencies = libraries["variables"]["pipeline_libraries"]["default"][
         "dependencies"
     ]
-    assert dependencies[-1] == (
-        "--editable ${workspace.file_path}/deployment/lakeflow_package"
+    assert not any(
+        dependency.startswith(("-e ", "--editable "))
+        for dependency in dependencies
     )
-
-    with (
-        PROJECT_ROOT / "deployment/lakeflow_package/pyproject.toml"
-    ).open("rb") as package_file:
-        package_config = tomllib.load(package_file)
-    with (PROJECT_ROOT / "pyproject.toml").open("rb") as project_file:
-        project_config = tomllib.load(project_file)
-    assert (
-        package_config["project"]["version"]
-        == project_config["project"]["version"]
-    )
-    assert package_config["project"]["dependencies"] == []
-    assert package_config["tool"]["setuptools"]["package-dir"] == {
-        "": "../../src"
-    }
-    assert package_config["tool"]["setuptools"]["packages"]["find"] == {
-        "where": ["../../src"],
-        "include": ["next_ads*"],
-    }
 
     pipeline_sources = list(_pipeline_python_sources())
     assert pipeline_sources
@@ -349,12 +329,19 @@ def test_lakeflow_sources_install_canonical_package_for_workers():
         configuration,
         configured_source,
     ) in pipeline_sources:
+        assert pipeline["root_path"] == "${workspace.file_path}/src", config_path
         assert pipeline["environment"] == "${var.pipeline_libraries}", config_path
         assert "pipeline.source_path" not in configuration, config_path
 
+        canonical_root = _resolve_bundle_source_path(
+            config_path, pipeline["root_path"]
+        )
         source_path = _resolve_bundle_source_path(
             config_path, configured_source
         )
+        assert canonical_root == PROJECT_ROOT / "src"
+        assert source_path.is_relative_to(canonical_root)
+        assert (canonical_root / "next_ads/__init__.py").is_file()
         tree = ast.parse(source_path.read_text(), filename=str(source_path))
         assert any(_imports_next_ads(node) for node in tree.body), source_path
         assert "_bootstrap_repo_paths" not in source_path.read_text()

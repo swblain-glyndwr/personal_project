@@ -14,7 +14,7 @@ mktg_next_uk_nextads_data_pull: &mktg_next_uk_nextads_data_pull
     schema: ${var.user_schema}
     edition: CORE
     catalog: ${var.mktgdata_catalog}
-    root_path: ${workspace.file_path}
+    root_path: ${workspace.file_path}/src
     environment: ${var.pipeline_libraries}
 
 
