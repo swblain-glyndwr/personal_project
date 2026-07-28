@@ -22,7 +22,7 @@ finally:
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from next_ads.utils import config_manager, etl
+from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
 
 
@@ -40,7 +40,7 @@ def main(
     CLIENT: str,
     LOG_LEVEL: str,
     reference_date: str = None,
-    advert_matching_threshold: float = 0.1,
+    advert_matching_threshold: float = 0.15,
 ):
     from pyspark.sql import functions as F
     from datetime import date

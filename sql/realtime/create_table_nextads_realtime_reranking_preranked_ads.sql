@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_reranking_preranked_ads (
  UniqueAdID STRING NOT NULL ,
+ CMSPageID STRING NOT NULL, 
  AccountNumber STRING NOT NULL ,
  roamingprofileid LONG NOT NULL ,
  PageType STRING NOT NULL ,
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_rerankin
  specialaccountindicator STRING,
  AlgoDivision STRING NOT NULL ,
  IsPremium INT,
+ Audience STRING, 
  brand STRING, 
  brand_perc_coverage DOUBLE, 
  department STRING, 

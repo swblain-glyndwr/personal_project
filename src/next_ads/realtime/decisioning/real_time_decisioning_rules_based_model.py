@@ -1,6 +1,8 @@
 import mlflow.pyfunc
 from concurrent.futures import ThreadPoolExecutor
-
+import time
+import os
+from databricks.sdk import WorkspaceClient
 import hashlib
 import json
 import logging
@@ -12,31 +14,58 @@ logger = logging.getLogger("realtime_reranking_model")
 
 
 class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
-    def __init__(
-        self,
-        pagetype_filter: list = ["ProductListingPage", "ShoppingBag"],
-        min_number_of_ads: int = 10,
-        ad_fatigue_active_locations: list = [],
-        ad_fatigue_threshold: int = 2,
-        fragment_record_limit: int = 20,
-        trigger_record_limit: int = 5,
-    ):
+    def load_context(self, context: dict):
 
+        # Connection context
+        self.db_host = os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_HOST")
+        self.db_port = os.environ.get(
+            "NEXTADS_REALTIME_ONLINE_LAKEBASE_PORT", "5432"
+        )
+        self.db_name = os.environ.get(
+            "NEXTADS_REALTIME_ONLINE_LAKEBASE_DATABASE", "databricks_postgres"
+        )
+        self.db_user = os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_USER")
+        self.workspace_client = WorkspaceClient(
+            host=os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_HOST"),
+            client_id=os.environ.get(
+                "NEXTADS_REALTIME_ONLINE_LAKEBASE_CLIENT_ID"
+            ),
+            client_secret=os.environ.get(
+                "NEXTADS_REALTIME_ONLINE_LAKEBASE_CLIENT_SECRET"
+            ),
+        )
+        # Token caching state
+        self._cached_token = None
+        self._token_expiry = 0
         self.conn = None
-        self.pagetype_filter: list = pagetype_filter
-        self.min_number_of_ads: int = min_number_of_ads
+
+        self.table_catalog:str =os.environ.get(
+            "NEXTADS_REALTIME_ONLINE_LAKEBASE_CATALOG", "marketingdata_dev"
+        )
+        self.table_schema:str =os.environ.get(
+                    "NEXTADS_REALTIME_ONLINE_LAKEBASE_SCHEMA", "nextads"
+                )
+        
+        # Model Variables
+        self.pagetype_filter: list = context.get(
+            "pagetype_filter", ["ProductListingPage", "ShoppingBag"]
+        )
+        self.min_number_of_ads: int = context.get("min_number_of_ads", 10)
         self.item_feature_columns: list = [
             "brand",
             "next_category",
             "department",
             "prem_level_brand",
         ]
-
         # Payload settings
-        self.ad_fatigue_threshold: int = ad_fatigue_threshold
-        self.ad_fatigue_active_locations: list = ad_fatigue_active_locations
-        self.trigger_record_limit: int = trigger_record_limit
-        self.fragments_record_limit: int = fragment_record_limit
+        self.ad_fatigue_threshold: int = context.get("ad_fatigue_threshold", 2)
+        self.ad_fatigue_active_locations: list = context.get(
+            "ad_fatigue_active_locations", []
+        )
+        self.trigger_record_limit: int = context.get("trigger_record_limit", 5)
+        self.fragments_record_limit: int = context.get(
+            "fragment_record_limit", 20
+        )
 
         # TODO: add Audience column in here!
         self.customer_cells_columns: list = [
@@ -99,20 +128,31 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             ],
         }
 
-    # def load_context(self, context):
-    #     """Initialise the context at the point the model is loaded"""
+    def _get_oauth_token(self):
+        """Fetches a new 1-hour OAuth token before expiration."""
+        now = time.time()
+        # Refresh 5 minutes before expiry (tokens last 3600 seconds)
+        if not self._cached_token or (self._token_expiry - now) < 300:
+            # Generate OAuth token using Databricks SDK
+            token_info = self.workspace_client.tokens.create(
+                comment="NextAds Realtime Known Reranking Model Lakebase Serving Token",
+                lifetime_seconds=3600,
+            )
+            self._cached_token = token_info.token_value
+            self._token_expiry = now + 3600
 
-    #     #TODO: Resolve this so if not connecting has retries for reconnecting
-    #     self.generate_lakebase_connection()
-    #     pass
+        return self._cached_token
 
     def generate_lakebase_connection(self):
-        #     #TODO FIX HOW THIS WILL WORK FOR A SERVED MODEL -may need to call to get an oauth token
+
+        self._get_oauth_token()
+
         conn = psycopg2.connect(
-            host=ONLINE_RT_LAKEBASE_HOST,
-            dbname=ONLINE_RT_FEATURE_STORE_DB_NAME,
-            user=ONLINE_RT_FEATURE_STORE_USER,
-            password=ONLINE_RT_FEATURE_STORE_PASSWORD,
+            host= self.db_host,
+            dbname= self.db_name,
+            port=self.db_port,
+            user= self.db_user,
+            password=self._cached_token,
             sslmode="require",
         )
         self.conn = conn
@@ -121,7 +161,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
         results = pd.DataFrame()
         try:
-            if not self.conn:
+            if not self.conn or self._token_expiry - time.time() < 300:
                 self.generate_lakebase_connection()
             with self.conn.cursor() as cursor:
                 cursor.execute(qry)
@@ -199,8 +239,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             logger.info("No input RPID provided")
             return customer_ads
 
-        # TODO: migrate to centralised functionality
-        table = "marketingdata_dev.claire_wilsonbarnes.next_uk_nextads_realtime_reranking_preranked_ads_sample_online"
+        table = f"{self.table_catalog}.{self.table_schema}.next_uk_nextads_realtime_reranking_preranked_ads_sample_online"
 
         ads_qry = f"""
             SELECT
@@ -236,8 +275,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             logger.error("No items identified")
             return items_data
 
-        # TODO change to variable
-        table = "marketingdata_dev.claire_wilsonbarnes.next_uk_nextads_realtime_reranking_item_weighting_rules_online"
+        table = f"{self.table_catalog}.{self.table_schema}.next_uk_nextads_realtime_reranking_item_weighting_rules_online"
 
         input_pids = "', '".join(input_data["pid"].unique())
 
@@ -351,8 +389,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
         cust_affinity = pd.DataFrame()
 
-        # TODO change to variable
-        table = "marketingdata_dev.claire_wilsonbarnes.next_uk_nextads_advert_advert_association_online"
+        table = f"{self.table_catalog}.{self.table_schema}.next_uk_nextads_advert_advert_association_online"
 
         best_ads = "', '".join(best_ad_df["UniqueAdID"].unique())
 
@@ -547,5 +584,3 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         # Multiprocess the steps here!!!
         # TODO Add in additional step here to write out to bloommreach API
         pass
-
-    # Functionality to build out payload structure

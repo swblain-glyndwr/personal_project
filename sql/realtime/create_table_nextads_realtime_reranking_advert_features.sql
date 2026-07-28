@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_reranking_advert_features (
     UniqueAdID STRING NOT NULL,
+    CMSPageID STRING NOR NULL, 
     brand STRING,
     brand_perc_coverage double, 
     department STRING,

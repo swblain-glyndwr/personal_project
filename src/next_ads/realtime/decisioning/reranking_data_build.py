@@ -141,7 +141,7 @@ def advert_details_build(
 
     from pyspark.sql import functions as F
     from pyspark.sql import Window
-    from next_ads.utils import etl
+    from next_ads.common import etl
 
     read_tables = cfg["tables"]["read"]
     write_tables = cfg["tables"]["write"]
@@ -149,7 +149,7 @@ def advert_details_build(
     write_tables = cfg["tables"]["write"]
     SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest"])
     CONTROL_SHEET = spark.table(
-        etl.map_tbl(write_tables["control_sheet_latest"], **tbl_configs)
+        etl.map_tbl(write_tables["control_sheet_latest_v2"], **tbl_configs)
     )
     PRODUCT_FEATURES = spark.table(
         etl.map_tbl(
@@ -158,7 +158,7 @@ def advert_details_build(
         )
     )
 
-    unique_ads = CONTROL_SHEET.select("UniqueAdID").distinct()
+    unique_ads = CONTROL_SHEET.select("UniqueAdID", "CMSPageID").distinct()
     aditems = unique_ads.join(
         SORT_ORDER_LATEST, on="UniqueAdId", how="left"
     ).select(
@@ -224,7 +224,7 @@ def realtime_reranking_preranked_ads_build(
 ):
 
     from pyspark.sql import functions as F
-    from next_ads.utils import etl
+    from next_ads.common import etl
     from pyspark.sql.types import DoubleType
 
     read_tables = cfg["tables"]["read"]
@@ -310,7 +310,7 @@ def realtime_reranking_item_weights_build(
 ):
 
     from pyspark.sql import functions as F
-    from next_ads.utils import etl
+    from next_ads.common import etl
 
     write_tables = cfg["tables"]["write"]
     ITEMS_DATA = spark.table(
