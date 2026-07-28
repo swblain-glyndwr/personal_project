@@ -178,7 +178,9 @@ def build_advert_items_df(
             on="UniqueAdID",
             how="inner",
         )
-        .select(F.col("ad.UniqueAdID"), F.col("ad.CMSPageID"), F.col("s_o.items"))
+        .select(
+            F.col("ad.UniqueAdID"), F.col("ad.CMSPageID"), F.col("s_o.items")
+        )
         .join(
             PRODUCT_CATALOG.alias("cat"),
             on=(F.col("s_o.items") == F.col("cat.pid")),
@@ -197,7 +199,7 @@ def build_advert_items_df(
         .join(PRODUCT_CATIDS_LATEST, on="itemno", how="left")
         .select(
             F.col("UniqueAdID"),
-            F.col("CMSPageID"), 
+            F.col("CMSPageID"),
             F.col("itemno"),
             F.col("catid"),
             F.lit(reference_date).cast("date").alias("rundate"),
@@ -256,7 +258,6 @@ def build_advert_items_df(
 def determine_ad_profile_similiarity(
     spark, cfg, tbl_configs: dict, reference_date: str, output_table: str
 ):
-
     from pyspark.sql import functions as F
     from next_ads.common import etl
 
@@ -287,9 +288,9 @@ def determine_ad_profile_similiarity(
         )
         .select(
             F.col("a.UniqueAdID"),
-            F.col("a.CMSPageID"), 
+            F.col("a.CMSPageID"),
             F.col("b.UniqueAdID").alias("TargetUniqueAdID"),
-            F.col("b.CMSPAgeID").alias("TargetCMSPageID"), 
+            F.col("b.CMSPAgeID").alias("TargetCMSPageID"),
             F.col("a.itemcount"),
             F.col("b.itemcount").alias("target_itemcount"),
             "intersection_count",
@@ -441,7 +442,6 @@ def build_advert_affinity(
     ad_percentage_coverage_threshold: float = 0.95,
     lift_threshold: float = 1.1,
 ):
-
     from pyspark.sql import functions as F
     from pyspark.sql import Window
     from next_ads.common import etl
@@ -533,14 +533,25 @@ def build_advert_affinity(
             how="inner",
         )
         .select("date", "UniqueVisitID", "UniqueAdID", "CMSPageID", "atbitem")
-        .withColumnsRenamed({"UniqueAdID":"ViewUniqueAdID", "CMSPageID":"ViewCMSPageID"})
+        .withColumnsRenamed(
+            {"UniqueAdID": "ViewUniqueAdID", "CMSPageID": "ViewCMSPageID"}
+        )
         .join(
             F.broadcast(ADVERT_ITEMS.alias("ab")),
             on=(F.col("vb.atbitem") == F.col("ab.itemno")),
             how="inner",
         )
-        .withColumnsRenamed({"UniqueAdID": "AtbUniqueAdID", "CMSPageID":"AtbCMSPageID"})
-        .select("date", "UniqueVisitID", "ViewUniqueAdID", "ViewCMSPageID",  "AtbUniqueAdID", "AtbCMSPageID")
+        .withColumnsRenamed(
+            {"UniqueAdID": "AtbUniqueAdID", "CMSPageID": "AtbCMSPageID"}
+        )
+        .select(
+            "date",
+            "UniqueVisitID",
+            "ViewUniqueAdID",
+            "ViewCMSPageID",
+            "AtbUniqueAdID",
+            "AtbCMSPageID",
+        )
         .distinct()
     )
 
@@ -622,14 +633,25 @@ def build_advert_affinity(
             how="inner",
         )
         .select("date", "UniqueVisitID", "UniqueAdID", "CMSPageID", "atbcatid")
-        .withColumnsRenamed({"UniqueAdID":"ViewUniqueAdID", "CMSPageID": "ViewCMSPageID"})
+        .withColumnsRenamed(
+            {"UniqueAdID": "ViewUniqueAdID", "CMSPageID": "ViewCMSPageID"}
+        )
         .join(
             F.broadcast(advert_catids.alias("cb")),
             on=(F.col("vb.atbcatid") == F.col("cb.catid")),
             how="inner",
         )
-        .withColumnsRenamed({"UniqueAdID":"AtbUniqueAdID", "CMSPageID": "AtbCMSPageID"})
-        .select("date", "UniqueVisitID", "ViewUniqueAdID", "ViewCMSPageID", "AtbUniqueAdID", "AtbCMSPageID")
+        .withColumnsRenamed(
+            {"UniqueAdID": "AtbUniqueAdID", "CMSPageID": "AtbCMSPageID"}
+        )
+        .select(
+            "date",
+            "UniqueVisitID",
+            "ViewUniqueAdID",
+            "ViewCMSPageID",
+            "AtbUniqueAdID",
+            "AtbCMSPageID",
+        )
         .distinct()
     )
     number_views_prior_year = prior_year_advert_item_associations.groupBy(
@@ -831,7 +853,7 @@ def build_advert_affinity(
             F.col("base.ViewUniqueAdID"),
             F.col("base.ViewCMSPageID"),
             F.col("base.AtbUniqueAdID"),
-            F.col("base.AtbCMSPageID"), 
+            F.col("base.AtbCMSPageID"),
             F.col("number_views_atbs"),
             F.col("number_views"),
             F.col("number_atbs"),

@@ -6,7 +6,6 @@ logger = get_logger(__name__)
 def create_realtime_known_reranking_weighting_rules(
     spark, rules: dict, reference_date: str, output_table: str
 ):
-
     import pyspark.sql.functions as F
 
     flattened_data = [{**value, "ruleID": key} for key, value in rules.items()]
@@ -54,7 +53,6 @@ def create_realtime_known_reranking_weighting_rules(
 def create_central_product_details_by_pid(
     spark, config, cfg, reference_date: str, output_table: str
 ):
-
     from pyspark.sql import functions as F
     from pyspark.sql import Window
 
@@ -138,7 +136,6 @@ def advert_details_build(
     output_table: str,
     coverage_min_threshold: float = 0.1,
 ):
-
     from pyspark.sql import functions as F
     from pyspark.sql import Window
     from next_ads.common import etl
@@ -222,7 +219,6 @@ def advert_details_build(
 def realtime_reranking_preranked_ads_build(
     spark, cfg, tbl_configs, reference_date, output_table
 ):
-
     from pyspark.sql import functions as F
     from next_ads.common import etl
     from pyspark.sql.types import DoubleType
@@ -308,7 +304,6 @@ def realtime_reranking_preranked_ads_build(
 def realtime_reranking_item_weights_build(
     spark, cfg, tbl_configs, reference_date, output_table
 ):
-
     from pyspark.sql import functions as F
     from next_ads.common import etl
 

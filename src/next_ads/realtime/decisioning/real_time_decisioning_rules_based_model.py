@@ -15,7 +15,6 @@ logger = logging.getLogger("realtime_reranking_model")
 
 class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
     def load_context(self, context: dict):
-
         # Connection context
         self.db_host = os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_HOST")
         self.db_port = os.environ.get(
@@ -39,13 +38,13 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         self._token_expiry = 0
         self.conn = None
 
-        self.table_catalog:str =os.environ.get(
+        self.table_catalog: str = os.environ.get(
             "NEXTADS_REALTIME_ONLINE_LAKEBASE_CATALOG", "marketingdata_dev"
         )
-        self.table_schema:str =os.environ.get(
-                    "NEXTADS_REALTIME_ONLINE_LAKEBASE_SCHEMA", "nextads"
-                )
-        
+        self.table_schema: str = os.environ.get(
+            "NEXTADS_REALTIME_ONLINE_LAKEBASE_SCHEMA", "nextads"
+        )
+
         # Model Variables
         self.pagetype_filter: list = context.get(
             "pagetype_filter", ["ProductListingPage", "ShoppingBag"]
@@ -144,21 +143,19 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         return self._cached_token
 
     def generate_lakebase_connection(self):
-
         self._get_oauth_token()
 
         conn = psycopg2.connect(
-            host= self.db_host,
-            dbname= self.db_name,
+            host=self.db_host,
+            dbname=self.db_name,
             port=self.db_port,
-            user= self.db_user,
+            user=self.db_user,
             password=self._cached_token,
             sslmode="require",
         )
         self.conn = conn
 
     def run_query(self, qry: str) -> pd.DataFrame:
-
         results = pd.DataFrame()
         try:
             if not self.conn or self._token_expiry - time.time() < 300:
@@ -174,7 +171,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         return results
 
     def predict(self, model_input: dict) -> dict:
-
         with ThreadPoolExecutor(max_workers=2) as executor:
             ads = executor.submit(
                 self.realtime_reranking_advert_data_prep,
@@ -232,7 +228,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
     def realtime_reranking_advert_data_prep(
         self, input_rpid: int, page_type_filter: list
     ) -> pd.DataFrame:
-
         customer_ads = pd.DataFrame()
 
         if not input_rpid:
@@ -263,7 +258,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
     def realtime_reranking_item_data_prep(
         self, input_features: dict
     ) -> pd.DataFrame:
-
         items_data = pd.DataFrame()
         flattened_data = [{**value} for value in input_features.values()]
         input_data = pd.DataFrame(flattened_data).rename(
@@ -301,7 +295,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
     def realtime_reranking_item_cross(
         self, customer_ads: pd.DataFrame, item_df: pd.DataFrame
     ) -> pd.DataFrame:
-
         customer_ads["adjusted_weighting_final"] = 0
         customer_ads_ = customer_ads[
             [
@@ -386,7 +379,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         ]
 
     def incrementality(self, best_ad_df: pd.DataFrame) -> pd.DataFrame:
-
         cust_affinity = pd.DataFrame()
 
         table = f"{self.table_catalog}.{self.table_schema}.next_uk_nextads_advert_advert_association_online"
@@ -483,7 +475,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
     def get_experiment_id(
         self, df: pd.DataFrame, col_name: str, split_col_name="split_col"
     ):
-
         rules = self.experiment_details.get(
             col_name, self.experiment_details["DEFAULT"]
         )
@@ -503,7 +494,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         return np.select(conditions, choices, default=default_value).tolist()
 
     def get_audience_experiment_id(self, customer_cells: pd.DataFrame):
-
         audience = self.experiment_settings.get("audience_experiments", {})
         split_col = audience.get("split_col", "Audience")
         audience_sample = audience.get("sample", ["Best"])
@@ -532,7 +522,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         return id
 
     def build_experiment_id(self, experiment_df: pd.DataFrame):
-
         ids = []
         if self.experiment_settings.get("audience_settings", {}).get(
             "enabled", False
@@ -552,7 +541,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
     def build_payload_structure(
         self, customer_cells_df: pd.DataFrame, results_df: pd.DataFrame
     ) -> dict:
-
         with ThreadPoolExecutor(max_workers=4) as executor:
             executor.submit(self.determine_control, customer_cells_df)
             triggers = executor.submit(self.build_triggers, results_df)
