@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_advert_advert_association (
     ViewUniqueAdID STRING NOT NULL,
-    ViewCMSPageID STRING NOT NULL, 
+    ViewCMSPageID STRING , 
     AtbUniqueAdID STRING NOT NULL,
-    AtbCMSPageID STRING NOT NULL, 
+    AtbCMSPageID STRING , 
     number_views_atbs double, 
     number_views double,
     number_atbs double,
