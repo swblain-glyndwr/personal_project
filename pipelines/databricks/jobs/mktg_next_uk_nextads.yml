@@ -169,7 +169,6 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: score_lightweight
           - task_key: load_control_sheet_v1
-          - task_key: validate_theme_affinity_theme_coverage
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_theme_ad_candidates.py
           parameters:
@@ -188,7 +187,6 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: score_lightweight
           - task_key: load_control_sheet_v2
-          - task_key: validate_theme_affinity_theme_coverage
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_page_type_candidates_v2.py
           parameters:

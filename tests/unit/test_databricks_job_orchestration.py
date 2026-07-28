@@ -63,7 +63,6 @@ def test_v2_mapping_does_not_depend_on_v1_mapping():
     assert tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"] == [
         {"task_key": "score_lightweight"},
         {"task_key": "load_control_sheet_v2"},
-        {"task_key": "validate_theme_affinity_theme_coverage"},
     ]
     assert {"task_key": "map_theme_scores_to_ads_v1"} not in tasks_by_key[
         "map_theme_scores_to_ads_v2"
@@ -112,7 +111,7 @@ def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
     )
 
 
-def test_theme_affinity_coverage_validation_gates_both_route_mappers():
+def test_theme_affinity_coverage_validation_does_not_gate_route_mappers():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
@@ -137,12 +136,14 @@ def test_theme_affinity_coverage_validation_gates_both_route_mappers():
             "spark_python_task"
         ]["parameters"]
     )
-    assert {
-        "task_key": "validate_theme_affinity_theme_coverage"
-    } in tasks_by_key["map_theme_scores_to_ads_v1"]["depends_on"]
-    assert {
-        "task_key": "validate_theme_affinity_theme_coverage"
-    } in tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"]
+    assert tasks_by_key["map_theme_scores_to_ads_v1"]["depends_on"] == [
+        {"task_key": "score_lightweight"},
+        {"task_key": "load_control_sheet_v1"},
+    ]
+    assert tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"] == [
+        {"task_key": "score_lightweight"},
+        {"task_key": "load_control_sheet_v2"},
+    ]
 
 
 def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
