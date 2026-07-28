@@ -28,6 +28,10 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import post_to_webhook, delete_from_and_load
 from dsutils.argparser import get_job_parser
+from next_ads.reporting.autotrading import (
+    post_autotrading_message,
+    select_previous_campaign_ads,
+)
 from next_ads.reporting.results import check_control_ratio
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
@@ -175,34 +179,10 @@ df_newly_flagged = df_ads_removed.join(
     how="left_anti",
 )
 
-df_excl_campaigns = (
-    df_newly_flagged.withColumn(
-        "PotNumber",
-        F.split_part(F.col("UniqueAdID"), F.lit("_"), F.lit(1)),
-    )
-    .withColumn(
-        "CampaignNumber",
-        F.split_part(F.col("UniqueAdID"), F.lit("_"), F.lit(2)),
-    )
-    .select("PotNumber", "CampaignNumber")
-)
-
 df_ad_pre_performance = (
-    spark.table(AD_RESULTS)
-    .alias("a")
-    .join(
-        df_excl_campaigns.alias("b"),
-        on=(
-            (
-                F.split_part(F.col("a.UniqueAdID"), F.lit("_"), F.lit(1))
-                == F.col("b.PotNumber")
-            )
-            & (
-                F.split_part(F.col("a.UniqueAdID"), F.lit("_"), F.lit(2))
-                == F.col("b.CampaignNumber")
-            )
-        ),
-        how="leftanti",
+    select_previous_campaign_ads(
+        spark.table(AD_RESULTS),
+        df_newly_flagged,
     )
     .groupBy("UniqueAdID")
     .agg(
@@ -376,7 +356,10 @@ if newly_flagged_ads > 0:
     logger.warning(msg)
 
     if JOB_ENV == "prod":
-        post_to_webhook(WEBHOOK_URL, msg)
+        posted_messages = post_autotrading_message(WEBHOOK_URL, msg)
+        logger.info(
+            f"Posted AutoTrading notification in {posted_messages:,} message(s)"
+        )
 else:
     msg = (
         f"{auto_trading_status}: No newly flagged underperforming ads\n"
@@ -387,7 +370,10 @@ else:
     logger.warning(msg)
 
     if JOB_ENV == "prod":
-        post_to_webhook(WEBHOOK_URL, msg)
+        posted_messages = post_autotrading_message(WEBHOOK_URL, msg)
+        logger.info(
+            f"Posted AutoTrading notification in {posted_messages:,} message(s)"
+        )
 
 logger.info(f"Loading assignments to {UNDERPERFORMING_ADS}")
 delete_from_and_load(
