@@ -65,7 +65,7 @@ flowchart TD
 
 This is the main evening operational route. It keeps customer cells, item attributes, product Theme Mapping, and lightweight theme scoring shared. Both page-build routes remain active, and the v1/v2 split happens when shared customer-theme scores are joined to each route's loaded control sheet. `score_lightweight` is still a task dependency in the YAML, but `run_theme_score_mapping` reads Theme Affinity model latest for customer-theme scores.
 
-The v2 workbook owns the `Theme Mapping` tab. A Google Sheets Apps Script copies it into the v1 workbook, and `validate_theme_mapping_sync` checks that copy before the shared parser runs. `validate_theme_affinity_theme_coverage` then checks that active ad `Themes` from both loaded route control sheets exist in the shared Theme Affinity `NextTheme` output before either mapper runs. The coverage check is warning-only in candidate build: missing themes are surfaced for follow-up refresh work, but the route mappers continue.
+The v2 workbook owns the `Theme Mapping` tab. A Google Sheets Apps Script copies it into the v1 workbook, and `validate_theme_mapping_sync` checks that copy before the shared parser runs. `validate_theme_affinity_theme_coverage` independently checks that active ad `Themes` from both loaded route control sheets exist in the shared Theme Affinity `NextTheme` output. The coverage check is warning-only in candidate build: missing themes are surfaced for follow-up refresh work, but the validation task does not gate either route mapper.
 
 Colour key: blue = shared Theme Affinity model output; teal = shared candidate tasks; green = v1 route; purple = v2 route; amber = guardrail; yellow = external Google Sheet/App Script dependency.
 
@@ -111,11 +111,9 @@ flowchart TD
   load_control_sheet_v2 --> validate_theme_affinity_theme_coverage
   theme_affinity_latest --> validate_theme_affinity_theme_coverage
   load_control_sheet_v1 --> map_theme_scores_to_ads_v1
-  validate_theme_affinity_theme_coverage --> map_theme_scores_to_ads_v1
   theme_affinity_latest --> map_theme_scores_to_ads_v1
   score_lightweight --> map_theme_scores_to_ads_v1
   load_control_sheet_v2 --> map_theme_scores_to_ads_v2
-  validate_theme_affinity_theme_coverage --> map_theme_scores_to_ads_v2
   theme_affinity_latest --> map_theme_scores_to_ads_v2
   score_lightweight --> map_theme_scores_to_ads_v2
   combine_customer_cells --> trigger_page_build_v1_job
@@ -139,8 +137,8 @@ Observed latest successful candidate-build task timing, from run `10142128211234
 | `score_lightweight` | After Theme Mapping parse | 1h 14m 1s baseline | `parse_theme_mapping` |
 | `combine_customer_cells` | 38m | 2m 43s | `assign_customer_cells` |
 | `validate_theme_affinity_theme_coverage` | After both control sheets | New guardrail | `load_control_sheet_v1`, `load_control_sheet_v2` |
-| `map_theme_scores_to_ads_v1` | After shared scoring and coverage validation | 1h 22m 55s baseline | `score_lightweight`, `load_control_sheet_v1`, `validate_theme_affinity_theme_coverage` |
-| `map_theme_scores_to_ads_v2` | After shared scoring and coverage validation | Prior baseline 43m 36s | `score_lightweight`, `load_control_sheet_v2`, `validate_theme_affinity_theme_coverage` |
+| `map_theme_scores_to_ads_v1` | After shared scoring and v1 control sheet | 1h 22m 55s baseline | `score_lightweight`, `load_control_sheet_v1` |
+| `map_theme_scores_to_ads_v2` | After shared scoring and v2 control sheet | Prior baseline 43m 36s | `score_lightweight`, `load_control_sheet_v2` |
 | `trigger_page_build_v1_job` | After v1 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `trigger_page_build_v2_job` | After v2 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 

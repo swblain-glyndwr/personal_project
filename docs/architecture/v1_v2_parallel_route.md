@@ -190,8 +190,8 @@ Inside `mktg_next_uk_nextads_candidate_build`, these are tasks, not standalone D
 | `parse_theme_mapping` | `jobs/nextads_control/parse_theme_mapping.py` | `parse_attributes`, `validate_theme_mapping_sync` |
 | `score_lightweight` | `jobs/nextads_candidates/build_theme_scores.py` | `parse_theme_mapping` |
 | `validate_theme_affinity_theme_coverage` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `load_control_sheet_v1`, `load_control_sheet_v2` |
-| `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `score_lightweight`, `load_control_sheet_v1`, `validate_theme_affinity_theme_coverage` |
-| `map_theme_scores_to_ads_v2` | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `score_lightweight`, `load_control_sheet_v2`, `validate_theme_affinity_theme_coverage` |
+| `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `score_lightweight`, `load_control_sheet_v1` |
+| `map_theme_scores_to_ads_v2` | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `score_lightweight`, `load_control_sheet_v2` |
 | `trigger_page_build_v1_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `trigger_page_build_v2_job` | `jobs/orchestration/trigger_databricks_job.py` | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
