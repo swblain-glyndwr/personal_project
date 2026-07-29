@@ -240,7 +240,7 @@ else:
     else:
         logger.info(f"NextGenAds not referenced in {PAGE_TYPE} map - skipping")
         df_assigned_nextgenads = spark.createDataFrame(
-            [], schema="AccountNumber STRING, UniqueAdID STRING, Rank INT"
+            [], schema=df_assigned_best.schema
         )
     df_assigned_nextgenads.cache()
 
