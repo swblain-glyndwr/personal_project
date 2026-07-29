@@ -1,6 +1,11 @@
 import pytest
 
+from pathlib import Path
+
 from next_ads.ranking.theme_affinity.clean_output import _ranked_theme_mapping
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class FakeDataFrame:
@@ -44,3 +49,16 @@ def test_ranked_theme_mapping_reads_rank_one_themes():
 
     assert mapping.count() == 1
     assert "WHERE theme_rank = 1" in spark.query
+
+
+def test_model_reranking_uses_theme_as_final_tiebreaker():
+    source = (
+        PROJECT_ROOT
+        / "src/next_ads/ranking/theme_affinity/clean_output.py"
+    ).read_text()
+    start = source.index("def _rerank_model_output(")
+    end = source.index("\ndef clean_model_output(")
+    reranking_source = source[start:end]
+
+    assert reranking_source.count('F.col("theme").asc()') == 2
+    assert reranking_source.count(".desc_nulls_last()") == 2

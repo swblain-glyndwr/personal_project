@@ -41,8 +41,45 @@ def _write_inference_log(spark, full_results, model_tables, model_id: str):
     inference_log.write.mode("append").saveAsTable(inference_log_table)
 
 
-def clean_model_output(spark, runtime):
+def _rerank_model_output(full_results, penalty_themes, penalty: float):
     from pyspark.sql import Window
+    from pyspark.sql import functions as F
+
+    penalty_window = Window.partitionBy("account_number").orderBy(
+        F.col("prediction").desc_nulls_last(),
+        F.col("theme").asc(),
+    )
+    reranked = (
+        full_results.withColumn(
+            "rank",
+            F.row_number().over(penalty_window),
+        )
+        .join(
+            penalty_themes.withColumn("is_penalty_theme", F.lit(True)),
+            full_results.theme == penalty_themes.theme_clean,
+            "left",
+        )
+        .withColumn(
+            "adjusted_score",
+            F.when(
+                (F.col("rank") == 1)
+                & (F.col("baskets_behavior__recency_rank") == 1)
+                & F.col("is_penalty_theme"),
+                F.col("prediction") * (1 - penalty),
+            ).otherwise(F.col("prediction")),
+        )
+    )
+    final_window = Window.partitionBy("account_number").orderBy(
+        F.col("adjusted_score").desc_nulls_last(),
+        F.col("theme").asc(),
+    )
+    return reranked.withColumn(
+        "final_rank",
+        F.row_number().over(final_window),
+    )
+
+
+def clean_model_output(spark, runtime):
     from pyspark.sql import functions as F
 
     model_config = runtime.config.ranking_model
@@ -71,32 +108,11 @@ def clean_model_output(spark, runtime):
     )
     penalty_themes = dynamic_themes_df.union(manual_themes_df).distinct()
 
-    window_spec = Window.partitionBy("account_number").orderBy(
-        F.col("prediction").desc()
-    )
-    reranking_df = full_results.withColumn(
-        "rank", F.row_number().over(window_spec)
-    )
-    reranking_df = reranking_df.join(
-        penalty_themes.withColumn("is_penalty_theme", F.lit(True)),
-        reranking_df.theme == penalty_themes.theme_clean,
-        "left",
-    )
     penalty = float(model_config.high_repurchase_penalty)
-    reranking_df = reranking_df.withColumn(
-        "adjusted_score",
-        F.when(
-            (F.col("rank") == 1)
-            & (F.col("baskets_behavior__recency_rank") == 1)
-            & F.col("is_penalty_theme"),
-            F.col("prediction") * (1 - penalty),
-        ).otherwise(F.col("prediction")),
-    )
-    final_window = Window.partitionBy("account_number").orderBy(
-        F.col("adjusted_score").desc()
-    )
-    final_results = reranking_df.withColumn(
-        "final_rank", F.row_number().over(final_window)
+    final_results = _rerank_model_output(
+        full_results,
+        penalty_themes,
+        penalty,
     )
     full_results = (
         final_results.withColumnRenamed("adjusted_score", "ProbAggRebased")

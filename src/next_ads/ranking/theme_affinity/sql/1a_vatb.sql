@@ -80,4 +80,7 @@ SELECT
   current_date() as rundate
 FROM stats_raw
 WHERE freq12 >= 3
-QUALIFY ROW_NUMBER() OVER(PARTITION BY theme_clean1 ORDER BY freq12 DESC) < 100
+QUALIFY ROW_NUMBER() OVER(
+  PARTITION BY theme_clean1
+  ORDER BY freq12 DESC, theme_clean2 ASC
+) < 100

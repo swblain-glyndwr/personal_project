@@ -426,7 +426,8 @@ def test_training_frame_builder_bounds_operational_ranked_table():
     assert "min_positive_group_fraction" in source
     assert "sample_strata_columns" in source
     assert "candidate_rank_band_fractions" in source
-    assert "sampleBy(" in source
+    assert "sampleBy(" not in source
+    assert "stable_fraction(" in source
     assert "(F.col(RANK_COL) <= F.lit(rank_filter_threshold))" in source
     assert "| (F.col(LABEL_COL) > F.lit(0))" in source
     assert "frame_config.max_accounts" in source

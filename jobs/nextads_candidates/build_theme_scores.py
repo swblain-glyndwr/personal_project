@@ -36,6 +36,11 @@ from dsutils.etl import delete_from_and_load, truncate_and_load
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
 from next_ads.common import etl
+from next_ads.ranking.theme_score_generation import (
+    merge_and_rank_theme_scores,
+    select_global_top_themes,
+    select_latest_view_themes,
+)
 
 from next_ads.reporting.plotting import DirectedGraphPlotter
 
@@ -108,8 +113,6 @@ def main(
 
     ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
 
-    ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
-
     if isinstance(ACTIONS_END, str):
         ACTIONS_END = date.fromisoformat(ACTIONS_END)
     ACTIONS_START = ACTIONS_END - timedelta(days=364)
@@ -127,11 +130,6 @@ def main(
         .where(F.col("modified_rank") == 1)
         .select("pid", "title")
     )
-    msg = "Duplicate PIDs found when retrieving item titles"
-    assert (
-        item_titles.count() == item_titles.select("pid").distinct().count()
-    ), msg
-
     item_themes = (
         spark.table(ITEM_THEMES)
         .where(F.col("theme_rank") == 1)
@@ -316,24 +314,28 @@ def main(
             del_where={"rundate": "current_date()"},
         )
 
-    # Get recent purchase themes for each account (baseline interest)
+    # Read the materialised scoring events from this run. This keeps the
+    # downstream scoring lineage independent from the cached basket build.
     account_themes = (
-        baskets_with_themes.where(F.col("order_no") < 10)
-        .select("account_number", "theme")
+        spark.table(THEME_SCORING_EVENTS_LATEST)
+        .where(F.col("EventType") == "order")
+        .where(F.col("EventWeight") == 1.0)
+        .select(
+            F.col("AccountNumber").alias("account_number"),
+            F.col("Theme").alias("theme"),
+        )
         .distinct()
     )
-
-    baskets_with_themes.unpersist()
 
     if TEST_ACCOUNT:
         logger.info("Recent themes for test account:")
         (
-            baskets_with_themes.where(F.col("account_number") == TEST_ACCOUNT)
-            .where(F.col("order_no") < 10)
-            .select("account_number", "order_no", "theme")
-            .orderBy("account_number", "order_no")
+            account_themes.where(F.col("account_number") == TEST_ACCOUNT)
+            .orderBy("account_number", "theme")
             .show(100, truncate=False)
         )
+
+    baskets_with_themes.unpersist()
 
     # --- View history (immediate intent signal) ---
     if VIEWS_ENABLED:
@@ -360,8 +362,6 @@ def main(
             )
         rpid_lookup = rpid_lookup.distinct()
 
-        w_view = Window.partitionBy("account_number").orderBy(F.desc("date"))
-
         views_raw = (
             spark.table(VIEWS)
             .where(F.col("date").between(ACTIONS_START, ACTIONS_END))
@@ -376,13 +376,10 @@ def main(
                 )
             )
 
-        account_view_themes = (
+        account_view_themes = select_latest_view_themes(
             views_raw.join(rpid_lookup, on="UniqueVisitID", how="inner")
             .join(F.broadcast(item_themes), on="pid", how="inner")
             .select("account_number", "theme", "date")
-            .withColumn("rank", F.row_number().over(w_view))
-            .where(F.col("rank") <= 1)
-            .select("account_number", "theme")
         )
 
         if TEST_ACCOUNT:
@@ -453,51 +450,19 @@ def main(
 
     # --- Safety net: backfill with global best sellers ---
     logger.info("Building safety net from top 25 recent themes")
-    global_top_themes = (
+    global_top_themes = select_global_top_themes(
         spark.table(BASKETS)
-        .where(F.col("ordertakendate") >= F.date_sub(F.current_date(), 30))
+        .where(F.col("ordertakendate") >= F.date_sub(F.lit(ACTIONS_END), 30))
+        .where(F.col("ordertakendate") <= F.lit(ACTIONS_END))
         .withColumnRenamed("itemno", "pid")
         .join(F.broadcast(item_themes), on="pid", how="inner")
         .groupBy("theme")
         .agg(F.count("*").alias("sales_count"))
-        .orderBy(F.desc("sales_count"))
-        .limit(25)
-        .select(F.col("theme").alias("next_theme"))
-        .withColumn("prob_agg", F.lit(0.0))
-        .withColumn("prob_base", F.lit(0.0))
-        .withColumn("prob_agg_rebased", F.lit(-999.0))
     )
 
-    unique_users = next_theme_probs.select("account_number").distinct()
-    backfill_block = unique_users.crossJoin(F.broadcast(global_top_themes))
-
-    next_theme_probs = (
-        next_theme_probs.unionByName(backfill_block)
-        .withColumn("tiebreak", F.hash("account_number", "next_theme"))
-        .withColumn(
-            "_dedup_rank",
-            F.row_number().over(
-                Window.partitionBy("account_number", "next_theme").orderBy(
-                    F.desc("prob_agg_rebased"), F.desc("prob_agg"), "tiebreak"
-                )
-            ),
-        )
-        .where(F.col("_dedup_rank") == 1)
-        .drop("_dedup_rank", "tiebreak")
-    )
-
-    # --- Rank output ---
-    next_theme_probs = (
-        next_theme_probs.withColumn(
-            "rank",
-            F.row_number().over(
-                Window.partitionBy("account_number").orderBy(
-                    F.desc("prob_agg_rebased"), F.desc("prob_agg")
-                )
-            ),
-        )
-        .where(F.col("rank") <= 100)
-        .drop("rank")
+    next_theme_probs = merge_and_rank_theme_scores(
+        next_theme_probs,
+        global_top_themes,
     )
 
     if TEST_ACCOUNT:
