@@ -229,7 +229,7 @@ def test_theme_affinity_coverage_validation_does_not_gate_route_mappers():
     ]
 
 
-def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
+def test_page_build_v1_publishes_one_complete_build_before_handoffs():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml",
         "mktg_next_uk_nextads_page_build_cicd",
@@ -241,40 +241,171 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
     assert job["email_notifications"]["on_failure"] == (
         "${var.data_team_notification_emails}"
     )
-    assert job["parameters"] == [
+    job_parameters = {
+        parameter["name"]: parameter["default"]
+        for parameter in job["parameters"]
+    }
+    assert list(job_parameters) == [
+        "run_date",
+        "build_run_id",
+        "scope_manifest_json",
+    ]
+    assert job_parameters["run_date"] == "{{job.start_time.iso_date}}"
+    assert job_parameters["build_run_id"] == "v1_{{job.run_id}}"
+
+    scope_manifest = json.loads(job_parameters["scope_manifest_json"])
+    primary_manifest = [
+        entry for entry in scope_manifest if entry["phase"] == "primary"
+    ]
+    secondary_manifest = [
+        entry for entry in scope_manifest if entry["phase"] == "secondary"
+    ]
+    assert len(primary_manifest) == 77
+    assert secondary_manifest == [
         {
-            "name": "run_date",
-            "default": "{{job.start_time.iso_date}}",
+            "scope": "SB2",
+            "phase": "secondary",
+            "inherit_basic_from": "SB1",
         },
         {
-            "name": "build_run_id",
-            "default": "v1_{{job.run_id}}",
+            "scope": "OC2",
+            "phase": "secondary",
+            "inherit_basic_from": "OC1",
         },
     ]
-    assert not any("run_job_task" in task for task in job["tasks"])
-    for task_key in ["build_page_primary", "build_page_secondary"]:
-        parameters = tasks_by_key[task_key]["for_each_task"]["task"][
-            "spark_python_task"
-        ]["parameters"]
-        assert parameters[-4:] == [
-            "--run_date",
-            "{{job.parameters.run_date}}",
-            "--build_run_id",
-            "{{job.parameters.build_run_id}}",
-        ]
-    assert tasks_by_key["trigger_assignment_validation_job"]["depends_on"] == [
-        {"task_key": "build_page_secondary"},
-    ]
-    assert (
-        tasks_by_key["trigger_masid_handoff_check_job"]["run_if"] == "ALL_DONE"
+    configured_locations = set(
+        yaml.safe_load(
+            (PROJECT_ROOT / "configs/clients/next_uk.yaml").read_text()
+        )["default"]["locations"]
     )
-    assert tasks_by_key["trigger_masid_handoff_check_job"]["depends_on"] == [
-        {"task_key": "build_page_secondary"},
+    assert len({entry["scope"] for entry in scope_manifest}) == 79
+    assert {entry["scope"] for entry in scope_manifest} == (
+        configured_locations - {"HN1"}
+    )
+    assert scope_manifest == [*primary_manifest, *secondary_manifest]
+
+    assert not any("run_job_task" in task for task in job["tasks"])
+
+    prepare = tasks_by_key["prepare_assignment_scope_manifest"]
+    assert prepare["notebook_task"] == {
+        "notebook_path": (
+            "../../../jobs/nextads_assignment/prepare_scope_manifest.py"
+        ),
+        "base_parameters": {
+            "scope_manifest_json": (
+                "{{job.parameters.scope_manifest_json}}"
+            )
+        },
+        "source": "WORKSPACE",
+    }
+    assert prepare["timeout_seconds"] == 1800
+
+    primary = tasks_by_key["build_page_primary"]
+    assert primary["depends_on"] == [
+        {"task_key": "prepare_assignment_scope_manifest"}
     ]
-    assert tasks_by_key["trigger_plp_gs_delivery_job"]["run_if"] == "ALL_DONE"
-    assert tasks_by_key["trigger_plp_gs_delivery_job"]["depends_on"] == [
-        {"task_key": "build_page_secondary"},
+    assert primary["for_each_task"]["inputs"] == (
+        "{{tasks.prepare_assignment_scope_manifest.values."
+        "primary_scope_manifest}}"
+    )
+    assert primary["for_each_task"]["task"]["spark_python_task"][
+        "parameters"
+    ] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--location",
+        "{{input.scope}}",
+        "--scope_manifest_json",
+        "{{job.parameters.scope_manifest_json}}",
+        "--run_date",
+        "{{job.parameters.run_date}}",
+        "--build_run_id",
+        "{{job.parameters.build_run_id}}",
+        "--task_run_id",
+        "{{task.run_id}}",
+        "--execution_count",
+        "{{task.execution_count}}",
     ]
+
+    secondary = tasks_by_key["build_page_secondary"]
+    assert secondary["depends_on"] == [
+        {"task_key": "build_page_primary"}
+    ]
+    assert secondary["for_each_task"]["inputs"] == (
+        "{{tasks.prepare_assignment_scope_manifest.values."
+        "secondary_scope_manifest}}"
+    )
+    assert secondary["for_each_task"]["task"]["spark_python_task"][
+        "parameters"
+    ] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--location",
+        "{{input.scope}}",
+        "--inherit_basic_from",
+        "{{input.inherit_basic_from}}",
+        "--scope_manifest_json",
+        "{{job.parameters.scope_manifest_json}}",
+        "--run_date",
+        "{{job.parameters.run_date}}",
+        "--build_run_id",
+        "{{job.parameters.build_run_id}}",
+        "--task_run_id",
+        "{{task.run_id}}",
+        "--execution_count",
+        "{{task.execution_count}}",
+    ]
+
+    publisher = tasks_by_key["publish_assignment_build_v1"]
+    assert publisher["depends_on"] == [
+        {"task_key": "build_page_secondary"}
+    ]
+    assert "run_if" not in publisher
+    assert publisher["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_assignment/publish_build.py"
+    )
+    assert publisher["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--route",
+        "v1",
+        "--run_date",
+        "{{job.parameters.run_date}}",
+        "--build_run_id",
+        "{{job.parameters.build_run_id}}",
+        "--scope_manifest_json",
+        "{{job.parameters.scope_manifest_json}}",
+    ]
+
+    downstream_keys = [
+        "trigger_assignment_validation_job",
+        "trigger_masid_handoff_check_job",
+        "trigger_plp_gs_delivery_job",
+    ]
+    for task_key in downstream_keys:
+        assert tasks_by_key[task_key]["depends_on"] == [
+            {"task_key": "publish_assignment_build_v1"}
+        ]
+        assert "run_if" not in tasks_by_key[task_key]
+
+    assert tasks_by_key["trigger_masid_handoff_check_job"][
+        "spark_python_task"
+    ]["parameters"] == [
+        "--job-id",
+        "${resources.jobs.mktg_next_uk_nextads_masid_handoff_cicd.id}",
+        "--job-name",
+        "mktg_next_uk_nextads_masid_handoff",
+        "--job-parameter",
+        "run_date={{job.parameters.run_date}}",
+        "--fail-on-submit-error",
+    ]
+    assert all(task.get("run_if") != "ALL_DONE" for task in job["tasks"])
 
 
 def test_page_build_v2_publishes_complete_build_before_payload_submission():
@@ -428,6 +559,41 @@ def test_assignment_validation_job_has_independent_definition_and_internal_notif
     assert job["email_notifications"]["on_failure"] == (
         "${var.data_team_notification_emails}"
     )
+
+
+def test_assignment_validation_entrypoint_is_read_only():
+    source = (
+        PROJECT_ROOT
+        / "jobs/nextads_reporting/assignment_validation.py"
+    ).read_text()
+    normalized = source.lower()
+
+    assert "delete from" not in normalized
+    assert "truncate table" not in normalized
+    assert ".write." not in normalized
+    assert ".saveastable(" not in normalized
+
+
+def test_masid_handoff_uses_forwarded_logical_run_date():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml",
+        "mktg_next_uk_nextads_masid_handoff_cicd",
+    )
+
+    assert job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        }
+    ]
+    assert job["tasks"][0]["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--expected_rundate",
+        "{{job.parameters.run_date}}",
+    ]
 
 
 def test_prod_data_team_notifications_are_internal_only():

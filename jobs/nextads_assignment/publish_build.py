@@ -34,6 +34,10 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
+from next_ads.decisioning.assignment_manifest import (
+    split_assignment_scope_manifest,
+    validate_configured_v1_scope_manifest,
+)
 from next_ads.decisioning.assignment_publication import (
     AssignmentColumnContract,
     AssignmentPublicationResult,
@@ -304,7 +308,29 @@ def validate_configured_scope_manifest(
     route: str,
     scope_manifest: Sequence[ScopeManifestEntry],
 ) -> None:
-    """Reject a v2 manifest that does not match configured page types."""
+    """Require a route manifest to match its authoritative configuration."""
+    if route == "v1":
+        configured_locations = getattr(config, "locations", None)
+        if configured_locations is None:
+            raise ValueError("Configuration is missing locations")
+
+        canonical_manifest = json.dumps(
+            [
+                {
+                    "scope": entry.scope,
+                    "phase": entry.phase,
+                    "inherit_basic_from": entry.inherit_basic_from,
+                }
+                for entry in scope_manifest
+            ]
+        )
+        split_assignment_scope_manifest(canonical_manifest)
+        validate_configured_v1_scope_manifest(
+            scope_manifest,
+            configured_locations,
+        )
+        return
+
     if route != "v2":
         return
 

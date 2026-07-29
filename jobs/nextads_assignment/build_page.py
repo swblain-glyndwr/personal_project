@@ -1,4 +1,6 @@
+import atexit
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 try:
@@ -33,14 +35,44 @@ from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (
     build_spark_schema,
     chain_when_thens,
-    delete_from_and_load,
     post_to_webhook,
 )
 from dsutils.argparser import get_job_parser
+from jobs.nextads_assignment.publish_build import (
+    ScopeManifestEntry,
+    build_assignment_scope_contract,
+    parse_scope_manifest_json,
+    resolve_assignment_tables,
+)
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
 from next_ads.common import etl
-import datetime
+from next_ads.decisioning.assignment_manifest import (
+    split_assignment_scope_manifest,
+    validate_configured_v1_scope_manifest,
+)
+from next_ads.decisioning.assignment_publication import (
+    AssignmentColumnContract,
+    stage_assignment_scope,
+)
+
+
+def _get_required_job_arg(job_parser, name):
+    value = job_parser.get_arg(name)
+    if value is None or not str(value).strip():
+        raise ValueError(f"{name} must be provided")
+    return str(value).strip()
+
+
+def _get_integer_job_arg(job_parser, name, *, minimum):
+    raw_value = _get_required_job_arg(job_parser, name)
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if value < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    return value
 
 
 jobparser = get_job_parser()
@@ -48,10 +80,65 @@ jobparser._parse_args()
 JOB_ENV = jobparser.get_arg("--job_env")
 CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
+RAW_SCOPE_MANIFEST = _get_required_job_arg(
+    jobparser,
+    "--scope_manifest_json",
+)
+split_assignment_scope_manifest(RAW_SCOPE_MANIFEST)
+SCOPE_MANIFEST = parse_scope_manifest_json(
+    RAW_SCOPE_MANIFEST
+)
+RUN_DATE_RAW = _get_required_job_arg(jobparser, "--run_date")
+try:
+    RUN_DATE = date.fromisoformat(RUN_DATE_RAW)
+except ValueError as exc:
+    raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
+BUILD_RUN_ID = _get_required_job_arg(jobparser, "--build_run_id")
+if not BUILD_RUN_ID.startswith("v1_") or BUILD_RUN_ID == "v1_":
+    raise ValueError(
+        "--build_run_id must start with 'v1_' and include a run identifier"
+    )
+TASK_RUN_ID = _get_integer_job_arg(
+    jobparser,
+    "--task_run_id",
+    minimum=1,
+)
+EXECUTION_COUNT = _get_integer_job_arg(
+    jobparser,
+    "--execution_count",
+    minimum=0,
+)
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
+
+cached_assignment_frames = []
+cache_cleanup_registered = False
+
+
+def _release_cached_assignment_frames():
+    global cache_cleanup_registered
+    while cached_assignment_frames:
+        cached_frame = cached_assignment_frames.pop()
+        try:
+            cached_frame.unpersist()
+        except Exception as exc:
+            logger.warning(f"Unable to release cached assignment frame: {exc}")
+    cache_cleanup_registered = False
+
+
+def _cache_assignment_frame(df):
+    global cache_cleanup_registered
+    if not cache_cleanup_registered:
+        # A Python-file task exits after an uncaught failure. Registering the
+        # cleanup after Spark starts makes it run before Spark's own exit hook.
+        atexit.register(_release_cached_assignment_frames)
+        cache_cleanup_registered = True
+    cached_frame = df.cache()
+    cached_assignment_frames.append(cached_frame)
+    return cached_frame
+
 
 if not CLIENT:
     assert JOB_ENV.lower() == "dev", (
@@ -67,6 +154,8 @@ cfg = load_client_config(CLIENT)
 
 LOCATION = jobparser.get_arg("--location")
 INHERIT_BASIC_FROM = jobparser.get_arg("--inherit_basic_from")
+if INHERIT_BASIC_FROM is not None:
+    INHERIT_BASIC_FROM = str(INHERIT_BASIC_FROM).strip() or None
 if not LOCATION:
     assert JOB_ENV.lower() == "dev", (
         f"Location must be specified when running in {JOB_ENV}"
@@ -75,9 +164,41 @@ if not LOCATION:
     logger.warning(f"Location not specified (defaulting to {LOCATION})")
 
 LOCATIONS = cfg["locations"]
+validate_configured_v1_scope_manifest(SCOPE_MANIFEST, config.locations)
+MANIFEST_SCOPES = tuple(entry.scope for entry in SCOPE_MANIFEST)
+if LOCATION not in MANIFEST_SCOPES:
+    raise ValueError(
+        f"V1 location {LOCATION!r} is not present in the scope manifest"
+    )
+
+CURRENT_SCOPE_ENTRY = next(
+    entry for entry in SCOPE_MANIFEST if entry.scope == LOCATION
+)
+CONFIGURED_INHERIT_BASIC_FROM = LOCATIONS[LOCATION].get(
+    "inherit_basic_from"
+)
+if (
+    CURRENT_SCOPE_ENTRY.inherit_basic_from
+    != CONFIGURED_INHERIT_BASIC_FROM
+):
+    raise ValueError(
+        f"V1 location {LOCATION!r} inheritance does not match config: "
+        f"manifest={CURRENT_SCOPE_ENTRY.inherit_basic_from!r}, "
+        f"configured={CONFIGURED_INHERIT_BASIC_FROM!r}"
+    )
+if INHERIT_BASIC_FROM != CURRENT_SCOPE_ENTRY.inherit_basic_from:
+    raise ValueError(
+        f"V1 location {LOCATION!r} inheritance argument does not match "
+        f"the scope manifest: argument={INHERIT_BASIC_FROM!r}, "
+        f"manifest={CURRENT_SCOPE_ENTRY.inherit_basic_from!r}"
+    )
+LOCATION_SCOPE_MANIFEST: tuple[ScopeManifestEntry, ...] = (
+    CURRENT_SCOPE_ENTRY,
+)
+
 MIN_C_SESSIONS = cfg["results_prm"]["min_c_sessions"]
 INCREMENTAL_LOOKBACK = cfg["incrementality"]["incremental_lookback"]
-CHECK_SESSIONS_FROM = datetime.date.today() - datetime.timedelta(
+CHECK_SESSIONS_FROM = RUN_DATE - timedelta(
     days=INCREMENTAL_LOOKBACK + 1
 )
 
@@ -109,8 +230,17 @@ CONTROL_SHEET_LATEST = etl.map_tbl(tbls["control_sheet_latest"], **tbl_args)
 TARGETING_SCORES_TABLE = etl.map_tbl(
     tbls["targeting_scores_latest"], **tbl_args
 )
-ASSIGNMENTS_TABLE = etl.map_tbl(tbls["assignments"], **tbl_args)
-ASSIGNMENTS_TABLE_LATEST = etl.map_tbl(tbls["assignments_latest"], **tbl_args)
+ASSIGNMENT_TABLES = resolve_assignment_tables(config, "v1")
+ASSIGNMENT_COLUMNS = AssignmentColumnContract()
+ASSIGNMENT_SCOPE_CONTRACT = build_assignment_scope_contract(
+    "v1",
+    LOCATION_SCOPE_MANIFEST,
+)
+ASSIGNMENT_INPUT_COLUMNS = tuple(
+    column
+    for column in ASSIGNMENT_SCOPE_CONTRACT.public_columns
+    if column != ASSIGNMENT_SCOPE_CONTRACT.publication_date_column
+)
 CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 PRERANKED_THEMES_TABLE = etl.map_tbl(
     tbls["preranked_ads_from_themes_latest"], **tbl_args
@@ -152,6 +282,23 @@ except KeyError as ke:
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, loc_key_msg)
     raise ke
+
+df_inherited_scope = None
+CASCADE_INHERITED_NO_ADS = False
+if INHERIT_BASIC_FROM:
+    df_inherited_scope = _cache_assignment_frame(
+        spark.table(ASSIGNMENT_TABLES.staging_table)
+        .where(F.col(ASSIGNMENT_COLUMNS.build_run_id) == BUILD_RUN_ID)
+        .where(F.col("Location") == INHERIT_BASIC_FROM)
+        .where(F.col("rundate") == F.lit(RUN_DATE))
+        .select("AccountNumber", "UniqueAdIDBasic")
+    )
+    CASCADE_INHERITED_NO_ADS = df_inherited_scope.isEmpty()
+    if CASCADE_INHERITED_NO_ADS:
+        logger.info(
+            f"Current-build primary scope {INHERIT_BASIC_FROM} has no "
+            f"assignments; cascading NO_ADS to {LOCATION}"
+        )
 
 logger.info(f"Assigning Ads for Location: {LOCATION}")
 
@@ -258,31 +405,46 @@ df_ads = df_ads.select(ads_required_cols)
 df_ads_tgt = df_ads_tgt.select(ads_required_cols)
 df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
 
-if df_ads_tgt.count() == 0 and df_ads_tgt_nextgenads.count() == 0:
-    no_ads_msg = f"No ads found for Location: {LOCATION}"
+if CASCADE_INHERITED_NO_ADS:
+    HAS_TARGETED_ADS = False
+    NO_ASSIGNABLE_ADS = True
+else:
+    HAS_TARGETED_ADS = not df_ads_tgt.isEmpty()
+    NO_ASSIGNABLE_ADS = (
+        not HAS_TARGETED_ADS and df_ads_tgt_nextgenads.isEmpty()
+    )
+
+if NO_ASSIGNABLE_ADS:
+    if CASCADE_INHERITED_NO_ADS:
+        no_ads_msg = (
+            f"No assignments found for current-build primary scope "
+            f"{INHERIT_BASIC_FROM}; staging NO_ADS for {LOCATION}"
+        )
+    else:
+        no_ads_msg = f"No ads found for Location: {LOCATION}"
     logger.warning(no_ads_msg)
 
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, no_ads_msg)
 
-    logger.info(
-        f"Clearing stale assignments for {LOCATION} from "
-        f"{ASSIGNMENTS_TABLE_LATEST}"
+    df_ad_assigned_masid_output = spark.createDataFrame(
+        [],
+        schema=(
+            spark.table(ASSIGNMENT_TABLES.staging_table)
+            .select(*ASSIGNMENT_INPUT_COLUMNS)
+            .schema
+        ),
     )
-    spark.sql(f"""
-        delete from {ASSIGNMENTS_TABLE_LATEST}
-        where Location = '{LOCATION}'
-    """)
-    logger.info("Skipping assignment")
 
 else:
     logger.info("Getting customer cell assignments")
-    df_cells = spark.table(CELLS_TABLE_LATEST).drop("rundate")
-    df_cells.cache()
+    df_cells = _cache_assignment_frame(
+        spark.table(CELLS_TABLE_LATEST).drop("rundate")
+    )
 
     logger.info("Assigning Ads with Basic Targeting")
 
-    if df_ads_tgt.count() == 0:
+    if not HAS_TARGETED_ADS:
         logger.info("No non-AudienceOnly ads - skipping basic/best")
         df_assigned_basic = spark.createDataFrame(
             [], schema="AccountNumber STRING, UniqueAdID STRING"
@@ -319,21 +481,18 @@ else:
             )
             raise Exception(protected_colname_msg)
 
-        # Check if we need to exclude ads from a previous location assignment
-        inherit_location_key = "inherit_basic_from"
-        if INHERIT_BASIC_FROM or inherit_location_key in LOCATIONS[LOCATION]:
-            inherit_location = INHERIT_BASIC_FROM or LOCATIONS[LOCATION].get(
-                inherit_location_key
-            )
+        # Secondary locations inherit only from the primary scope staged by
+        # this build. They must never read yesterday's serving snapshot.
+        if INHERIT_BASIC_FROM:
+            inherit_location = INHERIT_BASIC_FROM
             logger.info(
                 f"Inheriting basic assignments from {inherit_location} - "
                 "excluding already-assigned ads"
             )
 
-            # Get assignments from the inherited location
+            # Reuse the current-build scope already checked before allocation.
             df_inherited_assignments = (
-                spark.table(ASSIGNMENTS_TABLE_LATEST)
-                .where(F.col("Location") == inherit_location)
+                df_inherited_scope
                 .where(F.col("UniqueAdIDBasic").isNotNull())
                 .select(
                     "AccountNumber",
@@ -376,7 +535,7 @@ else:
                     grp_col=basic_within,
                 )
 
-        df_assigned_basic.cache()
+        df_assigned_basic = _cache_assignment_frame(df_assigned_basic)
 
         logger.info("Assigning Ads with Best Targeting")
 
@@ -392,7 +551,7 @@ else:
             df_cust=df_cells.select("AccountNumber"),
             **best_kwargs,
         )
-        df_assigned_best.cache()
+        df_assigned_best = _cache_assignment_frame(df_assigned_best)
 
         df_assigned_best_challenger = df_assigned_best
 
@@ -415,7 +574,9 @@ else:
         df_assigned_nextgenads = spark.createDataFrame(
             [], schema="AccountNumber STRING, UniqueAdID STRING"
         )
-    df_assigned_nextgenads.cache()
+    df_assigned_nextgenads = _cache_assignment_frame(
+        df_assigned_nextgenads
+    )
 
     logger.info("Determining Ad to show based on assignments and fixed cells")
     df_assignments = (
@@ -457,7 +618,7 @@ else:
             how="left",
         )
     )
-    df_assignments.cache()
+    df_assignments = _cache_assignment_frame(df_assignments)
 
     df_ad_assigned = (
         df_assignments.withColumn(
@@ -577,7 +738,7 @@ else:
         on=df_ad_assigned.UniqueAdIDAssigned == df_ad_masid.UniqueAdID,
         how="left",
     ).drop("UniqueAdID")
-    df_ad_assigned_masid.cache()
+    df_ad_assigned_masid = _cache_assignment_frame(df_ad_assigned_masid)
 
     # Check and warn if null Treatments exist
     n_null_treatment = df_ad_assigned_masid.where(
@@ -689,27 +850,31 @@ else:
             "MASID",
         )
 
-    logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE}")
-    delete_from_and_load(
-        df_ad_assigned_masid_output,
-        ASSIGNMENTS_TABLE,
-        pk_cols=["AccountNumber", "Location"],
-        del_where={"rundate": "current_date()", "Location": f"'{LOCATION}'"},
+df_ad_assigned_masid_output = df_ad_assigned_masid_output.select(
+    *ASSIGNMENT_INPUT_COLUMNS
+)
+try:
+    logger.info(
+        f"Staging assignments for {LOCATION} in build {BUILD_RUN_ID}"
     )
-
-    logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE_LATEST}")
-    delete_from_and_load(
+    stage_result = stage_assignment_scope(
+        spark,
         df_ad_assigned_masid_output,
-        ASSIGNMENTS_TABLE_LATEST,
-        pk_cols=["AccountNumber", "Location"],
-        del_where={"Location": f"'{LOCATION}'"},
+        tables=ASSIGNMENT_TABLES,
+        columns=ASSIGNMENT_COLUMNS,
+        scope_contract=ASSIGNMENT_SCOPE_CONTRACT,
+        build_run_id=BUILD_RUN_ID,
+        build_date=RUN_DATE,
+        scope=LOCATION,
+        task_run_id=TASK_RUN_ID,
+        execution_count=EXECUTION_COUNT,
     )
-
-    df_cells.unpersist()
-    df_assigned_basic.unpersist()
-    df_assigned_best.unpersist()
-    df_assigned_best_challenger.unpersist()
-    df_assignments.unpersist()
-    df_ad_assigned_masid.unpersist()
+    logger.info(
+        f"Staged {stage_result.row_count:,} assignments for {LOCATION}; "
+        f"completion status: {stage_result.status}"
+    )
+finally:
+    _release_cached_assignment_frames()
+    atexit.unregister(_release_cached_assignment_frames)
 
 logger.info("Run complete")

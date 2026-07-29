@@ -22,10 +22,24 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
         default: "{{job.start_time.iso_date}}"
       - name: build_run_id
         default: "v1_{{job.run_id}}"
+      - name: scope_manifest_json
+        default: '[{"scope":"SB1","phase":"primary"},{"scope":"OC1","phase":"primary"},{"scope":"PH3","phase":"primary"},{"scope":"PH4","phase":"primary"},{"scope":"PH5","phase":"primary"},{"scope":"LP1","phase":"primary"},{"scope":"LP2","phase":"primary"},{"scope":"LP3","phase":"primary"},{"scope":"LP4","phase":"primary"},{"scope":"LP5","phase":"primary"},{"scope":"LP6","phase":"primary"},{"scope":"LP7","phase":"primary"},{"scope":"LP8","phase":"primary"},{"scope":"LP9","phase":"primary"},{"scope":"LP10","phase":"primary"},{"scope":"LP11","phase":"primary"},{"scope":"PL1","phase":"primary"},{"scope":"PL2","phase":"primary"},{"scope":"PL3","phase":"primary"},{"scope":"PL4","phase":"primary"},{"scope":"PL5","phase":"primary"},{"scope":"PL6","phase":"primary"},{"scope":"PL7","phase":"primary"},{"scope":"PL8","phase":"primary"},{"scope":"PL9","phase":"primary"},{"scope":"PL10","phase":"primary"},{"scope":"PL11","phase":"primary"},{"scope":"PL12","phase":"primary"},{"scope":"PL13","phase":"primary"},{"scope":"PL14","phase":"primary"},{"scope":"PL15","phase":"primary"},{"scope":"PL16","phase":"primary"},{"scope":"PL17","phase":"primary"},{"scope":"PL18","phase":"primary"},{"scope":"PL19","phase":"primary"},{"scope":"PL20","phase":"primary"},{"scope":"PL21","phase":"primary"},{"scope":"PL22","phase":"primary"},{"scope":"PL23","phase":"primary"},{"scope":"PL24","phase":"primary"},{"scope":"PL25","phase":"primary"},{"scope":"PL26","phase":"primary"},{"scope":"PL27","phase":"primary"},{"scope":"PL28","phase":"primary"},{"scope":"PL29","phase":"primary"},{"scope":"PL30","phase":"primary"},{"scope":"PL31","phase":"primary"},{"scope":"PL32","phase":"primary"},{"scope":"PL33","phase":"primary"},{"scope":"PL34","phase":"primary"},{"scope":"PL35","phase":"primary"},{"scope":"PL36","phase":"primary"},{"scope":"PL37","phase":"primary"},{"scope":"PL38","phase":"primary"},{"scope":"PL39","phase":"primary"},{"scope":"PL40","phase":"primary"},{"scope":"FY1","phase":"primary"},{"scope":"FY2","phase":"primary"},{"scope":"FY3","phase":"primary"},{"scope":"FY4","phase":"primary"},{"scope":"FY5","phase":"primary"},{"scope":"FY6","phase":"primary"},{"scope":"FY7","phase":"primary"},{"scope":"FY8","phase":"primary"},{"scope":"FY9","phase":"primary"},{"scope":"FY10","phase":"primary"},{"scope":"FY11","phase":"primary"},{"scope":"FY12","phase":"primary"},{"scope":"FY13","phase":"primary"},{"scope":"FY14","phase":"primary"},{"scope":"FY15","phase":"primary"},{"scope":"FY16","phase":"primary"},{"scope":"FY17","phase":"primary"},{"scope":"FY18","phase":"primary"},{"scope":"FY19","phase":"primary"},{"scope":"FY20","phase":"primary"},{"scope":"PLX","phase":"primary"},{"scope":"SB2","phase":"secondary","inherit_basic_from":"SB1"},{"scope":"OC2","phase":"secondary","inherit_basic_from":"OC1"}]'
     tasks:
+      - task_key: prepare_assignment_scope_manifest
+        notebook_task:
+          notebook_path: ../../../jobs/nextads_assignment/prepare_scope_manifest.py
+          base_parameters:
+            scope_manifest_json: "{{job.parameters.scope_manifest_json}}"
+          source: WORKSPACE
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        max_retries: 2
+        min_retry_interval_millis: 5000
+        timeout_seconds: 1800
       - task_key: build_page_primary
+        depends_on:
+          - task_key: prepare_assignment_scope_manifest
         for_each_task:
-          inputs: '["SB1","OC1","PH3","PH4","PH5","LP1","LP2","LP3","LP4","LP5","LP6","LP7","LP8","LP9","LP10","LP11","PL1","PL2","PL3","PL4","PL5","PL6","PL7","PL8","PL9","PL10","PL11","PL12","PL13","PL14","PL15","PL16","PL17","PL18","PL19","PL20","PL21","PL22","PL23","PL24","PL25","PL26","PL27","PL28","PL29","PL30","PL31","PL32","PL33","PL34","PL35","PL36","PL37","PL38","PL39","PL40","FY1","FY2","FY3","FY4","FY5","FY6","FY7","FY8","FY9","FY10","FY11","FY12","FY13","FY14","FY15","FY16","FY17","FY18","FY19","FY20","PLX"]'
+          inputs: "{{tasks.prepare_assignment_scope_manifest.values.primary_scope_manifest}}"
           concurrency: 30
           task:
             task_key: build_page_primary_iteration
@@ -37,11 +51,17 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
                 - --job_env
                 - ${var.job_parameter_environment_name}
                 - --location
-                - "{{input}}"
+                - "{{input.scope}}"
+                - --scope_manifest_json
+                - "{{job.parameters.scope_manifest_json}}"
                 - --run_date
                 - "{{job.parameters.run_date}}"
                 - --build_run_id
                 - "{{job.parameters.build_run_id}}"
+                - --task_run_id
+                - "{{task.run_id}}"
+                - --execution_count
+                - "{{task.execution_count}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2
@@ -51,7 +71,7 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
         depends_on:
           - task_key: build_page_primary
         for_each_task:
-          inputs: '[{"location":"SB2","inherit_basic_from":"SB1"},{"location":"OC2","inherit_basic_from":"OC1"}]'
+          inputs: "{{tasks.prepare_assignment_scope_manifest.values.secondary_scope_manifest}}"
           concurrency: 2
           task:
             task_key: build_page_secondary_iteration
@@ -63,21 +83,50 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
                 - --job_env
                 - ${var.job_parameter_environment_name}
                 - --location
-                - "{{input.location}}"
+                - "{{input.scope}}"
                 - --inherit_basic_from
                 - "{{input.inherit_basic_from}}"
+                - --scope_manifest_json
+                - "{{job.parameters.scope_manifest_json}}"
                 - --run_date
                 - "{{job.parameters.run_date}}"
                 - --build_run_id
                 - "{{job.parameters.build_run_id}}"
+                - --task_run_id
+                - "{{task.run_id}}"
+                - --execution_count
+                - "{{task.execution_count}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2
             min_retry_interval_millis: 5000
             timeout_seconds: 10800
-      - task_key: trigger_assignment_validation_job
+      - task_key: publish_assignment_build_v1
         depends_on:
           - task_key: build_page_secondary
+        spark_python_task:
+          python_file: ../../../jobs/nextads_assignment/publish_build.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --route
+            - "v1"
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --build_run_id
+            - "{{job.parameters.build_run_id}}"
+            - --scope_manifest_json
+            - "{{job.parameters.scope_manifest_json}}"
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        min_retry_interval_millis: 5000
+        timeout_seconds: 10800
+      - task_key: trigger_assignment_validation_job
+        depends_on:
+          - task_key: publish_assignment_build_v1
         spark_python_task:
           python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:
@@ -92,8 +141,7 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
         timeout_seconds: 3600
       - task_key: trigger_masid_handoff_check_job
         depends_on:
-          - task_key: build_page_secondary
-        run_if: ALL_DONE
+          - task_key: publish_assignment_build_v1
         spark_python_task:
           python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:
@@ -101,6 +149,8 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
             - ${resources.jobs.mktg_next_uk_nextads_masid_handoff_cicd.id}
             - --job-name
             - "mktg_next_uk_nextads_masid_handoff"
+            - --job-parameter
+            - "run_date={{job.parameters.run_date}}"
             - --fail-on-submit-error
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
@@ -108,8 +158,7 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
         timeout_seconds: 3600
       - task_key: trigger_plp_gs_delivery_job
         depends_on:
-          - task_key: build_page_secondary
-        run_if: ALL_DONE
+          - task_key: publish_assignment_build_v1
         spark_python_task:
           python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:

@@ -46,6 +46,43 @@ def valid_job_arguments(**overrides):
     return values
 
 
+def complete_v1_manifest():
+    primary_scopes = [
+        "SB1",
+        "OC1",
+        *[f"P{index:03}" for index in range(1, 76)],
+    ]
+    return (
+        *[
+            publish_build.ScopeManifestEntry(
+                scope=scope,
+                phase="primary",
+            )
+            for scope in primary_scopes
+        ],
+        publish_build.ScopeManifestEntry(
+            scope="SB2",
+            phase="secondary",
+            inherit_basic_from="SB1",
+        ),
+        publish_build.ScopeManifestEntry(
+            scope="OC2",
+            phase="secondary",
+            inherit_basic_from="OC1",
+        ),
+    )
+
+
+def complete_v1_locations():
+    return {
+        scope: {}
+        for scope in (
+            "HN1",
+            *(entry.scope for entry in complete_v1_manifest()),
+        )
+    }
+
+
 def test_scope_manifest_preserves_order_and_optional_metadata():
     manifest = publish_build.parse_scope_manifest_json(
         json.dumps(
@@ -256,6 +293,7 @@ def test_assignment_table_resolution_rejects_missing_mapping():
 
 def test_publish_assignment_build_calls_complete_build_publisher(monkeypatch):
     config = SimpleNamespace(
+        locations=complete_v1_locations(),
         tables_write={
             "assignments_build_staging": "catalog.schema.staging",
             "assignments": "catalog.schema.history",
@@ -269,13 +307,7 @@ def test_publish_assignment_build_calls_complete_build_publisher(monkeypatch):
         route="v1",
         run_date=date(2026, 7, 29),
         build_run_id="v1_12345",
-        scope_manifest=(
-            publish_build.ScopeManifestEntry("HP1"),
-            publish_build.ScopeManifestEntry(
-                "SB2",
-                inherit_basic_from="SB1",
-            ),
-        ),
+        scope_manifest=complete_v1_manifest(),
     )
     captured = {}
     expected_result = object()
@@ -303,9 +335,64 @@ def test_publish_assignment_build_calls_complete_build_publisher(monkeypatch):
         latest_table="catalog.schema.latest",
     )
     assert captured["columns"] == AssignmentColumnContract()
-    assert captured["scope_contract"].expected_scopes == ("HP1", "SB2")
+    assert len(captured["scope_contract"].expected_scopes) == 79
+    assert captured["scope_contract"].expected_scopes[:2] == ("SB1", "OC1")
+    assert captured["scope_contract"].expected_scopes[-2:] == ("SB2", "OC2")
     assert captured["build_run_id"] == "v1_12345"
     assert captured["build_date"] == date(2026, 7, 29)
+
+
+def test_v1_publisher_accepts_only_the_exact_configured_79_scope_manifest():
+    config = SimpleNamespace(locations=complete_v1_locations())
+
+    publish_build.validate_configured_scope_manifest(
+        config,
+        "v1",
+        complete_v1_manifest(),
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda manifest: manifest[:-1],
+            "exactly 2 secondary scopes",
+        ),
+        (
+            lambda manifest: (
+                *manifest[:2],
+                publish_build.ScopeManifestEntry(
+                    scope="HN1",
+                    phase="primary",
+                ),
+                *manifest[3:],
+            ),
+            "missing: P001.*unexpected: HN1",
+        ),
+        (
+            lambda manifest: (
+                *manifest[:-2],
+                publish_build.ScopeManifestEntry(
+                    scope="SB2",
+                    phase="secondary",
+                    inherit_basic_from="OC1",
+                ),
+                manifest[-1],
+            ),
+            "secondary scopes must be exactly SB2->SB1, OC2->OC1",
+        ),
+    ],
+)
+def test_v1_publisher_rejects_scope_manifest_overrides(mutate, message):
+    config = SimpleNamespace(locations=complete_v1_locations())
+
+    with pytest.raises(ValueError, match=message):
+        publish_build.validate_configured_scope_manifest(
+            config,
+            "v1",
+            mutate(complete_v1_manifest()),
+        )
 
 
 def test_v2_publisher_rejects_an_overridden_partial_scope_manifest(monkeypatch):

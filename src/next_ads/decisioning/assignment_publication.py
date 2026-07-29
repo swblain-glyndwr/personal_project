@@ -14,7 +14,6 @@ from next_ads.common.delta_writes import (
     DeltaWriteResult,
     KeyValidationSummary,
     atomic_append_by_name,
-    validate_replace_source_scope,
     validate_target_columns,
     validate_unique_non_null_keys,
 )
@@ -29,6 +28,12 @@ READY = "READY"
 NO_ADS = "NO_ADS"
 VALID_ASSIGNMENT_STATUSES = frozenset({READY, NO_ADS})
 VALID_ASSIGNMENT_ROUTES = frozenset({"v1", "v2"})
+V1_TEASER_LOCATIONS = ("PH3", "PH4")
+V1_TEASER_CONTROL_TOKEN = "Z"
+V1_SECONDARY_SCOPE_PARENTS = (
+    ("SB1", "SB2"),
+    ("OC1", "OC2"),
+)
 
 
 @dataclass(frozen=True)
@@ -680,6 +685,120 @@ def _validate_staging_against_events(
     return sum(staged_counts.values())
 
 
+def _validate_v1_secondary_event_inheritance(
+    selected_events: Sequence[AssignmentScopeEvent],
+) -> None:
+    """Require inherited scopes to remain empty when their parent has no ads."""
+    events_by_scope = {event.scope: event for event in selected_events}
+    for parent_scope, secondary_scope in V1_SECONDARY_SCOPE_PARENTS:
+        parent_event = events_by_scope.get(parent_scope)
+        secondary_event = events_by_scope.get(secondary_scope)
+        if parent_event is None or secondary_event is None:
+            continue
+        if (
+            parent_event.status == NO_ADS
+            and secondary_event.status != NO_ADS
+        ):
+            raise ValueError(
+                f"V1 assignment event {secondary_scope} must be NO_ADS "
+                f"when inherited parent {parent_scope} is NO_ADS"
+            )
+
+
+def _remove_invalid_v1_teaser_assignments(
+    assignments: DataFrame,
+) -> DataFrame:
+    """Remove PH3/PH4 rows for accounts with an invalid teaser pairing."""
+    _require_columns(
+        assignments,
+        ["AccountNumber", "Location", "MASID"],
+        label="V1 assignment dataframe",
+    )
+    teaser_accounts = (
+        assignments.where(F.col("Location").isin(*V1_TEASER_LOCATIONS))
+        .withColumn(
+            "_teaser_assigned",
+            F.when(
+                F.col("MASID").endswith(f"_{V1_TEASER_CONTROL_TOKEN}"),
+                F.lit(0),
+            ).otherwise(F.lit(1)),
+        )
+        .withColumn(
+            "_masid_token",
+            F.split(F.col("MASID"), "_").getItem(1),
+        )
+        .groupBy("AccountNumber")
+        .agg(
+            F.sum("_teaser_assigned").alias("_teasers_assigned"),
+            F.sort_array(F.collect_set("_masid_token")).alias(
+                "_token_set"
+            ),
+        )
+        .where(
+            (F.col("_teasers_assigned") < len(V1_TEASER_LOCATIONS))
+            | (
+                F.array_size(F.col("_token_set"))
+                < len(V1_TEASER_LOCATIONS)
+            )
+        )
+        .where(
+            F.col("_token_set")
+            != F.array(F.lit(V1_TEASER_CONTROL_TOKEN))
+        )
+        .select("AccountNumber")
+        .withColumn("_invalid_teaser_assignment", F.lit(True))
+    )
+    return (
+        assignments.join(teaser_accounts, on="AccountNumber", how="left")
+        .where(
+            F.col("_invalid_teaser_assignment").isNull()
+            | ~F.col("Location").isin(*V1_TEASER_LOCATIONS)
+        )
+        .drop("_invalid_teaser_assignment")
+        .select(*assignments.columns)
+    )
+
+
+def _prepare_v1_public_assignments(
+    spark: Any,
+    staged_assignments: DataFrame,
+    *,
+    tables: AssignmentTableContract,
+    scope_contract: AssignmentScopeContract,
+    selected_events: Sequence[AssignmentScopeEvent],
+    build_date: date,
+) -> DataFrame:
+    """Combine READY staging with preserved NO_ADS scopes, then correct teasers."""
+    no_ads_scopes = tuple(
+        event.scope for event in selected_events if event.status == NO_ADS
+    )
+    complete_assignments = staged_assignments
+    if no_ads_scopes:
+        latest = spark.table(tables.latest_table)
+        _require_columns(
+            latest,
+            scope_contract.public_columns,
+            label=f"Table {tables.latest_table}",
+        )
+        fallback = latest.where(
+            F.col(scope_contract.scope_column).isin(*no_ads_scopes)
+        ).select(*scope_contract.public_columns)
+        fallback = with_run_date(
+            fallback,
+            build_date,
+            column=scope_contract.publication_date_column,
+        ).select(*scope_contract.public_columns)
+        complete_assignments = staged_assignments.unionByName(fallback)
+
+    if set(V1_TEASER_LOCATIONS).issubset(
+        set(scope_contract.expected_scopes)
+    ):
+        return _remove_invalid_v1_teaser_assignments(
+            complete_assignments
+        )
+    return complete_assignments
+
+
 def validate_and_publish_assignment_build(
     spark: Any,
     *,
@@ -715,6 +834,8 @@ def validate_and_publish_assignment_build(
         build_run_id=build_run_id,
         build_date=resolved_build_date,
     )
+    if scope_contract.route == "v1":
+        _validate_v1_secondary_event_inheritance(selected_events)
 
     staged = _read_build_frame(
         spark,
@@ -735,25 +856,19 @@ def validate_and_publish_assignment_build(
             build_date=resolved_build_date,
         )
 
-        public_assignments = staged.select(*scope_contract.public_columns)
+        staged_assignments = staged.select(*scope_contract.public_columns)
         validation_keys = list(scope_contract.key_columns)
         if scope_contract.publication_date_column not in validation_keys:
             validation_keys.append(scope_contract.publication_date_column)
-        validation = validate_unique_non_null_keys(
-            public_assignments,
+        staged_validation = validate_unique_non_null_keys(
+            staged_assignments,
             validation_keys,
         )
-        if validation.row_count != row_count:
+        if staged_validation.row_count != row_count:
             raise ValueError(
                 "Validated assignment row count does not match staging events"
             )
 
-        validate_replace_source_scope(
-            public_assignments,
-            {
-                scope_contract.publication_date_column: resolved_build_date,
-            },
-        )
         validate_target_columns(
             spark,
             tables.history_table,
@@ -764,6 +879,17 @@ def validate_and_publish_assignment_build(
             tables.latest_table,
             scope_contract.public_columns,
         )
+
+        public_assignments = staged_assignments
+        if scope_contract.route == "v1":
+            public_assignments = _prepare_v1_public_assignments(
+                spark,
+                staged_assignments,
+                tables=tables,
+                scope_contract=scope_contract,
+                selected_events=selected_events,
+                build_date=resolved_build_date,
+            )
 
         publication = publish_history_and_latest(
             spark,
@@ -779,9 +905,9 @@ def validate_and_publish_assignment_build(
             route=scope_contract.route,
             build_run_id=build_run_id,
             build_date=resolved_build_date,
-            row_count=row_count,
+            row_count=publication.validation.row_count,
             events=selected_events,
-            validation=validation,
+            validation=publication.validation,
             history_write=publication.history_write,
             latest_write=publication.latest_write,
         )

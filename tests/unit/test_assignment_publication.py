@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from pyspark.sql import SparkSession
 
 import next_ads.decisioning.assignment_publication as publication
 from next_ads.common.delta_writes import KeyValidationSummary
@@ -39,6 +40,19 @@ SCOPE_CONTRACT = AssignmentScopeContract(
         "rundate",
     ),
 )
+
+
+@pytest.fixture
+def local_spark():
+    try:
+        spark = (
+            SparkSession.builder.master("local[2]")
+            .appName("nextads-assignment-publication-tests")
+            .getOrCreate()
+        )
+    except RuntimeError as exc:
+        pytest.skip(f"Local Spark unavailable: {exc}")
+    yield spark
 
 
 class FakeLiteral:
@@ -163,13 +177,6 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
         SimpleNamespace(
             lit=lambda _value: FakeLiteral(),
             col=lambda _value: FakeLiteral(),
-        ),
-    )
-    monkeypatch.setattr(
-        publication,
-        "validate_replace_source_scope",
-        lambda *args, **kwargs: pytest.fail(
-            "staging must validate only its materialised frame"
         ),
     )
     monkeypatch.setattr(
@@ -443,6 +450,114 @@ def test_contradictory_latest_events_are_rejected():
             build_run_id=BUILD_RUN_ID,
             build_date=BUILD_DATE,
         )
+
+
+@pytest.mark.parametrize(
+    ("parent_scope", "secondary_scope"),
+    [("SB1", "SB2"), ("OC1", "OC2")],
+)
+def test_v1_no_ads_parent_requires_no_ads_secondary_event(
+    parent_scope,
+    secondary_scope,
+):
+    with pytest.raises(
+        ValueError,
+        match=(
+            f"{secondary_scope} must be NO_ADS.*"
+            f"{parent_scope} is NO_ADS"
+        ),
+    ):
+        publication._validate_v1_secondary_event_inheritance(
+            (
+                _selected_event(parent_scope, NO_ADS, 0),
+                _selected_event(secondary_scope, READY, 1),
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("parent_status", "secondary_status"),
+    [
+        (READY, READY),
+        (READY, NO_ADS),
+        (NO_ADS, NO_ADS),
+    ],
+)
+def test_v1_valid_parent_secondary_event_states_are_accepted(
+    parent_status,
+    secondary_status,
+):
+    publication._validate_v1_secondary_event_inheritance(
+        (
+            _selected_event(
+                "SB1",
+                parent_status,
+                1 if parent_status == READY else 0,
+            ),
+            _selected_event(
+                "SB2",
+                secondary_status,
+                1 if secondary_status == READY else 0,
+            ),
+        )
+    )
+
+
+def test_v1_parent_secondary_mismatch_rejects_before_staging_or_live_reads(
+    monkeypatch,
+):
+    contract = AssignmentScopeContract(
+        route="v1",
+        scope_column="Location",
+        expected_scopes=("SB1", "SB2"),
+        key_columns=("AccountNumber", "Location"),
+        public_columns=(
+            "AccountNumber",
+            "Location",
+            "UniqueAdIDAssigned",
+            "rundate",
+        ),
+    )
+    reads = []
+
+    def fake_read(
+        spark,
+        table,
+        *,
+        build_run_id_column,
+        build_run_id,
+    ):
+        reads.append(
+            (
+                spark,
+                table,
+                build_run_id_column,
+                build_run_id,
+            )
+        )
+        return object()
+
+    monkeypatch.setattr(publication, "_read_build_frame", fake_read)
+    monkeypatch.setattr(
+        publication,
+        "_collect_event_rows",
+        lambda *args, **kwargs: [
+            _event("SB1", NO_ADS, 0, task_run_id=101),
+            _event("SB2", READY, 1, task_run_id=102),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="SB2 must be NO_ADS"):
+        validate_and_publish_assignment_build(
+            object(),
+            tables=TABLES,
+            columns=COLUMNS,
+            scope_contract=contract,
+            build_run_id=BUILD_RUN_ID,
+            build_date=BUILD_DATE,
+        )
+
+    assert [read[1] for read in reads] == [TABLES.event_table]
 
 
 def test_invalid_status_in_an_older_event_is_still_rejected():
@@ -722,11 +837,6 @@ def _configure_successful_build(monkeypatch, *, key_error=None):
     )
     monkeypatch.setattr(
         publication,
-        "validate_replace_source_scope",
-        lambda df, scope: calls.append(("publication_scope", df, scope)),
-    )
-    monkeypatch.setattr(
-        publication,
         "validate_target_columns",
         lambda spark, table, columns: calls.append(
             ("target", spark, table, list(columns))
@@ -736,6 +846,7 @@ def _configure_successful_build(monkeypatch, *, key_error=None):
     def fake_publish(spark, df, **kwargs):
         calls.append(("publish", spark, df, kwargs))
         return SimpleNamespace(
+            validation=KeyValidationSummary(2, 2, 0),
             history_write=SimpleNamespace(
                 statement="history",
                 attempts=1,
@@ -750,6 +861,16 @@ def _configure_successful_build(monkeypatch, *, key_error=None):
         publication,
         "publish_history_and_latest",
         fake_publish,
+    )
+    monkeypatch.setattr(
+        publication,
+        "_prepare_v1_public_assignments",
+        lambda spark, staged_assignments, **kwargs: (
+            calls.append(
+                ("prepare", spark, staged_assignments, kwargs)
+            )
+            or staged_assignments
+        ),
     )
     return staged, calls
 
@@ -773,19 +894,21 @@ def test_complete_build_validates_before_history_then_latest_publication(
         "read",
         "read",
         "keys",
-        "publication_scope",
         "target",
         "target",
+        "prepare",
         "publish",
     ]
     key_call = calls[2]
     assert key_call[2] == ["AccountNumber", "Location", "rundate"]
     assert key_call[1].columns == list(SCOPE_CONTRACT.public_columns)
-    assert calls[3][2] == {"rundate": BUILD_DATE}
-    assert [calls[4][2], calls[5][2]] == [
+    assert [calls[3][2], calls[4][2]] == [
         TABLES.history_table,
         TABLES.latest_table,
     ]
+    prepare_kwargs = calls[5][3]
+    assert prepare_kwargs["selected_events"][1].status == NO_ADS
+    assert prepare_kwargs["build_date"] == BUILD_DATE
     publish_kwargs = calls[6][3]
     assert publish_kwargs == {
         "history_table": TABLES.history_table,
@@ -898,6 +1021,241 @@ def test_staging_attempt_mismatch_aborts_before_live_writes(monkeypatch):
     assert "publish" not in [call[0] for call in calls]
     assert "keys" not in [call[0] for call in calls]
     assert staged.unpersisted
+
+
+def test_v1_no_ads_scope_uses_latest_content_with_the_new_run_date(
+    local_spark,
+):
+    contract = AssignmentScopeContract(
+        route="v1",
+        scope_column="Location",
+        expected_scopes=("A", "B"),
+        key_columns=("AccountNumber", "Location"),
+        public_columns=(
+            "AccountNumber",
+            "Location",
+            "MASID",
+            "rundate",
+        ),
+    )
+    staged = local_spark.createDataFrame(
+        [("new", "A", "A_NEW", BUILD_DATE)],
+        contract.public_columns,
+    )
+    latest = local_spark.createDataFrame(
+        [
+            ("old-a", "A", "A_OLD", BUILD_DATE - timedelta(days=1)),
+            ("old-b", "B", "B_OLD", BUILD_DATE - timedelta(days=1)),
+        ],
+        contract.public_columns,
+    )
+    table_reads = []
+    spark_stub = SimpleNamespace(
+        table=lambda table: table_reads.append(table) or latest
+    )
+    selected_events = (
+        _selected_event("A", READY, 1),
+        _selected_event("B", NO_ADS, 0),
+    )
+
+    result = publication._prepare_v1_public_assignments(
+        spark_stub,
+        staged,
+        tables=TABLES,
+        scope_contract=contract,
+        selected_events=selected_events,
+        build_date=BUILD_DATE,
+    )
+
+    assert table_reads == [TABLES.latest_table]
+    assert sorted(
+        tuple(row[column] for column in contract.public_columns)
+        for row in result.collect()
+    ) == [
+        ("new", "A", "A_NEW", BUILD_DATE),
+        ("old-b", "B", "B_OLD", BUILD_DATE),
+    ]
+
+
+def test_v1_teaser_correction_removes_only_affected_ph3_ph4_rows(
+    local_spark,
+):
+    assignments = local_spark.createDataFrame(
+        [
+            ("all-control", "PH3", "PH3_Z"),
+            ("all-control", "PH4", "PH4_Z"),
+            ("duplicate-token", "PH3", "PH3_A"),
+            ("duplicate-token", "PH4", "PH4_A"),
+            ("duplicate-token", "SB1", "SB1_C"),
+            ("missing-teaser", "PH3", "PH3_A"),
+            ("missing-teaser", "SB1", "SB1_C"),
+            ("mixed-control", "PH3", "PH3_Z"),
+            ("mixed-control", "PH4", "PH4_A"),
+            ("valid", "PH3", "PH3_A"),
+            ("valid", "PH4", "PH4_B"),
+        ],
+        ["AccountNumber", "Location", "MASID"],
+    )
+
+    corrected = publication._remove_invalid_v1_teaser_assignments(assignments)
+
+    assert sorted(
+        (row["AccountNumber"], row["Location"], row["MASID"])
+        for row in corrected.collect()
+    ) == [
+        ("all-control", "PH3", "PH3_Z"),
+        ("all-control", "PH4", "PH4_Z"),
+        ("duplicate-token", "SB1", "SB1_C"),
+        ("missing-teaser", "SB1", "SB1_C"),
+        ("valid", "PH3", "PH3_A"),
+        ("valid", "PH4", "PH4_B"),
+    ]
+
+
+def test_v1_publishes_one_identical_corrected_frame_to_history_and_latest(
+    monkeypatch,
+    local_spark,
+):
+    contract = AssignmentScopeContract(
+        route="v1",
+        scope_column="Location",
+        expected_scopes=("PH3", "PH4", "SB1"),
+        key_columns=("AccountNumber", "Location"),
+        public_columns=(
+            "AccountNumber",
+            "Location",
+            "MASID",
+            "rundate",
+        ),
+    )
+    staged = local_spark.createDataFrame(
+        [
+            (
+                BUILD_RUN_ID,
+                101,
+                1,
+                "bad",
+                "PH3",
+                "PH3_A",
+                BUILD_DATE,
+            ),
+            (
+                BUILD_RUN_ID,
+                102,
+                1,
+                "bad",
+                "PH4",
+                "PH4_A",
+                BUILD_DATE,
+            ),
+            (
+                BUILD_RUN_ID,
+                103,
+                1,
+                "bad",
+                "SB1",
+                "SB1_C",
+                BUILD_DATE,
+            ),
+            (
+                BUILD_RUN_ID,
+                101,
+                1,
+                "good",
+                "PH3",
+                "PH3_A",
+                BUILD_DATE,
+            ),
+            (
+                BUILD_RUN_ID,
+                102,
+                1,
+                "good",
+                "PH4",
+                "PH4_B",
+                BUILD_DATE,
+            ),
+        ],
+        [
+            "BuildRunID",
+            "TaskRunID",
+            "ExecutionCount",
+            *contract.public_columns,
+        ],
+    )
+    event_rows = [
+        _event("PH3", READY, 2, task_run_id=101),
+        _event("PH4", READY, 2, task_run_id=102),
+        _event("SB1", READY, 1, task_run_id=103),
+    ]
+    reads = iter((object(), staged))
+    monkeypatch.setattr(
+        publication,
+        "_read_build_frame",
+        lambda *args, **kwargs: next(reads),
+    )
+    monkeypatch.setattr(
+        publication,
+        "_collect_event_rows",
+        lambda *args, **kwargs: event_rows,
+    )
+    monkeypatch.setattr(
+        publication,
+        "validate_target_columns",
+        lambda *args, **kwargs: None,
+    )
+
+    correction_calls = []
+    real_correction = publication._remove_invalid_v1_teaser_assignments
+
+    def track_correction(assignments):
+        correction_calls.append(assignments)
+        return real_correction(assignments)
+
+    monkeypatch.setattr(
+        publication,
+        "_remove_invalid_v1_teaser_assignments",
+        track_correction,
+    )
+    snapshots = {}
+
+    def capture_publication(_spark, assignments, **_kwargs):
+        rows = sorted(
+            tuple(row[column] for column in contract.public_columns)
+            for row in assignments.collect()
+        )
+        snapshots["history"] = rows
+        snapshots["latest"] = list(rows)
+        return SimpleNamespace(
+            validation=KeyValidationSummary(3, 3, 0),
+            history_write=SimpleNamespace(statement="history", attempts=1),
+            latest_write=SimpleNamespace(statement="latest", attempts=1),
+        )
+
+    monkeypatch.setattr(
+        publication,
+        "publish_history_and_latest",
+        capture_publication,
+    )
+
+    result = validate_and_publish_assignment_build(
+        local_spark,
+        tables=TABLES,
+        columns=COLUMNS,
+        scope_contract=contract,
+        build_run_id=BUILD_RUN_ID,
+        build_date=BUILD_DATE,
+    )
+
+    assert len(correction_calls) == 1
+    assert snapshots["history"] == snapshots["latest"]
+    assert snapshots["latest"] == [
+        ("bad", "SB1", "SB1_C", BUILD_DATE),
+        ("good", "PH3", "PH3_A", BUILD_DATE),
+        ("good", "PH4", "PH4_B", BUILD_DATE),
+    ]
+    assert result.row_count == 3
+    assert result.validation == KeyValidationSummary(3, 3, 0)
 
 
 def test_scope_contract_supports_v1_and_v2_public_schemas():

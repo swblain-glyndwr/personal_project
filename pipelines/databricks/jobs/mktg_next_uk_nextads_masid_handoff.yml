@@ -17,6 +17,9 @@ mktg_next_uk_nextads_masid_handoff_config: &mktg_next_uk_nextads_masid_handoff_c
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
     timeout_seconds: 1800
+    parameters:
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
     tasks:
       - task_key: masid_handoff_check
         spark_python_task:
@@ -26,6 +29,8 @@ mktg_next_uk_nextads_masid_handoff_config: &mktg_next_uk_nextads_masid_handoff_c
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --expected_rundate
+            - "{{job.parameters.run_date}}"
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         max_retries: 2
