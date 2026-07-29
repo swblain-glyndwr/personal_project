@@ -469,7 +469,12 @@ def make_payload(df_combined):
             "fragmentIds",
             "enableAdFatigueRotation",
         )
-        .agg(F.collect_list("pageType").alias("pageTypes"))
+        .agg(
+            F.sort_array(
+                F.collect_list("pageType"),
+                asc=True,
+            ).alias("pageTypes")
+        )
     )
 
     # build structs that associate the list of page types with
@@ -481,12 +486,15 @@ def make_payload(df_combined):
         "triggers",
         "control",
     ).agg(
-        F.collect_list(
-            F.struct(
-                F.col("pageTypes"),
-                F.col("enableAdFatigueRotation"),
-                F.col("fragmentIds"),
-            )
+        F.sort_array(
+            F.collect_list(
+                F.struct(
+                    F.col("pageTypes"),
+                    F.col("enableAdFatigueRotation"),
+                    F.col("fragmentIds"),
+                )
+            ),
+            asc=True,
         ).alias("fragments")
     )
 

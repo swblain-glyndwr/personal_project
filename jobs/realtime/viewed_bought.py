@@ -29,6 +29,7 @@ from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import truncate_and_load
 from next_ads.common import config_manager
+from next_ads.common.delta_writes import validate_unique_non_null_keys
 from next_ads.common.paths import load_client_config
 from next_ads.common import etl
 
@@ -106,12 +107,12 @@ items_recent = spark.table(BASKETS).filter(
 baskets_grouped = (
     items_recent.groupBy("itemno")
     .agg(F.sum("s740orderstakenvalue").alias("total_spend"))
-    .orderBy(F.col("total_spend").desc())
+    .orderBy(F.col("total_spend").desc(), F.col("itemno").asc())
 )
 
-window_spec = Window.orderBy(F.col("total_spend").desc()).rowsBetween(
-    Window.unboundedPreceding, 0
-)
+window_spec = Window.orderBy(
+    F.col("total_spend").desc(), F.col("itemno").asc()
+).rowsBetween(Window.unboundedPreceding, 0)
 total_sum = baskets_grouped.agg(F.sum("total_spend")).first()[0]
 
 baskets_cum_pct = baskets_grouped.withColumn(
@@ -286,7 +287,8 @@ stats_final = (
 )
 
 window_spec = Window.partitionBy("itemno1").orderBy(
-    F.col("lift_adjusted").desc()
+    F.col("lift_adjusted").desc(),
+    F.col("itemno2").asc(),
 )
 
 results = (
@@ -312,22 +314,22 @@ results = (
         F.round("conversion_rate", 5).alias("conversion_rate"),
         "rank",
     )
-    .orderBy(F.col("freq1").desc(), F.col("lift_adjusted").desc())
+    .orderBy(
+        F.col("freq1").desc(),
+        F.col("lift_adjusted").desc(),
+        F.col("itemno1").asc(),
+        F.col("itemno2").asc(),
+    )
 ).cache()
 
 pk_cols = ["itemno1", "itemno2"]
-results_dedup = results.dropDuplicates(pk_cols)
-duplicate_rows = results.count() - results_dedup.count()
-if duplicate_rows > 0:
-    logger.warning(
-        f"Found {duplicate_rows} duplicate rows for PK {pk_cols}; "
-        "dropping duplicates before write"
-    )
+validate_unique_non_null_keys(results, pk_cols)
 
 truncate_and_load(
-    df=results_dedup,
+    df=results,
     table=VB_TABLE_LATEST,
     pk_cols=pk_cols,
 )
+results.unpersist()
 
 logger.info("Run Complete.")

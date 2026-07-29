@@ -39,6 +39,7 @@ from next_ads.decisioning.assignment import (
     melt_transient_cells,
 )
 from next_ads.common import config_manager, etl
+from next_ads.common.determinism import stable_fraction
 from next_ads.common.paths import load_client_config, resolve_sql_path
 
 
@@ -180,7 +181,16 @@ df_cust = (
         & (F.col("AccountIsCurrent") == "Y")
         & (F.col("LatestAccountKeyIndicator") == 1)
     )
-    .sample(withReplacement=False, fraction=SAMPLE_FRACTION, seed=42)
+    .withColumn(
+        "_sample_fraction",
+        stable_fraction(
+            "account_number",
+            seed=42,
+            namespace="customer-cells-dev-sample",
+        ),
+    )
+    .filter(F.col("_sample_fraction") < F.lit(SAMPLE_FRACTION))
+    .drop("_sample_fraction")
 )
 df_cust = (
     df_cust.join(df_rpid_w_acc, on="account_number")
@@ -196,8 +206,14 @@ df_cust.cache()
 logger.info(f"Customer base: {df_cust.count():,}")
 
 df_fallow = (
-    df_cust.orderBy(F.col("AccountNumber"))
-    .withColumn("RandomFallow", F.rand(seed=FALLOW_SEED))
+    df_cust.withColumn(
+        "RandomFallow",
+        stable_fraction(
+            "AccountNumber",
+            seed=FALLOW_SEED,
+            namespace="customer-cells-fallow",
+        ),
+    )
     .withColumn("FallowControl", F.col("RandomFallow") <= FALLOW_PC)
 )
 df_fallow.cache()
@@ -207,9 +223,13 @@ df_fc = df_fallow.select("AccountNumber")
 
 for fixed_cell in FIXED_CELLS:
     df_fc = (
-        df_fc.orderBy(F.col("AccountNumber"))
-        .withColumn(
-            f"Random{fixed_cell}", F.rand(seed=FIXED_CELLS[fixed_cell]["seed"])
+        df_fc.withColumn(
+            f"Random{fixed_cell}",
+            stable_fraction(
+                "AccountNumber",
+                seed=FIXED_CELLS[fixed_cell]["seed"],
+                namespace=f"customer-cells-{fixed_cell}",
+            ),
         )
         .withColumn(
             fixed_cell, chain_when_thens(FIXED_CELLS[fixed_cell]["cells"])

@@ -268,7 +268,7 @@ def determine_ad_profile_similiarity(
     ad_items_array = ADVERT_ITEMS.groupBy(
         F.col("UniqueAdID"), F.col("rundate")
     ).agg(
-        F.array_distinct(F.collect_list("itemno")).alias("items_list"),
+        F.sort_array(F.collect_set("itemno")).alias("items_list"),
         F.countDistinct("itemno").alias("itemcount"),
     )
 
@@ -442,6 +442,7 @@ def build_advert_affinity(
     from pyspark.sql import functions as F
     from pyspark.sql import Window
     from next_ads.common import etl
+    from next_ads.common.determinism import stable_order
 
     write_tables = cfg["tables"]["write"]
 
@@ -811,7 +812,11 @@ def build_advert_affinity(
             "lift_adjusted_ranking",
             F.row_number().over(
                 Window.partitionBy("ViewUniqueAdID").orderBy(
-                    F.desc(F.col("lift_adjusted"))
+                    F.desc(F.col("lift_adjusted")),
+                    *stable_order(
+                        ["ViewUniqueAdID", "AtbUniqueAdID"],
+                        namespace="realtime-ad-affinity-tie",
+                    ),
                 )
             ),
         )

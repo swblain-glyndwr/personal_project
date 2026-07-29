@@ -38,6 +38,7 @@ from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import delete_from_and_load, truncate_and_load
 from next_ads.common import config_manager
+from next_ads.common.determinism import stable_order
 
 jobparser = get_job_parser()
 LOG_LEVEL = jobparser.get_arg("--log_level")
@@ -219,10 +220,33 @@ logger.info(
     f"Num distinct RPIDs with RT updates: {df_rt.select('AnonRPID').distinct().count()}"
 )  # noqa
 
-df_rt_distinct = df_rt.select("AnonRPID", "TreatmentGroup").distinct()
+rt_update_window = Window.partitionBy("AnonRPID").orderBy(
+    F.col("UpdateTimestampDatetime").desc_nulls_last(),
+    F.col("ResponseTimestamp").desc_nulls_last(),
+    *stable_order(
+        ["AnonRPID", "ID", "UpdateTimestampUnix", "MASID"],
+        namespace="realtime-latest-masid-update-tie",
+    ),
+)
+df_rt_distinct = (
+    df_rt.withColumn("_update_rank", F.row_number().over(rt_update_window))
+    .filter(F.col("_update_rank") == 1)
+    .select("AnonRPID", "TreatmentGroup")
+)
 
 window_spec = Window.partitionBy("RPID").orderBy(
-    F.col("ActionTimestamp").desc()
+    F.col("ActionTimestamp").desc(),
+    *stable_order(
+        [
+            "RPID",
+            "UniqueVisitID",
+            "ActionTimestamp",
+            "PagePath",
+            "ScreenName",
+            "Action",
+        ],
+        namespace="realtime-latest-action-tie",
+    ),
 )
 
 df_latest_actions = (

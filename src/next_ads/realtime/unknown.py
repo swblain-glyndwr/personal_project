@@ -39,7 +39,7 @@ def create_backfill_udf(top_ads_map, all_locations):
         result = []
 
         # Add personalized MASIDs first
-        for location in personalized_map.keys():
+        for location in sorted(personalized_map):
             result.append(personalized_map[location])
 
         # Add default MASIDs for missing locations
@@ -127,15 +127,19 @@ def set_ads(
     df_vb = df_vb.join(df_sort_order_latest, on=["itemno2"])
 
     # Prepare top performing ads for backfill
-    all_locations = [
-        row["Location"]
-        for row in df_top_performing_ads.select("Location")
-        .distinct()
+    all_locations = sorted(
+        [
+            row["Location"]
+            for row in df_top_performing_ads.select("Location")
+            .distinct()
+            .collect()
+        ]
+    )
+    top_ads_data = (
+        df_top_performing_ads.select("Location", "MASIDToken")
+        .orderBy("Location", "MASIDToken")
         .collect()
-    ]
-    top_ads_data = df_top_performing_ads.select(
-        "Location", "MASIDToken"
-    ).collect()
+    )
     top_ads_map = {
         row["Location"]: f"{row['Location']}_{row['MASIDToken']}"
         for row in top_ads_data
@@ -158,9 +162,6 @@ def set_ads(
         .join(df_ads, on="UniqueAdID")
     )
 
-    # Handle duplicate keys in maps
-    spark.conf.set("spark.sql.mapKeyDedupPolicy", "LAST_WIN")
-
     # Create personalized mappings
     personalised_maisd = (
         df_ad_relevance_scores.withColumn(
@@ -168,13 +169,27 @@ def set_ads(
         )
         # First, get the best ad per RPID/Location combination
         .groupBy("RPID", "Location")
-        .agg(F.max_by("MASID", "adRelevanceScore").alias("best_masid"))
+        .agg(
+            F.max(
+                F.struct(
+                    F.col("adRelevanceScore"),
+                    F.col("UniqueAdID"),
+                    F.col("MASID"),
+                )
+            ).alias("_best_ad")
+        )
+        .select(
+            "RPID",
+            "Location",
+            F.col("_best_ad.MASID").alias("best_masid"),
+        )
         # Then aggregate by RPID to create the final map
         .groupBy("RPID")
         .agg(
-            # Now we're guaranteed no duplicate locations per RPID
-            F.map_from_arrays(
-                F.collect_list("Location"), F.collect_list("best_masid")
+            F.map_from_entries(
+                F.sort_array(
+                    F.collect_list(F.struct("Location", "best_masid"))
+                )
             ).alias("personalized_map")
         )
         .withColumn("final_masids", backfill_udf(F.col("personalized_map")))

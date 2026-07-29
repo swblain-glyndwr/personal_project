@@ -9,6 +9,8 @@ from dsutils.etl import assert_pk, build_spark_schema, post_to_webhook
 from dsutils.columnscalers import subtract_mean
 from dsutils.timing import timer
 
+from next_ads.common.determinism import stable_bucket, stable_order
+
 
 logger = get_logger(__name__)
 
@@ -49,15 +51,20 @@ def assign_random_ads_v2(
         f'using cyclic rotation (seed={seed})'
     )
 
-    # 1. Assign a randomised slot number to each ad within its group.
-    #    Ordering by rand() rather than UniqueAdID ensures slot assignments
-    #    are not influenced by the source table row order or ad ID ordering.
+    # 1. Assign a stable pseudo-random slot number to each ad within its group.
+    #    The business keys provide a complete fallback order if hashes collide.
     df_ads_slotted = (
         df_ads.select('UniqueAdID', grp_col)
         .withColumn(
             'AdSlot',
             F.row_number().over(
-                Window.partitionBy(grp_col).orderBy(F.rand(seed=seed))
+                Window.partitionBy(grp_col).orderBy(
+                    *stable_order(
+                        [grp_col, "UniqueAdID"],
+                        seed=seed,
+                        namespace="assignment-v2-ad-slot",
+                    )
+                )
             )
         )
     )
@@ -75,7 +82,13 @@ def assign_random_ads_v2(
         .join(df_ad_counts, on=grp_col, how='inner')
         .withColumn(
             'Offset',
-            (F.rand(seed=seed) * F.col('nAds')).cast('int')
+            stable_bucket(
+                grp_col,
+                "AccountNumber",
+                bucket_count=F.col("nAds"),
+                seed=seed,
+                namespace="assignment-v2-customer-offset",
+            ),
         )
     )
 
@@ -139,15 +152,18 @@ def assign_random_ads(
     # orderBy first for deterministic output
     # TODO: Avoid for loop by passing nAds as arg to F.ntile()
     grp_cust_rdm_list = []
-    w = Window.partitionBy(F.lit(1)).orderBy("RandomValue")
     for grp_k in grp_ads:
+        w = Window.partitionBy(F.lit(1)).orderBy(
+            *stable_order(
+                [grp_col, "AccountNumber"],
+                seed=42,
+                namespace="assignment-v1-basic",
+            )
+        )
         df_cust_rdm_grp = (
             df_cust_grp
             .where(F.col(grp_col) == grp_k)
-            .orderBy("AccountNumber")
-            .withColumn("RandomValue", F.rand(seed=42))
             .withColumn("RandomKey", F.ntile(grp_ads[grp_k]).over(w))
-            .drop("RandomValue")
         )
         grp_cust_rdm_list.append(df_cust_rdm_grp)
 
@@ -228,7 +244,7 @@ def assign_random_ads_with_exclusions(
             df_cust_grp_filtered
             .select("AccountNumber", grp_col, "ExcludedAdID")
             .crossJoin(
-                df_ads_grp.select("UniqueAdID", "RandomKey", grp_col)
+                df_ads_grp.select("UniqueAdID", "RandomKey")
             )
             .where(
                 (F.col("ExcludedAdID").isNull()) |
@@ -240,11 +256,16 @@ def assign_random_ads_with_exclusions(
         w_customer = (
             Window
             .partitionBy("AccountNumber")
-            .orderBy("RandomValue")
+            .orderBy(
+                *stable_order(
+                    ["AccountNumber", grp_col, "UniqueAdID"],
+                    seed=42,
+                    namespace="assignment-v1-basic-exclusion",
+                )
+            )
         )
         df_cust_rdm_grp = (
             df_cust_ads
-            .withColumn("RandomValue", F.rand(seed=42))
             .withColumn(
                 "SelectionRank",
                 F.row_number().over(w_customer)
@@ -381,17 +402,28 @@ def assign_best_ads(
     w_ad_tb = (
         Window
         .partitionBy([F.col("AccountNumber"), F.col("AdRank")])
-        .orderBy(F.col("TieBreaker").desc())
+        .orderBy(
+            *stable_order(
+                [
+                    "AccountNumber",
+                    "AdRank",
+                    "TargetingCriteria",
+                    "UniqueAdID",
+                ],
+                seed=99,
+                namespace="assignment-best-targeting-tie",
+                hash_descending=True,
+            )
+        )
     )
-    # TieBreaker column creates a random split when multiple ads
+    # Stable hash ordering splits ties when multiple ads
     # are targeted using the same TargetingCriteria
     # Only one ad of those with matching TargetingCriteria will
     # be returned
     df_return = (
         df_adscores
-        .withColumn('TieBreaker', F.rand(seed=99))
         .withColumn("AdRank", F.dense_rank().over(w_ad))
-        .withColumn("AdRankTB", F.dense_rank().over(w_ad_tb))
+        .withColumn("AdRankTB", F.row_number().over(w_ad_tb))
         .where(F.col("AdRankTB") == 1)
         .where(F.col("AdRank").isin(return_ranks))
         .select("AccountNumber",
@@ -582,16 +614,22 @@ def assign_best_ads_rec(
     w_ad_tb = (
         Window
         .partitionBy([F.col("AccountNumber"), F.col("AdRank")])
-        .orderBy(F.col("TieBreaker").desc())
+        .orderBy(
+            *stable_order(
+                ["AccountNumber", "AdRank", "UniqueAdID"],
+                seed=99,
+                namespace="assignment-best-recommender-tie",
+                hash_descending=True,
+            )
+        )
     )
-    # TieBreaker column creates a random split when multiple ads
+    # Stable hash ordering splits ties when multiple ads
     # are have the same RecommenderScoreScaled
-    # Random ad from each tie will be returned
+    # One stable ad from each tie will be returned
     df_return = (
         df_adscores
-        .withColumn('TieBreaker', F.rand(seed=99))
         .withColumn("AdRank", F.dense_rank().over(w_ad))
-        .withColumn("AdRankTB", F.dense_rank().over(w_ad_tb))
+        .withColumn("AdRankTB", F.row_number().over(w_ad_tb))
         .where(F.col("AdRankTB") == 1)
         .where(F.col("AdRank").isin(return_ranks))
         .select("AccountNumber",
@@ -995,15 +1033,21 @@ def assign_preranked_ads(
     w_ad_tb = (
         Window
         .partitionBy([F.col("AccountNumber"), F.col("Rank")])
-        .orderBy(F.col("TieBreaker").desc())
+        .orderBy(
+            *stable_order(
+                ["AccountNumber", "Rank", "UniqueAdID"],
+                seed=99,
+                namespace="assignment-v1-preranked-tie",
+                hash_descending=True,
+            )
+        )
     )
-    # TieBreaker column creates a random split when multiple ads
+    # Stable hash ordering splits ties when multiple ads
     # are have the same RecommenderScoreScaled
-    # Random ad from each tie will be returned
+    # One stable ad from each tie will be returned
     df_return = (
         df_adscores
-        .withColumn('TieBreaker', F.rand(seed=99))
-        .withColumn("RankTB", F.dense_rank().over(w_ad_tb))
+        .withColumn("RankTB", F.row_number().over(w_ad_tb))
         .where(F.col("RankTB") == 1)
         .where(F.col("Rank").isin(return_ranks))
         .select("AccountNumber",
