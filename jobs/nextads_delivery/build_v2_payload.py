@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 from time import sleep
 
@@ -608,12 +609,40 @@ def setup_run_context(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     return logger, spark, CLIENT, config
 
 
-def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
+def resolve_run_date(spark, run_date: str | date | None) -> date:
+    """Resolve the logical build date, with Spark as an interactive fallback."""
+    if run_date is None or (
+        isinstance(run_date, str) and not run_date.strip()
+    ):
+        return capture_run_date(spark)
+    if isinstance(run_date, date):
+        return run_date
+    if not isinstance(run_date, str):
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    run_date_text = run_date.strip()
+    try:
+        parsed_run_date = date.fromisoformat(run_date_text)
+    except ValueError as exc:
+        raise ValueError(
+            "--run_date must use ISO format YYYY-MM-DD"
+        ) from exc
+    if parsed_run_date.isoformat() != run_date_text:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    return parsed_run_date
+
+
+def main(
+    JOB_ENV: str,
+    CLIENT: str,
+    LOG_LEVEL: str,
+    DO_EXPORT: bool,
+    RUN_DATE: str | date | None = None,
+):
     # load configuration
     logger, spark, CLIENT, config = setup_run_context(
         JOB_ENV, CLIENT, LOG_LEVEL
     )
-    run_date = capture_run_date(spark)
+    run_date = resolve_run_date(spark, RUN_DATE)
 
     logger.info("Loading data...")
     payload_experiment_settings = get_payload_experiment_settings(CLIENT)
@@ -701,4 +730,5 @@ if __name__ == "__main__":
     CLIENT = jobparser.get_arg("--client")
     LOG_LEVEL = jobparser.get_arg("--log_level")
     DO_EXPORT = jobparser.get_typed_arg("--do_export", bool)
-    main(JOB_ENV, CLIENT, LOG_LEVEL, DO_EXPORT)
+    RUN_DATE = jobparser.get_arg("--run_date")
+    main(JOB_ENV, CLIENT, LOG_LEVEL, DO_EXPORT, RUN_DATE)

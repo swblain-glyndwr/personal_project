@@ -299,12 +299,42 @@ def build_assignment_scope_contract(
     )
 
 
+def validate_configured_scope_manifest(
+    config: Any,
+    route: str,
+    scope_manifest: Sequence[ScopeManifestEntry],
+) -> None:
+    """Reject a v2 manifest that does not match configured page types."""
+    if route != "v2":
+        return
+
+    configured_page_types = getattr(config, "page_types", None)
+    if configured_page_types is None or not hasattr(
+        configured_page_types,
+        "keys",
+    ):
+        raise ValueError("Configuration is missing page_types")
+
+    expected_scopes = tuple(configured_page_types.keys())
+    actual_scopes = tuple(entry.scope for entry in scope_manifest)
+    if actual_scopes != expected_scopes:
+        raise ValueError(
+            "v2 scope manifest must exactly match configured page types: "
+            + ", ".join(expected_scopes)
+        )
+
+
 def publish_assignment_build(
     spark: Any,
     config: Any,
     args: PublishBuildArguments,
 ) -> AssignmentPublicationResult:
     """Resolve contracts and invoke the complete-build publisher."""
+    validate_configured_scope_manifest(
+        config,
+        args.route,
+        args.scope_manifest,
+    )
     return validate_and_publish_assignment_build(
         spark,
         tables=resolve_assignment_tables(config, args.route),

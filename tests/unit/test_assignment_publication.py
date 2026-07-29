@@ -168,7 +168,9 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
     monkeypatch.setattr(
         publication,
         "validate_replace_source_scope",
-        lambda df, scope: calls.append(("source_scope", df, scope)),
+        lambda *args, **kwargs: pytest.fail(
+            "staging must validate only its materialised frame"
+        ),
     )
     monkeypatch.setattr(
         publication,
@@ -232,11 +234,9 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
         completed_at=COMPLETED_AT,
     )
 
-    assert calls[0][0] == "source_scope"
-    assert calls[0][2] == {"Location": "A"}
-    assert calls[1][0] == "run_date"
-    assert calls[1][2:] == (BUILD_DATE, "rundate")
-    stage_call = calls[2]
+    assert calls[0][0] == "run_date"
+    assert calls[0][2:] == (BUILD_DATE, "rundate")
+    stage_call = calls[1]
     assert stage_call[0] == "stage"
     assert stage_call[3] == TABLES.staging_table
     assert stage_call[4] == {
@@ -254,7 +254,7 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
     assert "Route" not in stage_call[6]
     assert "BuildDate" not in stage_call[6]
     assert "Scope" not in stage_call[6]
-    event_call = calls[3]
+    event_call = calls[2]
     assert event_call[0] == "event"
     assert event_call[3] == TABLES.event_table
     assert event_call[4] == [
@@ -319,11 +319,6 @@ def test_stage_failure_never_appends_a_completion_event(monkeypatch):
             lit=lambda _value: FakeLiteral(),
             col=lambda _value: FakeLiteral(),
         ),
-    )
-    monkeypatch.setattr(
-        publication,
-        "validate_replace_source_scope",
-        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
         publication,
@@ -926,6 +921,74 @@ def test_scope_contract_supports_v1_and_v2_public_schemas():
     assert v2.scope_column == "PageType"
     assert v1.public_columns[-1] == "rundate"
     assert v2.public_columns[-1] == "rundate"
+
+
+def test_v2_complete_scope_set_accepts_one_no_ads_event():
+    build_run_id = "v2_456"
+    page_types = (
+        "HomePage",
+        "ShoppingBagPage",
+        "CheckoutPage",
+        "ProductListingPage",
+        "ForYouPage",
+    )
+    scope_contract = AssignmentScopeContract(
+        route="v2",
+        scope_column="PageType",
+        expected_scopes=page_types,
+        key_columns=("AccountNumber", "PageType", "Rank"),
+        public_columns=(
+            "AccountNumber",
+            "PageType",
+            "Rank",
+            "UniqueAdIDAssigned",
+            "rundate",
+        ),
+    )
+    event_rows = [
+        _event(
+            scope,
+            NO_ADS if scope == "CheckoutPage" else READY,
+            0 if scope == "CheckoutPage" else 1,
+            task_run_id=100 + index,
+            build_run_id=build_run_id,
+            route="v2",
+        )
+        for index, scope in enumerate(page_types)
+    ]
+
+    selected_events = publication._select_latest_scope_events(
+        event_rows,
+        columns=COLUMNS,
+        scope_contract=scope_contract,
+        build_run_id=build_run_id,
+        build_date=BUILD_DATE,
+    )
+    staging_summaries = tuple(
+        publication._StagingSummary(
+            scope=event.scope,
+            publication_date=BUILD_DATE,
+            task_run_id=event.task_run_id,
+            execution_count=event.execution_count,
+            row_count=event.row_count,
+        )
+        for event in selected_events
+        if event.status == READY
+    )
+
+    assert [event.scope for event in selected_events] == list(page_types)
+    assert [
+        event.scope for event in selected_events if event.status == NO_ADS
+    ] == ["CheckoutPage"]
+    assert (
+        publication._validate_staging_against_events(
+            staging_summaries,
+            selected_events=selected_events,
+            scope_contract=scope_contract,
+            build_date=BUILD_DATE,
+        )
+        == 4
+    )
 
 
 @pytest.mark.parametrize("route", ["", "V1", "legacy"])

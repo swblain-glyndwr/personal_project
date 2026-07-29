@@ -308,6 +308,82 @@ def test_publish_assignment_build_calls_complete_build_publisher(monkeypatch):
     assert captured["build_date"] == date(2026, 7, 29)
 
 
+def test_v2_publisher_rejects_an_overridden_partial_scope_manifest(monkeypatch):
+    config = SimpleNamespace(
+        page_types={
+            "HomePage": {},
+            "ShoppingBagPage": {},
+            "CheckoutPage": {},
+            "ProductListingPage": {},
+            "ForYouPage": {},
+        },
+        tables_write={},
+    )
+    args = publish_build.PublishBuildArguments(
+        job_env="prod",
+        client="next_uk",
+        route="v2",
+        run_date=date(2026, 7, 29),
+        build_run_id="v2_12345",
+        scope_manifest=(
+            publish_build.ScopeManifestEntry("HomePage"),
+        ),
+    )
+    monkeypatch.setattr(
+        publish_build,
+        "validate_and_publish_assignment_build",
+        lambda *args, **kwargs: pytest.fail("publication was reached"),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="must exactly match configured page types",
+    ):
+        publish_build.publish_assignment_build(object(), config, args)
+
+
+def test_v2_publisher_accepts_the_exact_configured_scope_manifest(monkeypatch):
+    page_types = {
+        "HomePage": {},
+        "ShoppingBagPage": {},
+        "CheckoutPage": {},
+        "ProductListingPage": {},
+        "ForYouPage": {},
+    }
+    config = SimpleNamespace(
+        page_types=page_types,
+        tables_write={
+            "assignments_v2_build_staging": "catalog.schema.staging",
+            "assignments_v2": "catalog.schema.history",
+            "assignments_v2_latest": "catalog.schema.latest",
+            "assignment_build_events": "catalog.schema.events",
+        },
+    )
+    args = publish_build.PublishBuildArguments(
+        job_env="prod",
+        client="next_uk",
+        route="v2",
+        run_date=date(2026, 7, 29),
+        build_run_id="v2_12345",
+        scope_manifest=tuple(
+            publish_build.ScopeManifestEntry(scope)
+            for scope in page_types
+        ),
+    )
+    expected = object()
+    monkeypatch.setattr(
+        publish_build,
+        "validate_and_publish_assignment_build",
+        lambda *args, **kwargs: expected,
+    )
+
+    assert publish_build.publish_assignment_build(
+        object(),
+        config,
+        args,
+    ) is expected
+
+
 def test_main_logs_the_published_result_without_import_time_spark(
     monkeypatch,
 ):

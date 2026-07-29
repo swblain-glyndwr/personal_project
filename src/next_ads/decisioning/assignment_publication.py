@@ -302,10 +302,6 @@ def stage_assignment_scope(
         if column != scope_contract.publication_date_column
     ]
     _require_columns(assignments, input_columns, label="Assignment dataframe")
-    validate_replace_source_scope(
-        assignments,
-        {scope_contract.scope_column: scope},
-    )
 
     public_assignments = with_run_date(
         assignments.select(*input_columns),

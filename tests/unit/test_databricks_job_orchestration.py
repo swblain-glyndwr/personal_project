@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import yaml
@@ -276,7 +277,7 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
     ]
 
 
-def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
+def test_page_build_v2_publishes_complete_build_before_payload_submission():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd_v2",
@@ -288,28 +289,111 @@ def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
     assert job["email_notifications"]["on_failure"] == (
         "${var.data_and_downstream_notification_emails}"
     )
-    assert job["parameters"] == [
-        {
-            "name": "run_date",
-            "default": "{{job.start_time.iso_date}}",
-        },
-        {
-            "name": "build_run_id",
-            "default": "v2_{{job.run_id}}",
-        },
+    job_parameters = {
+        parameter["name"]: parameter["default"]
+        for parameter in job["parameters"]
+    }
+    assert list(job_parameters) == [
+        "run_date",
+        "build_run_id",
+        "scope_manifest_json",
     ]
-    assert tasks_by_key["build_page_v2"]["for_each_task"]["task"][
-        "spark_python_task"
-    ]["parameters"][-4:] == [
+    assert job_parameters["run_date"] == "{{job.start_time.iso_date}}"
+    assert job_parameters["build_run_id"] == "v2_{{job.run_id}}"
+
+    scope_manifest = json.loads(job_parameters["scope_manifest_json"])
+    assert scope_manifest == [
+        {"scope": "HomePage"},
+        {"scope": "ShoppingBagPage"},
+        {"scope": "CheckoutPage"},
+        {"scope": "ProductListingPage"},
+        {"scope": "ForYouPage"},
+    ]
+    assert len({entry["scope"] for entry in scope_manifest}) == 5
+
+    build_for_each = tasks_by_key["build_page_v2"]["for_each_task"]
+    assert build_for_each["inputs"] == (
+        "{{job.parameters.scope_manifest_json}}"
+    )
+    assert build_for_each["task"]["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--page_type",
+        "{{input.scope}}",
+        "--scope_manifest_json",
+        "{{job.parameters.scope_manifest_json}}",
         "--run_date",
         "{{job.parameters.run_date}}",
         "--build_run_id",
         "{{job.parameters.build_run_id}}",
+        "--task_run_id",
+        "{{task.run_id}}",
+        "--execution_count",
+        "{{task.execution_count}}",
     ]
 
-    assert tasks_by_key["trigger_payload_export_job"]["run_if"] == "ALL_DONE"
+    publisher = tasks_by_key["publish_assignment_build_v2"]
+    assert publisher["depends_on"] == [{"task_key": "build_page_v2"}]
+    assert "run_if" not in publisher
+    assert publisher["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_assignment/publish_build.py"
+    )
+    assert publisher["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--route",
+        "v2",
+        "--run_date",
+        "{{job.parameters.run_date}}",
+        "--build_run_id",
+        "{{job.parameters.build_run_id}}",
+        "--scope_manifest_json",
+        "{{job.parameters.scope_manifest_json}}",
+    ]
+
     assert tasks_by_key["trigger_payload_export_job"]["depends_on"] == [
-        {"task_key": "build_page_v2"},
+        {"task_key": "publish_assignment_build_v2"},
+    ]
+    assert "run_if" not in tasks_by_key["trigger_payload_export_job"]
+    assert tasks_by_key["trigger_payload_export_job"]["spark_python_task"][
+        "parameters"
+    ] == [
+        "--job-id",
+        "${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}",
+        "--job-name",
+        "mktg_next_uk_nextads_payload_export",
+        "--job-parameter",
+        "run_date={{job.parameters.run_date}}",
+        "--fail-on-submit-error",
+    ]
+    assert all(task.get("run_if") != "ALL_DONE" for task in job["tasks"])
+
+
+def test_payload_export_uses_forwarded_logical_run_date():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml",
+        "mktg_next_uk_nextads_payload_export_cicd",
+    )
+
+    assert job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        }
+    ]
+    assert job["tasks"][0]["spark_python_task"]["parameters"] == [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--do_export",
+        "1",
+        "--run_date",
+        "{{job.parameters.run_date}}",
     ]
 
 

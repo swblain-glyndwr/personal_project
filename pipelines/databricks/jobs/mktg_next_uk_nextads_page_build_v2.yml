@@ -22,10 +22,13 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
         default: "{{job.start_time.iso_date}}"
       - name: build_run_id
         default: "v2_{{job.run_id}}"
+      - name: scope_manifest_json
+        default: >-
+          [{"scope":"HomePage"},{"scope":"ShoppingBagPage"},{"scope":"CheckoutPage"},{"scope":"ProductListingPage"},{"scope":"ForYouPage"}]
     tasks:
       - task_key: build_page_v2
         for_each_task:
-          inputs: '["HomePage", "ShoppingBagPage", "CheckoutPage", "ProductListingPage", "ForYouPage"]'
+          inputs: "{{job.parameters.scope_manifest_json}}"
           concurrency: 10
           task:
             task_key: build_page_v2_iteration
@@ -37,20 +40,48 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
                 - --job_env
                 - ${var.job_parameter_environment_name}
                 - --page_type
-                - "{{input}}"
+                - "{{input.scope}}"
+                - --scope_manifest_json
+                - "{{job.parameters.scope_manifest_json}}"
                 - --run_date
                 - "{{job.parameters.run_date}}"
                 - --build_run_id
                 - "{{job.parameters.build_run_id}}"
+                - --task_run_id
+                - "{{task.run_id}}"
+                - --execution_count
+                - "{{task.execution_count}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2
             min_retry_interval_millis: 5000
             timeout_seconds: 10800
-      - task_key: trigger_payload_export_job
+      - task_key: publish_assignment_build_v2
         depends_on:
           - task_key: build_page_v2
-        run_if: ALL_DONE
+        spark_python_task:
+          python_file: ../../../jobs/nextads_assignment/publish_build.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --route
+            - "v2"
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --build_run_id
+            - "{{job.parameters.build_run_id}}"
+            - --scope_manifest_json
+            - "{{job.parameters.scope_manifest_json}}"
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        min_retry_interval_millis: 5000
+        timeout_seconds: 10800
+      - task_key: trigger_payload_export_job
+        depends_on:
+          - task_key: publish_assignment_build_v2
         spark_python_task:
           python_file: ../../../jobs/orchestration/trigger_databricks_job.py
           parameters:
@@ -58,6 +89,8 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
             - ${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}
             - --job-name
             - "mktg_next_uk_nextads_payload_export"
+            - --job-parameter
+            - "run_date={{job.parameters.run_date}}"
             - --fail-on-submit-error
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
