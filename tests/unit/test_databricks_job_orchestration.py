@@ -233,6 +233,54 @@ def test_theme_affinity_coverage_validation_does_not_gate_route_mappers():
     ]
 
 
+def test_control_sheet_audits_are_route_specific_warning_only_leaf_tasks():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
+        "mktg_next_uk_nextads_cicd",
+    )
+
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+
+    for route in ("v1", "v2"):
+        audit_task = tasks_by_key[f"audit_control_sheet_{route}"]
+
+        assert audit_task["depends_on"] == [
+            {"task_key": f"load_control_sheet_{route}"}
+        ]
+        assert audit_task["spark_python_task"]["python_file"] == (
+            "../../../jobs/nextads_control/audit_control_sheet.py"
+        )
+        assert audit_task["spark_python_task"]["parameters"] == [
+            "--route",
+            route,
+            "--client",
+            "next_uk",
+            "--job_env",
+            "${var.job_parameter_environment_name}",
+            "--run_date",
+            "{{job.parameters.run_date}}",
+            "--warn-only",
+        ]
+        assert (
+            audit_task["job_cluster_key"]
+            == "next_ads_job_cluster_D4ads_v5_1_1"
+        )
+        assert audit_task["timeout_seconds"] == 1800
+
+    route_tasks = [
+        "map_theme_scores_to_ads_v1",
+        "map_theme_scores_to_ads_v2",
+        "trigger_page_build_v1_job",
+        "trigger_page_build_v2_job",
+    ]
+    for task_key in route_tasks:
+        dependencies = tasks_by_key[task_key].get("depends_on", [])
+        assert all(
+            not dependency["task_key"].startswith("audit_control_sheet_")
+            for dependency in dependencies
+        )
+
+
 def test_page_build_v1_publishes_one_complete_build_before_handoffs():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml",

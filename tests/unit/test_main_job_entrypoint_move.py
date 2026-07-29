@@ -21,6 +21,7 @@ def test_main_job_uses_moved_non_v2_entrypoints():
         "assign_customer_cells": "../../../jobs/nextads_cells/assign_customer_cells.py",
         "combine_customer_cells": "../../../jobs/nextads_cells/combine_customer_cells.py",
         "load_control_sheet_v1": "../../../jobs/nextads_control/load_control_sheet.py",
+        "audit_control_sheet_v1": "../../../jobs/nextads_control/audit_control_sheet.py",
         "validate_theme_affinity_theme_coverage": "../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py",
         "map_theme_scores_to_ads_v1": "../../../jobs/nextads_candidates/build_theme_ad_candidates.py",
         "trigger_page_build_v1_job": "../../../jobs/orchestration/trigger_databricks_job.py",
@@ -62,6 +63,9 @@ def test_v2_main_job_entrypoints_use_jobs_folder():
     assert tasks_by_key["load_control_sheet_v2"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/load_control_sheet_v2.py"
+    assert tasks_by_key["audit_control_sheet_v2"]["spark_python_task"][
+        "python_file"
+    ] == "../../../jobs/nextads_control/audit_control_sheet.py"
     assert tasks_by_key["map_theme_scores_to_ads_v2"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"
@@ -127,6 +131,7 @@ def test_route_oriented_entrypoint_files_exist_without_domain_wrappers():
         "jobs/nextads_candidates/build_theme_scores.py",
         "jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py",
         "jobs/nextads_candidates/build_theme_ad_candidates.py",
+        "jobs/nextads_control/audit_control_sheet.py",
         "jobs/nextads_control/validate_theme_mapping_sync.py",
         "jobs/nextads_assignment/build_page.py",
         "jobs/orchestration/trigger_databricks_job.py",

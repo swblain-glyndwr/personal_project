@@ -107,6 +107,8 @@ individually so a new experiment entrypoint cannot be added without review.
 | `jobs/table_operations/init_starting_tables.py` | `TRUNCATE TABLE` | 4 | Unbundled setup | Development only | This explicit setup utility is not a nightly bundle entrypoint and requires manual setup authority. |
 | `jobs/table_operations/truncate_tables_in_dev.py` | `TRUNCATE TABLE` | 1 | Unbundled setup | Development only | This explicit DEV-only utility is not a production route. |
 | `src/next_ads/control/attributes.py` | `collect_set` | 1 | Active Markov dependency | Deterministic | `sort_array` canonicalises the collected attribute set before publication. |
+| `src/next_ads/control/control_sheet_audit.py` | `collect_list` | 1 | Active warning-only control audit | Deterministic | The diagnostic examples are total-ordered, capped and sorted before they are collected into the warning report. |
+| `src/next_ads/control/control_sheet_audit.py` | `collect_set` | 3 | Active warning-only control audit | Deterministic | `sort_array` canonicalises raw-row signatures, processed scope membership and CMS target URLs before comparison. |
 | `src/next_ads/control/item_attributes.py` | `collect_list` | 1 | Active Markov dependency | Deterministic | `sort_array` canonicalises values before an order-insensitive explode. |
 | `src/next_ads/control/item_attributes.py` | `deduplicate` | 12 | Active Markov dependency | Deterministic | Calls retain exact distinct item, basket, attribute or full-row projections; none arbitrarily selects among conflicting values. |
 | `src/next_ads/control/load_control_sheet.py` | `collect_set` | 1 | Active candidate dependency | Deterministic | `sort_array` canonicalises the membership array; consumers use only `array_contains`. |
@@ -189,6 +191,7 @@ updated, even when the per-file pattern count is unchanged.
 | `jobs/table_operations/init_starting_tables.py` | `6b9905a406c99e49` |
 | `jobs/table_operations/truncate_tables_in_dev.py` | `555f325c2b6cbca4` |
 | `src/next_ads/control/attributes.py` | `088a006e8929497f` |
+| `src/next_ads/control/control_sheet_audit.py` | `9d0a0dfcce07fc4f` |
 | `src/next_ads/control/item_attributes.py` | `26f5078a2a341633` |
 | `src/next_ads/control/load_control_sheet.py` | `3a83ff5435b18af5` |
 | `src/next_ads/control/theme_mapping.py` | `fcbd620481b89b30` |
@@ -236,6 +239,7 @@ covered by the focused determinism tests.
 | `jobs/nextads_reporting/realtime_results.py` | 2 | Deployed reporting | Total order | Latest update and action windows finish with stable hash-backed business keys. |
 | `jobs/nextads_reporting/results_top_ads_by_location.py` | 1 | Deployed reporting | Total order | The single-row selection finishes with `UniqueAdID`. |
 | `jobs/realtime/viewed_bought.py` | 2 | Active realtime input | Total order | Revenue and association ranks finish with item identifiers. |
+| `src/next_ads/control/control_sheet_audit.py` | 1 | Active warning-only control audit | Total order | Capped diagnostic examples are ordered by their unique rendered example key before aggregation. |
 | `src/next_ads/control/theme_mapping.py` | 2 | Active Markov dependency | Tie preserving | Both use `dense_rank`; equal scoring inputs intentionally share a rank and no arbitrary single row is selected. |
 | `src/next_ads/decisioning/assignment.py` | 12 | Active assignment dependency | Total order | Exact assignment selections finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
 | `src/next_ads/features/nextads_core.py` | 2 | Deployed feature foundation | Out of scope | Feature-foundation ranking is outside this incident route; feature-platform owner review is required. |
