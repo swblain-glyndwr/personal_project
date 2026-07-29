@@ -156,7 +156,7 @@ def build_advert_items_df(
     CONTROL_SHEET = spark.table(
         etl.map_tbl(write_tables["control_sheet_latest_v2"], **tbl_configs)
     )
-    SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest"])
+    SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest_v2"])
     PRODUCT_CATIDS_LATEST = spark.table(
         etl.map_tbl(write_tables["nextads_items_catid"], **tbl_configs)
     )
@@ -179,21 +179,21 @@ def build_advert_items_df(
             how="inner",
         )
         .select(
-            F.col("ad.UniqueAdID"), F.col("ad.CMSPageID"), F.col("s_o.items")
+            F.col("ad.UniqueAdID"), F.col("ad.CMSPageID"), F.col("s_o.item")
         )
         .join(
             PRODUCT_CATALOG.alias("cat"),
-            on=(F.col("s_o.items") == F.col("cat.pid")),
+            on=(F.col("s_o.item") == F.col("cat.pid")),
             how="left",
         )
         .withColumnRenamed("pid", "pid_")
         .join(
             PRODUCT_CATALOG.alias("sku"),
-            on=(F.col("s_o.items") == F.col("sku.sku_id")),
+            on=(F.col("s_o.item") == F.col("sku.sku_id")),
             how="left",
         )
         .withColumn(
-            "itemno", F.coalesce(F.col("pid_"), F.col("pid"), F.col("items"))
+            "itemno", F.coalesce(F.col("pid_"), F.col("pid"), F.col("item"))
         )
         .select(F.col("ad.UniqueAdID"), F.col("ad.CMSPageID"), F.col("itemno"))
         .join(PRODUCT_CATIDS_LATEST, on="itemno", how="left")
@@ -460,7 +460,7 @@ def build_advert_affinity(
     ad_page_types = (
         CONTROL_SHEET.filter(F.col("AudienceOnly") == F.lit(0))
         .groupBy("rundate", "UniqueAdID", "CMSPageID")
-        .pivot("PageGroup")
+        .pivot("PageType")
         .agg(F.max(F.lit(True)))
         .na.fill(False)
     )
