@@ -1991,8 +1991,8 @@ default:
       ad_items: '{catalog}.{schema}.{client}_nextads_ad_items'
       control_sheet: '{catalog}.{schema}.{client}_nextads_control_sheet'
       control_sheet_latest: '{catalog}.{schema}.{client}_nextads_control_sheet_latest'
-      control_sheet_v2: marketingdata_prod.{schema}.{client}_nextads_control_sheet_v2
-      control_sheet_latest_v2: marketingdata_prod.{schema}.{client}_nextads_control_sheet_latest_v2
+      control_sheet_v2: '{catalog}.{schema}.{client}_nextads_control_sheet_v2'
+      control_sheet_latest_v2: '{catalog}.{schema}.{client}_nextads_control_sheet_latest_v2'
       multipage_locations: '{catalog}.{schema}.{client}_nextads_multipage_locations'
       multipage_locations_latest: '{catalog}.{schema}.{client}_nextads_multipage_locations_latest'
       customer_cells_fixed_latest: '{catalog}.{schema}.{client}_nextads_customer_cells_fixed_latest'
