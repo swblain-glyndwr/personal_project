@@ -16,13 +16,13 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_advert_advert_ass
     intersection_count int,
     overlap_proportion double NOT NULL,
     HomePage boolean not null, 
-    OrderComplete boolean not null,
+    CheckoutPage boolean not null,
     ProductListingPage boolean not null,
-    ShoppingBag boolean not null, 
+    ShoppingBagPage boolean not null, 
     rundate date not null,
     constraint pk_{client}_nextads_advert_advert_association primary key (
-        viewuniqueadid,
-        atbuniqueadid,
+        ViewUniqueAdID,
+        AtbUniqueAdID,
         rundate)
 )
 USING DELTA

@@ -562,7 +562,7 @@ def build_advert_affinity(
         F.countDistinct("UniqueVisitID").alias("number_atbs")
     )
     item_number_views_atbs = advert_item_associations.groupBy(
-        "ViewUniqueAdID", "AtbUniqueAdID"
+        "ViewUniqueAdID", "AtbUniqueAdID", "ViewCMSPageID", "AtbCMSPageID"
     ).agg(F.countDistinct("UniqueVisitID").alias("number_views_atbs"))
 
     logger.info("Running validation checks on prior 30 days association data")
@@ -748,8 +748,8 @@ def build_advert_affinity(
     ).select(
         F.col("vb.AtbUniqueAdID"),
         F.col("vb.AtbCMSPageID"),
-        F.col("pvb.ViewUniqueAdID"),
-        F.col("pvb.ViewCMSPageID"),
+        F.col("vb.ViewUniqueAdID"),
+        F.col("vb.ViewCMSPageID"),
         F.col("number_views_atbs_"),
     )
 
@@ -870,7 +870,7 @@ def build_advert_affinity(
                 [
                     F.col(i)
                     for i in ad_page_types.columns
-                    if i not in ["UniqueAdID", "rundate"]
+                    if i not in ["UniqueAdID", "rundate", "CMSPageID"]
                 ]
             ),
             F.lit(reference_date).cast("date").alias("rundate"),

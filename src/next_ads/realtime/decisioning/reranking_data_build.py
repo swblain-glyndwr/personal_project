@@ -144,7 +144,7 @@ def advert_details_build(
     write_tables = cfg["tables"]["write"]
 
     write_tables = cfg["tables"]["write"]
-    SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest"])
+    SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest_v2"])
     CONTROL_SHEET = spark.table(
         etl.map_tbl(write_tables["control_sheet_latest_v2"], **tbl_configs)
     )
