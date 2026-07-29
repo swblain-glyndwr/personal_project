@@ -45,8 +45,7 @@ def test_v1_staging_adds_build_identity_to_public_assignment_shape():
     )
     assert "primary key ( buildrunid, accountnumber, location)" in sql
     assert "primary key ( buildrunid, taskrunid" not in sql
-    assert "check (taskrunid > 0)" in sql
-    assert "check (executioncount >= 0)" in sql
+    assert " check (" not in sql
 
 
 def test_v2_staging_adds_build_identity_to_public_assignment_shape():
@@ -73,8 +72,7 @@ def test_v2_staging_adds_build_identity_to_public_assignment_shape():
     )
     assert "primary key ( buildrunid, accountnumber, pagetype, rank)" in sql
     assert "primary key ( buildrunid, taskrunid" not in sql
-    assert "check (taskrunid > 0)" in sql
-    assert "check (executioncount >= 0)" in sql
+    assert " check (" not in sql
 
 
 def test_assignment_build_events_has_validated_retention_compatible_contract():
@@ -98,14 +96,9 @@ def test_assignment_build_events_has_validated_retention_compatible_contract():
         ("ExecutionCount", "INT NOT NULL"),
         ("CompletedAt", "TIMESTAMP NOT NULL"),
     ]
-    assert "check (route in ('v1', 'v2'))" in sql
-    assert "check (status in ('ready', 'no_ads'))" in sql
-    assert (
-        "check ( (status = 'ready' and rowcount > 0) "
-        "or (status = 'no_ads' and rowcount = 0) )" in sql
-    )
-    assert "check (executioncount >= 0)" in sql
-    assert "check (taskrunid > 0)" in sql
+    # Databricks CREATE TABLE only accepts key constraints inline. The
+    # publisher validates route, status, counts and run identity in code.
+    assert " check (" not in sql
     assert "partitioned by (builddate)" in sql
     assert "delta.appendonly" not in sql
 
