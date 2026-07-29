@@ -16,6 +16,7 @@ from jobs.table_operations.create_tables import (
     parse_column_specs,
     table_matches_selection,
 )
+from next_ads.common.paths import resolve_sql_contract_path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -132,7 +133,9 @@ def test_build_add_missing_columns_query_skips_complex_or_constrained_columns():
         "marketingdata_dev.nextads_integration.next_uk_nextads_payload_latest "
         "ADD COLUMNS (`FY20` STRING)"
     )
-    assert get_unsupported_missing_columns(expected_columns, actual_columns) == [
+    assert get_unsupported_missing_columns(
+        expected_columns, actual_columns
+    ) == [
         "next_ads",
     ]
 
@@ -255,9 +258,7 @@ def test_compare_table_schema_reports_type_and_nullability_drift():
 
     drift = compare_table_schema(expected, actual)
 
-    assert drift.type_drift == [
-        "AccountNumber: expected STRING, found BIGINT"
-    ]
+    assert drift.type_drift == ["AccountNumber: expected STRING, found BIGINT"]
     assert drift.nullability_drift == [
         "Audience: expected NOT NULL, found nullable"
     ]
@@ -349,7 +350,10 @@ def test_missing_audience_uses_false_default_in_repair_insert():
     )
 
     assert "CAST('false' AS STRING) AS `Audience`" in query
-    assert "SELECT `AccountNumber`, CAST('false' AS STRING) AS `Audience`, `rundate`" in query
+    assert (
+        "SELECT `AccountNumber`, CAST('false' AS STRING) AS `Audience`, `rundate`"
+        in query
+    )
     assert query.startswith(
         "INSERT INTO catalog.schema.customer_cells_repair "
         "(`AccountNumber`, `Audience`, `rundate`)"
@@ -423,7 +427,9 @@ def test_repair_table_to_contract_blocks_prod_rebuild():
 
 
 def test_table_selection_accepts_ref_full_name_or_table_name():
-    table = "marketingdata_dev.stephen_blain.next_uk_nextads_control_sheet_latest"
+    table = (
+        "marketingdata_dev.stephen_blain.next_uk_nextads_control_sheet_latest"
+    )
 
     assert table_matches_selection("control_sheet_latest", table, set())
     assert table_matches_selection(
@@ -458,3 +464,20 @@ def test_adsv2_control_sheet_tables_include_underperforming_flag_before_rundate(
         assert columns.index(("IsUnderperforming", "BOOLEAN")) < columns.index(
             ("rundate", "DATE NOT NULL")
         )
+
+
+@pytest.mark.parametrize(
+    "table_ref",
+    [
+        "assignments_build_staging",
+        "assignments_v2_build_staging",
+        "assignment_build_events",
+    ],
+)
+def test_assignment_publication_tables_have_repo_owned_sql_contracts(
+    table_ref,
+):
+    contract_path = resolve_sql_contract_path(table_ref)
+
+    assert contract_path.is_file()
+    assert extract_create_table_columns(contract_path.read_text())

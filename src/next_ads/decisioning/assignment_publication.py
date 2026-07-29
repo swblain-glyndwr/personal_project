@@ -1,0 +1,807 @@
+from __future__ import annotations
+
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from typing import Any
+
+from pyspark import StorageLevel
+from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
+
+from next_ads.common.delta_writes import (
+    DeltaWriteResult,
+    KeyValidationSummary,
+    atomic_append_by_name,
+    validate_replace_source_scope,
+    validate_target_columns,
+    validate_unique_non_null_keys,
+)
+from next_ads.common.snapshot_writes import (
+    publish_history_and_latest,
+    replace_validated_scope,
+    with_run_date,
+)
+
+
+READY = "READY"
+NO_ADS = "NO_ADS"
+VALID_ASSIGNMENT_STATUSES = frozenset({READY, NO_ADS})
+VALID_ASSIGNMENT_ROUTES = frozenset({"v1", "v2"})
+
+
+@dataclass(frozen=True)
+class AssignmentTableContract:
+    staging_table: str
+    event_table: str
+    history_table: str
+    latest_table: str
+
+    def __post_init__(self) -> None:
+        """Validate that publication tables are explicit and isolated."""
+        tables = [
+            self.staging_table,
+            self.event_table,
+            self.history_table,
+            self.latest_table,
+        ]
+        if any(not table.strip() for table in tables):
+            raise ValueError("Assignment table names must not be empty")
+        if len(set(tables)) != len(tables):
+            raise ValueError("Assignment publication tables must be distinct")
+
+
+@dataclass(frozen=True)
+class AssignmentColumnContract:
+    build_run_id: str = "BuildRunID"
+    route: str = "Route"
+    event_scope: str = "Scope"
+    status: str = "Status"
+    row_count: str = "RowCount"
+    build_date: str = "BuildDate"
+    task_run_id: str = "TaskRunID"
+    execution_count: str = "ExecutionCount"
+    completed_at: str = "CompletedAt"
+
+    def __post_init__(self) -> None:
+        """Validate the injected staging and event metadata names."""
+        columns = [
+            self.build_run_id,
+            self.route,
+            self.event_scope,
+            self.status,
+            self.row_count,
+            self.build_date,
+            self.task_run_id,
+            self.execution_count,
+            self.completed_at,
+        ]
+        if any(not column.strip() for column in columns):
+            raise ValueError("Assignment metadata columns must not be empty")
+        if len(set(columns)) != len(columns):
+            raise ValueError("Assignment metadata columns must be distinct")
+
+
+@dataclass(frozen=True)
+class AssignmentScopeContract:
+    route: str
+    scope_column: str
+    expected_scopes: Sequence[str]
+    key_columns: Sequence[str]
+    public_columns: Sequence[str]
+    publication_date_column: str = "rundate"
+
+    def __post_init__(self) -> None:
+        """Normalise and validate one route's public assignment contract."""
+        expected_scopes = tuple(self.expected_scopes)
+        key_columns = tuple(self.key_columns)
+        public_columns = tuple(self.public_columns)
+        object.__setattr__(self, "expected_scopes", expected_scopes)
+        object.__setattr__(self, "key_columns", key_columns)
+        object.__setattr__(self, "public_columns", public_columns)
+
+        if self.route not in VALID_ASSIGNMENT_ROUTES:
+            raise ValueError("Assignment route must be one of: v1, v2")
+        if not self.scope_column.strip():
+            raise ValueError("Assignment scope column must not be empty")
+        if not self.publication_date_column.strip():
+            raise ValueError(
+                "Assignment publication date column must not be empty"
+            )
+        if not expected_scopes or any(
+            not scope.strip() for scope in expected_scopes
+        ):
+            raise ValueError("Expected assignment scopes must not be empty")
+        if len(set(expected_scopes)) != len(expected_scopes):
+            raise ValueError("Expected assignment scopes must be unique")
+        if not key_columns or any(
+            not column.strip() for column in key_columns
+        ):
+            raise ValueError("Assignment key columns must not be empty")
+        if len(set(key_columns)) != len(key_columns):
+            raise ValueError("Assignment key columns must be unique")
+        if not public_columns or any(
+            not column.strip() for column in public_columns
+        ):
+            raise ValueError("Public assignment columns must not be empty")
+        if len(set(public_columns)) != len(public_columns):
+            raise ValueError("Public assignment columns must be unique")
+
+        missing_keys = sorted(set(key_columns) - set(public_columns))
+        if missing_keys:
+            raise ValueError(
+                "Assignment keys missing from public columns: "
+                + ", ".join(missing_keys)
+            )
+        if self.scope_column not in public_columns:
+            raise ValueError("Assignment scope column must be public")
+        if self.scope_column not in key_columns:
+            raise ValueError("Assignment scope column must be part of the key")
+        if self.publication_date_column not in public_columns:
+            raise ValueError(
+                "Assignment publication date column must be public"
+            )
+
+
+@dataclass(frozen=True)
+class AssignmentScopeEvent:
+    scope: str
+    status: str
+    row_count: int
+    build_date: date
+    task_run_id: int
+    execution_count: int
+    completed_at: datetime
+
+
+@dataclass(frozen=True)
+class AssignmentStageResult:
+    route: str
+    build_run_id: str
+    build_date: date
+    scope: str
+    task_run_id: int
+    execution_count: int
+    completed_at: datetime
+    status: str
+    row_count: int
+    validation: KeyValidationSummary
+    event_write: DeltaWriteResult
+
+
+@dataclass(frozen=True)
+class AssignmentPublicationResult:
+    route: str
+    build_run_id: str
+    build_date: date
+    row_count: int
+    events: tuple[AssignmentScopeEvent, ...]
+    validation: KeyValidationSummary
+    history_write: DeltaWriteResult
+    latest_write: DeltaWriteResult
+
+
+@dataclass(frozen=True)
+class _StagingSummary:
+    scope: str
+    publication_date: date
+    task_run_id: int
+    execution_count: int
+    row_count: int
+
+
+def _normalise_build_date(value: date | datetime | str, *, label: str) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError(f"{label} must be an ISO date") from exc
+    raise ValueError(f"{label} must be a date or ISO date")
+
+
+def _require_non_empty(value: str, *, label: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must not be empty")
+
+
+def _validate_build_identity(
+    build_run_id: str,
+    *,
+    columns: AssignmentColumnContract,
+    scope_contract: AssignmentScopeContract,
+) -> None:
+    _require_non_empty(build_run_id, label=columns.build_run_id)
+    route_prefix = f"{scope_contract.route}_"
+    if not build_run_id.startswith(route_prefix) or len(build_run_id) == len(
+        route_prefix
+    ):
+        raise ValueError(
+            f"{columns.build_run_id} must start with {route_prefix!r}"
+        )
+
+
+def _require_columns(
+    df: DataFrame,
+    required_columns: Sequence[str],
+    *,
+    label: str,
+) -> None:
+    missing = sorted(set(required_columns) - set(df.columns))
+    if missing:
+        raise ValueError(f"{label} missing columns: {', '.join(missing)}")
+
+
+def _validate_contract_compatibility(
+    columns: AssignmentColumnContract,
+    scope_contract: AssignmentScopeContract,
+) -> None:
+    staging_metadata = {
+        columns.build_run_id,
+        columns.task_run_id,
+        columns.execution_count,
+    }
+    collisions = sorted(
+        staging_metadata.intersection(scope_contract.public_columns)
+    )
+    if collisions:
+        raise ValueError(
+            "Staging metadata collides with public assignment columns: "
+            + ", ".join(collisions)
+        )
+
+
+def stage_assignment_scope(
+    spark: Any,
+    assignments: DataFrame,
+    *,
+    tables: AssignmentTableContract,
+    columns: AssignmentColumnContract,
+    scope_contract: AssignmentScopeContract,
+    build_run_id: str,
+    build_date: date | datetime | str,
+    scope: str,
+    task_run_id: int,
+    execution_count: int,
+    completed_at: datetime | None = None,
+) -> AssignmentStageResult:
+    """Atomically replace one build scope in the assignment staging table."""
+    _validate_contract_compatibility(columns, scope_contract)
+    _validate_build_identity(
+        build_run_id,
+        columns=columns,
+        scope_contract=scope_contract,
+    )
+    resolved_build_date = _normalise_build_date(
+        build_date,
+        label=columns.build_date,
+    )
+    resolved_task_run_id = _validate_integer(
+        task_run_id,
+        label=columns.task_run_id,
+        minimum=1,
+    )
+    resolved_execution_count = _validate_integer(
+        execution_count,
+        label=columns.execution_count,
+    )
+    if completed_at is not None and not isinstance(completed_at, datetime):
+        raise ValueError(f"{columns.completed_at} must be a timestamp")
+    if scope not in set(scope_contract.expected_scopes):
+        raise ValueError(
+            f"Unexpected assignment scope for {scope_contract.route}: {scope}"
+        )
+
+    input_columns = [
+        column
+        for column in scope_contract.public_columns
+        if column != scope_contract.publication_date_column
+    ]
+    _require_columns(assignments, input_columns, label="Assignment dataframe")
+    validate_replace_source_scope(
+        assignments,
+        {scope_contract.scope_column: scope},
+    )
+
+    public_assignments = with_run_date(
+        assignments.select(*input_columns),
+        resolved_build_date,
+        column=scope_contract.publication_date_column,
+    ).select(*scope_contract.public_columns)
+    staged_assignments = (
+        public_assignments.withColumn(
+            columns.build_run_id,
+            F.lit(build_run_id),
+        )
+        .withColumn(
+            columns.task_run_id,
+            F.lit(resolved_task_run_id).cast("long"),
+        )
+        .withColumn(
+            columns.execution_count,
+            F.lit(resolved_execution_count).cast("int"),
+        )
+    )
+    staging_columns = [
+        columns.build_run_id,
+        columns.task_run_id,
+        columns.execution_count,
+        *scope_contract.public_columns,
+    ]
+    staged_assignments = staged_assignments.select(*staging_columns)
+    replacement_scope = {
+        columns.build_run_id: build_run_id,
+        scope_contract.scope_column: scope,
+    }
+    validation = replace_validated_scope(
+        spark,
+        staged_assignments,
+        table=tables.staging_table,
+        scope=replacement_scope,
+        key_columns=scope_contract.key_columns,
+        columns=staging_columns,
+    )
+    status = READY if validation.row_count else NO_ADS
+    resolved_completed_at = completed_at or datetime.now(timezone.utc)
+    event_columns = [
+        columns.build_run_id,
+        columns.route,
+        columns.event_scope,
+        columns.status,
+        columns.row_count,
+        columns.build_date,
+        columns.task_run_id,
+        columns.execution_count,
+        columns.completed_at,
+    ]
+    event_values = {
+        columns.build_run_id: build_run_id,
+        columns.route: scope_contract.route,
+        columns.event_scope: scope,
+        columns.status: status,
+        columns.row_count: validation.row_count,
+        columns.build_date: resolved_build_date,
+        columns.task_run_id: resolved_task_run_id,
+        columns.execution_count: resolved_execution_count,
+        columns.completed_at: resolved_completed_at,
+    }
+    event = (
+        spark.createDataFrame([event_values])
+        .withColumn(
+            columns.row_count,
+            F.col(columns.row_count).cast("long"),
+        )
+        .withColumn(
+            columns.task_run_id,
+            F.col(columns.task_run_id).cast("long"),
+        )
+        .withColumn(
+            columns.execution_count,
+            F.col(columns.execution_count).cast("int"),
+        )
+        .select(*event_columns)
+    )
+    event_write = atomic_append_by_name(
+        spark,
+        event,
+        target_table=tables.event_table,
+        columns=event_columns,
+    )
+    return AssignmentStageResult(
+        route=scope_contract.route,
+        build_run_id=build_run_id,
+        build_date=resolved_build_date,
+        scope=scope,
+        task_run_id=resolved_task_run_id,
+        execution_count=resolved_execution_count,
+        completed_at=resolved_completed_at,
+        status=status,
+        row_count=validation.row_count,
+        validation=validation,
+        event_write=event_write,
+    )
+
+
+def _read_build_frame(
+    spark: Any,
+    table: str,
+    *,
+    build_run_id_column: str,
+    build_run_id: str,
+) -> DataFrame:
+    frame = spark.table(table)
+    _require_columns(
+        frame,
+        [build_run_id_column],
+        label=f"Table {table}",
+    )
+    return frame.where(
+        F.col(build_run_id_column).eqNullSafe(F.lit(build_run_id))
+    )
+
+
+def _collect_event_rows(
+    events: DataFrame,
+    columns: AssignmentColumnContract,
+) -> list[dict[str, Any]]:
+    event_columns = [
+        columns.build_run_id,
+        columns.route,
+        columns.event_scope,
+        columns.status,
+        columns.row_count,
+        columns.build_date,
+        columns.task_run_id,
+        columns.execution_count,
+        columns.completed_at,
+    ]
+    _require_columns(events, event_columns, label="Assignment event table")
+    return [
+        row.asDict(recursive=True)
+        for row in events.select(*event_columns).collect()
+    ]
+
+
+def _validate_integer(
+    value: Any,
+    *,
+    label: str,
+    minimum: int = 0,
+) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} must be an integer")
+    if value < minimum:
+        raise ValueError(f"{label} must be at least {minimum}")
+    return value
+
+
+def _event_order(
+    event: Mapping[str, Any],
+    columns: AssignmentColumnContract,
+) -> tuple[int, datetime, int]:
+    execution_count = _validate_integer(
+        event.get(columns.execution_count),
+        label=columns.execution_count,
+    )
+    completed_at = event.get(columns.completed_at)
+    if not isinstance(completed_at, datetime):
+        raise ValueError(f"{columns.completed_at} must be a timestamp")
+    task_run_id = _validate_integer(
+        event.get(columns.task_run_id),
+        label=columns.task_run_id,
+        minimum=1,
+    )
+    return execution_count, completed_at, task_run_id
+
+
+def _select_latest_scope_events(
+    event_rows: Sequence[Mapping[str, Any]],
+    *,
+    columns: AssignmentColumnContract,
+    scope_contract: AssignmentScopeContract,
+    build_run_id: str,
+    build_date: date,
+) -> tuple[AssignmentScopeEvent, ...]:
+    expected_scopes = set(scope_contract.expected_scopes)
+    grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+
+    for event in event_rows:
+        status = event.get(columns.status)
+        if status not in VALID_ASSIGNMENT_STATUSES:
+            raise ValueError(f"Invalid assignment event status: {status}")
+        if event.get(columns.build_run_id) != build_run_id:
+            raise ValueError(
+                "Assignment event BuildRunID does not match the build"
+            )
+        if event.get(columns.route) != scope_contract.route:
+            raise ValueError(
+                "Assignment event Route does not match the build route"
+            )
+        event_build_date = _normalise_build_date(
+            event.get(columns.build_date),
+            label=f"Event {columns.build_date}",
+        )
+        if event_build_date != build_date:
+            raise ValueError(
+                "Assignment event BuildDate does not match the build date"
+            )
+
+        event_scope = event.get(columns.event_scope)
+        if not isinstance(event_scope, str) or not event_scope:
+            raise ValueError("Assignment event Scope must not be empty")
+        grouped[event_scope].append(event)
+
+    observed_scopes = set(grouped)
+    missing_scopes = sorted(expected_scopes - observed_scopes)
+    unexpected_scopes = sorted(observed_scopes - expected_scopes)
+    if missing_scopes or unexpected_scopes:
+        details = []
+        if missing_scopes:
+            details.append("missing scopes: " + ", ".join(missing_scopes))
+        if unexpected_scopes:
+            details.append(
+                "unexpected scopes: " + ", ".join(unexpected_scopes)
+            )
+        raise ValueError(
+            "Assignment event scope mismatch: " + "; ".join(details)
+        )
+
+    selected_events = []
+    for scope in scope_contract.expected_scopes:
+        scope_events = grouped[scope]
+        ordered = [
+            (event, _event_order(event, columns)) for event in scope_events
+        ]
+        latest_order = max(order for _, order in ordered)
+        latest_rows = [
+            event for event, order in ordered if order == latest_order
+        ]
+        latest_payloads = {
+            (
+                event.get(columns.status),
+                event.get(columns.row_count),
+            )
+            for event in latest_rows
+        }
+        if len(latest_payloads) != 1:
+            raise ValueError(
+                f"Contradictory latest assignment events for scope {scope}"
+            )
+
+        latest = latest_rows[0]
+        status = latest.get(columns.status)
+        if status not in VALID_ASSIGNMENT_STATUSES:
+            raise ValueError(
+                f"Invalid assignment event status for scope {scope}: {status}"
+            )
+        row_count = _validate_integer(
+            latest.get(columns.row_count),
+            label=columns.row_count,
+        )
+        if status == READY and row_count == 0:
+            raise ValueError(
+                f"READY assignment event for scope {scope} has zero rows"
+            )
+        if status == NO_ADS and row_count != 0:
+            raise ValueError(
+                f"NO_ADS assignment event for scope {scope} has rows"
+            )
+
+        execution_count, completed_at, task_run_id = latest_order
+        selected_events.append(
+            AssignmentScopeEvent(
+                scope=scope,
+                status=status,
+                row_count=row_count,
+                build_date=build_date,
+                task_run_id=task_run_id,
+                execution_count=execution_count,
+                completed_at=completed_at,
+            )
+        )
+
+    return tuple(selected_events)
+
+
+def _collect_staging_summaries(
+    staged: DataFrame,
+    *,
+    columns: AssignmentColumnContract,
+    scope_contract: AssignmentScopeContract,
+) -> tuple[_StagingSummary, ...]:
+    required_columns = [
+        columns.build_run_id,
+        columns.task_run_id,
+        columns.execution_count,
+        scope_contract.scope_column,
+        scope_contract.publication_date_column,
+        *scope_contract.public_columns,
+    ]
+    _require_columns(
+        staged, required_columns, label="Assignment staging table"
+    )
+    summaries = (
+        staged.select(
+            F.col(scope_contract.scope_column).alias("_scope"),
+            F.col(scope_contract.publication_date_column).alias(
+                "_publication_date"
+            ),
+            F.col(columns.task_run_id).alias("_task_run_id"),
+            F.col(columns.execution_count).alias("_execution_count"),
+        )
+        .groupBy(
+            "_scope",
+            "_publication_date",
+            "_task_run_id",
+            "_execution_count",
+        )
+        .count()
+        .collect()
+    )
+    return tuple(
+        _StagingSummary(
+            scope=row["_scope"],
+            publication_date=_normalise_build_date(
+                row["_publication_date"],
+                label="Staged assignment publication date",
+            ),
+            task_run_id=_validate_integer(
+                row["_task_run_id"],
+                label=f"Staged {columns.task_run_id}",
+                minimum=1,
+            ),
+            execution_count=_validate_integer(
+                row["_execution_count"],
+                label=f"Staged {columns.execution_count}",
+            ),
+            row_count=int(row["count"]),
+        )
+        for row in summaries
+    )
+
+
+def _validate_staging_against_events(
+    summaries: Sequence[_StagingSummary],
+    *,
+    selected_events: Sequence[AssignmentScopeEvent],
+    scope_contract: AssignmentScopeContract,
+    build_date: date,
+) -> int:
+    expected_scopes = set(scope_contract.expected_scopes)
+    staged_counts: dict[str, int] = defaultdict(int)
+    selected_by_scope = {event.scope: event for event in selected_events}
+    for summary in summaries:
+        if summary.scope not in expected_scopes:
+            raise ValueError(
+                f"Unexpected staged assignment scope: {summary.scope}"
+            )
+        if summary.publication_date != build_date:
+            raise ValueError(
+                "Staged assignment publication date does not match BuildDate"
+            )
+        selected_event = selected_by_scope[summary.scope]
+        if (
+            summary.task_run_id != selected_event.task_run_id
+            or summary.execution_count != selected_event.execution_count
+        ):
+            raise ValueError(
+                "Staged assignment attempt does not match the latest "
+                f"completed event for scope {summary.scope}"
+            )
+        staged_counts[summary.scope] += summary.row_count
+
+    for event in selected_events:
+        staged_count = staged_counts.get(event.scope, 0)
+        if staged_count != event.row_count:
+            raise ValueError(
+                "Assignment event/staging count mismatch for scope "
+                f"{event.scope}: event={event.row_count}, staged={staged_count}"
+            )
+    return sum(staged_counts.values())
+
+
+def validate_and_publish_assignment_build(
+    spark: Any,
+    *,
+    tables: AssignmentTableContract,
+    columns: AssignmentColumnContract,
+    scope_contract: AssignmentScopeContract,
+    build_run_id: str,
+    build_date: date | datetime | str,
+) -> AssignmentPublicationResult:
+    """Validate a complete staged assignment build and publish it atomically."""
+    _validate_contract_compatibility(columns, scope_contract)
+    _validate_build_identity(
+        build_run_id,
+        columns=columns,
+        scope_contract=scope_contract,
+    )
+    resolved_build_date = _normalise_build_date(
+        build_date,
+        label=columns.build_date,
+    )
+
+    event_frame = _read_build_frame(
+        spark,
+        tables.event_table,
+        build_run_id_column=columns.build_run_id,
+        build_run_id=build_run_id,
+    )
+    event_rows = _collect_event_rows(event_frame, columns)
+    selected_events = _select_latest_scope_events(
+        event_rows,
+        columns=columns,
+        scope_contract=scope_contract,
+        build_run_id=build_run_id,
+        build_date=resolved_build_date,
+    )
+
+    staged = _read_build_frame(
+        spark,
+        tables.staging_table,
+        build_run_id_column=columns.build_run_id,
+        build_run_id=build_run_id,
+    ).persist(StorageLevel.MEMORY_AND_DISK)
+    try:
+        staging_summaries = _collect_staging_summaries(
+            staged,
+            columns=columns,
+            scope_contract=scope_contract,
+        )
+        row_count = _validate_staging_against_events(
+            staging_summaries,
+            selected_events=selected_events,
+            scope_contract=scope_contract,
+            build_date=resolved_build_date,
+        )
+
+        public_assignments = staged.select(*scope_contract.public_columns)
+        validation_keys = list(scope_contract.key_columns)
+        if scope_contract.publication_date_column not in validation_keys:
+            validation_keys.append(scope_contract.publication_date_column)
+        validation = validate_unique_non_null_keys(
+            public_assignments,
+            validation_keys,
+        )
+        if validation.row_count != row_count:
+            raise ValueError(
+                "Validated assignment row count does not match staging events"
+            )
+
+        validate_replace_source_scope(
+            public_assignments,
+            {
+                scope_contract.publication_date_column: resolved_build_date,
+            },
+        )
+        validate_target_columns(
+            spark,
+            tables.history_table,
+            scope_contract.public_columns,
+        )
+        validate_target_columns(
+            spark,
+            tables.latest_table,
+            scope_contract.public_columns,
+        )
+
+        publication = publish_history_and_latest(
+            spark,
+            public_assignments,
+            history_table=tables.history_table,
+            latest_table=tables.latest_table,
+            key_columns=scope_contract.key_columns,
+            run_date=resolved_build_date,
+            run_date_column=scope_contract.publication_date_column,
+            columns=scope_contract.public_columns,
+        )
+        return AssignmentPublicationResult(
+            route=scope_contract.route,
+            build_run_id=build_run_id,
+            build_date=resolved_build_date,
+            row_count=row_count,
+            events=selected_events,
+            validation=validation,
+            history_write=publication.history_write,
+            latest_write=publication.latest_write,
+        )
+    finally:
+        staged.unpersist()
+
+
+__all__ = [
+    "NO_ADS",
+    "READY",
+    "AssignmentColumnContract",
+    "AssignmentPublicationResult",
+    "AssignmentScopeContract",
+    "AssignmentScopeEvent",
+    "AssignmentStageResult",
+    "AssignmentTableContract",
+    "stage_assignment_scope",
+    "validate_and_publish_assignment_build",
+]
