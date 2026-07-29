@@ -22,9 +22,18 @@ For target availability and release-route rules, see
 
 ### `mktg_next_uk_nextads_candidate_build`
 
-Main NextAds candidate-generation graph. Customer cells, item attributes, product Theme Mapping, and lightweight theme scoring are shared. V1 and v2 split at the loaded control-sheet join layer. Theme Affinity is not a task in this graph; its 09:00 scheduled job writes the shared customer-theme score source used by both candidate mappers.
+Main NextAds candidate-generation graph. It builds shared customer cells, loads
+the independent v1/v2 control sheets, maps the shared Theme Affinity output to
+each route, and submits the route-specific page-build jobs. Legacy product Theme
+Mapping and Markov scoring run independently in
+`mktg_next_uk_nextads_markov_scoring`; candidate publication does not wait for
+that job.
 
-The v2 workbook is the source of truth for the `Theme Mapping` tab. An external Google Sheets Apps Script copies it to the v1 workbook, where the tab should be locked. The candidate-build job validates that copy before parsing the shared product Theme Mapping.
+The candidate job parameter `run_date` defaults to
+`{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. A v1
+control-sheet failure cannot block the v2 mapper, and a v2 control-sheet failure
+cannot block the v1 mapper. The warning-only Theme Affinity coverage task reports
+cross-route input problems but is not an upstream dependency of either mapper.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
@@ -32,15 +41,30 @@ The v2 workbook is the source of truth for the `Theme Mapping` tab. An external 
 | `combine_customer_cells` | `client`, `job_env` | Combines outputs from assignment. |
 | `load_control_sheet_v1` | `client`, `job_env` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
 | `load_control_sheet_v2` | `client`, `job_env` | Loads v2 page-type control-sheet data and writes `control_sheet_latest_v2`. |
-| `parse_attributes` | `client`, `job_env`, `refresh_attributes_date` | Refreshes the attribute set only when the date is today; otherwise remaps using latest attributes. |
-| `validate_theme_mapping_sync` | `client`, `job_env`, optional `warn-only` flag | Compares the v2 source Theme Mapping tab with the copied v1 Theme Mapping tab. The default is a hard stop on differences. |
-| `parse_theme_mapping` | `client`, `job_env`, `refresh_theme_mapping`, `refresh_themes_date` | Reads the copied v1 product Theme Mapping tab and writes `theme_mapping_latest` / `item_themes_latest`. Set `refresh_theme_mapping=true` to refresh the Theme Mapping snapshot; the old date trigger remains for compatibility. |
-| `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs Markov scoring. Refreshes transition probabilities only when the date is today. This remains a shared upstream task dependency, but the candidate mapper's customer-theme source is Theme Affinity model latest. |
 | `validate_theme_affinity_theme_coverage` | `client`, `job_env`, `warn-only` flag | Checks active v1/v2 ad `Themes` from the loaded control sheets exist in shared `theme_affinity_model_latest.NextTheme`. Candidate build passes `warn-only`, so missing coverage is reported but does not block the route mappers. |
 | `map_theme_scores_to_ads_v1` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest`, joins `NextTheme` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. `apply-ad-feedback` is a flag. |
 | `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest_v2`, joins `NextTheme` to ad `Themes`, ranks by `PageType`, and writes `preranked_ads_from_themes_v2_latest`; it does not read v1 preranked output. |
-| `trigger_page_build_v1_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build` job id. `fail-on-submit-error` is a flag. |
-| `trigger_page_build_v2_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build_v2` job id. `fail-on-submit-error` is a flag. |
+| `trigger_page_build_v1_job` | `job-id`, `job-name`, `job-parameter run_date`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build` job id and forwards the candidate job's logical run date. |
+| `trigger_page_build_v2_job` | `job-id`, `job-name`, `job-parameter run_date`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build_v2` job id and forwards the same logical run date. |
+
+### `mktg_next_uk_nextads_markov_scoring`
+
+Independent legacy product Theme Mapping and Markov-scoring graph. It is
+scheduled separately at 18:00 Europe/London, has its own failure alert, and has
+an 8,100-second job deadline so an 18:00 run cannot continue beyond 20:15.
+Its existing output tables are preserved for external consumers.
+
+The v2 workbook remains the source of truth for the `Theme Mapping` tab. An
+external Google Sheets Apps Script copies it to the locked v1 workbook tab.
+`validate_theme_mapping_sync` is a hard gate for this legacy scorer, but it is
+outside the candidate-build failure domain.
+
+| Task | Settings | Notes / options |
+| --- | --- | --- |
+| `parse_attributes` | `client`, `job_env`, `refresh_attributes_date` | Refreshes the attribute set only when the date is today; otherwise remaps using latest attributes. |
+| `validate_theme_mapping_sync` | `client`, `job_env` | Compares the v2 source Theme Mapping tab with the copied v1 Theme Mapping tab and stops this job on drift. |
+| `parse_theme_mapping` | `client`, `job_env`, `refresh_theme_mapping`, `refresh_themes_date` | Runs after attributes and sync validation, then writes `theme_mapping_latest` / `item_themes_latest`. |
+| `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs after Theme Mapping and preserves the legacy transition and next-theme score outputs. |
 
 ### `mktg_next_uk_nextads_dev_setup`
 
@@ -158,8 +182,8 @@ Databricks quality monitor configuration for Theme Affinity ranked outputs.
 
 | Job | Settings | Notes / options |
 | --- | --- | --- |
-| `mktg_next_uk_nextads_page_build` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
-| `mktg_next_uk_nextads_page_build_v2` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
+| `mktg_next_uk_nextads_page_build` | `run_date`, `build_run_id`, `location`, `inherit_basic_from`, downstream trigger job ids/names | V1 uses `build_run_id=v1_{{job.run_id}}` by default and passes both build values to every location iteration. |
+| `mktg_next_uk_nextads_page_build_v2` | `run_date`, `build_run_id`, `page_type`, downstream trigger job ids/names | V2 uses `build_run_id=v2_{{job.run_id}}` by default and passes both build values to every page-type iteration. |
 | `mktg_next_uk_nextads_qa` | `client`, `job_env` | Runs operational QA in the target environment. |
 | `mktg_next_uk_nextads_masid_handoff` | `client`, `job_env` | Runs MASID handoff checks. |
 | `mktg_next_uk_nextads_payload_export` | `client`, `job_env`, `do_export` | `do_export=1` enables export. |

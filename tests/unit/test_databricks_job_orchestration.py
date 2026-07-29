@@ -48,11 +48,28 @@ def test_main_job_submits_page_build_without_waiting_for_result():
         "${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}",
         "--job-name",
         "mktg_next_uk_nextads_page_build",
+        "--job-parameter",
+        "run_date={{job.parameters.run_date}}",
         "--fail-on-submit-error",
+    ]
+    assert trigger_v2_task["spark_python_task"]["parameters"] == [
+        "--job-id",
+        "${resources.jobs.mktg_next_uk_nextads_page_build_cicd_v2.id}",
+        "--job-name",
+        "mktg_next_uk_nextads_page_build_v2",
+        "--job-parameter",
+        "run_date={{job.parameters.run_date}}",
+        "--fail-on-submit-error",
+    ]
+    assert job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        }
     ]
 
 
-def test_v2_mapping_does_not_depend_on_v1_mapping():
+def test_route_mappers_depend_only_on_shared_cells_and_their_control_sheet():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
@@ -60,8 +77,12 @@ def test_v2_mapping_does_not_depend_on_v1_mapping():
 
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
+    assert tasks_by_key["map_theme_scores_to_ads_v1"]["depends_on"] == [
+        {"task_key": "combine_customer_cells"},
+        {"task_key": "load_control_sheet_v1"},
+    ]
     assert tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"] == [
-        {"task_key": "score_lightweight"},
+        {"task_key": "combine_customer_cells"},
         {"task_key": "load_control_sheet_v2"},
     ]
     assert {"task_key": "map_theme_scores_to_ads_v1"} not in tasks_by_key[
@@ -69,10 +90,10 @@ def test_v2_mapping_does_not_depend_on_v1_mapping():
     ]["depends_on"]
 
 
-def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
+def test_markov_scoring_has_an_independent_scheduled_resource():
     job = _load_job(
-        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
-        "mktg_next_uk_nextads_cicd",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml",
+        "mktg_next_uk_nextads_markov_scoring_cicd",
     )
 
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
@@ -80,7 +101,28 @@ def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
         param["name"]: param["default"] for param in job["parameters"]
     }
 
+    assert job["name"] == "mktg_next_uk_nextads_markov_scoring"
+    assert job["schedule"] == {
+        "quartz_cron_expression": "0 0 18 * * ?",
+        "timezone_id": "Europe/London",
+    }
+    assert job["timeout_seconds"] == 8100
+    assert job["job_clusters"] == "${var.job_clusters_config}"
+    assert job["email_notifications"]["on_failure"] == (
+        "${var.data_team_notification_emails}"
+    )
+    assert job["notification_settings"] == {
+        "no_alert_for_skipped_runs": True,
+        "no_alert_for_canceled_runs": True,
+    }
     assert job_parameters["refresh_theme_mapping"] == "false"
+    assert list(tasks_by_key) == [
+        "parse_attributes",
+        "validate_theme_mapping_sync",
+        "parse_theme_mapping",
+        "score_lightweight",
+    ]
+    assert "depends_on" not in tasks_by_key["parse_attributes"]
     assert "depends_on" not in tasks_by_key["validate_theme_mapping_sync"]
     assert tasks_by_key["parse_theme_mapping"]["depends_on"] == [
         {"task_key": "parse_attributes"},
@@ -95,8 +137,6 @@ def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
     assert tasks_by_key["score_lightweight"]["depends_on"] == [
         {"task_key": "parse_theme_mapping"},
     ]
-    assert "parse_theme_mapping_v2" not in tasks_by_key
-    assert "score_lightweight_v2" not in tasks_by_key
     assert (
         tasks_by_key["validate_theme_mapping_sync"]["spark_python_task"][
             "python_file"
@@ -108,6 +148,48 @@ def test_theme_mapping_and_lightweight_scores_remain_shared_upstream():
         not in tasks_by_key["validate_theme_mapping_sync"][
             "spark_python_task"
         ]["parameters"]
+    )
+    assert {
+        task_key: task["job_cluster_key"]
+        for task_key, task in tasks_by_key.items()
+    } == {
+        "parse_attributes": "next_ads_job_cluster_D16ads_v5_4_4",
+        "validate_theme_mapping_sync": "next_ads_job_cluster_D4ads_v5_1_1",
+        "parse_theme_mapping": "next_ads_job_cluster_D16ads_v5_4_4",
+        "score_lightweight": "next_ads_job_cluster_D32ads_v5_1_4",
+    }
+    assert {
+        task_key: task["timeout_seconds"]
+        for task_key, task in tasks_by_key.items()
+    } == {
+        "parse_attributes": 7200,
+        "validate_theme_mapping_sync": 1800,
+        "parse_theme_mapping": 3600,
+        "score_lightweight": 18000,
+    }
+
+
+def test_candidate_resource_excludes_legacy_markov_tasks():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
+        "mktg_next_uk_nextads_cicd",
+    )
+    task_keys = {task["task_key"] for task in job["tasks"]}
+
+    assert {
+        "parse_attributes",
+        "validate_theme_mapping_sync",
+        "parse_theme_mapping",
+        "score_lightweight",
+    }.isdisjoint(task_keys)
+
+    bundle_config = yaml.safe_load(
+        (PROJECT_ROOT / "databricks.yml").read_text()
+    )
+    assert (
+        "pipelines/databricks/jobs/"
+        "mktg_next_uk_nextads_markov_scoring.yml"
+        in bundle_config["include"]
     )
 
 
@@ -137,11 +219,11 @@ def test_theme_affinity_coverage_validation_does_not_gate_route_mappers():
         ]["parameters"]
     )
     assert tasks_by_key["map_theme_scores_to_ads_v1"]["depends_on"] == [
-        {"task_key": "score_lightweight"},
+        {"task_key": "combine_customer_cells"},
         {"task_key": "load_control_sheet_v1"},
     ]
     assert tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"] == [
-        {"task_key": "score_lightweight"},
+        {"task_key": "combine_customer_cells"},
         {"task_key": "load_control_sheet_v2"},
     ]
 
@@ -158,7 +240,27 @@ def test_page_build_triggers_downstream_jobs_without_waiting_for_results():
     assert job["email_notifications"]["on_failure"] == (
         "${var.data_team_notification_emails}"
     )
+    assert job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        },
+        {
+            "name": "build_run_id",
+            "default": "v1_{{job.run_id}}",
+        },
+    ]
     assert not any("run_job_task" in task for task in job["tasks"])
+    for task_key in ["build_page_primary", "build_page_secondary"]:
+        parameters = tasks_by_key[task_key]["for_each_task"]["task"][
+            "spark_python_task"
+        ]["parameters"]
+        assert parameters[-4:] == [
+            "--run_date",
+            "{{job.parameters.run_date}}",
+            "--build_run_id",
+            "{{job.parameters.build_run_id}}",
+        ]
     assert tasks_by_key["trigger_assignment_validation_job"]["depends_on"] == [
         {"task_key": "build_page_secondary"},
     ]
@@ -186,6 +288,24 @@ def test_page_build_v2_triggers_downstream_jobs_without_waiting_for_results():
     assert job["email_notifications"]["on_failure"] == (
         "${var.data_and_downstream_notification_emails}"
     )
+    assert job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        },
+        {
+            "name": "build_run_id",
+            "default": "v2_{{job.run_id}}",
+        },
+    ]
+    assert tasks_by_key["build_page_v2"]["for_each_task"]["task"][
+        "spark_python_task"
+    ]["parameters"][-4:] == [
+        "--run_date",
+        "{{job.parameters.run_date}}",
+        "--build_run_id",
+        "{{job.parameters.build_run_id}}",
+    ]
 
     assert tasks_by_key["trigger_payload_export_job"]["run_if"] == "ALL_DONE"
     assert tasks_by_key["trigger_payload_export_job"]["depends_on"] == [

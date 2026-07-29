@@ -21,13 +21,29 @@ def test_main_job_uses_moved_non_v2_entrypoints():
         "assign_customer_cells": "../../../jobs/nextads_cells/assign_customer_cells.py",
         "combine_customer_cells": "../../../jobs/nextads_cells/combine_customer_cells.py",
         "load_control_sheet_v1": "../../../jobs/nextads_control/load_control_sheet.py",
+        "validate_theme_affinity_theme_coverage": "../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py",
+        "map_theme_scores_to_ads_v1": "../../../jobs/nextads_candidates/build_theme_ad_candidates.py",
+        "trigger_page_build_v1_job": "../../../jobs/orchestration/trigger_databricks_job.py",
+    }
+
+    for task_key, expected_path in expected_paths.items():
+        assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
+            expected_path
+        )
+
+
+def test_markov_scoring_job_uses_moved_control_and_scoring_entrypoints():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml",
+        "mktg_next_uk_nextads_markov_scoring_cicd",
+    )
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+
+    expected_paths = {
         "parse_attributes": "../../../jobs/nextads_control/parse_attributes.py",
         "validate_theme_mapping_sync": "../../../jobs/nextads_control/validate_theme_mapping_sync.py",
         "parse_theme_mapping": "../../../jobs/nextads_control/parse_theme_mapping.py",
         "score_lightweight": "../../../jobs/nextads_candidates/build_theme_scores.py",
-        "validate_theme_affinity_theme_coverage": "../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py",
-        "map_theme_scores_to_ads_v1": "../../../jobs/nextads_candidates/build_theme_ad_candidates.py",
-        "trigger_page_build_v1_job": "../../../jobs/orchestration/trigger_databricks_job.py",
     }
 
     for task_key, expected_path in expected_paths.items():

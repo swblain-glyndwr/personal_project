@@ -17,6 +17,11 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
     timeout_seconds: 21600 # required by Engineering at job level as Monitoring Dashboard doesnt handle for_each_task type
+    parameters:
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
+      - name: build_run_id
+        default: "v1_{{job.run_id}}"
     tasks:
       - task_key: build_page_primary
         for_each_task:
@@ -33,6 +38,10 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
                 - ${var.job_parameter_environment_name}
                 - --location
                 - "{{input}}"
+                - --run_date
+                - "{{job.parameters.run_date}}"
+                - --build_run_id
+                - "{{job.parameters.build_run_id}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2
@@ -57,6 +66,10 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
                 - "{{input.location}}"
                 - --inherit_basic_from
                 - "{{input.inherit_basic_from}}"
+                - --run_date
+                - "{{job.parameters.run_date}}"
+                - --build_run_id
+                - "{{job.parameters.build_run_id}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2
