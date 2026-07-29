@@ -65,8 +65,12 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     ) in entrypoint
     assert "run_theme_score_mapping(" in entrypoint
     assert "def run_theme_score_mapping(" in package_module
-    assert "truncate_and_load(" in package_module
-    assert "delete_from_and_load(" in package_module
+    assert "capture_run_date(" in package_module
+    assert "publish_history_and_latest(" in package_module
+    assert "replace_validated_snapshot(" in package_module
+    assert "with_run_date(" in package_module
+    assert "truncate_and_load(" not in package_module
+    assert "delete_from_and_load(" not in package_module
     assert "control_sheet_latest_table" in package_module
     assert "output_preranked_table" in package_module
     assert "output_grain" in package_module

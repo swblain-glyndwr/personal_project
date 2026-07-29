@@ -13,6 +13,8 @@ from next_ads.common.delta_writes import (
     build_equality_predicate,
     build_replace_where_statement,
     quote_qualified_identifier,
+    replace_scope_by_name,
+    replace_table_by_name,
     sql_literal,
     validate_target_columns,
     validate_replace_source_scope,
@@ -335,3 +337,54 @@ def test_append_uses_selected_columns_and_name_alignment():
     assert frame.selected_columns == ["Scope", "Status"]
     assert "BY NAME" in result.statement
     assert "`Unused`" not in result.statement
+
+
+def test_repo_owned_replace_interfaces_select_table_or_scope(monkeypatch):
+    frame = FakeFrame(["id", "rundate"])
+    frame.sparkSession = object()
+    calls = []
+
+    def replace(spark, df, **kwargs):
+        calls.append((spark, df, kwargs))
+        return SimpleNamespace(statement="replace", attempts=1)
+
+    monkeypatch.setattr(
+        delta_writes,
+        "atomic_replace_where_by_name",
+        replace,
+    )
+
+    replace_table_by_name(
+        frame,
+        "catalog.schema.latest",
+        ["id", "rundate"],
+    )
+    replace_scope_by_name(
+        frame,
+        "catalog.schema.history",
+        {"rundate": date(2026, 7, 28)},
+        ["rundate", "id"],
+    )
+
+    assert calls == [
+        (
+            frame.sparkSession,
+            frame,
+            {
+                "target_table": "catalog.schema.latest",
+                "replace_all": True,
+                "columns": ["id", "rundate"],
+                "retry_policy": None,
+            },
+        ),
+        (
+            frame.sparkSession,
+            frame,
+            {
+                "target_table": "catalog.schema.history",
+                "filters": {"rundate": date(2026, 7, 28)},
+                "columns": ["rundate", "id"],
+                "retry_policy": None,
+            },
+        ),
+    ]

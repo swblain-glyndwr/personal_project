@@ -3,6 +3,7 @@
 # this script directly on a Databricks cluster.
 
 import sys
+import uuid
 from pathlib import Path
 
 try:
@@ -32,9 +33,15 @@ from datetime import date, timedelta
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import delete_from_and_load, truncate_and_load
 from next_ads.common import config_manager
+from next_ads.common.delta_writes import quote_qualified_identifier
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+    replace_validated_snapshot,
+    with_run_date,
+)
 from next_ads.common import etl
 from next_ads.ranking.theme_score_generation import (
     merge_and_rank_theme_scores,
@@ -63,6 +70,7 @@ def main(
     spark = configure_spark()
     spark.conf.set("spark.sql.shuffle.partitions", "auto")
     spark.conf.set("spark.sql.adaptive.enabled", "true")
+    run_date = capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -111,13 +119,13 @@ def main(
         tbls["theme_scoring_events_latest"], **tbl_args
     )  # noqa
 
-    ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
+    ACTIONS_END = ACTIONS_END or (run_date - timedelta(days=1))
 
     if isinstance(ACTIONS_END, str):
         ACTIONS_END = date.fromisoformat(ACTIONS_END)
     ACTIONS_START = ACTIONS_END - timedelta(days=364)
 
-    TODAY = date.today().strftime(format="%Y-%m-%d")
+    TODAY = run_date.isoformat()
     TRAIN = REFRESH_MODEL_DATE == TODAY or False
 
     w_item_by_modified = Window.partitionBy("pid").orderBy(
@@ -184,10 +192,17 @@ def main(
     logger.info(
         f"Loading baskets to scoring events table {THEME_SCORING_EVENTS_LATEST}"
     )
-    truncate_and_load(
-        baskets_with_themes_export,
-        THEME_SCORING_EVENTS_LATEST,
-        pk_cols=["AccountNumber", "EventDate", "EventType", "PID", "Theme"],
+    replace_validated_snapshot(
+        spark,
+        with_run_date(baskets_with_themes_export, run_date),
+        table=THEME_SCORING_EVENTS_LATEST,
+        key_columns=[
+            "AccountNumber",
+            "EventDate",
+            "EventType",
+            "PID",
+            "Theme",
+        ],
     )
 
     if TEST_ACCOUNT:
@@ -299,19 +314,15 @@ def main(
         )
         assert bad_total_probs.isEmpty(), "Total probabilities found != 1.0"
 
-        logger.info(f"Loading theme transition to {THEME_TRANSITIONS_LATEST}")
-        truncate_and_load(
-            transition_probs,
-            THEME_TRANSITIONS_LATEST,
-            pk_cols=["theme", "next_theme"],
-        )
-
         logger.info(f"Loading theme transition to {THEME_TRANSITIONS}")
-        delete_from_and_load(
+        logger.info(f"Loading theme transition to {THEME_TRANSITIONS_LATEST}")
+        publish_history_and_latest(
+            spark,
             transition_probs,
-            THEME_TRANSITIONS,
-            pk_cols=["theme", "next_theme"],
-            del_where={"rundate": "current_date()"},
+            history_table=THEME_TRANSITIONS,
+            latest_table=THEME_TRANSITIONS_LATEST,
+            key_columns=["theme", "next_theme"],
+            run_date=run_date,
         )
 
     # Read the materialised scoring events from this run. This keeps the
@@ -484,37 +495,42 @@ def main(
         )
 
         logger.info("Materialising customer next-theme scores to temp table")
-        temp_table_name = f"{SCHEMA}.temp_next_theme_probs"
-        # materialse the table before insert/upsert to avoid long-running transactions during truncate-and-load and delete-and-load
-        # TODO: in runtime 18.1, checkpointing works with unity catalog, so we could consider using that instead of a temp table
-        # https://learn.microsoft.com/en-us/azure/databricks/release-notes/runtime/18.1#dataframe-checkpoints-in-volume-paths
-        next_theme_probs.write.saveAsTable(temp_table_name, mode="overwrite")
-
-        logger.info("Materialising customer next-theme scores to temp table")
-
-        temp_next_theme_probs = spark.table(temp_table_name)
-
-        logger.info(
-            "Loading customer next-theme scores to"
-            + f" {NEXT_THEME_SCORES_LATEST}"
+        temp_table_name = (
+            f"{config.catalog_write}.{SCHEMA}."
+            f"temp_next_theme_probs_{uuid.uuid4().hex}"
         )
-        truncate_and_load(
-            temp_next_theme_probs,
-            NEXT_THEME_SCORES_LATEST,
-            pk_cols=["AccountNumber", "NextTheme"],
-        )
+        # Keep this managed materialisation until runtime 18.1 checkpointing is
+        # available. A run-unique table prevents concurrent executions from
+        # overwriting each other's lineage cut.
+        try:
+            (
+                next_theme_probs.write.mode("errorifexists").saveAsTable(
+                    temp_table_name
+                )
+            )
+            temp_next_theme_probs = spark.table(temp_table_name)
 
-        logger.info(
-            "Loading customer next-theme scores to" + f" {NEXT_THEME_SCORES}"
-        )
-        delete_from_and_load(
-            temp_next_theme_probs,
-            NEXT_THEME_SCORES,
-            pk_cols=["AccountNumber", "NextTheme"],
-            del_where={"rundate": "current_date()"},
-        )
-
-        spark.sql(f"DROP TABLE IF EXISTS {temp_table_name}")
+            logger.info(
+                "Loading customer next-theme scores to"
+                + f" {NEXT_THEME_SCORES}"
+            )
+            logger.info(
+                "Loading customer next-theme scores to"
+                + f" {NEXT_THEME_SCORES_LATEST}"
+            )
+            publish_history_and_latest(
+                spark,
+                temp_next_theme_probs,
+                history_table=NEXT_THEME_SCORES,
+                latest_table=NEXT_THEME_SCORES_LATEST,
+                key_columns=["AccountNumber", "NextTheme"],
+                run_date=run_date,
+            )
+        finally:
+            spark.sql(
+                "DROP TABLE IF EXISTS "
+                + quote_qualified_identifier(temp_table_name)
+            )
 
     if PLOT_GRAPH:
         logger.info("Creating theme transition graph")

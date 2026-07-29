@@ -27,16 +27,11 @@ finally:
 import dsutils.gcp as gcp
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import (
-    delete_from_and_load,
-    post_to_webhook,
-    truncate_and_load,
-)
+from dsutils.etl import post_to_webhook
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.control.load_control_sheet import (
     align_control_sheet_to_read_schema,
-    assert_append_rundate_target_schema,
     build_control_sheet_run_context,
     build_multipage_locations,
     process_control_sheet,
@@ -44,6 +39,75 @@ from next_ads.control.load_control_sheet import (
 )
 from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+)
+
+
+def write_control_sheet_input_tables(
+    df_control_sheet,
+    df_placements,
+    output_tables,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_control_sheet,
+        history_table=output_tables.control_sheet_raw,
+        latest_table=output_tables.control_sheet_raw_latest,
+        key_columns=["Realm", "Territory", "UniqueAdID"],
+        run_date=run_date,
+        columns=[*df_control_sheet.columns, "rundate"],
+    )
+    publish_history_and_latest(
+        spark,
+        df_placements,
+        history_table=output_tables.control_sheet_plp_raw,
+        latest_table=output_tables.control_sheet_plp_raw_latest,
+        key_columns=["Location"],
+        run_date=run_date,
+        columns=[*df_placements.columns, "rundate"],
+    )
+
+
+def write_multipage_location_tables(
+    df_multipage_locations,
+    run_context,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_multipage_locations,
+        history_table=run_context.target_multipage_locations_table,
+        latest_table=run_context.target_multipage_locations_latest_table,
+        key_columns=["Location", "Page"],
+        run_date=run_date,
+        columns=["Location", "Page", "Screen", "rundate"],
+    )
+
+
+def write_processed_control_sheet_tables(
+    df_processed,
+    run_context,
+    target_columns,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_processed.select(*target_columns),
+        history_table=run_context.target_table,
+        latest_table=run_context.target_table_latest,
+        key_columns=["UniqueAdID", "Location"],
+        run_date=run_date,
+        columns=[*target_columns, "rundate"],
+    )
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL):
@@ -53,6 +117,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
+    run_date = capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -154,74 +219,39 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
 
     df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
 
-    assert_append_rundate_target_schema(
-        table_name=output_tables.control_sheet_raw,
-        df_columns=df_ctrl_raw_filtered.columns,
-        target_columns=spark.table(output_tables.control_sheet_raw).columns,
-    )
-    delete_from_and_load(
-        df=df_ctrl_raw_filtered,
-        table=output_tables.control_sheet_raw,
-        pk_cols=["Realm", "Territory", "UniqueAdID"],
-        del_where={"rundate": "current_date()"},
-    )
-
     logger.info(
-        f"Writing Control Sheet to {output_tables.control_sheet_raw_latest}"
+        "Writing Control Sheet to history and latest tables"
     )
-    assert_append_rundate_target_schema(
-        table_name=output_tables.control_sheet_raw_latest,
-        df_columns=df_ctrl_raw_filtered.columns,
-        target_columns=spark.table(
-            output_tables.control_sheet_raw_latest
-        ).columns,
-    )
-    truncate_and_load(
-        df=df_ctrl_raw_filtered,
-        table=output_tables.control_sheet_raw_latest,
-        pk_cols=["Realm", "Territory", "UniqueAdID"],
-    )
-
     logger.info(
-        f"Writing Placements Sheet to {output_tables.control_sheet_plp_raw}"
+        "Writing Placements Sheet to history and latest tables"
     )
-    delete_from_and_load(
-        df=df_placements,
-        table=output_tables.control_sheet_plp_raw,
-        pk_cols=["Location"],
-        del_where={"rundate": "current_date()"},
-    )
-
-    logger.info(
-        f"Writing Placements Sheet to {output_tables.control_sheet_plp_raw_latest}"
-    )
-    truncate_and_load(
-        df=df_placements,
-        table=output_tables.control_sheet_plp_raw_latest,
-        pk_cols=["Location"],
+    write_control_sheet_input_tables(
+        df_ctrl_raw_filtered,
+        df_placements,
+        output_tables,
+        spark=spark,
+        run_date=run_date,
     )
 
     if df_plx_urls:
         try:
             logger.info("Updating PLX URLs in multipage locations table")
             df_multipage_locs = build_multipage_locations(df_plx_urls)
-            logger.info("Loading multipage locations to table")
-            delete_from_and_load(
-                df_multipage_locs,
-                run_context.target_multipage_locations_table,
-                pk_cols=["Location", "Page", "Screen"],
-                del_where={"rundate": "current_date()"},
+            logger.info(
+                "Loading multipage locations to history and latest tables"
             )
-
-            logger.info("Loading multipage locations to table (latest)")
-            truncate_and_load(
+            write_multipage_location_tables(
                 df_multipage_locs,
-                run_context.target_multipage_locations_latest_table,
-                pk_cols=["Location", "Page", "Screen"],
+                run_context,
+                spark=spark,
+                run_date=run_date,
             )
 
         except Exception as e:
-            plx_write_msg = "Error writing to multipage locations table; URLs not refreshed"
+            plx_write_msg = (
+                "Error writing to multipage locations table; "
+                "URLs not refreshed"
+            )
             logger.warning(plx_write_msg)
             logger.error(e)
             if JOB_ENV == "prod":
@@ -256,6 +286,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         date_format=run_context.date_format,
         date_regex=run_context.date_regex,
         target_cols=target_cols,
+        reference_date=run_date,
         df_underperforming_ads=df_underperforming_ads,
     )
     df_processed = processed_control_sheet.df
@@ -314,19 +345,13 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
             ", ".join(target_alignment.extra_columns),
         )
 
-    logger.info("Loading output to table")
-    delete_from_and_load(
-        df_processed.select(*target_cols),
-        run_context.target_table,
-        pk_cols=["UniqueAdID", "Location"],
-        del_where={"rundate": "current_date()"},
-    )
-
-    logger.info("Loading output to table (latest)")
-    truncate_and_load(
-        df_processed.select(*target_cols),
-        run_context.target_table_latest,
-        pk_cols=["UniqueAdID", "Location"],
+    logger.info("Loading output to history and latest tables")
+    write_processed_control_sheet_tables(
+        df_processed,
+        run_context,
+        target_cols,
+        spark=spark,
+        run_date=run_date,
     )
 
     logger.info("Run complete")

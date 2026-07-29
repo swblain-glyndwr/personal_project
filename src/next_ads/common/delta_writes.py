@@ -22,6 +22,8 @@ __all__ = [
     "KeyValidationSummary",
     "atomic_append_by_name",
     "atomic_replace_where_by_name",
+    "replace_scope_by_name",
+    "replace_table_by_name",
     "validate_target_columns",
     "validate_replace_source_scope",
     "validate_unique_non_null_keys",
@@ -327,6 +329,45 @@ def atomic_replace_where_by_name(
         retry_policy=retry_policy,
         sleep=sleep,
         jitter=jitter,
+    )
+
+
+def replace_table_by_name(
+    df: DataFrame,
+    table: str,
+    columns: Sequence[str] | None = None,
+    *,
+    spark: Any | None = None,
+    retry_policy: DeltaRetryPolicy | None = None,
+) -> DeltaWriteResult:
+    """Atomically replace a complete Delta table using name-aligned columns."""
+    return atomic_replace_where_by_name(
+        spark or df.sparkSession,
+        df,
+        target_table=table,
+        replace_all=True,
+        columns=columns,
+        retry_policy=retry_policy,
+    )
+
+
+def replace_scope_by_name(
+    df: DataFrame,
+    table: str,
+    scope: Mapping[str, SqlLiteral],
+    columns: Sequence[str] | None = None,
+    *,
+    spark: Any | None = None,
+    retry_policy: DeltaRetryPolicy | None = None,
+) -> DeltaWriteResult:
+    """Atomically replace one structured equality/date scope by column name."""
+    return atomic_replace_where_by_name(
+        spark or df.sparkSession,
+        df,
+        target_table=table,
+        filters=scope,
+        columns=columns,
+        retry_policy=retry_policy,
     )
 
 

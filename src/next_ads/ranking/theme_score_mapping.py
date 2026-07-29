@@ -1,5 +1,10 @@
-from dsutils.etl import delete_from_and_load, truncate_and_load
 from dsutils.logtools import get_logger
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+    replace_validated_snapshot,
+    with_run_date,
+)
 from next_ads.ranking.theme_score_eligibility import (
     append_ad_feedback_scores,
     apply_auto_trading_filter,
@@ -43,6 +48,7 @@ def run_theme_score_mapping(
     logger=None,
 ):
     logger = logger or get_logger(__name__)
+    run_date = capture_run_date(spark)
     top_ads = int(
         top_ads_per_group
         if top_ads_per_group is not None
@@ -178,21 +184,17 @@ def run_theme_score_mapping(
         "TriggerScore",
     )
     if write_score_components:
+        logger.info(f"Loading score components to {theme_score_components}")
         logger.info(
             f"Loading score components to {theme_score_components_latest}"
         )
-        truncate_and_load(
+        publish_history_and_latest(
+            spark,
             df_score_components_for_write,
-            theme_score_components_latest,
-            pk_cols=["AccountNumber", "Theme", "UniqueAdID"],
-        )
-
-        logger.info(f"Loading score components to {theme_score_components}")
-        delete_from_and_load(
-            df_score_components_for_write,
-            theme_score_components,
-            pk_cols=["AccountNumber", "Theme", "UniqueAdID"],
-            del_where={"rundate": "current_date()"},
+            history_table=theme_score_components,
+            latest_table=theme_score_components_latest,
+            key_columns=["AccountNumber", "Theme", "UniqueAdID"],
+            run_date=run_date,
         )
     else:
         logger.info("Skipping score component table writes for this route")
@@ -244,10 +246,11 @@ def run_theme_score_mapping(
     logger.info(
         f"Loading preranked theme ads to {preranked_ads_from_themes_latest}"
     )
-    truncate_and_load(
-        df_ad_scores,
-        preranked_ads_from_themes_latest,
-        pk_cols=["AccountNumber", "UniqueAdID", output_group_col],
+    replace_validated_snapshot(
+        spark,
+        with_run_date(df_ad_scores, run_date),
+        table=preranked_ads_from_themes_latest,
+        key_columns=["AccountNumber", "UniqueAdID", output_group_col],
     )
 
     df_ad_scores.show()

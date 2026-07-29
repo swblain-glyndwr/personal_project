@@ -1,3 +1,4 @@
+from datetime import date
 from types import SimpleNamespace
 
 from jobs.nextads_delivery import build_v2_payload
@@ -6,37 +7,34 @@ from jobs.nextads_delivery import build_v2_payload
 def test_payload_history_is_date_scoped_and_latest_is_replaced(monkeypatch):
     calls = []
     df_output = object()
+    spark = object()
+    run_date = date(2026, 7, 28)
 
-    def fake_delete_from_and_load(df, table, pk_cols, del_where):
+    def fake_publish_history_and_latest(
+        spark_arg,
+        df,
+        *,
+        history_table,
+        latest_table,
+        key_columns,
+        run_date,
+    ):
         calls.append(
             {
-                "operation": "delete_from_and_load",
+                "operation": "publish_history_and_latest",
+                "spark": spark_arg,
                 "df": df,
-                "table": table,
-                "pk_cols": pk_cols,
-                "del_where": del_where,
-            }
-        )
-
-    def fake_truncate_and_load(df, table, pk_cols):
-        calls.append(
-            {
-                "operation": "truncate_and_load",
-                "df": df,
-                "table": table,
-                "pk_cols": pk_cols,
+                "history_table": history_table,
+                "latest_table": latest_table,
+                "key_columns": key_columns,
+                "run_date": run_date,
             }
         )
 
     monkeypatch.setattr(
         build_v2_payload,
-        "delete_from_and_load",
-        fake_delete_from_and_load,
-    )
-    monkeypatch.setattr(
-        build_v2_payload,
-        "truncate_and_load",
-        fake_truncate_and_load,
+        "publish_history_and_latest",
+        fake_publish_history_and_latest,
     )
 
     build_v2_payload.write_payload_tables(
@@ -44,20 +42,18 @@ def test_payload_history_is_date_scoped_and_latest_is_replaced(monkeypatch):
         "catalog.schema.nextads_payload",
         "catalog.schema.nextads_payload_latest",
         SimpleNamespace(info=lambda _message: None),
+        spark=spark,
+        run_date=run_date,
     )
 
     assert calls == [
         {
-            "operation": "delete_from_and_load",
+            "operation": "publish_history_and_latest",
+            "spark": spark,
             "df": df_output,
-            "table": "catalog.schema.nextads_payload",
-            "pk_cols": ["roamingprofileid"],
-            "del_where": {"rundate": "current_date()"},
-        },
-        {
-            "operation": "truncate_and_load",
-            "df": df_output,
-            "table": "catalog.schema.nextads_payload_latest",
-            "pk_cols": ["roamingprofileid"],
+            "history_table": "catalog.schema.nextads_payload",
+            "latest_table": "catalog.schema.nextads_payload_latest",
+            "key_columns": ["roamingprofileid"],
+            "run_date": run_date,
         },
     ]

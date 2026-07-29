@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from next_ads.common.delta_writes import (
+    quote_qualified_identifier,
+    replace_table_by_name,
+)
+
 
 DEFAULT_PUBLISH_TABLE_SUFFIXES = (
     "ranked",
@@ -41,14 +46,26 @@ def publish_theme_affinity_outputs(
         source_table = f"{source_namespace}.{table_prefix}_{suffix}"
         target_table = f"{target_namespace}.{target_table_prefix}_{suffix}"
         source_df = _read_required_table(spark, source_table)
-        (
-            source_df.write.format("delta")
-            .mode("overwrite")
-            .option("overwriteSchema", "true")
-            .saveAsTable(target_table)
+        _ensure_target_table(spark, source_table, target_table)
+        replace_table_by_name(
+            source_df,
+            target_table,
+            source_df.columns,
+            spark=spark,
         )
         published_tables.append(target_table)
     return published_tables
+
+
+def _ensure_target_table(spark, source_table: str, target_table: str) -> None:
+    """Bootstrap a missing publish target before its first atomic replacement."""
+    if spark.catalog.tableExists(target_table):
+        return
+    spark.sql(
+        "CREATE TABLE IF NOT EXISTS "
+        f"{quote_qualified_identifier(target_table)} "
+        f"LIKE {quote_qualified_identifier(source_table)}"
+    )
 
 
 def _read_required_table(spark, table_name: str):

@@ -76,6 +76,7 @@ def _predict_with_model(model_kind, model, raw_feature_pdf, encoders, model_inpu
 def run_prediction(spark, runtime):
     import mlflow
     from pyspark.sql import functions as F
+    from next_ads.common.snapshot_writes import replace_validated_snapshot
 
     _configure_mlflow_for_model_uri(mlflow, runtime.model_uri)
     model_config = runtime.config.ranking_model
@@ -118,11 +119,11 @@ def run_prediction(spark, runtime):
             F.col("baskets_behavior__recency_rank"),
             F.col("prediction").cast("float").alias("prediction"),
         )
-        (
-            predictions.select(*output_cols)
-            .write.mode("overwrite")
-            .option("overwriteSchema", "true")
-            .saveAsTable(model_tables.predict_output_table)
+        replace_validated_snapshot(
+            spark,
+            predictions.select(*output_cols),
+            table=model_tables.predict_output_table,
+            key_columns=["account_number", "theme"],
         )
         return
 
@@ -139,11 +140,11 @@ def run_prediction(spark, runtime):
         _predict_partition(runtime.model_uri, encoder_path, model_input_cols),
         schema=prediction_schema,
     )
-    (
-        predictions.select(*output_cols)
-        .write.mode("overwrite")
-        .option("overwriteSchema", "true")
-        .saveAsTable(model_tables.predict_output_table)
+    replace_validated_snapshot(
+        spark,
+        predictions.select(*output_cols),
+        table=model_tables.predict_output_table,
+        key_columns=["account_number", "theme"],
     )
 
 

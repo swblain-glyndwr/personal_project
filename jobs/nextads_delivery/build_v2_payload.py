@@ -33,11 +33,14 @@ import pyspark.sql.functions as F
 from pyspark.sql.window import Window
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import delete_from_and_load, truncate_and_load
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+)
 from next_ads.delivery.export import generate_experimentid
 
 
@@ -547,20 +550,19 @@ def write_payload_tables(
     payload_table: str,
     payload_latest_table: str,
     logger,
+    *,
+    spark,
+    run_date,
 ):
     logger.info(f"Loading payload output to {payload_table}")
-    delete_from_and_load(
-        df_output,
-        payload_table,
-        pk_cols=["roamingprofileid"],
-        del_where={"rundate": "current_date()"},
-    )
-
     logger.info(f"Loading payload output to {payload_latest_table}")
-    truncate_and_load(
+    publish_history_and_latest(
+        spark,
         df_output,
-        payload_latest_table,
-        pk_cols=["roamingprofileid"],
+        history_table=payload_table,
+        latest_table=payload_latest_table,
+        key_columns=["roamingprofileid"],
+        run_date=run_date,
     )
 
 
@@ -611,6 +613,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
     logger, spark, CLIENT, config = setup_run_context(
         JOB_ENV, CLIENT, LOG_LEVEL
     )
+    run_date = capture_run_date(spark)
 
     logger.info("Loading data...")
     payload_experiment_settings = get_payload_experiment_settings(CLIENT)
@@ -649,6 +652,8 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
         config.tables_write.nextads_payload,
         config.tables_write.nextads_payload_latest,
         logger,
+        spark=spark,
+        run_date=run_date,
     )
 
     df_latest_payload = spark.table(config.tables_write.nextads_payload_latest)

@@ -1,5 +1,4 @@
 import sys
-from datetime import date
 from pathlib import Path
 
 try:
@@ -24,11 +23,7 @@ finally:
 from dsutils import gcp
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import (
-    delete_from_and_load,
-    post_to_webhook,
-    truncate_and_load,
-)
+from dsutils.etl import post_to_webhook
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.control.theme_mapping import (
@@ -42,6 +37,48 @@ from next_ads.control.theme_mapping import (
 )
 from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+)
+
+
+def write_theme_mapping_tables(
+    df_theme_mapping,
+    history_table,
+    latest_table,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_theme_mapping,
+        history_table=history_table,
+        latest_table=latest_table,
+        key_columns=["Theme", "attribute", "value"],
+        run_date=run_date,
+        columns=["Theme", "attribute", "value", "rundate"],
+    )
+
+
+def write_item_theme_tables(
+    df_item_themes,
+    history_table,
+    latest_table,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_item_themes.select("pid", "theme", "theme_rank"),
+        history_table=history_table,
+        latest_table=latest_table,
+        key_columns=["pid", "theme"],
+        run_date=run_date,
+        columns=["pid", "theme", "theme_rank", "rundate"],
+    )
 
 
 def parse_bool(value) -> bool:
@@ -71,6 +108,7 @@ def main(
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
+    run_date = capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -84,7 +122,7 @@ def main(
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
-    today = date.today().strftime(format="%Y-%m-%d")
+    today = run_date.isoformat()
     set_theme_attributes = (
         REFRESH_THEME_MAPPING or REFRESH_THEMES_DATE == today
     )
@@ -160,18 +198,13 @@ def main(
         n_rows = theme_attributes.count()
         logger.info(f"Parsed {n_themes:,} themes ({n_rows:,} rows)")
 
-        logger.info("Writing theme mapping to output tables")
-        truncate_and_load(
-            theme_attributes,
-            theme_mapping_latest,
-            pk_cols=["Theme", "attribute", "value"],
-        )
-
-        delete_from_and_load(
+        logger.info("Writing theme mapping to history and latest tables")
+        write_theme_mapping_tables(
             theme_attributes,
             theme_mapping,
-            pk_cols=["Theme", "attribute", "value"],
-            del_where={"rundate": "current_date()"},
+            theme_mapping_latest,
+            spark=spark,
+            run_date=run_date,
         )
 
     if not set_theme_attributes:
@@ -189,18 +222,13 @@ def main(
         THEME_RANKING_MODE,
     )
 
-    logger.info("Writing item-theme mapping to output tables")
-    truncate_and_load(
-        item_themes_ranked.select("pid", "theme", "theme_rank"),
-        item_themes_latest,
-        pk_cols=["pid", "theme"],
-    )
-
-    delete_from_and_load(
-        item_themes_ranked.select("pid", "theme", "theme_rank"),
+    logger.info("Writing item-theme mapping to history and latest tables")
+    write_item_theme_tables(
+        item_themes_ranked,
         item_themes,
-        pk_cols=["pid", "theme"],
-        del_where={"rundate": "current_date()"},
+        item_themes_latest,
+        spark=spark,
+        run_date=run_date,
     )
 
     logger.info("Run complete")

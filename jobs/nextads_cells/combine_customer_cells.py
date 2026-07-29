@@ -24,10 +24,14 @@ finally:
 import pyspark.sql.functions as F
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import create_table_from_df
 from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    replace_validated_snapshot,
+    with_run_date,
+)
 from next_ads.decisioning.customer_cells import ensure_audience_column
 
 
@@ -39,7 +43,9 @@ LOG_LEVEL = jobparser.get_arg("--log_level")
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
+RUN_DATE = capture_run_date(spark)
 logger.info(f"Running in job environment: {JOB_ENV}")
+logger.info(f"Run date set to: {RUN_DATE}")
 
 if not CLIENT:
     assert JOB_ENV.lower() == "dev", (
@@ -83,13 +89,19 @@ df_cells_transient = (
     .groupBy("AccountNumber")
     .pivot("Cell")
     .agg(F.max("CellValue"))
-    .where(F.col("AlgoDivision").isNotNull())
 )
 
 # Inner join will remove customers that don't have AlgoDivision
 # TODO: Will this bias the results? Address when reviewing AlgoDivision.
 
-if df_cells_transient.count() > 0:
+transient_is_usable = "AlgoDivision" in df_cells_transient.columns
+if transient_is_usable:
+    df_cells_transient = df_cells_transient.where(
+        F.col("AlgoDivision").isNotNull()
+    ).cache()
+    transient_is_usable = not df_cells_transient.isEmpty()
+
+if transient_is_usable:
     df_cells = df_cells_fixed.join(
         df_cells_transient, on="AccountNumber", how="inner"
     )
@@ -118,18 +130,26 @@ if df_cells_transient.count() > 0:
     )
     df_cells = df_cells.fillna(0, subset=["IsPremium"])
 else:
-    df_cells = df_cells_fixed
+    logger.warning(
+        "No usable AlgoDivision assignments found; publishing an empty "
+        "combined-cell snapshot with the declared target schema"
+    )
+    combined_schema = spark.table(CELLS_TABLE_LATEST).drop("rundate").schema
+    df_cells = spark.createDataFrame([], schema=combined_schema)
 
 df_cells = ensure_audience_column(df_cells)
 
-logger.info(f"Writing combined cells to {CELLS_TABLE_LATEST}")
-create_table_from_df(
-    df=df_cells,
-    table=CELLS_TABLE_LATEST,
-    partitioned_by=["FallowControl"],
-    pk_cols=["AccountNumber"],
-    drop_if_exists=True,
-    append_rundate=True,
-)
+logger.info(f"Atomically replacing combined cells: {CELLS_TABLE_LATEST}")
+df_cells_with_date = with_run_date(df_cells, RUN_DATE)
+try:
+    replace_validated_snapshot(
+        spark,
+        df_cells_with_date,
+        table=CELLS_TABLE_LATEST,
+        key_columns=["AccountNumber"],
+    )
+finally:
+    if "AlgoDivision" in df_cells_transient.columns:
+        df_cells_transient.unpersist()
 
 logger.info("Run complete")

@@ -1,5 +1,4 @@
 import sys
-from datetime import date
 from pathlib import Path
 
 try:
@@ -23,7 +22,6 @@ finally:
 
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import delete_from_and_load, truncate_and_load
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.control.item_attributes import (
@@ -37,6 +35,47 @@ from next_ads.control.item_attributes import (
 )
 from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+    replace_validated_snapshot,
+    with_run_date,
+)
+
+
+def write_attribute_set_tables(
+    df_attribute_set,
+    history_table,
+    latest_table,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_attribute_set,
+        history_table=history_table,
+        latest_table=latest_table,
+        key_columns=["attribute", "value"],
+        run_date=run_date,
+        columns=["attribute", "value", "rundate"],
+    )
+
+
+def write_item_attributes_latest(
+    df_attributes,
+    table,
+    *,
+    spark,
+    run_date,
+):
+    replace_validated_snapshot(
+        spark,
+        with_run_date(df_attributes, run_date),
+        table=table,
+        key_columns=["pid", "attribute", "value", "rundate"],
+        columns=["pid", "attribute", "value", "rundate"],
+    )
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
@@ -45,6 +84,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
+    run_date = capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -58,7 +98,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
-    today = date.today().strftime(format="%Y-%m-%d")
+    today = run_date.isoformat()
     set_attributes = REFRESH_ATTRIBUTES_DATE == today or False
 
     tbls = cfg["tables"]["write"]
@@ -139,33 +179,30 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
         df_attribute_set = build_attribute_set(df_attributes_master)
 
         logger.info("Exporting new attribute set")
-        delete_from_and_load(
+        write_attribute_set_tables(
             df_attribute_set,
             attribute_set,
-            pk_cols=["attribute", "value"],
-            del_where={"rundate": "current_date()"},
-        )
-
-        truncate_and_load(
-            df_attribute_set,
             attribute_set_latest,
-            pk_cols=["attribute", "value"],
+            spark=spark,
+            run_date=run_date,
         )
 
         logger.info(
             "Refreshing latest item-attribute mapping (using new attribute set)"
         )
-        truncate_and_load(
+        write_item_attributes_latest(
             df_attributes_master,
             item_attributes_latest,
-            pk_cols=["pid", "attribute", "value"],
+            spark=spark,
+            run_date=run_date,
         )
     else:
         logger.info("Refreshing latest item-attribute mapping")
-        truncate_and_load(
+        write_item_attributes_latest(
             df_attributes_master,
             item_attributes_latest,
-            pk_cols=["pid", "attribute", "value"],
+            spark=spark,
+            run_date=run_date,
         )
 
         if BQ_EXPORT:

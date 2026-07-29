@@ -26,21 +26,20 @@ finally:
 
 import json
 import pyspark.sql.functions as F
-from datetime import date, timedelta
+from datetime import timedelta
 from pyspark.sql.types import BooleanType
 
 # from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import (
-    assert_pk,
-    truncate_and_load,
-    delete_from_and_load,
-    post_to_webhook,
-)
+from dsutils.etl import assert_pk, post_to_webhook
 from dsutils.argparser import get_job_parser
 import dsutils.gcp as gcp
 from next_ads.ranking.scoring import append_targeting_criteria
 from next_ads.common import config_manager
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+)
 from dsutils.dbc import configure_spark
 from next_ads.data.validation import schemas
 from next_ads.data.schemas.CMS import cms_schema
@@ -67,6 +66,54 @@ def has_common_substring(s1, s2, min_length=4):
 
 
 has_common_substring_udf = F.udf(has_common_substring, BooleanType())
+
+
+def write_v2_input_tables(
+    df_control_sheet,
+    df_exclusions,
+    config,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_control_sheet,
+        history_table=config.tables_write.control_sheet_raw_v2,
+        latest_table=config.tables_write.control_sheet_raw_latest_v2,
+        key_columns=["UniqueAdID"],
+        run_date=run_date,
+        columns=[*df_control_sheet.columns, "rundate"],
+    )
+    publish_history_and_latest(
+        spark,
+        df_exclusions,
+        history_table=config.tables_write.exclusions,
+        latest_table=config.tables_write.exclusions_latest,
+        key_columns=["url", "masidSlot", "CMSPageID"],
+        run_date=run_date,
+        columns=["url", "masidSlot", "CMSPageID", "rundate"],
+    )
+
+
+def write_v2_processed_control_sheet_tables(
+    df_processed,
+    history_table,
+    latest_table,
+    target_columns,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_processed.select(*target_columns),
+        history_table=history_table,
+        latest_table=latest_table,
+        key_columns=["UniqueAdID", "PageType"],
+        run_date=run_date,
+        columns=[*target_columns, "rundate"],
+    )
 
 
 def check_primary_key(df, logger, JOB_ENV, WEBHOOK_URL):
@@ -184,6 +231,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger = get_logger(__name__)
 
     spark = configure_spark()
+    run_date = capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -271,36 +319,18 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
         )
     )
 
-    delete_from_and_load(
-        df=df_ctrl_raw_filtered,
-        table=config.tables_write.control_sheet_raw_v2,
-        pk_cols=["UniqueAdID"],
-        del_where={"rundate": "current_date()"},
-    )
-
     logger.info(
-        f"Writing Control Sheet to {config.tables_write.control_sheet_raw_latest_v2}"
+        "Writing Control Sheet to raw history and latest tables"
     )
-    truncate_and_load(
-        df=df_ctrl_raw_filtered,
-        table=config.tables_write.control_sheet_raw_latest_v2,
-        pk_cols=["UniqueAdID"],
-    )
-
     logger.info(
-        f"Writing Exclusions Sheet to {config.tables_write.exclusions_latest}"
+        "Writing Exclusions Sheet to history and latest tables"
     )
-    truncate_and_load(
-        df=df_exclusions_filtered,
-        table=config.tables_write.exclusions_latest,
-        pk_cols=["url", "masidSlot", "CMSPageID"],
-    )
-
-    delete_from_and_load(
-        df=df_exclusions_filtered,
-        table=config.tables_write.exclusions,
-        pk_cols=["url", "masidSlot", "CMSPageID"],
-        del_where={"rundate": "current_date()"},
+    write_v2_input_tables(
+        df_ctrl_raw_filtered,
+        df_exclusions_filtered,
+        config,
+        spark=spark,
+        run_date=run_date,
     )
 
     ################################################################################
@@ -348,7 +378,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
 
     logger.info("Getting active status of ads based on StartDate and EndDate")
 
-    date_tomorrow = date.today() + timedelta(days=1)
+    date_tomorrow = run_date + timedelta(days=1)
 
     df_ctrl_active = (  # active ads
         df_ctrl_valid_date_fmt.drop("Status")
@@ -625,7 +655,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger.info(f"Reading underperforming ads from {UNDERPERFORMING_ADS}")
     df_underperforming_ids = (
         spark.table(UNDERPERFORMING_ADS)
-        .filter(F.col("rundate") == F.current_date())
+        .filter(F.col("rundate") == F.lit(run_date))
         .select("UniqueAdID")
         .distinct()
         .withColumn("IsUnderperforming", F.lit(True))
@@ -666,19 +696,14 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     else:
         raise Exception("Target table cols not a subset of Control Sheet cols")
 
-    logger.info("Loading output to table")
-    delete_from_and_load(
-        df_processed.select(*target_cols),
+    logger.info("Loading output to history and latest tables")
+    write_v2_processed_control_sheet_tables(
+        df_processed,
         TARGET_TABLE,
-        pk_cols=["UniqueAdID", "PageType"],
-        del_where={"rundate": "current_date()"},
-    )
-
-    logger.info("Loading output to table (latest)")
-    truncate_and_load(
-        df_processed.select(*target_cols),
         TARGET_TABLE_LATEST,
-        pk_cols=["UniqueAdID", "PageType"],
+        target_cols,
+        spark=spark,
+        run_date=run_date,
     )
 
     ################################################################################

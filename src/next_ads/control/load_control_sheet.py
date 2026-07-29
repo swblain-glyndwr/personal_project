@@ -84,7 +84,7 @@ class ControlSheetValidationResult:
 
     df_control_sheet: DataFrame
     df_placements: DataFrame
-    df_plx_urls: DataFrame
+    df_plx_urls: DataFrame | None
     errors_json_by_input: dict[str, str]
 
 
@@ -289,7 +289,7 @@ def validate_control_sheet_inputs(
     *,
     df_control_sheet: DataFrame,
     df_placements: DataFrame,
-    df_plx_urls: DataFrame,
+    df_plx_urls: DataFrame | None,
 ) -> ControlSheetValidationResult:
     """Run legacy soft validation for control-sheet inputs."""
     df_control_sheet = filter_non_empty_unique_ads(df_control_sheet).filter(
@@ -313,14 +313,20 @@ def validate_control_sheet_inputs(
         indent=2,
     )
 
-    df_plx_urls = schemas.ControlSheetPLXInputModel.validate(
-        df_plx_urls,
-        lazy=True,
-    )
-    plx_urls_errors_json = json.dumps(
-        dict(df_plx_urls.pandera.errors),
-        indent=2,
-    )
+    if df_plx_urls is None:
+        plx_urls_errors_json = json.dumps(
+            {"validation": "skipped because PLX input was unavailable"},
+            indent=2,
+        )
+    else:
+        df_plx_urls = schemas.ControlSheetPLXInputModel.validate(
+            df_plx_urls,
+            lazy=True,
+        )
+        plx_urls_errors_json = json.dumps(
+            dict(df_plx_urls.pandera.errors),
+            indent=2,
+        )
 
     return ControlSheetValidationResult(
         df_control_sheet=df_control_sheet,
@@ -654,23 +660,31 @@ def process_control_sheet(
     df_processed = clear_missing_premium_ad_ids(df_processed)
 
     if df_underperforming_ads is not None:
+        underperforming_date = (
+            F.lit(reference_date)
+            if reference_date is not None
+            else F.current_date()
+        )
         df_underperforming_ids = (
             df_underperforming_ads
-            .filter(F.col('rundate') == F.current_date())
-            .select('UniqueAdID')
+            .filter(F.col("rundate") == underperforming_date)
+            .select("UniqueAdID")
             .distinct()
-            .withColumn('IsUnderperforming', F.lit(True))
+            .withColumn("IsUnderperforming", F.lit(True))
         )
         df_processed = (
             df_processed
-            .join(df_underperforming_ids, on='UniqueAdID', how='left')
+            .join(df_underperforming_ids, on="UniqueAdID", how="left")
             .withColumn(
-                'IsUnderperforming',
-                F.coalesce(F.col('IsUnderperforming'), F.lit(False)),
+                "IsUnderperforming",
+                F.coalesce(F.col("IsUnderperforming"), F.lit(False)),
             )
         )
     else:
-        df_processed = df_processed.withColumn('IsUnderperforming', F.lit(False))
+        df_processed = df_processed.withColumn(
+            "IsUnderperforming",
+            F.lit(False),
+        )
 
     target_alignment = align_control_sheet_to_target_columns(
         df_processed,
