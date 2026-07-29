@@ -27,11 +27,14 @@ from pyspark.sql import Window
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import truncate_and_load
 from next_ads.common import config_manager
-from next_ads.common.delta_writes import validate_unique_non_null_keys
 from next_ads.common.paths import load_client_config
 from next_ads.common import etl
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    replace_validated_snapshot,
+    with_run_date,
+)
 
 import math
 
@@ -320,16 +323,17 @@ results = (
         F.col("itemno1").asc(),
         F.col("itemno2").asc(),
     )
-).cache()
+)
 
 pk_cols = ["itemno1", "itemno2"]
-validate_unique_non_null_keys(results, pk_cols)
-
-truncate_and_load(
-    df=results,
+run_date = capture_run_date(spark)
+results = with_run_date(results, run_date)
+replace_validated_snapshot(
+    spark,
+    results,
     table=VB_TABLE_LATEST,
-    pk_cols=pk_cols,
+    key_columns=pk_cols,
+    columns=results.columns,
 )
-results.unpersist()
 
 logger.info("Run Complete.")

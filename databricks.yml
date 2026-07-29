@@ -23,6 +23,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_table_maintenance.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml
   - pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml
   - pipelines/databricks/pipelines/mktg_next_uk_nextads_data_pull.yml

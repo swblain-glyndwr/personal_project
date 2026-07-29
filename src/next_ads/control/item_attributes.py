@@ -298,7 +298,7 @@ def build_bigquery_item_attributes(
     attributes_pivot = (
         df_attributes_master.groupBy("pid")
         .pivot("attribute")
-        .agg(F.collect_list("value"))
+        .agg(F.sort_array(F.collect_list("value")))
     )
 
     for attribute in attributes:

@@ -465,7 +465,9 @@ def constrain_premium_ads_to_sibling_locations(
     """Only keep premium sibling ads where the target location is valid."""
     location_lookup_df = (
         df_processed.groupBy("UniqueAdID")
-        .agg(F.collect_set("Location").alias("ValidLocations"))
+        .agg(
+            F.sort_array(F.collect_set("Location")).alias("ValidLocations")
+        )
         .withColumnRenamed("UniqueAdID", "LookupAdID")
     )
     df_processed = df_processed.join(

@@ -166,6 +166,8 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
             - ${resources.jobs.mktg_next_uk_nextads_plp_gs_delivery_cicd.id}
             - --job-name
             - "mktg_next_uk_nextads_plp_gs_delivery"
+            - --job-parameter
+            - "run_date={{job.parameters.run_date}}"
             - --fail-on-submit-error
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}

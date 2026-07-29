@@ -77,7 +77,7 @@ def test_v2_staging_adds_build_identity_to_public_assignment_shape():
     assert "check (executioncount >= 0)" in sql
 
 
-def test_assignment_build_events_has_append_only_validated_contract():
+def test_assignment_build_events_has_validated_retention_compatible_contract():
     relative_path = "sql/decisioning/create_table_assignment_build_events.sql"
     columns = [
         (name, data_type.upper())
@@ -107,7 +107,7 @@ def test_assignment_build_events_has_append_only_validated_contract():
     assert "check (executioncount >= 0)" in sql
     assert "check (taskrunid > 0)" in sql
     assert "partitioned by (builddate)" in sql
-    assert "tblproperties ('delta.appendonly' = 'true')" in sql
+    assert "delta.appendonly" not in sql
 
 
 def test_internal_assignment_tables_resolve_through_create_table_helper(

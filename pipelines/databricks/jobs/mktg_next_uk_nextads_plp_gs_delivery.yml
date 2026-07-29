@@ -3,6 +3,9 @@ mktg_next_uk_nextads_plp_gs_delivery_config: &mktg_next_uk_nextads_plp_gs_delive
     name: mktg_next_uk_nextads_plp_gs_delivery
     queue:
       enabled: true
+    parameters:
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
@@ -29,10 +32,14 @@ mktg_next_uk_nextads_plp_gs_delivery_config: &mktg_next_uk_nextads_plp_gs_delive
               parameters:
                 - --client
                 - "{{input.client}}"
+                - --config_client
+                - next_uk
                 - --job_env
                 - ${var.job_parameter_environment_name}
                 - --territory
                 - "{{input.territory}}"
+                - --run_date
+                - "{{job.parameters.run_date}}"
             job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
             libraries: ${var.shared_libraries}
             max_retries: 2

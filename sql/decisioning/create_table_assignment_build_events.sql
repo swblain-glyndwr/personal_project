@@ -23,4 +23,3 @@ create table {catalog}.{schema}.{client}_nextads_assignment_build_events (
     check (TaskRunID > 0)
 )
 partitioned by (BuildDate)
-tblproperties ('delta.appendOnly' = 'true')

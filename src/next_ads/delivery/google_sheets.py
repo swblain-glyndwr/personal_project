@@ -3,18 +3,19 @@
 import ast
 import json
 from dataclasses import dataclass
+from datetime import date
 
 import gspread as gs
 import pandera.pyspark as pa
 import pandas as pd
 import pyspark
 from dynaconf import Dynaconf
+from pyspark import StorageLevel
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.functions import (
     PandasUDFType,
     col,
     concat,
-    current_date,
     lit,
     pandas_udf,
     when,
@@ -24,11 +25,27 @@ from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
+from next_ads.common.delta_writes import (
+    replace_scope_by_name,
+    replace_table_by_name,
+    validate_unique_non_null_keys,
+)
 from next_ads.data.validation import schemas
 
 spark = None
 dbutils = None
 logger = get_logger(__name__)
+
+PLP_GS_OUTPUT_COLUMNS = [
+    "Action",
+    "realm",
+    "territory",
+    "url",
+    "masIdSlotsAndCMSContent",
+]
+PLP_GS_OUTPUT_KEY_COLUMNS = ["Action", "realm", "territory", "url"]
+PLP_ASSIGNMENT_KEY_COLUMNS = ["URL", "PLP_slot", "uniqueadid"]
+PLP_GS_HISTORY_COLUMNS = [*PLP_GS_OUTPUT_COLUMNS, "rundate"]
 
 
 @dataclass(frozen=True)
@@ -79,6 +96,23 @@ def resolve_plp_gs_delivery_config(
         catalog_write=config.catalog_write,
         schema_write=config.schema_write,
     )
+
+
+def load_plp_gs_runtime_config(
+    *,
+    job_env: str,
+    config_client: str,
+    delivery_client: str,
+    territory: str,
+):
+    """Load the repo client config separately from the delivery realm."""
+    config = config_manager.load_config(job_env, client=config_client)
+    delivery_config = resolve_plp_gs_delivery_config(
+        config=config,
+        client=delivery_client,
+        territory=territory,
+    )
+    return config, delivery_config
 
 
 @pa.check_output(schemas.GlobalSolutionOutputModel, lazy=True)
@@ -174,12 +208,12 @@ def process_control_sheet(
     latest_control_sheet_melt = latest_control_sheet_melt.join(
         plp_placements, on=["PLP_slot"]
     )
-    latest_control_sheet_melt = latest_control_sheet_melt.dropDuplicates(
-        subset=["URL", "PLP_slot", "uniqueadid"]
-    )
-
     latest_control_sheet_melt = latest_control_sheet_melt.filter(
         latest_control_sheet_melt.PLP_bools == "TRUE"
+    )
+    validate_unique_non_null_keys(
+        latest_control_sheet_melt,
+        PLP_ASSIGNMENT_KEY_COLUMNS,
     )
 
     latest_control_sheet_melt = latest_control_sheet_melt.withColumn(
@@ -217,15 +251,75 @@ def process_control_sheet(
     )
 
 
+def publish_plp_tables(
+    output_df: DataFrame,
+    *,
+    history_table: str,
+    latest_table: str,
+    run_date: date,
+    realm: str,
+    territory: str,
+    spark_session,
+):
+    """Validate once, then publish PLP history before its serving snapshot."""
+    validation = validate_unique_non_null_keys(
+        output_df,
+        PLP_GS_OUTPUT_KEY_COLUMNS,
+    )
+    history_df = output_df.withColumn(
+        "rundate",
+        lit(run_date).cast("date"),
+    ).select(*PLP_GS_HISTORY_COLUMNS)
+    replace_scope_by_name(
+        history_df,
+        history_table,
+        {
+            "rundate": run_date,
+            "realm": realm,
+            "territory": territory,
+        },
+        PLP_GS_HISTORY_COLUMNS,
+        spark=spark_session,
+    )
+    replace_table_by_name(
+        output_df,
+        latest_table,
+        PLP_GS_OUTPUT_COLUMNS,
+        spark=spark_session,
+    )
+    return validation
+
+
+def resolve_run_date(run_date: str | date) -> date:
+    """Require one explicit ISO date for every PLP output in a logical run."""
+    if isinstance(run_date, date):
+        return run_date
+    if not isinstance(run_date, str):
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    run_date_text = run_date.strip()
+    try:
+        parsed_run_date = date.fromisoformat(run_date_text)
+    except ValueError as exc:
+        raise ValueError(
+            "--run_date must use ISO format YYYY-MM-DD"
+        ) from exc
+    if parsed_run_date.isoformat() != run_date_text:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    return parsed_run_date
+
+
 def run_plp_gs_delivery(
     job_env: str,
     territory: str,
     client: str,
+    config_client: str,
+    run_date: str | date,
     log_level: str | None,
     spark_session=None,
     dbutils_obj=None,
 ) -> None:
     """Run the PLP Google Sheets delivery task."""
+    logical_run_date = resolve_run_date(run_date)
     if log_level:
         configure_logging(log_level=log_level)
     else:
@@ -235,10 +329,10 @@ def run_plp_gs_delivery(
     spark_session = spark_session or configure_spark()
     dbutils_obj = dbutils_obj or get_dbutils()
 
-    config = config_manager.load_config(job_env)
-    delivery_config = resolve_plp_gs_delivery_config(
-        config=config,
-        client=client,
+    config, delivery_config = load_plp_gs_runtime_config(
+        job_env=job_env,
+        config_client=config_client,
+        delivery_client=client,
         territory=territory,
     )
 
@@ -271,49 +365,49 @@ def run_plp_gs_delivery(
     pandera_errors = output_df.pandera.errors
     errors_json = json.dumps(dict(pandera_errors), indent=2)
     run_logger.info(f"Data validation errors: {errors_json}")
-    run_logger.info(output_df.show(5, truncate=False))
     assert not pandera_errors, "Data validation failed!"
 
-    output_count = output_df.count()
-    run_logger.info(
-        f"Writing to {delivery_config.output_table_name} "
-        f"with {output_count} records"
+    output_df = output_df.select(*PLP_GS_OUTPUT_COLUMNS).persist(
+        StorageLevel.MEMORY_AND_DISK
     )
-    output_df.write.mode("overwrite").saveAsTable(
-        delivery_config.output_table_name
-    )
+    try:
+        validation = publish_plp_tables(
+            output_df,
+            history_table=delivery_config.final_output_table_name,
+            latest_table=delivery_config.output_table_name,
+            run_date=logical_run_date,
+            realm=client.title(),
+            territory=territory.upper(),
+            spark_session=spark_session,
+        )
+        output_count = validation.row_count
+        run_logger.info(
+            f"Published {delivery_config.output_table_name} "
+            f"with {output_count} records"
+        )
 
-    create_dl_table(
-        spark_df=output_df,
-        OUTPUT_TABLE=delivery_config.final_output_table_name,
-        limit_history=True,
-        limit_history_days=365,
-        join_condition=(
-            "(source.rundate=dest.rundate AND source.realm=dest.realm "
-            "AND source.territory=dest.territory)"
-        ),
-    )
+        configure_abfs(
+            spark=spark_session,
+            dbutils=dbutils_obj,
+            account_name=config.az_st_account,
+            tenant_id=config.az_tenant_id,
+            dbutils_secret_scope=config.dbutils_secret_scope,
+            secret_key_spn_clientid=config.secret_key_spn_clientid,
+            secret_key_spn_secret=config.secret_key_spn_secret,
+        )
 
-    configure_abfs(
-        spark=spark_session,
-        dbutils=dbutils_obj,
-        account_name=config.az_st_account,
-        tenant_id=config.az_tenant_id,
-        dbutils_secret_scope=config.dbutils_secret_scope,
-        secret_key_spn_clientid=config.secret_key_spn_clientid,
-        secret_key_spn_secret=config.secret_key_spn_secret,
-    )
-
-    (
-        output_df.repartition(1)
-        .write.mode("overwrite")
-        .option("header", True)
-        .csv(delivery_config.az_output_abfss_path)
-    )
-    run_logger.info(
-        f"Written output_df with {output_count} records "
-        f"to {delivery_config.az_output_abfss_path}"
-    )
+        (
+            output_df.repartition(1)
+            .write.mode("overwrite")
+            .option("header", True)
+            .csv(delivery_config.az_output_abfss_path)
+        )
+        run_logger.info(
+            f"Written output_df with {output_count} records "
+            f"to {delivery_config.az_output_abfss_path}"
+        )
+    finally:
+        output_df.unpersist()
     run_logger.info("Run complete")
 
 
@@ -472,97 +566,6 @@ def get_masid_csmid_columns_udf(pdf: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(
         [pdf[["action", "realm", "territory", "URL", "MASIDCMSid"]]]
     )
-
-
-def data_quality_check(df, table, **kwargs):
-    total_count = df.count()
-    print(f"Total count of table: {total_count}")
-    if total_count == 0:
-        raise Exception(f"Found Empty dataset from {table}")
-    total_distinct_count = df.distinct().count()
-    print(f"Total distinct count of table: {total_distinct_count}")
-    if total_count != total_distinct_count:
-        raise Exception(f"Duplicates found in the {table}")
-    print("No duplicates found in table")
-    if kwargs:
-        for key, column in kwargs.items():
-            count_col = df.select(f"{column}").count()
-            print(f"Total Count by {column}: {count_col}")
-            count_col_distinct = df.select(f"{column}").distinct().count()
-            print(f"Total distinct Count by {column}: {count_col_distinct}")
-            if count_col != count_col_distinct:
-                raise Exception(f"Duplicates by {column} found in {table}")
-            print(f"No duplicates found in table by {column}")
-
-
-def optimize_delta_table(TABLE_NAME, vacuum_hours=0, zorderby=None):
-    spark_session = _get_spark()
-    spark_session.sql(
-        "SET spark.databricks.delta.retentionDurationCheck.enabled = false"
-    )
-    if zorderby is None:
-        print(f"Optimizing {TABLE_NAME} without ZORDERBY clause")
-        spark_session.sql(f"""OPTIMIZE {TABLE_NAME}""")
-        print("Optimize step complete")
-    else:
-        zorderby_string = ",".join(zorderby)
-        print(
-            f"Optimizing {TABLE_NAME} with ZORDERBY clause : {zorderby_string}"
-        )
-        spark_session.sql(f"""OPTIMIZE {TABLE_NAME}
-                        ZORDER BY {zorderby_string}""")
-        print("Optimize with ZORDERBY complete")
-    spark_session.sql(f"""VACUUM {TABLE_NAME} RETAIN {vacuum_hours} hours""")
-    return None
-
-
-def f_limit_history(OUTPUT_TABLE, limit_history_days):
-    _get_spark().sql(
-        (
-            f"DELETE FROM {OUTPUT_TABLE} "
-            f"where rundate <= current_date()-{limit_history_days}"
-        )
-    )
-    optimize_delta_table(OUTPUT_TABLE)
-
-
-def create_dl_table(
-    spark_df,
-    limit_history=True,
-    limit_history_days=731,
-    merge_schema=False,
-    join_condition="(source.rundate=dest.rundate)",
-    OUTPUT_TABLE=None,
-):
-    # Add rundate
-    model_output = spark_df.withColumn("rundate", current_date())
-
-    # run dq check
-    data_quality_check(model_output, OUTPUT_TABLE)
-
-    # Create a table from dataframe
-    model_output.createOrReplaceTempView("model_output_table")
-
-    print("Delta processing")
-    if merge_schema:
-        print(
-            "merge_schema is set to True - Turning on AutoMerge Option "
-            "before performing merge operation"
-        )
-        _get_spark().sql(
-            "SET spark.databricks.delta.schema.autoMerge.enabled = true"
-        )
-    _get_spark().sql(f"""
-MERGE INTO {OUTPUT_TABLE} dest
-USING model_output_table source ON {join_condition}
-WHEN NOT MATCHED THEN INSERT *
-            """)
-    print(f"Table {OUTPUT_TABLE} is now updated")
-
-    if limit_history:
-        f_limit_history(OUTPUT_TABLE, limit_history_days)
-
-    return None
 
 
 def configure_abfs(

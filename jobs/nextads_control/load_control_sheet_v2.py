@@ -452,7 +452,9 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
 
     page_type_lookup_df = (
         df_processed.groupBy("UniqueAdID")
-        .agg(F.collect_set("PageType").alias("ValidPageTypes"))
+        .agg(
+            F.sort_array(F.collect_set("PageType")).alias("ValidPageTypes")
+        )
         .withColumnRenamed("UniqueAdID", "LookupAdID")
     )
 

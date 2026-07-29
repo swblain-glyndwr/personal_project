@@ -22,6 +22,7 @@ def test_main_job_submits_page_build_without_waiting_for_result():
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
     trigger_v1_task = tasks_by_key["trigger_page_build_v1_job"]
     trigger_v2_task = tasks_by_key["trigger_page_build_v2_job"]
+    data_pull_task = tasks_by_key["trigger_data_pull_for_CMS_pull"]
 
     assert job["name"] == "mktg_next_uk_nextads_candidate_build"
     assert job["email_notifications"]["on_failure"] == (
@@ -33,6 +34,9 @@ def test_main_job_submits_page_build_without_waiting_for_result():
         task["task_key"] for task in job["tasks"] if "run_job_task" in task
     ]
     assert run_job_tasks == ["trigger_data_pull_for_CMS_pull"]
+    assert data_pull_task["run_job_task"]["job_parameters"] == {
+        "run_date": "{{job.parameters.run_date}}",
+    }
     assert trigger_v1_task["depends_on"] == [
         {"task_key": "combine_customer_cells"},
         {"task_key": "map_theme_scores_to_ads_v1"},
@@ -405,6 +409,17 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
         "run_date={{job.parameters.run_date}}",
         "--fail-on-submit-error",
     ]
+    assert tasks_by_key["trigger_plp_gs_delivery_job"][
+        "spark_python_task"
+    ]["parameters"] == [
+        "--job-id",
+        "${resources.jobs.mktg_next_uk_nextads_plp_gs_delivery_cicd.id}",
+        "--job-name",
+        "mktg_next_uk_nextads_plp_gs_delivery",
+        "--job-parameter",
+        "run_date={{job.parameters.run_date}}",
+        "--fail-on-submit-error",
+    ]
     assert all(task.get("run_if") != "ALL_DONE" for task in job["tasks"])
 
 
@@ -548,6 +563,31 @@ def test_data_pull_pipeline_passes_user_schema_to_python_config():
     assert pipeline["environment"] == "${var.pipeline_libraries}"
 
 
+def test_data_pull_archive_uses_forwarded_logical_run_date():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml",
+        "mktg_next_uk_nextads_data_pull",
+    )
+
+    assert job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        }
+    ]
+    archive_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "archive_sort_order_data"
+    )
+    assert archive_task["spark_python_task"]["parameters"][-4:] == [
+        "--log_level",
+        "INFO",
+        "--run_date",
+        "{{job.parameters.run_date}}",
+    ]
+
+
 def test_assignment_validation_job_has_independent_definition_and_internal_notifications():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml",
@@ -639,6 +679,27 @@ def test_delivery_jobs_have_external_notifications():
     assert plp_job["email_notifications"]["on_failure"] == (
         "${var.data_and_downstream_notification_emails}"
     )
+    assert plp_job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        }
+    ]
+    iteration_parameters = plp_job["tasks"][0]["for_each_task"]["task"][
+        "spark_python_task"
+    ]["parameters"]
+    assert iteration_parameters == [
+        "--client",
+        "{{input.client}}",
+        "--config_client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--territory",
+        "{{input.territory}}",
+        "--run_date",
+        "{{job.parameters.run_date}}",
+    ]
 
 
 def test_prod_notifications_are_split_by_owner_group():

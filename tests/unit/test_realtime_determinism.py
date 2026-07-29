@@ -46,13 +46,20 @@ def test_viewed_bought_uses_total_orders_and_fails_on_duplicate_keys():
         in compact
     )
 
-    validation = "validate_unique_non_null_keys(results,pk_cols)"
-    write = "truncate_and_load(df=results,"
-    assert validation in compact
-    assert write in compact
-    assert compact.index(validation) < compact.index(write)
+    assert (
+        "run_date=capture_run_date(spark)"
+        "results=with_run_date(results,run_date)"
+        "replace_validated_snapshot("
+        "spark,results,table=VB_TABLE_LATEST,key_columns=pk_cols,"
+        "columns=results.columns,)"
+        in compact
+    )
+    ddl = _read("sql/realtime/create_table_viewed_bought_latest.sql")
+    assert "rundate date not null" in ddl
 
     called_names = _called_names(source)
+    assert "truncate_and_load" not in called_names
+    assert "delete_from_and_load" not in called_names
     assert "dropDuplicates" not in called_names
     assert "drop_duplicates" not in called_names
 
