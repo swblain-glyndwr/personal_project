@@ -113,12 +113,12 @@ To ensure minimal latency during live serving, heavy data transformations are pr
 > Lakebase online feature store tables map directly to underlying Delta table schemas. **Do not modify the upstream schema directly** without re-creating the online table sync, as schema mismatches will immediately break synchronization.
 
 ### Data Sync Pipeline Status
-| Table Name / Target | Source Table | Sync Trigger | Target Status |
-| :--- | :--- | :--- | :--- |
-| `lakebase_customer_features` | `delta_customer_ads_daily` | Post-Batch Complete | Pending Schedule |
-| `lakebase_item_features` | `delta_item_mapping_daily` | Post-Batch Complete | Pending Schedule |
-| `lakebase_advert_scores` | `delta_scored_adverts_daily` | Post-Batch Complete | Pending Schedule |
 
+| Table Name / Target | Source Table | Batch Job |Sync Trigger | Target Status | Notes |
+| ------------------- | ------------------- | ----------- |----------- | --------- |--------------|
+| `next_uk_nextads_realtime_reranking_preranked_ads_online` | `next_uk_nextads_realtime_reranking_preranked_ads` | mktg_next_uk_nextads_realtime_data | Post-Batch Complete | Pending Schedule | This is 900M records - need to optimise sync |
+| `next_uk_nextads_realtime_reranking_item_weighting_rules_online` | `next_uk_nextads_realtime_reranking_item_weighting_rules` | mktg_next_uk_nextads_realtime_data | Post-Batch Complete | Pending Schedule | |
+| `next_uk_nextads_advert_advert_association_online` | `next_uk_nextads_advert_advert_association` | mktg_next_uk_nextads_realtime_data | Post-Batch Complete | Pending Schedule |  |
 ---
 
 ## Technical Challenges & Next Steps
