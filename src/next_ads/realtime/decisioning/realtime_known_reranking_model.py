@@ -2,7 +2,7 @@ import mlflow.pyfunc
 from concurrent.futures import ThreadPoolExecutor
 import time
 import os
-from databricks.sdk import WorkspaceClient
+from databricks.sdk import WorkspaceClient  ## must be > 0.56 version!!
 import hashlib
 import json
 import logging
@@ -14,8 +14,43 @@ logger = logging.getLogger("realtime_reranking_model")
 
 
 class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
-    def load_context(self, context: dict):
-        # Connection context
+    """NextAds Model for use in RealTime Known Customer Reranking
+
+    Prerequisites:
+    -------------
+    1. Lakebase set up with connection details logged as env variables
+    Required connection environment parameters:
+        * NEXTADS_REALTIME_ONLINE_LAKEBASE_HOST
+        * NEXTADS_REALTIME_ONLINE_LAKEBASE_PORT
+        * NEXTADS_REALTIME_ONLINE_LAKEBASE_DATABASE
+        * NEXTADS_REALTIME_ONLINE_LAKEBASE_ENDPOINT
+        * NEXTADS_REALTIME_ONLINE_LAKEBASE_USER
+        * NEXTADS_REALTIME_ONLINE_LAKEBASE_CATALOG
+        * NEXTADS_REALTIME_ONLINE_LAKEBASE_SCHEMA
+
+    Functionality:
+    --------------
+    input={"rpid": 12332, "items": {1:{"item": "ab231", "action": "view"},
+                                    {1:{"item": "ad2451", "action": "view"}}}
+    rt_model=RealtimeKnownRerankingModel()
+    rt_model.load_context({})
+    rt_model.predict(input)
+    """
+
+    def load_context(self, context: dict) -> None:
+        """Initial context loading for the model
+
+        Parameters
+        ---------
+        context: dict
+            #TODO swap these over to new naming convention
+            pagetype_filter: list, default=["ProductListingPage", "ShoppingBag"]
+                The page types we wish to deploy this on
+            min_number_of_ads: int, default= 10
+                The minimium number of adverts it should return for each location
+                failure to meet this will result in no return
+        """
+        # Lakebase connection context
         self.db_host = os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_HOST")
         self.db_port = os.environ.get(
             "NEXTADS_REALTIME_ONLINE_LAKEBASE_PORT", "5432"
@@ -23,21 +58,18 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         self.db_name = os.environ.get(
             "NEXTADS_REALTIME_ONLINE_LAKEBASE_DATABASE", "databricks_postgres"
         )
-        self.db_user = os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_USER")
-        self.workspace_client = WorkspaceClient(
-            host=os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_HOST"),
-            client_id=os.environ.get(
-                "NEXTADS_REALTIME_ONLINE_LAKEBASE_CLIENT_ID"
-            ),
-            client_secret=os.environ.get(
-                "NEXTADS_REALTIME_ONLINE_LAKEBASE_CLIENT_SECRET"
-            ),
+        self.db_endpoint = os.environ.get(
+            "NEXTADS_REALTIME_ONLINE_LAKEBASE_ENDPOINT",
+            "projects/next-ads-realtime/branches/production/endpoints/primary",
         )
+        self.db_user = os.environ.get("NEXTADS_REALTIME_ONLINE_LAKEBASE_USER")
+        self.workspace_client = WorkspaceClient()
         # Token caching state
         self._cached_token = None
         self._token_expiry = 0
         self.conn = None
 
+        ## Table Context
         self.table_catalog: str = os.environ.get(
             "NEXTADS_REALTIME_ONLINE_LAKEBASE_CATALOG", "marketingdata_dev"
         )
@@ -46,6 +78,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         )
 
         # Model Variables
+        # TODO swap these over to new naming convention
         self.pagetype_filter: list = context.get(
             "pagetype_filter", ["ProductListingPage", "ShoppingBag"]
         )
@@ -56,6 +89,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             "department",
             "prem_level_brand",
         ]
+
         # Payload settings
         self.ad_fatigue_threshold: int = context.get("ad_fatigue_threshold", 2)
         self.ad_fatigue_active_locations: list = context.get(
@@ -65,7 +99,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         self.fragments_record_limit: int = context.get(
             "fragment_record_limit", 20
         )
-
         # TODO: add Audience column in here!
         self.customer_cells_columns: list = [
             "AccountNumber",
@@ -90,9 +123,9 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             # "Audience",
             "IsPremium",
         ]
-        # Settings for experiments
-        # Default set to False so no impact to customer experience if there were to be an issue
-        self.control: bool = False
+
+        # Experiment Settings
+        self.control: bool = False  # Default set to False so no impact to customer experience on issues
         self.control_value: str = "NoAds"
         self.experiment_settings: dict = {
             "experiments": {
@@ -127,58 +160,35 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             ],
         }
 
-    def _get_oauth_token(self):
-        """Fetches a new 1-hour OAuth token before expiration."""
-        now = time.time()
-        # Refresh 5 minutes before expiry (tokens last 3600 seconds)
-        if not self._cached_token or (self._token_expiry - now) < 300:
-            # Generate OAuth token using Databricks SDK
-            token_info = self.workspace_client.tokens.create(
-                comment="NextAds Realtime Known Reranking Model Lakebase Serving Token",
-                lifetime_seconds=3600,
-            )
-            self._cached_token = token_info.token_value
-            self._token_expiry = now + 3600
-
-        return self._cached_token
-
-    def generate_lakebase_connection(self):
-        self._get_oauth_token()
-
-        conn = psycopg2.connect(
-            host=self.db_host,
-            dbname=self.db_name,
-            port=self.db_port,
-            user=self.db_user,
-            password=self._cached_token,
-            sslmode="require",
-        )
-        self.conn = conn
-
-    def run_query(self, qry: str) -> pd.DataFrame:
-        results = pd.DataFrame()
-        try:
-            if not self.conn or self._token_expiry - time.time() < 300:
-                self.generate_lakebase_connection()
-            with self.conn.cursor() as cursor:
-                cursor.execute(qry)
-                colnames = [desc[0] for desc in cursor.description]
-                results = cursor.fetchall()
-                if results:
-                    results = pd.DataFrame(results, columns=colnames)
-        except Exception as e:
-            logger.error(f"Exception in fetching data: {e}")
-        return results
-
     def predict(self, model_input: dict) -> dict:
+        """Generate model prediction for a given input customer RPID & items
+
+        Parameters
+        ---------
+        model_input:dict
+            The input features for predicting on
+            rpid: string
+                The customers RPID
+            items: dict
+                Dictionary of latest actions in teh format:
+                    {1:{"item": "a", "action" : "view|atb"},
+                    {2:{"item": "a", "action" : "view|atb"},}
+            Valid actions for input are "view" | "atb"
+
+        Returns:
+        -------
+        dict
+            Output formatted in dictionary structure for bloomreach payload
+            #TODO add output format in here
+        """
         with ThreadPoolExecutor(max_workers=2) as executor:
             ads = executor.submit(
-                self.realtime_reranking_advert_data_prep,
+                self.advert_data_formatting,
                 model_input.get("rpid", ""),
                 self.pagetype_filter,
             )
             items = executor.submit(
-                self.realtime_reranking_item_data_prep,
+                self.item_data_formatting,
                 model_input.get("items", {}),
             )
 
@@ -189,7 +199,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             logger.error("No data identified for items or rpid")
             return {}
 
-        cross_data = self.realtime_reranking_item_cross(ad_df, item_df)
+        cross_data = self.item_customer_weighting_cross(ad_df, item_df)
         if cross_data.empty:
             logger.error("No cross data")
             return {}
@@ -225,9 +235,93 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
         return payload
 
-    def realtime_reranking_advert_data_prep(
+    ## Lakebase connectivity Functions
+    def _get_oauth_token(self) -> str:
+        """Fetches the OAuth token for connection to the Lakebase.
+        Refreshes the token if it is < 5 mins from expiry time otherwise uses current token
+
+        Returns:
+        ------
+        str:
+           The OAuth token
+        """
+        now = time.time()
+        # Refresh 5 minutes before expiry (tokens last 3600 seconds)
+        if not self._cached_token or (self._token_expiry - now) < 300:
+            # Generate OAuth token using Databricks SDK
+            token_info = self.workspace_client.postgres.generate_database_credential(
+                endpoint="projects/next-ads-realtime/branches/production/endpoints/primary"
+            )
+
+            self._cached_token = token_info.token
+            ## Token defaults to 1 hour expiry time
+            self._token_expiry = now + 3600
+
+        return self._cached_token
+
+    def generate_lakebase_connection(self) -> None:
+        """Generates the Lakebase connection instance using the credentials set in the environment
+        """
+        self._get_oauth_token()
+
+        conn = psycopg2.connect(
+            host=self.db_host,
+            dbname=self.db_name,
+            port=self.db_port,
+            user=self.db_user,
+            password=self._cached_token,
+            sslmode="require",
+        )
+        self.conn = conn
+
+    def run_query(self, qry: str) -> pd.DataFrame:
+        """Executes a PostgreSQL query in the Lakebase and returns the result of the query
+
+        Parameters
+        ---------
+        qry: str
+            The formatted SQL string for the query
+
+        Returns:
+        -------
+        pd.DataFrame
+            dataframe of the output results
+            default is an empty dataframe
+        """
+        results = pd.DataFrame()
+        try:
+            if not self.conn or self._token_expiry - time.time() < 300:
+                self.generate_lakebase_connection()
+            with self.conn.cursor() as cursor:
+                cursor.execute(qry)
+                colnames = [desc[0] for desc in cursor.description]
+                results = cursor.fetchall()
+                if results:
+                    results = pd.DataFrame(results, columns=colnames)
+        except Exception as e:
+            logger.error(f"Exception in fetching data: {e}")
+        return results
+
+    ##Reranking Model Functions
+
+    def advert_data_formatting(
         self, input_rpid: int, page_type_filter: list
     ) -> pd.DataFrame:
+        """Retrieve and format the adverts data for the given customer RPID for
+        the specified advert page types
+
+        Parameters
+        ---------
+        input_rpid: int
+            The customer RPID number
+        page_type_filter: list
+            A list of advert page types that are valid for updating
+
+        Returns:
+        -------
+        pd.DataFrame
+            Dataframe of the current scores for the customer adverts
+        """
         customer_ads = pd.DataFrame()
 
         if not input_rpid:
@@ -255,9 +349,20 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
         return customer_ads
 
-    def realtime_reranking_item_data_prep(
-        self, input_features: dict
-    ) -> pd.DataFrame:
+    def item_data_formatting(self, input_features: dict) -> pd.DataFrame:
+        """Retrieve and format the items data for the given items
+
+        Parameters
+        ---------
+        input_features: dict
+            dictionary of dictionaries of the item & action
+            action can only be 'view' or 'atb'
+
+        Returns:
+        -------
+        pd.DataFrame
+            Dataframe of the item features and weighting factors
+        """
         items_data = pd.DataFrame()
         flattened_data = [{**value} for value in input_features.values()]
         input_data = pd.DataFrame(flattened_data).rename(
@@ -292,9 +397,25 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
         return items_data
 
-    def realtime_reranking_item_cross(
+    def item_customer_weighting_cross(
         self, customer_ads: pd.DataFrame, item_df: pd.DataFrame
     ) -> pd.DataFrame:
+        """Recalculates the adjusted weighting score for each advert
+        through combining the customer and advert features
+
+        Parameters
+        ---------
+        customer_ads: pd.DataFrame
+            Dataframe of the current customer advert scores and features
+        item_df: pd.DataFrame
+            Dataframe of the recent interaction items, features and weighting
+
+        Returns:
+        ------
+        pd.Dataframe
+            Output dataframe of the customer adverts with an adjusted score
+            calculated from the item feature weightings
+        """
         customer_ads["adjusted_weighting_final"] = 0
         customer_ads_ = customer_ads[
             [
@@ -379,6 +500,19 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         ]
 
     def incrementality(self, best_ad_df: pd.DataFrame) -> pd.DataFrame:
+        """Retrieves the 'Next Best Advert' profile based on  top advert most associated to customer behaviour right now
+        'Next Best Advert' is determined by advert:advert affinity from item views: item add to basket behaviour
+
+        Parameters
+        ---------
+        best_ad_df: pd.DataFrame
+            Dataframe of the top adverts from the adjusted ranking for the customer
+
+        Returns:
+        -------
+        pd.DataFrame
+            Dataframe of the 'Next Best Advert' profiles based on the best match to current advert
+        """
         cust_affinity = pd.DataFrame()
 
         table = f"{self.table_catalog}.{self.table_schema}.next_uk_nextads_advert_advert_association_online"
@@ -421,11 +555,31 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
     ## Functions for bulding the payload:
 
-    def determine_control(self, df: pd.DataFrame):
+    def determine_control(self, df: pd.DataFrame) -> None:
+        """Determine whether or not the customer is a control customer
+
+        Parameters
+        ---------
+        df: pd.DataFrame
+            single row dataframe of customer experiment settings
+        """
         if df["FallowControl"] == self.control_value:
             self.control = True
 
-    def build_triggers(self, df: pd.DataFrame):
+    def build_triggers(self, df: pd.DataFrame) -> list:
+        """Determine the top Advert trigger score levels to be added to google metadata
+
+        Parameters
+        ---------
+        df: pd.DataFrame
+            Ranked advert reccomendation dataframe
+
+        Returns:
+        ------
+        list:
+            list of dictionaries
+            example format: {"t": score_value, "id": advertid }
+        """
         # Get top scores for ads for the customer
         triggers = []
         ##TODO: SWITCH TO CMSPAGEID RATHER THAN ADID!
@@ -440,8 +594,19 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         )
         return triggers
 
-    def build_adshash(self, dict_data: dict):
-        # Build the ad hash for the experiment
+    def build_adshash(self, dict_data: dict) -> str:
+        """Build a hash of the payload details
+
+        Parameters
+        ---------
+        dict_data:dict
+            The payload details to build the hash from
+
+        Returns:
+        ------
+        str:
+            String of the hash, default=""
+        """
         try:
             string_data = json.dumps(dict_data, sort_keys=True)
             return hashlib.sha256(string_data.encode("utf-8")).hexdigest()
@@ -449,7 +614,22 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             logger.error(f"Error building ad hash {e}")
             return ""
 
-    def build_fragments(self, df):
+    def build_fragments(self, df: pd.DataFrame) -> list:
+        """Generate a list of the top ads for each advert page location
+
+        Parameters
+        ---------
+        df: pd.DataFrame
+            Dataframe of the adjusted adverts & scores for the customer
+
+        Returns:
+        -------
+        list:
+            list of dictionaries consisting of:
+                {"pageTypes": [list of page types],
+                "enableAdFatigueRotation": bool ,
+                "fragmentIds": [list of Advertids] }
+        """
         # Get top scored ads for the locations
         fragments = []
         pages = df["PageType"].unique().tolist()
@@ -474,7 +654,24 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
     def get_experiment_id(
         self, df: pd.DataFrame, col_name: str, split_col_name="split_col"
-    ):
+    ) -> list:
+        """Generates the experimentID fragment details
+        for the customer experiment settings from a given experiment column
+
+        Parameters
+        ---------
+        df: pd.DataFrame
+            single record dataframe of the customer experiment details
+        col_name: str
+            string of the column name to
+        split_col_name:str
+            string of the column containing the experiment split conditions
+
+        Returns:
+        ------
+        list:
+            a list of the experiment details
+        """
         rules = self.experiment_details.get(
             col_name, self.experiment_details["DEFAULT"]
         )
@@ -493,7 +690,19 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         # Return vectorized evaluated result
         return np.select(conditions, choices, default=default_value).tolist()
 
-    def get_audience_experiment_id(self, customer_cells: pd.DataFrame):
+    def get_audience_experiment_id(self, customer_cells: pd.DataFrame) -> str:
+        """Generate the audience specific experiment string details for the customer
+
+        Parameters
+        ---------
+        customer_cells: pd.DataFrame
+                single record dataframe of the customer experiment details
+
+        Returns:
+        ------
+        str:
+            Audience ExperimentID string for the customer
+        """
         audience = self.experiment_settings.get("audience_experiments", {})
         split_col = audience.get("split_col", "Audience")
         audience_sample = audience.get("sample", ["Best"])
@@ -521,7 +730,19 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
         return id
 
-    def build_experiment_id(self, experiment_df: pd.DataFrame):
+    def build_experiment_id(self, experiment_df: pd.DataFrame) -> str:
+        """Generate the full experiment string details for all experiments settings for the customer
+
+        Parameters
+        ---------
+        experiment_df: pd.DataFrame
+                single record dataframe of the customer experiment details
+
+        Returns:
+        ------
+        str:
+            ExperimentID string for the customer
+        """
         ids = []
         if self.experiment_settings.get("audience_settings", {}).get(
             "enabled", False
@@ -541,6 +762,27 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
     def build_payload_structure(
         self, customer_cells_df: pd.DataFrame, results_df: pd.DataFrame
     ) -> dict:
+        """Generate the full payload structure for returning the results
+
+        Parameters
+        ----------
+        customer_cells_df: pd.DataFrame
+            single record dataframe of the customer experiment details
+        results_df: pd.DataFrame
+            Dataframe of the adjusted adverts & scores for the customer
+
+        Returns:
+        -------
+        dict:
+            Dictionary of the payload with the following structure
+            {"ads": {
+                "adFatigueImpressionThreshold": int ,
+                "experimentId": str,
+                "triggers": list,
+                "control": boolean ,
+                "fragments": list,
+            }}
+        """
         with ThreadPoolExecutor(max_workers=4) as executor:
             executor.submit(self.determine_control, customer_cells_df)
             triggers = executor.submit(self.build_triggers, results_df)
