@@ -1,4 +1,5 @@
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,10 @@ DESTRUCTIVE_CALLS = {
 }
 HOUSEKEEPING_SQL = ("OPTIMIZE ", "VACUUM ")
 DESTRUCTIVE_SQL = ("DELETE FROM ", "TRUNCATE TABLE ")
+UNSUPPORTED_DBR_15_4_REPLACE = re.compile(
+    r"\bBY\s+NAME\b[\s\S]{0,160}\bREPLACE\s+WHERE\b",
+    re.IGNORECASE,
+)
 
 
 def _called_names(source: str) -> set[str]:
@@ -69,3 +74,16 @@ def test_only_run_unique_scorer_materialisation_uses_save_as_table():
     assert "temp_next_theme_probs_" in scorer_source
     assert "uuid.uuid4().hex" in scorer_source
     assert "DROP TABLE IF EXISTS " in scorer_source
+
+
+def test_production_sources_do_not_use_unsupported_dbr_15_4_replace_syntax():
+    offenders = []
+    for source_root in ("jobs", "src"):
+        for path in (PROJECT_ROOT / source_root).rglob("*"):
+            if not path.is_file() or path.suffix not in {".py", ".sql"}:
+                continue
+            source = path.read_text(encoding="utf-8", errors="ignore")
+            if UNSUPPORTED_DBR_15_4_REPLACE.search(source):
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+
+    assert offenders == []

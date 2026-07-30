@@ -330,9 +330,9 @@ def atomic_replace_where_by_name(
                 replace_all=replace_all,
             )
         ),
-        # DBR 15.4 cannot combine SQL BY NAME with REPLACE WHERE. Selecting
-        # the validated source by target schema order provides the same
-        # name-alignment contract while retaining one atomic Delta statement.
+        # DBR 15.4 cannot combine name-matched inserts with selective
+        # replacement. Selecting the validated source by target schema order
+        # retains name alignment and one atomic Delta statement.
         columns=target_columns,
         retry_policy=retry_policy,
         sleep=sleep,
