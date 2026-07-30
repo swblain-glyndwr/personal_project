@@ -124,7 +124,6 @@ To ensure minimal latency during live serving, heavy data transformations are pr
 ## Technical Challenges & Next Steps
 
 ### Current Technical Challenges
-* **Secure Feature Store Connectivity:** Establishing secure, secrets-enabled connection parameters and roles for Lakebase integration within the Databricks workspace.
 * **High-Volume Upsert Performance:** Overcoming performance bottlenecks when efficiently syncing and updating large-scale datasets (~900M record tables) to the online Lakebase feature store without causing latency spikes.
 
 ### Implementation Next Steps
@@ -133,6 +132,9 @@ To ensure minimal latency during live serving, heavy data transformations are pr
 3. **Model Registration:** Finalize packaging and deploy the trained custom MLflow PyFunc model to the Feature Store registry.
 4. **Endpoint Provisioning:** Provision, test, and benchmark the Databricks Model Serving endpoint under simulated peak loads.
 5. **Bloomreach API Integration:** Implement and test the secondary Bloomreach API update call within the model pipeline to support fallback delivery.
+
+### Current Testing limitations 
+* Please be aware that due to the issue with syncing the customer records table to the online store- the data table currently being used for Advert details is a a sample table with only a few RPIDs in! 
 
 --- 
 ## Model Overview
