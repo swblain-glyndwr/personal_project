@@ -226,7 +226,7 @@ def test_sql_helpers_quote_names_literals_and_match_columns_by_name():
         filters={"BuildRunID": "v1_123"},
     )
     assert statement == (
-        "INSERT INTO `catalog`.`schema`.`target` BY NAME\n"
+        "INSERT INTO `catalog`.`schema`.`target`\n"
         "REPLACE WHERE `BuildRunID` = 'v1_123'\n"
         "SELECT `b`, `a`\n"
         "FROM `source_view`"
@@ -246,11 +246,13 @@ def test_sql_helpers_quote_names_literals_and_match_columns_by_name():
 def test_target_schema_requires_exact_names_but_not_column_order():
     spark = FakeSpark([], target_columns=["a", "b"])
 
-    validate_target_columns(
+    target_columns = validate_target_columns(
         spark,
         "catalog.schema.target",
         ["b", "a"],
     )
+
+    assert target_columns == ["a", "b"]
 
     with pytest.raises(ValueError, match="missing target columns: b"):
         validate_target_columns(
@@ -299,6 +301,24 @@ def test_replace_retries_only_delta_conflicts_and_drops_temporary_view():
     assert delays == [2]
     assert frame.selected_columns == ["AccountNumber", "Location"]
     assert spark.dropped_views == [frame.view_name]
+
+
+def test_replace_aligns_source_to_target_by_name_without_dbr_unsupported_syntax():
+    spark = FakeSpark([None], target_columns=["a", "b"])
+    frame = FakeFrame(["b", "a"])
+
+    result = atomic_replace_where_by_name(
+        spark,
+        frame,
+        target_table="catalog.schema.target",
+        replace_all=True,
+        sleep=lambda _: None,
+    )
+
+    assert frame.selected_columns == ["a", "b"]
+    assert "BY NAME" not in result.statement
+    assert "REPLACE WHERE TRUE" in result.statement
+    assert "SELECT `a`, `b`" in result.statement
 
 
 def test_replace_does_not_retry_non_concurrency_errors_and_cleans_view():

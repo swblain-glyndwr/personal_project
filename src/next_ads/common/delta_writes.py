@@ -159,8 +159,8 @@ def validate_target_columns(
     spark: Any,
     target_table: str,
     source_columns: Sequence[str],
-) -> None:
-    """Require an exact name match with the existing target schema."""
+) -> list[str]:
+    """Require exact names and return the existing target column order."""
     selected_columns = list(source_columns)
     if len(set(selected_columns)) != len(selected_columns):
         raise ValueError("Output columns must be unique")
@@ -180,6 +180,7 @@ def validate_target_columns(
             f"Source schema does not match {target_table}: "
             + "; ".join(details)
         )
+    return target_columns
 
 
 def quote_identifier(identifier: str) -> str:
@@ -244,7 +245,7 @@ def build_replace_where_statement(
     filters: Mapping[str, SqlLiteral] | None = None,
     replace_all: bool = False,
 ) -> str:
-    """Build a DBR 15.4-compatible atomic replacement statement."""
+    """Build an atomic replacement after source columns are target-ordered."""
     selected_columns = list(columns)
     if not selected_columns:
         raise ValueError("At least one output column is required")
@@ -256,7 +257,7 @@ def build_replace_where_statement(
     predicate = "TRUE" if replace_all else build_equality_predicate(filters or {})
     column_sql = ", ".join(quote_identifier(column) for column in selected_columns)
     return (
-        f"INSERT INTO {quote_qualified_identifier(target_table)} BY NAME\n"
+        f"INSERT INTO {quote_qualified_identifier(target_table)}\n"
         f"REPLACE WHERE {predicate}\n"
         f"SELECT {column_sql}\n"
         f"FROM {quote_qualified_identifier(source_view)}"
@@ -301,7 +302,11 @@ def atomic_replace_where_by_name(
         raise ValueError("Specify exactly one of filters or replace_all=True")
 
     selected_columns = list(columns or df.columns)
-    validate_target_columns(spark, target_table, selected_columns)
+    target_columns = validate_target_columns(
+        spark,
+        target_table,
+        selected_columns,
+    )
     if filters:
         omitted_filters = [
             column for column in filters if column not in selected_columns
@@ -325,7 +330,10 @@ def atomic_replace_where_by_name(
                 replace_all=replace_all,
             )
         ),
-        columns=selected_columns,
+        # DBR 15.4 cannot combine SQL BY NAME with REPLACE WHERE. Selecting
+        # the validated source by target schema order provides the same
+        # name-alignment contract while retaining one atomic Delta statement.
+        columns=target_columns,
         retry_policy=retry_policy,
         sleep=sleep,
         jitter=jitter,
