@@ -1988,6 +1988,7 @@ default:
       nextgenads_assignments_latest: marketingdata_prod.ds_sandbox.nextgenads_customer_assignments_latest
       sort_order_latest: marketingdata_prod.warehouse.next_ads_sort_order_latest
       sort_order_latest_v2 : marketingdata_prod.warehouse.nextads_sort_order_v2_latest
+      sort_order_v2: marketingdata_prod.warehouse.nextads_sort_order_v2
     write:
       ad_items: '{catalog}.{schema}.{client}_nextads_ad_items'
       control_sheet: '{catalog}.{schema}.{client}_nextads_control_sheet'

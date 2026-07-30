@@ -143,8 +143,18 @@ def advert_details_build(
     read_tables = cfg["tables"]["read"]
     write_tables = cfg["tables"]["write"]
 
-    write_tables = cfg["tables"]["write"]
-    SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest_v2"])
+    SORT_ORDER = spark.table(read_tables["sort_order_v2"])
+    latest_records_date = SORT_ORDER.select(F.max(F.col("rundate"))).collect()[
+        0
+    ][0]
+    SORT_ORDER_LATEST = SORT_ORDER.filter(
+        F.col("rundate") == latest_records_date
+    )
+    if not latest_records_date.strftime("%Y-%m-%d") == reference_date:
+        logger.warning(
+            "Last sort order update date does not match reference date"
+        )
+
     CONTROL_SHEET = spark.table(
         etl.map_tbl(write_tables["control_sheet_latest_v2"], **tbl_configs)
     )
