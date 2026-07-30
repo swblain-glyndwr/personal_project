@@ -6,7 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
-from pyspark.sql import SparkSession
+from databricks.connect import DatabricksSession
 
 SUPPORTED_OPERATIONS = {
     "drop_tables",
@@ -60,7 +60,9 @@ def load_create_tables_module():
 
 def load_mirror_prod_tables_module():
     bootstrap_project_imports()
-    return importlib.import_module("jobs.table_operations.mirror_prod_tables_in_dev")
+    return importlib.import_module(
+        "jobs.table_operations.mirror_prod_tables_in_dev"
+    )
 
 
 def parse_bool(value: str | bool) -> bool:
@@ -124,7 +126,9 @@ def split_table_names(tables: str | None) -> list[str]:
     return [table.strip() for table in tables.split(",") if table.strip()]
 
 
-def resolve_table_name(table: str, catalog: str, schema: str) -> tuple[str, str, str]:
+def resolve_table_name(
+    table: str, catalog: str, schema: str
+) -> tuple[str, str, str]:
     if "*" in table or "?" in table:
         raise ValueError(f"Wildcard table names are not supported: {table!r}")
 
@@ -172,7 +176,9 @@ def drop_tables(
     table_names = split_table_names(tables)
 
     if not dry_run and not table_names:
-        raise ValueError("--tables must include at least one table when dry_run=false")
+        raise ValueError(
+            "--tables must include at least one table when dry_run=false"
+        )
     if not dry_run and not confirm_destructive:
         raise ValueError(
             "--confirm_destructive true is required when dry_run=false"
@@ -183,7 +189,9 @@ def drop_tables(
         table_parts = resolve_table_name(table, catalog, schema)
         statement = build_drop_table_statement(table_parts)
         statements.append(statement)
-        logger.info("Resolved table %s to %s", table, qualified_table_name(table_parts))
+        logger.info(
+            "Resolved table %s to %s", table, qualified_table_name(table_parts)
+        )
         logger.info("Prepared statement: %s", statement)
         if dry_run:
             logger.info("Dry run enabled; not executing statement")
@@ -209,8 +217,14 @@ def run_configured_table_operation(
     logger: logging.Logger | None = None,
 ) -> list[str]:
     logger = logger or logging.getLogger(__name__)
-    if operation not in {"create_missing_tables", "alter_tables", "recreate_tables"}:
-        raise ValueError(f"Unsupported configured table operation: {operation!r}")
+    if operation not in {
+        "create_missing_tables",
+        "alter_tables",
+        "recreate_tables",
+    }:
+        raise ValueError(
+            f"Unsupported configured table operation: {operation!r}"
+        )
 
     if (
         not dry_run
@@ -221,7 +235,11 @@ def run_configured_table_operation(
             "--confirm_mutating true is required for create_missing_tables "
             "and alter_tables when dry_run=false"
         )
-    if not dry_run and operation == "recreate_tables" and not confirm_destructive:
+    if (
+        not dry_run
+        and operation == "recreate_tables"
+        and not confirm_destructive
+    ):
         raise ValueError(
             "--confirm_destructive true is required for recreate_tables "
             "when dry_run=false"
@@ -397,7 +415,9 @@ def run_operation(
 
     if operation == "drop_tables":
         if not catalog or not schema:
-            raise ValueError("--catalog and --schema are required for drop_tables")
+            raise ValueError(
+                "--catalog and --schema are required for drop_tables"
+            )
         return drop_tables(
             spark,
             catalog=catalog,
@@ -472,7 +492,7 @@ def main() -> None:
     args = parse_args()
     configure_logging(args.log_level)
     logger = logging.getLogger(__name__)
-    spark = SparkSession.builder.getOrCreate()
+    spark = DatabricksSession.builder.getOrCreate()
 
     statements = run_operation(
         spark,

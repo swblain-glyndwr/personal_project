@@ -44,8 +44,6 @@ sync:
     - jobs/**
     - sql/**
     - src/next_ads/**
-  exclude:
-    - notebooks/
 
 variables:
   environment_name:
