@@ -43,7 +43,7 @@ def _settings_files(client: str = "next_uk") -> list[str]:
             "config/model_settings.yaml",
         ),
         _existing_path("configs/runtime/users.yaml", "config/users.yaml"),
-        _existing_path("configs/realtime_known.yaml", "config/realtime_known.yaml"),
+        _existing_path("configs/realtime/realtime_known.yaml", "config/realtime/realtime_known.yaml"),
     ]
     client_file = _existing_path(
         f"configs/clients/{client}.yaml",
