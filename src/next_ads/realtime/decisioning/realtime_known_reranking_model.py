@@ -188,12 +188,11 @@ class NextAdsPayloadGenerator:
         """
         # Get top scores for ads for the customer
         triggers = []
-        ##TODO: SWITCH TO CMSPAGEID RATHER THAN ADID!
         combined = (
-            df.groupby(["roamingprofileid", "AtbUniqueAdID"], as_index=False)
+            df.groupby(["roamingprofileid", "AtbCMSPageID"], as_index=False)
             .max("lift_adjusted")
             .sort_values("lift_adjusted", ascending=False)
-            .rename(columns={"lift_adjusted": "t", "AtbUniqueAdID": "id"})
+            .rename(columns={"lift_adjusted": "t", "AtbCMSPageID": "id"})
         )
         triggers = combined[: self.trigger_record_limit][["t", "id"]].to_dict(
             "records"
@@ -240,12 +239,11 @@ class NextAdsPayloadGenerator:
         fragments = []
         pages = df["PageType"].unique().tolist()
         for page in pages:
-            # TODO SWAP AtbUniqueAdID to CMSPAGEID
             fragment_ids = (
                 df[df["PageType"] == page]
                 .sort_values("lift_adjusted", ascending=False)[
                     : self.fragments_record_limit
-                ]["AtbUniqueAdID"]
+                ]["AtbCMSPageID"]
                 .tolist()
             )
             fragments.append(
@@ -447,8 +445,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         Parameters
         ---------
         context: dict
-            #TODO swap these over to new naming convention
-            pagetype_filter: list, default=["ProductListingPage", "ShoppingBag"]
+            pagetype_filter: list, default=["ProductListingPage", "ShoppingBagPage"]
                 The page types we wish to deploy this on
             min_number_of_ads: int, default= 10
                 The minimium number of adverts it should return for each location
@@ -463,9 +460,8 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         )
 
         # Model Variables
-        # TODO swap these over to new naming convention
         self.pagetype_filter: list = context.get(
-            "pagetype_filter", ["ProductListingPage", "ShoppingBag"]
+            "pagetype_filter", ["ProductListingPage", "ShoppingBagPage"]
         )
         self.min_number_of_ads: int = context.get("min_number_of_ads", 10)
         self.item_feature_columns: list = [
@@ -482,7 +478,6 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         self.fragments_record_limit: int = context.get(
             "fragment_record_limit", 20
         )
-        # TODO: add Audience column in here!
         self.customer_cells_columns: list = [
             "AccountNumber",
             "roamingprofileid",
@@ -503,7 +498,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             "PageTypeIsolation",
             "specialaccountindicator",
             "AlgoDivision",
-            # "Audience",
+            "Audience",
             "IsPremium",
         ]
 
@@ -618,7 +613,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
             logger.info("No input RPID provided")
             return customer_ads
 
-        table = f"{self.table_catalog}.{self.table_schema}.next_uk_nextads_realtime_reranking_preranked_ads_sample_online"
+        table = f"{self.table_catalog}.{self.table_schema}.next_uk_nextads_realtime_reranking_preranked_ads_online"
 
         ads_qry = f"""
             SELECT

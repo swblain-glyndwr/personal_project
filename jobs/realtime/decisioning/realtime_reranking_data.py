@@ -54,6 +54,8 @@ def main(
     spark = configure_spark()
     spark.conf.set("spark.sql.shuffle.partitions", "auto")
     spark.conf.set("spark.sql.adaptive.enabled", "true")
+    spark.conf.set("spark.databricks.delta.properties.defaults.autoOptimize.optimizeWrite", "true")
+    spark.conf.set("spark.databricks.delta.properties.defaults.autoOptimize.autoCompact", "true")
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:

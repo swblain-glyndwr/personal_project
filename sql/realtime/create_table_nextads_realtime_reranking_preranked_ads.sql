@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_rerankin
         rundate)
 )
 USING DELTA
-CLUSTER BY (roamingprofileid)
-TBLPROPERTIES('delta.enableChangeDataFeed'= 'true' )
+CLUSTER BY (PageType)
+TBLPROPERTIES('delta.enableChangeDataFeed'= 'true',
+'delta.targetFileSize' = '536870912' -- Sets target file size to 512 MB for more optimised syncing to online table
+)
 ;
