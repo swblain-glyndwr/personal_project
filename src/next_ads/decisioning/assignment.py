@@ -619,16 +619,35 @@ def assign_nextgenads(
         df_cust - Filter customers (Dataframe with col: AccountNumber)
         return_ranks - Assignment ranks to return (e.g. [1] for top cluster)
     """
+    # Number the creatives per cluster on the small ads table (single digits of
+    # rows), ordered deterministically by UniqueAdID. When only one creative
+    # exists per cluster this is a no-op. When multiple creatives share the
+    # same ClusterID, a hash of AccountNumber mod n_creatives routes each
+    # customer to exactly one creative — splitting the audience roughly evenly
+    # across creatives in a stable, reproducible way (matching the xxhash64
+    # tiebreaker pattern used in best-targeting ranking).
     df_cluster2ad = (
         df_ads
         .select(
                 F.col("ClusterID").cast("int").alias("assigned_cluster_id"),
                 F.col("UniqueAdID")
             )
-        .distinct()
+        .withColumn(
+            "creative_slot",
+            F.row_number().over(
+                Window.partitionBy("assigned_cluster_id").orderBy("UniqueAdID")
+            )
+        )
+        .withColumn(
+            "n_creatives",
+            F.count("UniqueAdID").over(
+                Window.partitionBy("assigned_cluster_id")
+            )
+        )
     )
     # Cluster assignment per customer filtered to requested ranks,
-    # joined to UniqueAdID
+    # joined to UniqueAdID. The hash(AccountNumber) % n_creatives + 1
+    # expression selects one creative slot per customer deterministically.
     df_assigned_nextgenads = (
         get_spark()
         .table(customer_to_cluster_table)
@@ -638,8 +657,11 @@ def assign_nextgenads(
         .where(F.col("assignment_rank").isin(return_ranks))
         .select("AccountNumber", "assigned_cluster_id")
         .join(df_cluster2ad, on="assigned_cluster_id", how="inner")
+        .where(
+            (F.xxhash64(F.col("AccountNumber")) % F.col("n_creatives") + 1)
+            == F.col("creative_slot")
+        )
         .select("AccountNumber", "UniqueAdID")
-        .distinct()
     )
 
     return df_assigned_nextgenads
@@ -897,13 +919,32 @@ def assign_nextgenads_v2(
         f'using cluster assignments from {customer_to_cluster_table}'
     )
 
+    # Number the creatives per cluster on the small ads table, ordered
+    # deterministically by UniqueAdID. When only one creative exists per
+    # cluster this is a no-op. When multiple creatives share the same
+    # ClusterID, a hash of AccountNumber mod n_creatives routes each customer
+    # to exactly one creative at each Rank — splitting the audience roughly
+    # evenly and stably across creatives (matching the xxhash64 pattern used
+    # in best-targeting ranking). The window runs over the tiny ads table, not
+    # the customer table, so cost is negligible.
     df_cluster2ad = (
         df_ads
         .select(
             F.col('ClusterID').cast('int').alias('assigned_cluster_id'),
             F.col('UniqueAdID'),
         )
-        .distinct()
+        .withColumn(
+            'creative_slot',
+            F.row_number().over(
+                Window.partitionBy('assigned_cluster_id').orderBy('UniqueAdID')
+            )
+        )
+        .withColumn(
+            'n_creatives',
+            F.count('UniqueAdID').over(
+                Window.partitionBy('assigned_cluster_id')
+            )
+        )
     )
 
     df_assigned = (
@@ -917,8 +958,11 @@ def assign_nextgenads_v2(
             F.col('target_score').alias('TriggerScore'),
         )
         .join(df_cluster2ad, on='assigned_cluster_id', how='inner')
+        .where(
+            (F.xxhash64(F.col('AccountNumber')) % F.col('n_creatives') + 1)
+            == F.col('creative_slot')
+        )
         .select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')
-        .distinct()
     )
 
     if df_cust is not None:
