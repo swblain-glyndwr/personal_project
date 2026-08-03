@@ -53,11 +53,20 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
 
     assert job["name"] == "mktg_next_uk_nextads_theme_affinity"
     assert job["schedule"] == {
-        "quartz_cron_expression": "0 0 9 * * ?",
+        "quartz_cron_expression": "0 0 13 * * ?",
         "timezone_id": "Europe/London",
     }
+    assert job["max_concurrent_runs"] == 1
     assert job["job_clusters"] == "${var.job_clusters_config}"
     assert job["parameters"] == [
+        {
+            "name": "run_date",
+            "default": "{{job.start_time.iso_date}}",
+        },
+        {
+            "name": "input_snapshot_id",
+            "default": "same_day",
+        },
         {
             "name": "publish_source_namespace",
             "default": (
@@ -89,13 +98,33 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
 
     tasks = {task["task_key"]: task for task in job["tasks"]}
     assert set(tasks) == {
+        "prepare_provider_context",
         "predict_data_prep",
         "publish_dlt_outputs",
         "model_predict",
         "sense_check_dlt_data",
         "clean_output",
         "sense_check_model_outputs",
+        "finalize_provider_context",
     }
+    prepare_task = tasks["prepare_provider_context"]
+    assert (
+        prepare_task["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/prepare_score_provider_context.py"
+    )
+    prepare_parameters = prepare_task["spark_python_task"]["parameters"]
+    assert prepare_parameters[
+        prepare_parameters.index("--context_slot") + 1
+    ] == "theme_affinity_serving"
+    assert int(
+        prepare_parameters[
+            prepare_parameters.index("--readiness_wait_seconds") + 1
+        ]
+    ) == 5400
+    assert prepare_task["timeout_seconds"] > 5400
+    assert tasks["predict_data_prep"]["depends_on"] == [
+        {"task_key": "prepare_provider_context"}
+    ]
     assert "pipeline_task" in tasks["predict_data_prep"]
     assert (
         tasks["predict_data_prep"]["pipeline_task"]["pipeline_id"]
@@ -168,6 +197,14 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     )
     assert model_sense_check["libraries"] == "${var.theme_affinity_libraries}"
     assert "model_outputs" in model_sense_check["spark_python_task"]["parameters"]
+
+    finalizer = tasks["finalize_provider_context"]
+    assert finalizer["depends_on"] == [{"task_key": "clean_output"}]
+    assert finalizer["run_if"] == "ALL_DONE"
+    assert (
+        finalizer["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/finalize_score_provider_context.py"
+    )
 
 
 def test_theme_affinity_libraries_avoid_full_runtime_requirements():
@@ -638,7 +675,7 @@ def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
         bundle["variables"]["theme_affinity_publish_table_suffixes"]["default"]
         == (
             "ranked,complete,advanced_features,customer_features,"
-            "customer_segments,popularity_metrics"
+            "customer_segments,popularity_metrics,build_marker"
         )
     )
     assert (
@@ -732,7 +769,7 @@ def test_theme_affinity_pipeline_helpers_are_private():
     assert '@dp.table(name="spine", private=True)' in pipeline_source
 
 
-def test_theme_affinity_dlt_uses_operational_reference_date_variable():
+def test_theme_affinity_dlt_uses_the_leased_logical_run_context():
     pipeline = _load_yaml(
         "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     )
@@ -741,20 +778,25 @@ def test_theme_affinity_dlt_uses_operational_reference_date_variable():
         PROJECT_ROOT / "src/next_ads/ranking/theme_affinity/dlt_pipeline.py"
     ).read_text()
 
-    assert (
-        bundle["variables"]["theme_affinity_reference_date"]["default"]
-        == "current"
-    )
+    assert "theme_affinity_reference_date" not in bundle["variables"]
     for target in pipeline["targets"].values():
         pipeline_config = target["resources"]["pipelines"][
             "nextads_theme_affinity_predict_data_prep"
         ]
-        assert (
-            pipeline_config["configuration"]["pipeline.reference_date"]
-            == "${var.theme_affinity_reference_date}"
+        configuration = pipeline_config["configuration"]
+        assert "pipeline.reference_date" not in configuration
+        assert configuration["pipeline.context_slot"] == (
+            "theme_affinity_serving"
+        )
+        assert configuration["pipeline.context_table"].endswith(
+            ".next_uk_nextads_score_provider_run_contexts"
+        )
+        assert configuration["pipeline.item_themes_table"].endswith(
+            ".next_uk_nextads_scoring_input_item_themes"
         )
 
     assert 'REFERENCE_DATE = datetime.today().strftime("%Y-%m-%d")' not in dlt_source
+    assert "PROVIDER_CONTEXT.run_date.isoformat()" in dlt_source
     assert "pipeline.reference_date: predict" not in (
         PROJECT_ROOT / "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     ).read_text()

@@ -87,18 +87,28 @@ def build_item_attribute_catalog(
     )
 
 
-def build_recent_catalog(df_product_catalog: DataFrame, lookback_days: int) -> DataFrame:
+def build_recent_catalog(
+    df_product_catalog: DataFrame,
+    lookback_days: int,
+    reference_date=None,
+) -> DataFrame:
     """Filter product catalogue rows to the configured attribute lookback."""
+    cutoff_date = F.lit(reference_date).cast("date") if reference_date else F.current_date()
     return df_product_catalog.where(
-        F.col("end_date") > F.date_sub(F.current_date(), lookback_days)
+        F.col("end_date") > F.date_sub(cutoff_date, lookback_days)
     )
 
 
-def build_recent_basket_items(df_baskets: DataFrame, lookback_days: int) -> DataFrame:
+def build_recent_basket_items(
+    df_baskets: DataFrame,
+    lookback_days: int,
+    reference_date=None,
+) -> DataFrame:
     """Return distinct recent basket item/order pairs."""
+    cutoff_date = F.lit(reference_date).cast("date") if reference_date else F.current_date()
     return (
         df_baskets.where(
-            F.col("orderdate") > F.date_sub(F.current_date(), lookback_days)
+            F.col("orderdate") > F.date_sub(cutoff_date, lookback_days)
         )
         .withColumnRenamed("itemno", "pid")
         .select("pid", "orderid")
@@ -106,11 +116,16 @@ def build_recent_basket_items(df_baskets: DataFrame, lookback_days: int) -> Data
     )
 
 
-def count_recent_baskets(df_baskets: DataFrame, lookback_days: int) -> int:
+def count_recent_baskets(
+    df_baskets: DataFrame,
+    lookback_days: int,
+    reference_date=None,
+) -> int:
     """Count distinct recent baskets for legacy prevalence metrics."""
+    cutoff_date = F.lit(reference_date).cast("date") if reference_date else F.current_date()
     return (
         df_baskets.where(
-            F.col("orderdate") > F.date_sub(F.current_date(), lookback_days)
+            F.col("orderdate") > F.date_sub(cutoff_date, lookback_days)
         )
         .select("orderid")
         .distinct()

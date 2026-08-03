@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -78,13 +79,20 @@ def write_item_attributes_latest(
     )
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    REFRESH_ATTRIBUTES_DATE,
+    BQ_EXPORT=False,
+    RUN_DATE=None,
+):
     configure_logging(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
-    run_date = capture_run_date(spark)
+    run_date = date.fromisoformat(RUN_DATE) if RUN_DATE else capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -135,6 +143,7 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
     df_catalog_full = build_recent_catalog(
         spark.table(product_catalog),
         lookback_days,
+        reference_date=run_date,
     )
 
     logger.info("Parsing metadata into attributes")
@@ -142,7 +151,11 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, REFRESH_ATTRIBUTES_DATE, BQ_EXPORT=False):
     df_catalog.cache()
 
     logger.info(f"Fetching basket data from {baskets}")
-    df_baskets = build_recent_basket_items(spark.table(baskets), lookback_days)
+    df_baskets = build_recent_basket_items(
+        spark.table(baskets),
+        lookback_days,
+        reference_date=run_date,
+    )
     df_baskets.cache()
 
     if set_attributes:
@@ -245,6 +258,7 @@ def parse_args():
             "--refresh_attributes_date"
         ),
         "BQ_EXPORT": jobparser.has_arg("--bq") or False,
+        "RUN_DATE": jobparser.get_arg("--run_date"),
     }
 
 

@@ -136,6 +136,25 @@ ATTRIBUTE_THEME_TABLE_SPECS = (
     _snapshot("item_theme_latest", "item_themes_latest"),
 )
 
+SCORING_INPUT_SNAPSHOT_TABLE_SPECS = (
+    _snapshot("scoring_input_snapshots", "scoring_input_snapshots"),
+    _snapshot(
+        "scoring_input_snapshot_sources",
+        "scoring_input_snapshot_sources",
+    ),
+    MaintenanceTableSpec(
+        name="scoring_input_item_themes",
+        config_key="scoring_input_item_themes",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    _snapshot(
+        "scoring_input_theme_mapping_raw",
+        "scoring_input_theme_mapping_raw",
+    ),
+)
+
 LEGACY_SCORING_TABLE_SPECS = (
     _snapshot("theme_scoring_event_latest", "theme_scoring_events_latest"),
     _legacy_history("theme_transition_history", "theme_transitions"),
@@ -211,6 +230,7 @@ CONFIGURED_TABLE_SPECS = (
     *V1_CONTROL_TABLE_SPECS,
     *V2_CONTROL_TABLE_SPECS,
     *ATTRIBUTE_THEME_TABLE_SPECS,
+    *SCORING_INPUT_SNAPSHOT_TABLE_SPECS,
     *LEGACY_SCORING_TABLE_SPECS,
     *CANDIDATE_TABLE_SPECS,
     *PAYLOAD_TABLE_SPECS,

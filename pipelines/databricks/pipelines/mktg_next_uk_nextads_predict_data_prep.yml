@@ -4,9 +4,11 @@ mktg_next_uk_nextads_predict_data_prep_config: &mktg_next_uk_nextads_predict_dat
     configuration:
       pipeline.schema: ${var.theme_affinity_pipeline_schema}
       pipeline.job_env: ${var.job_parameter_environment_name}
-      pipeline.reference_date: ${var.theme_affinity_reference_date}
       pipeline.table_prefix: next_uk_nextads_theme_affinity_predict
       pipeline.sql_path: ${workspace.file_path}/src/next_ads/ranking/theme_affinity/sql
+      pipeline.context_table: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_run_contexts
+      pipeline.context_slot: theme_affinity_serving
+      pipeline.item_themes_table: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_scoring_input_item_themes
     clusters: ${var.pipeline_clusters_config}
     libraries:
       - glob:

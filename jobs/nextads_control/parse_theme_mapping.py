@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -102,13 +103,18 @@ def main(
     REFRESH_THEMES_DATE,
     THEME_RANKING_MODE=None,
     REFRESH_THEME_MAPPING=False,
+    RUN_DATE=None,
+    THEME_MAPPING_CONFIG="theme_mapping",
+    THEME_MAPPING_TABLE=None,
+    THEME_MAPPING_LANDING_ID=None,
+    THEME_MAPPING_VERSION=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
-    run_date = capture_run_date(spark)
+    run_date = date.fromisoformat(RUN_DATE) if RUN_DATE else capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -155,19 +161,57 @@ def main(
 
     webhook_url = cfg["webhooks"]["DS Warnings"]
 
+    if THEME_MAPPING_CONFIG not in {"theme_mapping", "theme_mapping_v2"}:
+        raise ValueError("Theme Mapping config must be theme_mapping or theme_mapping_v2")
+    mapping_config = cfg[THEME_MAPPING_CONFIG]
+    if THEME_MAPPING_CONFIG == "theme_mapping_v2" and not mapping_config.get(
+        "source_of_truth"
+    ):
+        raise ValueError("theme_mapping_v2 must be marked as source_of_truth")
     logger.info(
-        "Parsing theme mapping from control sheet tab: "
-        f"{cfg['theme_mapping']['sheet']}"
+        "Parsing authoritative theme mapping from control sheet tab: "
+        f"{mapping_config['sheet']}"
     )
-    df_themes = normalise_theme_mapping(
-        gcp.spark_df_from_sheets(
-            url=cfg["theme_mapping"]["url"],
-            worksheet_name=cfg["theme_mapping"]["sheet"],
+    if bool(THEME_MAPPING_TABLE) != bool(THEME_MAPPING_LANDING_ID):
+        raise ValueError(
+            "Theme Mapping table and landing ID must be supplied together"
+        )
+    if THEME_MAPPING_TABLE:
+        mapping_columns = [
+            column[0] for column in mapping_config["read_schema"]
+        ]
+        mapping_reader = spark.read
+        if THEME_MAPPING_VERSION is not None:
+            mapping_reader = mapping_reader.option(
+                "versionAsOf",
+                int(THEME_MAPPING_VERSION),
+            )
+        landed_mapping = mapping_reader.table(THEME_MAPPING_TABLE).where(
+            (F.col("LandingID") == THEME_MAPPING_LANDING_ID)
+            & (F.col("SourceRole") == "authoritative_v2")
+        )
+        invalid_landing_date = landed_mapping.where(
+            F.col("RunDate").isNull()
+            | (F.col("RunDate") != F.lit(run_date))
+        ).limit(1)
+        if invalid_landing_date.count():
+            raise ValueError(
+                "Theme Mapping landing has the wrong logical RunDate"
+            )
+        df_themes = landed_mapping.select(*mapping_columns)
+        if df_themes.limit(1).count() == 0:
+            raise ValueError(
+                f"Theme Mapping landing {THEME_MAPPING_LANDING_ID} is empty"
+            )
+    else:
+        df_themes = gcp.spark_df_from_sheets(
+            url=mapping_config["url"],
+            worksheet_name=mapping_config["sheet"],
             gcp_scope=cfg["gcp"]["scope"],
             gcp_key=cfg["gcp"]["key"],
-            schema=cfg["theme_mapping"]["read_schema"],
+            schema=mapping_config["read_schema"],
         )
-    )
+    df_themes = normalise_theme_mapping(df_themes)
 
     invalid_theme_count = df_themes.filter(
         ~valid_theme_rank_condition()
@@ -245,6 +289,17 @@ def parse_args():
         "THEME_RANKING_MODE": jobparser.get_arg("--theme-ranking-mode"),
         "REFRESH_THEME_MAPPING": parse_bool(
             jobparser.get_arg("--refresh_theme_mapping")
+        ),
+        "RUN_DATE": jobparser.get_arg("--run_date"),
+        "THEME_MAPPING_CONFIG": (
+            jobparser.get_arg("--theme_mapping_config") or "theme_mapping"
+        ),
+        "THEME_MAPPING_TABLE": jobparser.get_arg("--theme_mapping_table"),
+        "THEME_MAPPING_LANDING_ID": jobparser.get_arg(
+            "--theme_mapping_landing_id"
+        ),
+        "THEME_MAPPING_VERSION": jobparser.get_arg(
+            "--theme_mapping_version"
         ),
     }
 

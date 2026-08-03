@@ -4,7 +4,7 @@ mktg_next_uk_nextads_table_maintenance_config: &mktg_next_uk_nextads_table_maint
     queue:
       enabled: true
     schedule:
-      quartz_cron_expression: "0 0 12 * * ?"
+      quartz_cron_expression: "0 0 5 * * ?"
       timezone_id: Europe/London
     parameters:
       - name: run_date

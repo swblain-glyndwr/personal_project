@@ -120,57 +120,65 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
         "no_alert_for_skipped_runs": True,
         "no_alert_for_canceled_runs": True,
     }
-    assert job_parameters["refresh_theme_mapping"] == "false"
+    assert job["max_concurrent_runs"] == 1
+    assert job_parameters == {
+        "run_date": "{{job.start_time.iso_date}}",
+        "input_snapshot_id": "same_day",
+    }
     assert list(tasks_by_key) == [
-        "parse_attributes",
-        "validate_theme_mapping_sync",
-        "parse_theme_mapping",
+        "prepare_provider_context",
         "score_lightweight",
+        "complete_provider_context",
+        "finalize_provider_context",
     ]
-    assert "depends_on" not in tasks_by_key["parse_attributes"]
-    assert "depends_on" not in tasks_by_key["validate_theme_mapping_sync"]
-    assert tasks_by_key["parse_theme_mapping"]["depends_on"] == [
-        {"task_key": "parse_attributes"},
-        {"task_key": "validate_theme_mapping_sync"},
-    ]
+    prepare = tasks_by_key["prepare_provider_context"]
+    assert "depends_on" not in prepare
     assert (
-        tasks_by_key["parse_theme_mapping"]["spark_python_task"]["parameters"]
-    )[-2:] == [
-        "--refresh_theme_mapping",
-        "{{job.parameters.refresh_theme_mapping}}",
-    ]
+        prepare["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/prepare_score_provider_context.py"
+    )
+    prepare_parameters = prepare["spark_python_task"]["parameters"]
+    assert prepare_parameters[
+        prepare_parameters.index("--provider_id") + 1
+    ] == "markov"
+    assert prepare_parameters[
+        prepare_parameters.index("--context_slot") + 1
+    ] == "markov_scoring"
     assert tasks_by_key["score_lightweight"]["depends_on"] == [
-        {"task_key": "parse_theme_mapping"},
+        {"task_key": "prepare_provider_context"},
     ]
+    score_parameters = tasks_by_key["score_lightweight"][
+        "spark_python_task"
+    ]["parameters"]
+    assert "{{job.parameters.run_date}}" in score_parameters
     assert (
-        tasks_by_key["validate_theme_mapping_sync"]["spark_python_task"][
-            "python_file"
-        ]
-        == "../../../jobs/nextads_control/validate_theme_mapping_sync.py"
+        "{{tasks.prepare_provider_context.values.input_snapshot_id}}"
+        in score_parameters
     )
-    assert (
-        "--warn-only"
-        not in tasks_by_key["validate_theme_mapping_sync"][
-            "spark_python_task"
-        ]["parameters"]
-    )
+    assert tasks_by_key["complete_provider_context"]["depends_on"] == [
+        {"task_key": "score_lightweight"},
+    ]
+    assert tasks_by_key["finalize_provider_context"]["depends_on"] == [
+        {"task_key": "complete_provider_context"},
+    ]
+    assert tasks_by_key["finalize_provider_context"]["run_if"] == "ALL_DONE"
     assert {
         task_key: task["job_cluster_key"]
         for task_key, task in tasks_by_key.items()
     } == {
-        "parse_attributes": "next_ads_job_cluster_D16ads_v5_4_4",
-        "validate_theme_mapping_sync": "next_ads_job_cluster_D4ads_v5_1_1",
-        "parse_theme_mapping": "next_ads_job_cluster_D16ads_v5_4_4",
+        "prepare_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
         "score_lightweight": "next_ads_job_cluster_D32ads_v5_1_4",
+        "complete_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
+        "finalize_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
     }
     assert {
         task_key: task["timeout_seconds"]
         for task_key, task in tasks_by_key.items()
     } == {
-        "parse_attributes": 7200,
-        "validate_theme_mapping_sync": 1800,
-        "parse_theme_mapping": 3600,
+        "prepare_provider_context": 900,
         "score_lightweight": 18000,
+        "complete_provider_context": 900,
+        "finalize_provider_context": 900,
     }
 
 

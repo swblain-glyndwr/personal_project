@@ -13,13 +13,34 @@ from next_ads.ranking.theme_affinity.data_prep import (
     build_sql_entries,
     render_sql_file,
 )
+from next_ads.ranking.provider_context import (
+    load_active_provider_context,
+    pinned_item_themes,
+)
 
 
 SCHEMA = spark.conf.get("pipeline.schema")
 TABLE_PREFIX = spark.conf.get("pipeline.table_prefix")
-REFERENCE_DATE = spark.conf.get("pipeline.reference_date")
 SQL_PATH = spark.conf.get("pipeline.sql_path")
 JOB_ENV = spark.conf.get("pipeline.job_env", "dev")
+CONTEXT_TABLE = spark.conf.get("pipeline.context_table")
+CONTEXT_SLOT = spark.conf.get("pipeline.context_slot")
+ITEM_THEMES_TABLE = spark.conf.get("pipeline.item_themes_table")
+PROVIDER_CONTEXT = load_active_provider_context(
+    spark,
+    context_table=CONTEXT_TABLE,
+    context_slot=CONTEXT_SLOT,
+)
+REFERENCE_DATE = PROVIDER_CONTEXT.run_date.isoformat()
+PINNED_ITEM_THEMES = pinned_item_themes(
+    spark,
+    PROVIDER_CONTEXT,
+    input_table=ITEM_THEMES_TABLE,
+).select(
+    "pid",
+    "theme",
+    "theme_rank",
+)
 
 COMMON_PARAMS = build_common_params(REFERENCE_DATE, SCHEMA, TABLE_PREFIX)
 COMMON_PARAMS["sql_path"] = SQL_PATH
@@ -29,7 +50,17 @@ SQL_ENTRIES = build_sql_entries(REFERENCE_DATE, TABLE_PREFIX)
 
 def _pipeline_sql(entry):
     sql = render_sql_file(entry, COMMON_PARAMS)
-    return _qualify_prod_sources(sql)
+    sql = _qualify_prod_sources(sql)
+    sql = sql.replace(
+        "marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest",
+        "pinned_item_themes",
+    )
+    return re.sub(
+        r"\bcurrent_date\s*\(\s*\)",
+        f'date"{REFERENCE_DATE}"',
+        sql,
+        flags=re.IGNORECASE,
+    )
 
 
 def _qualify_prod_sources(sql):
@@ -61,10 +92,15 @@ def theme_mapping():
     return spark.sql(
         """
 SELECT DISTINCT *, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean
-FROM marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest
+FROM pinned_item_themes
 WHERE theme_rank = 1
 """
     )
+
+
+@dp.table(name="pinned_item_themes", private=True)
+def pinned_theme_mapping_input():
+    return PINNED_ITEM_THEMES
 
 
 @dp.table(name="spine", private=True)
@@ -75,7 +111,7 @@ WITH base AS (
   FROM marketingdata_prod.warehouse.baskets_uk_3y
   INNER JOIN (
     SELECT DISTINCT pid, theme
-    FROM marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest
+    FROM pinned_item_themes
   )
   ON pid = itemno
   WHERE order_date >= date_add(date"{reference_date}", -365)
@@ -86,7 +122,7 @@ base_filtered AS (
 ),
 0_theme_mapping AS (
   SELECT DISTINCT *, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean
-  FROM marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest
+  FROM pinned_item_themes
   WHERE theme_rank = 1
 ),
 themes AS (
@@ -157,7 +193,7 @@ for _layer in [0, 1, 2, 3, 4, 5]:
 def complete():
     predict_df = (
         spark.read.table(f"{TABLE_PREFIX}_master")
-        .filter(F.col("rundate") == F.current_date())
+        .filter(F.col("rundate") == F.lit(PROVIDER_CONTEXT.run_date))
         .distinct()
     )
     month_value = F.month(F.date_add(F.col("reference_date"), 1))
@@ -176,6 +212,31 @@ def complete():
         [
             F.col(col).cast("double") if col in decimal_cols else F.col(col)
             for col in predict_df.columns
+        ]
+    )
+
+
+@dp.table(name=f"{TABLE_PREFIX}_build_marker")
+def build_marker():
+    return spark.createDataFrame(
+        [
+            {
+                "ContextSlot": PROVIDER_CONTEXT.context_slot,
+                "OrchestrationRunID": (
+                    PROVIDER_CONTEXT.orchestration_run_id
+                ),
+                "ProviderID": PROVIDER_CONTEXT.provider_id,
+                "ProviderBuildID": PROVIDER_CONTEXT.provider_build_id,
+                "ProviderBuildAttemptID": (
+                    PROVIDER_CONTEXT.provider_build_attempt_id
+                ),
+                "InputSnapshotID": PROVIDER_CONTEXT.input_snapshot_id,
+                "RunDate": PROVIDER_CONTEXT.run_date,
+                "ModelURI": PROVIDER_CONTEXT.model_uri,
+                "InvocationChecksum": (
+                    PROVIDER_CONTEXT.invocation_checksum
+                ),
+            }
         ]
     )
 

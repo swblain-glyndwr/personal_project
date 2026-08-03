@@ -1,8 +1,33 @@
-def _ranked_theme_mapping(spark, item_themes_table: str):
-    theme_mapping = spark.sql(
-        "SELECT DISTINCT theme, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean "
-        f"FROM {item_themes_table} WHERE theme_rank = 1"
-    )
+def _ranked_theme_mapping(
+    spark,
+    item_themes_table: str,
+    *,
+    input_snapshot_id=None,
+    run_date=None,
+):
+    from pyspark.sql import functions as F
+
+    if input_snapshot_id is None:
+        theme_mapping = spark.sql(
+            "SELECT DISTINCT theme, "
+            "regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean "
+            f"FROM {item_themes_table} WHERE theme_rank = 1"
+        )
+    else:
+        source = spark.table(item_themes_table)
+        source = source.where(
+            (F.col("InputSnapshotID") == input_snapshot_id)
+            & (F.col("RunDate") == F.lit(run_date))
+        )
+        theme_mapping = (
+            source.where(F.col("theme_rank") == 1)
+            .select("theme")
+            .distinct()
+            .withColumn(
+                "theme_clean",
+                F.regexp_replace("theme", "[^a-zA-Z0-9]", ""),
+            )
+        )
     if theme_mapping.limit(1).count() == 0:
         raise ValueError(
             f"Theme mapping table {item_themes_table} has no theme_rank = 1 rows. "
@@ -102,10 +127,14 @@ def clean_model_output(spark, runtime):
         capture_run_date,
         with_run_date,
     )
+    from next_ads.ranking.theme_affinity.config import (
+        validate_provider_build_marker,
+    )
 
+    validate_provider_build_marker(spark, runtime)
     model_config = runtime.config.ranking_model
     model_tables = runtime.config.ranking_model_tables
-    run_date = capture_run_date(spark)
+    run_date = runtime.run_date or capture_run_date(spark)
     inference_timestamp = spark.sql(
         "SELECT current_timestamp() AS run_timestamp"
     ).first()["run_timestamp"]
@@ -147,7 +176,10 @@ def clean_model_output(spark, runtime):
     full_results = with_run_date(full_results, run_date)
     theme_mapping = _ranked_theme_mapping(
         spark,
-        runtime.config.tables_write.item_themes_latest,
+        runtime.item_themes_table
+        or runtime.config.tables_write.item_themes_latest,
+        input_snapshot_id=runtime.input_snapshot_id,
+        run_date=run_date,
     )
     fixed = (
         full_results.join(

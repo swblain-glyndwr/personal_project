@@ -27,6 +27,7 @@ __all__ = [
     "validate_target_columns",
     "validate_replace_source_scope",
     "validate_unique_non_null_keys",
+    "quote_qualified_identifier",
 ]
 
 

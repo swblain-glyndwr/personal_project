@@ -77,7 +77,11 @@ def run_prediction(spark, runtime):
     import mlflow
     from pyspark.sql import functions as F
     from next_ads.common.snapshot_writes import replace_validated_snapshot
+    from next_ads.ranking.theme_affinity.config import (
+        validate_provider_build_marker,
+    )
 
+    validate_provider_build_marker(spark, runtime)
     _configure_mlflow_for_model_uri(mlflow, runtime.model_uri)
     model_config = runtime.config.ranking_model
     model_tables = runtime.config.ranking_model_tables
@@ -88,6 +92,7 @@ def run_prediction(spark, runtime):
 
     predict_input = (
         spark.table(model_tables.predict_input_table)
+        .filter(F.col("rundate") == F.lit(runtime.run_date))
         .filter(F.col("simple_rules_rank") <= rank_threshold)
         .select(*prediction_input_cols)
         .withColumnRenamed("theme_clean", "theme")

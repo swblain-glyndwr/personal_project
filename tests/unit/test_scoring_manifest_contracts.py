@@ -39,6 +39,9 @@ COMPLETED_AT = datetime(2026, 7, 30, 16, 0, tzinfo=timezone.utc)
 TABLE_REFS = (
     "scoring_input_snapshots",
     "scoring_input_snapshot_sources",
+    "scoring_input_item_themes",
+    "scoring_input_theme_mapping_raw",
+    "score_provider_run_contexts",
     "score_provider_builds",
     "score_provider_signals",
     "scoring_portfolios",

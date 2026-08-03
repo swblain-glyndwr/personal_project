@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from next_ads.common import config_manager
@@ -14,6 +15,12 @@ class ThemeAffinityRuntime:
     model_uri: str
     project_root: Path
     sql_path: Path
+    run_date: date | None = None
+    input_snapshot_id: str | None = None
+    provider_build_id: str | None = None
+    provider_build_attempt_id: str | None = None
+    item_themes_table: str | None = None
+    context_slot: str | None = None
 
 
 def _project_root() -> Path:
@@ -27,6 +34,12 @@ def resolve_runtime(
     job_env: str,
     client: str,
     model_uri: str | None = None,
+    run_date: date | None = None,
+    input_snapshot_id: str | None = None,
+    provider_build_id: str | None = None,
+    provider_build_attempt_id: str | None = None,
+    item_themes_table: str | None = None,
+    context_slot: str | None = None,
 ) -> ThemeAffinityRuntime:
     config = config_manager.load_config(job_env, client=client)
     project_root = _project_root()
@@ -51,4 +64,99 @@ def resolve_runtime(
         model_uri=resolved_model_uri,
         project_root=project_root,
         sql_path=sql_path,
+        run_date=run_date,
+        input_snapshot_id=input_snapshot_id,
+        provider_build_id=provider_build_id,
+        provider_build_attempt_id=provider_build_attempt_id,
+        item_themes_table=item_themes_table,
+        context_slot=context_slot,
+    )
+
+
+def validate_provider_build_marker(spark, runtime: ThemeAffinityRuntime) -> None:
+    required = (
+        runtime.run_date,
+        runtime.input_snapshot_id,
+        runtime.provider_build_id,
+        runtime.provider_build_attempt_id,
+        runtime.context_slot,
+    )
+    if any(value is None for value in required):
+        raise ValueError("Theme Affinity provider context is incomplete")
+    rows = spark.table(runtime.config.ranking_model_tables.build_marker).collect()
+    if len(rows) != 1:
+        raise ValueError(
+            f"Expected one Theme Affinity build marker, found {len(rows)}"
+        )
+    row = rows[0]
+    expected = {
+        "ContextSlot": runtime.context_slot,
+        "ProviderBuildID": runtime.provider_build_id,
+        "ProviderBuildAttemptID": runtime.provider_build_attempt_id,
+        "InputSnapshotID": runtime.input_snapshot_id,
+        "RunDate": runtime.run_date,
+        "ModelURI": runtime.model_uri,
+    }
+    mismatched = [
+        field for field, value in expected.items() if row[field] != value
+    ]
+    if mismatched:
+        raise ValueError(
+            "Theme Affinity build marker does not match provider context: "
+            + ", ".join(mismatched)
+        )
+
+
+def resolve_context_runtime(
+    spark,
+    *,
+    job_env: str,
+    client: str,
+    context_slot: str,
+    expected_run_date: str,
+    expected_input_snapshot_id: str,
+    expected_provider_build_id: str,
+    expected_provider_build_attempt_id: str,
+) -> tuple[ThemeAffinityRuntime, object]:
+    from datetime import date
+
+    from next_ads.ranking.provider_context import (
+        load_active_provider_context,
+    )
+
+    config = config_manager.load_config(job_env, client=client)
+    context = load_active_provider_context(
+        spark,
+        context_table=config.tables_write.score_provider_run_contexts,
+        context_slot=context_slot,
+    )
+    expected = {
+        "run_date": date.fromisoformat(expected_run_date),
+        "input_snapshot_id": expected_input_snapshot_id,
+        "provider_build_id": expected_provider_build_id,
+        "provider_build_attempt_id": expected_provider_build_attempt_id,
+    }
+    mismatched = [
+        field
+        for field, value in expected.items()
+        if getattr(context, field) != value
+    ]
+    if mismatched:
+        raise ValueError(
+            "Active provider context does not match task parameters: "
+            + ", ".join(mismatched)
+        )
+    return (
+        resolve_runtime(
+            job_env,
+            client,
+            model_uri=context.model_uri,
+            run_date=context.run_date,
+            input_snapshot_id=context.input_snapshot_id,
+            provider_build_id=context.provider_build_id,
+            provider_build_attempt_id=context.provider_build_attempt_id,
+            item_themes_table=config.tables_write.scoring_input_item_themes,
+            context_slot=context.context_slot,
+        ),
+        context,
     )

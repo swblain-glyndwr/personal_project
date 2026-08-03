@@ -15,6 +15,7 @@ from next_ads.decisioning.table_maintenance import (
     ASSIGNMENT_TABLE_SPECS,
     CONFIGURED_TABLE_SPECS,
     PLP_HISTORY_SPEC,
+    SCORING_INPUT_SNAPSHOT_TABLE_SPECS,
     VACUUM_RETENTION_HOURS,
     build_maintenance_plan,
     execute_maintenance_plan,
@@ -58,6 +59,10 @@ EXPECTED_CONFIG_KEYS = {
     "theme_mapping_latest",
     "item_themes",
     "item_themes_latest",
+    "scoring_input_snapshots",
+    "scoring_input_snapshot_sources",
+    "scoring_input_item_themes",
+    "scoring_input_theme_mapping_raw",
     "theme_scoring_events_latest",
     "theme_transitions",
     "theme_transitions_latest",
@@ -158,8 +163,8 @@ def test_allowlist_covers_every_migrated_active_output_contract():
     assert {spec.config_key for spec in CONFIGURED_TABLE_SPECS} == (
         EXPECTED_CONFIG_KEYS
     )
-    assert len(resolved) == 47
-    assert len({table.table for table in resolved}) == 47
+    assert len(resolved) == 51
+    assert len({table.table for table in resolved}) == 51
     assert {table.spec.name for table in resolved}.issuperset(
         {spec.name for spec in ASSIGNMENT_TABLE_SPECS}
     )
@@ -174,7 +179,7 @@ def test_actual_next_uk_config_resolves_only_repo_owned_tables(monkeypatch):
 
     resolved = resolve_maintenance_tables(config)
 
-    assert len(resolved) == 47
+    assert len(resolved) == 51
     assert all(
         table.table.startswith("marketingdata_dev.maintenance_test.")
         for table in resolved
@@ -259,6 +264,7 @@ def test_daily_plan_preserves_latest_and_applies_exact_retention_contracts():
         "v1_assignment_staging",
         "v2_assignment_staging",
         "assignment_build_events",
+        "scoring_input_item_themes",
         "plp_gs_history",
     }
     assert {statement.operation for statement in statements} == {"retention"}
@@ -291,6 +297,10 @@ def test_daily_plan_preserves_latest_and_applies_exact_retention_contracts():
     assert (
         "DELETE FROM `catalog`.`schema`.`assignment_build_events`\n"
         "WHERE `BuildDate` <= date_sub(DATE '2026-07-27', 7)"
+    ) in sql
+    assert (
+        "DELETE FROM `catalog`.`schema`.`scoring_input_item_themes`\n"
+        "WHERE `RunDate` <= date_sub(DATE '2026-07-27', 35)"
     ) in sql
     assert (
         "DELETE FROM `catalog`.`schema`.`plp_history`\n"
@@ -339,6 +349,47 @@ def test_legacy_and_new_retention_boundaries_are_not_conflated():
     ) == (365, "<=")
 
 
+def test_scoring_input_manifests_are_preserved_and_large_snapshot_is_bounded():
+    assert {
+        spec.config_key for spec in SCORING_INPUT_SNAPSHOT_TABLE_SPECS
+    } == {
+        "scoring_input_snapshots",
+        "scoring_input_snapshot_sources",
+        "scoring_input_item_themes",
+        "scoring_input_theme_mapping_raw",
+    }
+    specs = {
+        spec.config_key: spec
+        for spec in SCORING_INPUT_SNAPSHOT_TABLE_SPECS
+    }
+    assert all(
+        (
+            spec.retention_days,
+            spec.retention_column,
+            spec.retention_comparison,
+        )
+        == (None, None, None)
+        for key, spec in specs.items()
+        if key != "scoring_input_item_themes"
+    )
+    assert (
+        specs["scoring_input_item_themes"].retention_days,
+        specs["scoring_input_item_themes"].retention_column,
+        specs["scoring_input_item_themes"].retention_comparison,
+    ) == (35, "RunDate", "<=")
+
+    daily_statements = build_maintenance_plan(
+        _config(),
+        date(2026, 7, 27),
+    )
+    snapshot_statements = {
+        statement.table_name for statement in daily_statements
+    }.intersection(
+        {spec.name for spec in SCORING_INPUT_SNAPSHOT_TABLE_SPECS}
+    )
+    assert snapshot_statements == {"scoring_input_item_themes"}
+
+
 def test_assignment_cutoff_keeps_exactly_731_calendar_dates():
     run_date = date(2026, 7, 27)
     cutoff = run_date - timedelta(days=731)
@@ -368,8 +419,8 @@ def test_weekly_plan_optimizes_and_safely_vacuums_every_allowlisted_table():
     ]
 
     assert is_weekly_maintenance_day(run_date)
-    assert len(optimize) == 47
-    assert len(vacuum) == 47
+    assert len(optimize) == 51
+    assert len(vacuum) == 51
     assert {statement.table_name for statement in optimize} == {
         table.spec.name for table in resolve_maintenance_tables(_config())
     }
@@ -499,12 +550,12 @@ def test_entrypoint_requires_logical_date_and_exposes_no_table_override():
         )
 
 
-def test_maintenance_job_is_independent_and_runs_at_noon_london_time():
+def test_maintenance_job_is_independent_and_runs_at_0500_london_time():
     job = load_job(JOB_RESOURCE, JOB_KEY)
 
     assert job["name"] == "mktg_next_uk_nextads_table_maintenance"
     assert job["schedule"] == {
-        "quartz_cron_expression": "0 0 12 * * ?",
+        "quartz_cron_expression": "0 0 5 * * ?",
         "timezone_id": "Europe/London",
     }
     assert job["parameters"] == [

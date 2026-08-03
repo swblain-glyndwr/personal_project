@@ -6,6 +6,7 @@ bundle:
   name: next-ads
 
 include:
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_inputs.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml
@@ -77,15 +78,12 @@ variables:
   theme_affinity_model_uri:
     description: MLflow model URI used by the Theme Affinity prediction task
     default: models:/marketingdata_prod.ds_sandbox.nextads_hackathon_model/1
-  theme_affinity_reference_date:
-    description: Reference date for Theme Affinity data prep. Use current for the operational daily run, or YYYY-MM-DD for an explicit backfill date.
-    default: current
   theme_affinity_pipeline_schema:
     description: Schema used by the Theme Affinity Lakeflow pipeline outputs before optional warehouse publication
     default: ${var.user_schema}
   theme_affinity_publish_table_suffixes:
     description: Comma-separated Theme Affinity Lakeflow output suffixes to publish as normal Delta tables
-    default: ranked,complete,advanced_features,customer_features,customer_segments,popularity_metrics
+    default: ranked,complete,advanced_features,customer_features,customer_segments,popularity_metrics,build_marker
   deploy_timestamp:
     description: Deployment timestamp
     default: "unknown"

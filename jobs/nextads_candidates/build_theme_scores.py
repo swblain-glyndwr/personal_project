@@ -48,6 +48,10 @@ from next_ads.ranking.theme_score_generation import (
     select_global_top_themes,
     select_latest_view_themes,
 )
+from next_ads.ranking.provider_context import (
+    load_active_provider_context,
+    pinned_item_themes,
+)
 
 from next_ads.reporting.plotting import DirectedGraphPlotter
 
@@ -62,6 +66,12 @@ def main(
     PLOT_GRAPH=False,
     MIN_EDGE_WEIGHT=0.03,
     MIN_NODE_WEIGHT=1000,
+    RUN_DATE=None,
+    INPUT_SNAPSHOT_ID=None,
+    PROVIDER_BUILD_ID=None,
+    PROVIDER_BUILD_ATTEMPT_ID=None,
+    CONTEXT_SLOT=None,
+    ORCHESTRATION_RUN_ID=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -70,7 +80,11 @@ def main(
     spark = configure_spark()
     spark.conf.set("spark.sql.shuffle.partitions", "auto")
     spark.conf.set("spark.sql.adaptive.enabled", "true")
-    run_date = capture_run_date(spark)
+    run_date = (
+        date.fromisoformat(RUN_DATE)
+        if RUN_DATE
+        else capture_run_date(spark)
+    )
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -84,6 +98,48 @@ def main(
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
+
+    provider_context_values = (
+        INPUT_SNAPSHOT_ID,
+        PROVIDER_BUILD_ID,
+        PROVIDER_BUILD_ATTEMPT_ID,
+        CONTEXT_SLOT,
+        ORCHESTRATION_RUN_ID,
+    )
+    if any(provider_context_values) and not all(provider_context_values):
+        raise ValueError(
+            "Pinned Markov scoring requires the complete provider context"
+        )
+    provider_context = None
+    if all(provider_context_values):
+        provider_context = load_active_provider_context(
+            spark,
+            context_table=config.tables_write.score_provider_run_contexts,
+            context_slot=CONTEXT_SLOT,
+        )
+        expected_context = {
+            "provider_id": "markov",
+            "provider_build_id": PROVIDER_BUILD_ID,
+            "provider_build_attempt_id": PROVIDER_BUILD_ATTEMPT_ID,
+            "input_snapshot_id": INPUT_SNAPSHOT_ID,
+            "run_date": run_date,
+            "orchestration_run_id": int(ORCHESTRATION_RUN_ID),
+        }
+        mismatched = [
+            field
+            for field, expected in expected_context.items()
+            if getattr(provider_context, field) != expected
+        ]
+        if mismatched:
+            raise ValueError(
+                "Markov provider context does not match this scorer: "
+                + ", ".join(mismatched)
+            )
+        logger.info(
+            "Using provider build %s with pinned input %s",
+            PROVIDER_BUILD_ID,
+            INPUT_SNAPSHOT_ID,
+        )
 
     PRODUCT_CATALOG = cfg["tables"]["read"]["product_catalog"]
     BASKETS = cfg["tables"]["read"]["baskets"]
@@ -106,7 +162,14 @@ def main(
         "schema": SCHEMA,
         "client": CLIENT,
     }
-    ITEM_THEMES = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
+    ITEM_THEMES = etl.map_tbl(
+        (
+            tbls["scoring_input_item_themes"]
+            if INPUT_SNAPSHOT_ID
+            else tbls["item_themes_latest"]
+        ),
+        **tbl_args,
+    )
     THEME_TRANSITIONS_LATEST = etl.map_tbl(
         tbls["theme_transitions_latest"], **tbl_args
     )  # noqa
@@ -138,8 +201,17 @@ def main(
         .where(F.col("modified_rank") == 1)
         .select("pid", "title")
     )
+    item_themes_source = (
+        pinned_item_themes(
+            spark,
+            provider_context,
+            input_table=ITEM_THEMES,
+        )
+        if provider_context is not None
+        else spark.table(ITEM_THEMES)
+    )
     item_themes = (
-        spark.table(ITEM_THEMES)
+        item_themes_source
         .where(F.col("theme_rank") == 1)
         .select("pid", "theme")
         .distinct()
@@ -569,4 +641,14 @@ if __name__ == "__main__":
         PLOT_GRAPH=jobparser.has_arg("--plot-graph"),
         MIN_EDGE_WEIGHT=jobparser.get_arg("--min-edge-weight") or 0.03,
         MIN_NODE_WEIGHT=jobparser.get_arg("--min-node-weight") or 1000,
+        RUN_DATE=jobparser.get_arg("--run_date"),
+        INPUT_SNAPSHOT_ID=jobparser.get_arg("--input_snapshot_id"),
+        PROVIDER_BUILD_ID=jobparser.get_arg("--provider_build_id"),
+        PROVIDER_BUILD_ATTEMPT_ID=jobparser.get_arg(
+            "--provider_build_attempt_id"
+        ),
+        CONTEXT_SLOT=jobparser.get_arg("--context_slot"),
+        ORCHESTRATION_RUN_ID=jobparser.get_arg(
+            "--orchestration_run_id"
+        ),
     )

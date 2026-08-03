@@ -1,0 +1,286 @@
+import json
+import sys
+import time
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+try:
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+except NameError:
+    from dsutils.dbc import get_dbutils
+
+    notebook_path = (
+        get_dbutils()
+        .notebook.entry_point.getDbutils()
+        .notebook()
+        .getContext()
+        .notebookPath()
+        .get()
+    )
+    if not notebook_path.startswith("/Workspace"):
+        notebook_path = "/Workspace" + notebook_path
+    PROJECT_ROOT = Path(notebook_path).parents[2]
+finally:
+    SRC_ROOT = PROJECT_ROOT / "src"
+    if SRC_ROOT.exists():
+        sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
+
+from pyspark.sql import Window
+from pyspark.sql import functions as F
+
+from dsutils.argparser import get_job_parser
+from dsutils.dbc import configure_spark, get_dbutils
+from dsutils.logtools import configure_logging, get_logger
+
+from next_ads.common import config_manager
+from next_ads.ranking.provider_context import (
+    ProviderContext,
+    activate_provider_context,
+    build_provider_build_id,
+    build_provider_invocation_checksum,
+    pinned_item_themes,
+)
+
+
+def _as_dict(value):
+    return value.to_dict() if hasattr(value, "to_dict") else dict(value)
+
+
+EXPECTED_SOURCES = {
+    "authoritative_v2_theme_mapping": (
+        "authoritative_theme_mapping",
+        True,
+    ),
+    "copied_v1_theme_mapping": ("compatibility_theme_mapping", False),
+    "theme_mapping": ("authoritative_theme_mapping", True),
+    "item_attributes": ("item_attributes", True),
+    "item_themes": ("derived_item_themes", True),
+}
+
+
+def _select_snapshot_id(
+    spark,
+    table,
+    sources_table,
+    run_date,
+    requested,
+):
+    candidates = spark.table(table).where(
+        (F.col("RunDate") == F.lit(run_date))
+        & F.col("Status").isin("READY", "READY_WITH_WARNINGS")
+    )
+    if requested and requested != "same_day":
+        candidates = candidates.where(F.col("InputSnapshotID") == requested)
+    window = Window.partitionBy("InputSnapshotID").orderBy(
+        F.col("ExecutionCount").desc(),
+        F.col("CompletedAt").desc(),
+        F.col("TaskRunID").desc(),
+    )
+    contradictory = (
+        candidates.groupBy(
+            "InputSnapshotID",
+            "ExecutionCount",
+            "CompletedAt",
+            "TaskRunID",
+        )
+        .count()
+        .where(F.col("count") > 1)
+        .limit(1)
+        .count()
+    )
+    if contradictory:
+        raise ValueError("Contradictory scoring input attempts found")
+    selected = (
+        candidates.withColumn("_attempt_rank", F.row_number().over(window))
+        .where(F.col("_attempt_rank") == 1)
+        .orderBy(F.col("CompletedAt").desc(), F.col("InputSnapshotID"))
+        .select(
+            "InputSnapshotID",
+            "InputSnapshotAttemptID",
+            "SourceCount",
+        )
+        .limit(2)
+        .collect()
+    )
+    if not selected:
+        raise ValueError(f"No accepted scoring input snapshot for {run_date}")
+    if requested not in {None, "", "same_day"} and len(selected) != 1:
+        raise ValueError(f"Input snapshot {requested} is contradictory")
+    winner = selected[0]
+    if int(winner["SourceCount"]) != len(EXPECTED_SOURCES):
+        raise ValueError("Accepted scoring input source count is incomplete")
+    source_rows = (
+        spark.table(sources_table)
+        .where(
+            F.col("InputSnapshotAttemptID")
+            == winner["InputSnapshotAttemptID"]
+        )
+        .select("SourceName", "SourceRole", "IsRequired")
+        .collect()
+    )
+    observed = {
+        row["SourceName"]: (row["SourceRole"], bool(row["IsRequired"]))
+        for row in source_rows
+    }
+    if len(source_rows) != len(observed) or observed != EXPECTED_SOURCES:
+        raise ValueError("Accepted scoring input source contract is incomplete")
+    return winner["InputSnapshotID"]
+
+
+def _wait_for_snapshot_id(
+    spark,
+    *,
+    table,
+    sources_table,
+    run_date,
+    requested,
+    wait_seconds,
+    poll_seconds,
+):
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            return _select_snapshot_id(
+                spark,
+                table,
+                sources_table,
+                run_date,
+                requested,
+            )
+        except ValueError as error:
+            if "No accepted scoring input snapshot" not in str(error):
+                raise
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(min(poll_seconds, max(0, deadline - time.monotonic())))
+
+
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    RUN_DATE,
+    INPUT_SNAPSHOT_ID,
+    MODEL_URI,
+    CONTEXT_SLOT,
+    TASK_RUN_ID,
+    EXECUTION_COUNT,
+    READINESS_WAIT_SECONDS,
+    READINESS_POLL_SECONDS,
+    PROVIDER_ID="theme_affinity",
+    USE_CASE="theme_ranking",
+    ORCHESTRATION_RUN_ID=None,
+):
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
+    logger = get_logger(__name__)
+    spark = configure_spark()
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
+    run_date = date.fromisoformat(RUN_DATE)
+    task_run_id = int(TASK_RUN_ID)
+    execution_count = int(EXECUTION_COUNT)
+    provider = config.scoring.providers[PROVIDER_ID]
+    invocation_checksum = build_provider_invocation_checksum(
+        provider_id=PROVIDER_ID,
+        provider_config=_as_dict(provider),
+        ranking_model_config=(
+            _as_dict(config.ranking_model)
+            if PROVIDER_ID == "theme_affinity"
+            else None
+        ),
+    )
+    input_snapshot_id = _wait_for_snapshot_id(
+        spark,
+        table=config.tables_write.scoring_input_snapshots,
+        sources_table=config.tables_write.scoring_input_snapshot_sources,
+        run_date=run_date,
+        requested=INPUT_SNAPSHOT_ID,
+        wait_seconds=int(READINESS_WAIT_SECONDS),
+        poll_seconds=int(READINESS_POLL_SECONDS),
+    )
+    provider_build_id = build_provider_build_id(
+        provider_id=provider.provider_id,
+        provider_version=provider.provider_version,
+        input_snapshot_id=input_snapshot_id,
+        model_uri=MODEL_URI,
+        invocation_checksum=invocation_checksum,
+        run_date=run_date,
+    )
+    provider_build_attempt_id = (
+        f"{provider_build_id}:{task_run_id}:{execution_count}"
+    )
+    activated_at = datetime.now(timezone.utc)
+    context = ProviderContext(
+        context_slot=CONTEXT_SLOT,
+        orchestration_run_id=int(ORCHESTRATION_RUN_ID),
+        provider_id=provider.provider_id,
+        provider_build_id=provider_build_id,
+        provider_build_attempt_id=provider_build_attempt_id,
+        input_snapshot_id=input_snapshot_id,
+        run_date=run_date,
+        model_uri=MODEL_URI,
+        bindings_json=json.dumps(
+            {
+                "item_themes": {
+                    "table": config.tables_write.scoring_input_item_themes,
+                    "input_snapshot_id": input_snapshot_id,
+                    "run_date": run_date.isoformat(),
+                }
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        capability=provider.capability,
+        use_case=USE_CASE,
+        invocation_checksum=invocation_checksum,
+        expires_at=activated_at + timedelta(hours=8),
+    )
+    task_values = get_dbutils().jobs.taskValues
+    task_values.set(key="input_snapshot_id", value=input_snapshot_id)
+    task_values.set(key="provider_build_id", value=provider_build_id)
+    task_values.set(
+        key="provider_build_attempt_id",
+        value=provider_build_attempt_id,
+    )
+    pinned_item_themes(
+        spark,
+        context,
+        input_table=config.tables_write.scoring_input_item_themes,
+    )
+    activate_provider_context(
+        spark,
+        context_table=config.tables_write.score_provider_run_contexts,
+        context=context,
+        task_run_id=task_run_id,
+        execution_count=execution_count,
+        activated_at=activated_at,
+    )
+    logger.info(
+        "Activated %s for provider build %s and input %s",
+        CONTEXT_SLOT,
+        provider_build_id,
+        input_snapshot_id,
+    )
+
+
+if __name__ == "__main__":
+    parser = get_job_parser()
+    parser._parse_args()
+    main(
+        parser.get_arg("--job_env"),
+        parser.get_arg("--client") or "next_uk",
+        parser.get_arg("--log_level"),
+        parser.get_arg("--run_date"),
+        parser.get_arg("--input_snapshot_id"),
+        parser.get_arg("--model_uri"),
+        parser.get_arg("--context_slot"),
+        parser.get_arg("--task_run_id"),
+        parser.get_arg("--execution_count"),
+        parser.get_arg("--readiness_wait_seconds") or "1800",
+        parser.get_arg("--readiness_poll_seconds") or "60",
+        parser.get_arg("--provider_id") or "theme_affinity",
+        parser.get_arg("--use_case") or "theme_ranking",
+        parser.get_arg("--orchestration_run_id"),
+    )
