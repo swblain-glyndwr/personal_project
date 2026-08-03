@@ -13,6 +13,7 @@ from jobs.table_operations.table_maintenance import (
 from next_ads.common.config_manager import load_config
 from next_ads.decisioning.table_maintenance import (
     ASSIGNMENT_TABLE_SPECS,
+    CANDIDATE_FOUNDATION_TABLE_SPECS,
     CONFIGURED_TABLE_SPECS,
     PLP_HISTORY_SPEC,
     SCORING_FOUNDATION_TABLE_SPECS,
@@ -68,6 +69,10 @@ EXPECTED_CONFIG_KEYS = {
     "scoring_foundation_builds",
     "scoring_foundation_outputs",
     "scoring_foundation_run_contexts",
+    "candidate_foundation_builds",
+    "candidate_foundation_sources",
+    "candidate_repeat_ad_exposure",
+    "candidate_ad_feedback",
     "score_provider_builds",
     "score_provider_signals",
     "score_provider_run_contexts",
@@ -171,8 +176,8 @@ def test_allowlist_covers_every_migrated_active_output_contract():
     assert {spec.config_key for spec in CONFIGURED_TABLE_SPECS} == (
         EXPECTED_CONFIG_KEYS
     )
-    assert len(resolved) == 57
-    assert len({table.table for table in resolved}) == 57
+    assert len(resolved) == 61
+    assert len({table.table for table in resolved}) == 61
     assert {table.spec.name for table in resolved}.issuperset(
         {spec.name for spec in ASSIGNMENT_TABLE_SPECS}
     )
@@ -187,7 +192,7 @@ def test_actual_next_uk_config_resolves_only_repo_owned_tables(monkeypatch):
 
     resolved = resolve_maintenance_tables(config)
 
-    assert len(resolved) == 57
+    assert len(resolved) == 61
     assert all(
         table.table.startswith("marketingdata_dev.maintenance_test.")
         for table in resolved
@@ -275,6 +280,10 @@ def test_daily_plan_preserves_latest_and_applies_exact_retention_contracts():
         "scoring_input_item_themes",
         "scoring_foundation_builds",
         "scoring_foundation_outputs",
+        "candidate_foundation_builds",
+        "candidate_foundation_sources",
+        "candidate_repeat_ad_exposure",
+        "candidate_ad_feedback",
         "score_provider_builds",
         "score_provider_signals",
         "plp_gs_history",
@@ -312,6 +321,10 @@ def test_daily_plan_preserves_latest_and_applies_exact_retention_contracts():
     ) in sql
     assert (
         "DELETE FROM `catalog`.`schema`.`scoring_input_item_themes`\n"
+        "WHERE `RunDate` <= date_sub(DATE '2026-07-27', 35)"
+    ) in sql
+    assert (
+        "DELETE FROM `catalog`.`schema`.`candidate_foundation_builds`\n"
         "WHERE `RunDate` <= date_sub(DATE '2026-07-27', 35)"
     ) in sql
     assert (
@@ -432,6 +445,39 @@ def test_foundation_manifests_are_bounded_but_active_context_is_preserved():
     }
 
 
+def test_candidate_foundation_outputs_share_the_35_day_retention_contract():
+    assert {
+        spec.config_key for spec in CANDIDATE_FOUNDATION_TABLE_SPECS
+    } == {
+        "candidate_foundation_builds",
+        "candidate_foundation_sources",
+        "candidate_repeat_ad_exposure",
+        "candidate_ad_feedback",
+    }
+    assert all(
+        (
+            spec.retention_days,
+            spec.retention_column,
+            spec.retention_comparison,
+        )
+        == (35, "RunDate", "<=")
+        for spec in CANDIDATE_FOUNDATION_TABLE_SPECS
+    )
+
+    statements = build_maintenance_plan(_config(), date(2026, 7, 27))
+    candidate_foundation_retention = {
+        statement.table_name
+        for statement in statements
+        if statement.table_name.startswith("candidate_")
+    }
+    assert candidate_foundation_retention == {
+        "candidate_foundation_builds",
+        "candidate_foundation_sources",
+        "candidate_repeat_ad_exposure",
+        "candidate_ad_feedback",
+    }
+
+
 def test_provider_manifests_are_bounded_but_active_context_is_preserved():
     specs = {
         spec.config_key: spec for spec in SCORING_PROVIDER_TABLE_SPECS
@@ -491,8 +537,8 @@ def test_weekly_plan_optimizes_and_safely_vacuums_every_allowlisted_table():
     ]
 
     assert is_weekly_maintenance_day(run_date)
-    assert len(optimize) == 57
-    assert len(vacuum) == 57
+    assert len(optimize) == 61
+    assert len(vacuum) == 61
     assert {statement.table_name for statement in optimize} == {
         table.spec.name for table in resolve_maintenance_tables(_config())
     }

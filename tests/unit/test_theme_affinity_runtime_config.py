@@ -359,6 +359,60 @@ def test_theme_affinity_reference_date_uses_current_operational_mode():
     assert len(params["reference_date"].split("-")) == 3
 
 
+def test_theme_affinity_accepts_explicit_current_operational_date():
+    current_date = datetime.today().strftime("%Y-%m-%d")
+
+    params = build_common_params(
+        current_date,
+        "schema",
+        "prefix",
+        operational=True,
+    )
+
+    assert params["reference_date"] == current_date
+
+
+def test_theme_affinity_operational_date_allows_repair_after_midnight():
+    previous_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    common = build_common_params(
+        previous_date,
+        "schema",
+        "prefix",
+        operational=True,
+    )
+    entries = build_sql_entries(
+        previous_date,
+        "prefix",
+        operational=True,
+    )
+
+    assert common["reference_date"] == previous_date
+    atbs_entry = next(
+        entry for entry in entries[0] if entry["file"] == "0_atbs.sql"
+    )
+    assert atbs_entry["params"]["end_date_atbs"] == previous_date
+
+
+def test_theme_affinity_historical_mode_rejects_recent_iso_date():
+    previous_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    with pytest.raises(ValueError, match="at least 28 days"):
+        build_common_params(previous_date, "schema", "prefix")
+
+
+def test_theme_affinity_operational_mode_rejects_future_date():
+    future_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    with pytest.raises(ValueError, match="cannot be in the future"):
+        build_common_params(
+            future_date,
+            "schema",
+            "prefix",
+            operational=True,
+        )
+
+
 def test_theme_affinity_reference_date_rejects_old_widget_sentinel():
     with pytest.raises(ValueError):
         build_common_params("predict", "schema", "prefix")

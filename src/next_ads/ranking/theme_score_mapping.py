@@ -1,6 +1,7 @@
 from datetime import date
 
 from dsutils.logtools import get_logger
+from next_ads.candidates.foundation import CandidateFoundationInputs
 from next_ads.common.snapshot_writes import (
     publish_history_and_latest,
     replace_validated_snapshot,
@@ -12,6 +13,7 @@ from next_ads.ranking.theme_score_eligibility import (
     apply_greedy_theme_assignment,
     assert_eligible_groups,
     load_customer_age_preferences,
+    select_feedback_scaling_population,
 )
 from next_ads.ranking.theme_score_ranking import (
     apply_multi_session_downweighting,
@@ -24,6 +26,7 @@ from next_ads.ranking.theme_score_retrieval import (
     build_ad_group_mappings,
     build_theme_to_ad_mapping,
     load_control_ads,
+    customer_base_from_cells,
     load_customer_base,
     load_provider_theme_scores,
 )
@@ -50,6 +53,7 @@ def run_theme_score_mapping(
     output_grain: str = "location",
     top_ads_per_group: int | None = None,
     write_score_components: bool = True,
+    foundation_inputs: CandidateFoundationInputs | None = None,
     logger=None,
 ):
     logger = logger or get_logger(__name__)
@@ -134,6 +138,11 @@ def run_theme_score_mapping(
 
     logger.info(f"Getting theme to ad mappings from {control_sheet_latest}")
     df_ads = load_control_ads(spark, control_sheet_latest)
+    # Feedback scaling historically uses every active advert in the route.
+    # Keep that population separate from the theme/AudienceOnly/AutoTrading
+    # eligibility filters so moving the calculation earlier cannot alter all
+    # remaining adverts' relative multipliers.
+    df_feedback_scaling_ads = select_feedback_scaling_population(df_ads)
     df_ads = apply_auto_trading_filter(
         df_ads,
         auto_trading_switch,
@@ -141,8 +150,18 @@ def run_theme_score_mapping(
     )
     df_theme2ad = build_theme_to_ad_mapping(df_ads)
 
-    logger.info(f"Getting customer base from {customer_cells_latest}")
-    df_cust = load_customer_base(spark, customer_cells_latest)
+    if foundation_inputs is None:
+        logger.info(f"Getting customer base from {customer_cells_latest}")
+        df_cust = load_customer_base(spark, customer_cells_latest)
+    else:
+        logger.info(
+            "Using pinned candidate foundation %s from %s",
+            foundation_inputs.snapshot_id,
+            foundation_inputs.source_run_date,
+        )
+        df_cust = customer_base_from_cells(
+            foundation_inputs.customer_cells
+        )
 
     logger.info(
         "Getting theme scores from provider build %s in %s at Delta "
@@ -179,6 +198,16 @@ def run_theme_score_mapping(
         sessions_threshold=min_c_sessions,
         lookback_period_days=incremental_lookback,
         logger=logger,
+        ad_feedback_metrics_df=(
+            None
+            if foundation_inputs is None
+            else foundation_inputs.ad_feedback_metrics
+        ),
+        active_ads_df=(
+            None
+            if foundation_inputs is None
+            else df_feedback_scaling_ads
+        ),
     )
 
     logger.info("Normalising theme scores and mapping to ads")
@@ -194,11 +223,17 @@ def run_theme_score_mapping(
         "Joining multi-sessions onto score_components, and downweighting ads "
         "seen more than 3 times in 7 days"
     )
-    df_score_components = apply_multi_session_downweighting(
-        df_score_components,
-        sessions,
-        actions,
-    )
+    if foundation_inputs is None:
+        df_score_components = apply_multi_session_downweighting(
+            df_score_components,
+            sessions,
+            actions,
+        )
+    else:
+        df_score_components = apply_multi_session_downweighting(
+            df_score_components,
+            repeat_ad_exposure_df=foundation_inputs.repeat_ad_exposure,
+        )
     df_score_components.cache()
     df_score_components.count()
 

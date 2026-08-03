@@ -370,8 +370,21 @@ def test_jobs_pin_same_day_inputs_and_static_context_slot():
 
 def _task_parameter_map(task):
     parameters = task["spark_python_task"]["parameters"]
-    assert len(parameters) % 2 == 0
-    return dict(zip(parameters[::2], parameters[1::2], strict=True))
+    parsed = {}
+    index = 0
+    while index < len(parameters):
+        name = parameters[index]
+        next_index = index + 1
+        if (
+            next_index == len(parameters)
+            or str(parameters[next_index]).startswith("--")
+        ):
+            parsed[name] = True
+            index += 1
+        else:
+            parsed[name] = parameters[next_index]
+            index += 2
+    return parsed
 
 
 def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
@@ -457,12 +470,17 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
     assert set(
         _task_parameter_map(affinity_tasks["prepare_provider_context"])
     ) == expected_prepare | {
+        "--allow-serial-run-takeover",
         "--scoring_foundation_build_id",
         "--scoring_foundation_build_attempt_id",
     }
     assert set(
         _task_parameter_map(markov_tasks["prepare_provider_context"])
-    ) == expected_prepare | {"--provider_id", "--use_case"}
+    ) == expected_prepare | {
+        "--allow-serial-run-takeover",
+        "--provider_id",
+        "--use_case",
+    }
     assert set(_task_parameter_map(markov_tasks["score_lightweight"])) == {
         "--client",
         "--job_env",

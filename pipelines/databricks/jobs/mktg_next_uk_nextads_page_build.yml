@@ -39,6 +39,16 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
         default: ""
       - name: provider_source_run_date
         default: ""
+      - name: foundation_snapshot_id
+        default: ""
+      - name: foundation_selection_status
+        default: ""
+      - name: foundation_source_run_date
+        default: ""
+      - name: customer_cells_table
+        default: ""
+      - name: customer_cells_delta_version
+        default: ""
       - name: scope_manifest_json
         default: '[{"scope":"SB1","phase":"primary"},{"scope":"OC1","phase":"primary"},{"scope":"PH3","phase":"primary"},{"scope":"PH4","phase":"primary"},{"scope":"PH5","phase":"primary"},{"scope":"LP1","phase":"primary"},{"scope":"LP2","phase":"primary"},{"scope":"LP3","phase":"primary"},{"scope":"LP4","phase":"primary"},{"scope":"LP5","phase":"primary"},{"scope":"LP6","phase":"primary"},{"scope":"LP7","phase":"primary"},{"scope":"LP8","phase":"primary"},{"scope":"LP9","phase":"primary"},{"scope":"LP10","phase":"primary"},{"scope":"LP11","phase":"primary"},{"scope":"PL1","phase":"primary"},{"scope":"PL2","phase":"primary"},{"scope":"PL3","phase":"primary"},{"scope":"PL4","phase":"primary"},{"scope":"PL5","phase":"primary"},{"scope":"PL6","phase":"primary"},{"scope":"PL7","phase":"primary"},{"scope":"PL8","phase":"primary"},{"scope":"PL9","phase":"primary"},{"scope":"PL10","phase":"primary"},{"scope":"PL11","phase":"primary"},{"scope":"PL12","phase":"primary"},{"scope":"PL13","phase":"primary"},{"scope":"PL14","phase":"primary"},{"scope":"PL15","phase":"primary"},{"scope":"PL16","phase":"primary"},{"scope":"PL17","phase":"primary"},{"scope":"PL18","phase":"primary"},{"scope":"PL19","phase":"primary"},{"scope":"PL20","phase":"primary"},{"scope":"PL21","phase":"primary"},{"scope":"PL22","phase":"primary"},{"scope":"PL23","phase":"primary"},{"scope":"PL24","phase":"primary"},{"scope":"PL25","phase":"primary"},{"scope":"PL26","phase":"primary"},{"scope":"PL27","phase":"primary"},{"scope":"PL28","phase":"primary"},{"scope":"PL29","phase":"primary"},{"scope":"PL30","phase":"primary"},{"scope":"PL31","phase":"primary"},{"scope":"PL32","phase":"primary"},{"scope":"PL33","phase":"primary"},{"scope":"PL34","phase":"primary"},{"scope":"PL35","phase":"primary"},{"scope":"PL36","phase":"primary"},{"scope":"PL37","phase":"primary"},{"scope":"PL38","phase":"primary"},{"scope":"PL39","phase":"primary"},{"scope":"PL40","phase":"primary"},{"scope":"FY1","phase":"primary"},{"scope":"FY2","phase":"primary"},{"scope":"FY3","phase":"primary"},{"scope":"FY4","phase":"primary"},{"scope":"FY5","phase":"primary"},{"scope":"FY6","phase":"primary"},{"scope":"FY7","phase":"primary"},{"scope":"FY8","phase":"primary"},{"scope":"FY9","phase":"primary"},{"scope":"FY10","phase":"primary"},{"scope":"FY11","phase":"primary"},{"scope":"FY12","phase":"primary"},{"scope":"FY13","phase":"primary"},{"scope":"FY14","phase":"primary"},{"scope":"FY15","phase":"primary"},{"scope":"FY16","phase":"primary"},{"scope":"FY17","phase":"primary"},{"scope":"FY18","phase":"primary"},{"scope":"FY19","phase":"primary"},{"scope":"FY20","phase":"primary"},{"scope":"PLX","phase":"primary"},{"scope":"SB2","phase":"secondary","inherit_basic_from":"SB1"},{"scope":"OC2","phase":"secondary","inherit_basic_from":"OC1"}]'
     tasks:
@@ -79,6 +89,10 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
                 - "{{task.run_id}}"
                 - --execution_count
                 - "{{task.execution_count}}"
+                - --customer_cells_table
+                - "{{job.parameters.customer_cells_table}}"
+                - --customer_cells_delta_version
+                - "{{job.parameters.customer_cells_delta_version}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2
@@ -113,6 +127,10 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
                 - "{{task.run_id}}"
                 - --execution_count
                 - "{{task.execution_count}}"
+                - --customer_cells_table
+                - "{{job.parameters.customer_cells_table}}"
+                - --customer_cells_delta_version
+                - "{{job.parameters.customer_cells_delta_version}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2

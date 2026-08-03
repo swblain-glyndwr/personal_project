@@ -45,6 +45,7 @@ from next_ads.decisioning.assignment_publication import (
     AssignmentColumnContract,
     stage_assignment_scope,
 )
+from next_ads.ranking.scoring_inputs import read_delta_version
 
 
 def _get_required_job_arg(job_parser, name):
@@ -91,6 +92,15 @@ TASK_RUN_ID = _get_integer_job_arg(
 EXECUTION_COUNT = _get_integer_job_arg(
     jobparser,
     "--execution_count",
+    minimum=0,
+)
+CUSTOMER_CELLS_TABLE = _get_required_job_arg(
+    jobparser,
+    "--customer_cells_table",
+)
+CUSTOMER_CELLS_DELTA_VERSION = _get_integer_job_arg(
+    jobparser,
+    "--customer_cells_delta_version",
     minimum=0,
 )
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
@@ -157,7 +167,6 @@ ASSIGNMENT_INPUT_COLUMNS = tuple(
     for column in ASSIGNMENT_SCOPE_CONTRACT.public_columns
     if column != ASSIGNMENT_SCOPE_CONTRACT.publication_date_column
 )
-CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
 PRERANKED_THEMES_TABLE = etl.map_tbl(
     tbls["preranked_ads_from_themes_v2_latest"], **tbl_args
 )
@@ -256,7 +265,15 @@ if df_ads_tgt.count() == 0:
     )
 else:
     logger.info("Getting customer cell assignments")
-    df_cells = spark.table(CELLS_TABLE_LATEST).drop("rundate").cache()
+    df_cells = (
+        read_delta_version(
+            spark,
+            CUSTOMER_CELLS_TABLE,
+            CUSTOMER_CELLS_DELTA_VERSION,
+        )
+        .drop("rundate")
+        .cache()
+    )
     cached_assignment_frames.append(df_cells)
 
     logger.info("Assigning Ads with Basic Targeting")

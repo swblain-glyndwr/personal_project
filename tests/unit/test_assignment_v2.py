@@ -187,6 +187,7 @@ def test_v2_builder_requires_complete_build_identity_arguments():
         "--scope_manifest_json",
         "--run_date",
         "--build_run_id",
+        "--customer_cells_table",
     }.issubset(required_names)
 
     integer_calls = _calls_named(tree, "_get_integer_job_arg")
@@ -198,6 +199,7 @@ def test_v2_builder_requires_complete_build_identity_arguments():
     assert integer_arguments == {
         "--task_run_id": 1,
         "--execution_count": 0,
+        "--customer_cells_delta_version": 0,
     }
 
     assert len(_attribute_calls(tree, "fromisoformat")) == 1

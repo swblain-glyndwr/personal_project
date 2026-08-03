@@ -962,6 +962,7 @@ def test_theme_affinity_dlt_uses_the_leased_logical_run_context():
 
     assert 'REFERENCE_DATE = datetime.today().strftime("%Y-%m-%d")' not in dlt_source
     assert "FOUNDATION_CONTEXT.run_date.isoformat()" in dlt_source
+    assert dlt_source.count("operational=True") == 2
     assert "pipeline.reference_date: predict" not in (
         PROJECT_ROOT / "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     ).read_text()

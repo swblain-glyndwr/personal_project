@@ -1,5 +1,5 @@
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 try:
@@ -23,7 +23,7 @@ finally:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 import pyspark.sql.functions as F
-from dsutils.dbc import configure_spark
+from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager, etl
@@ -32,7 +32,17 @@ from next_ads.common.snapshot_writes import (
     replace_validated_snapshot,
     with_run_date,
 )
+from next_ads.candidates.foundation import (
+    FALLBACK_PREVIOUS,
+    READY_FOR_NEXTADS,
+    schema_checksum,
+)
 from next_ads.decisioning.customer_cells import ensure_audience_column
+from next_ads.ranking.scoring_inputs import (
+    latest_delta_version,
+    read_delta_version,
+    summarise_content,
+)
 
 
 jobparser = get_job_parser()
@@ -137,24 +147,89 @@ if transient_is_usable:
     df_cells = df_cells.fillna(0, subset=["IsPremium"])
 else:
     logger.warning(
-        "No usable AlgoDivision assignments found; publishing an empty "
-        "combined-cell snapshot with the declared target schema"
+        "No usable AlgoDivision assignments found; preserving the last "
+        "accepted combined-cell snapshot"
     )
-    combined_schema = spark.table(CELLS_TABLE_LATEST).drop("rundate").schema
-    df_cells = spark.createDataFrame([], schema=combined_schema)
+    df_cells = None
 
-df_cells = ensure_audience_column(df_cells)
-
-logger.info(f"Atomically replacing combined cells: {CELLS_TABLE_LATEST}")
-df_cells_with_date = with_run_date(df_cells, RUN_DATE)
+publish_new_snapshot = df_cells is not None and not df_cells.isEmpty()
 try:
-    replace_validated_snapshot(
-        spark,
-        df_cells_with_date,
-        table=CELLS_TABLE_LATEST,
-        key_columns=["AccountNumber"],
+    if publish_new_snapshot:
+        df_cells = ensure_audience_column(df_cells)
+        df_selected = with_run_date(df_cells, RUN_DATE).persist()
+        summary = summarise_content(
+            df_selected,
+            key_columns=("AccountNumber",),
+        )
+        summary.require_valid("combined customer cells")
+        logger.info(f"Atomically replacing combined cells: {CELLS_TABLE_LATEST}")
+        replace_validated_snapshot(
+            spark,
+            df_selected,
+            table=CELLS_TABLE_LATEST,
+            key_columns=["AccountNumber"],
+        )
+        selected_version = latest_delta_version(spark, CELLS_TABLE_LATEST)
+        selected_run_date = RUN_DATE
+        selection_status = READY_FOR_NEXTADS
+        warning_count = 0
+    else:
+        selected_version = latest_delta_version(spark, CELLS_TABLE_LATEST)
+        df_selected = read_delta_version(
+            spark,
+            CELLS_TABLE_LATEST,
+            selected_version,
+        ).persist()
+        summary = summarise_content(
+            df_selected,
+            key_columns=("AccountNumber",),
+        )
+        summary.require_valid("accepted combined customer cells")
+        date_bounds = df_selected.agg(
+            F.min("rundate").alias("min_rundate"),
+            F.max("rundate").alias("max_rundate"),
+        ).first()
+        if (
+            date_bounds["min_rundate"] is None
+            or date_bounds["min_rundate"] != date_bounds["max_rundate"]
+        ):
+            raise ValueError(
+                "Accepted combined customer cells must contain one rundate"
+            )
+        selected_run_date = date_bounds["min_rundate"]
+        if not (RUN_DATE - timedelta(days=1) <= selected_run_date <= RUN_DATE):
+            raise ValueError(
+                "Accepted combined customer cells are more than one day old"
+            )
+        selection_status = FALLBACK_PREVIOUS
+        warning_count = 1
+        logger.warning(
+            "Using combined customer cells from %s at Delta version %s",
+            selected_run_date,
+            selected_version,
+        )
+
+    task_values = get_dbutils().jobs.taskValues
+    task_values.set(key="customer_cells_table", value=CELLS_TABLE_LATEST)
+    task_values.set(key="customer_cells_delta_version", value=selected_version)
+    task_values.set(
+        key="customer_cells_source_run_date",
+        value=selected_run_date.isoformat(),
     )
+    task_values.set(key="customer_cells_selection_status", value=selection_status)
+    task_values.set(key="customer_cells_row_count", value=summary.row_count)
+    task_values.set(
+        key="customer_cells_content_checksum",
+        value=summary.content_checksum,
+    )
+    task_values.set(
+        key="customer_cells_schema_checksum",
+        value=schema_checksum(df_selected),
+    )
+    task_values.set(key="customer_cells_warning_count", value=warning_count)
 finally:
+    if "df_selected" in locals():
+        df_selected.unpersist()
     if "AlgoDivision" in df_cells_transient.columns:
         df_cells_transient.unpersist()
 

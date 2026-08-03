@@ -39,6 +39,16 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
         default: ""
       - name: provider_source_run_date
         default: ""
+      - name: foundation_snapshot_id
+        default: ""
+      - name: foundation_selection_status
+        default: ""
+      - name: foundation_source_run_date
+        default: ""
+      - name: customer_cells_table
+        default: ""
+      - name: customer_cells_delta_version
+        default: ""
       - name: scope_manifest_json
         default: >-
           [{"scope":"HomePage"},{"scope":"ShoppingBagPage"},{"scope":"CheckoutPage"},{"scope":"ProductListingPage"},{"scope":"ForYouPage"}]
@@ -68,6 +78,10 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
                 - "{{task.run_id}}"
                 - --execution_count
                 - "{{task.execution_count}}"
+                - --customer_cells_table
+                - "{{job.parameters.customer_cells_table}}"
+                - --customer_cells_delta_version
+                - "{{job.parameters.customer_cells_delta_version}}"
             job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
             libraries: ${var.shared_libraries}
             max_retries: 2

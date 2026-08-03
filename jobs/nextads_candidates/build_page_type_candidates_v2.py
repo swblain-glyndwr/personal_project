@@ -26,6 +26,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from next_ads.common.paths import load_client_config
 from next_ads.ranking.theme_score_mapping import run_theme_score_mapping
+from next_ads.candidates.foundation import load_candidate_foundation_inputs
 from next_ads.common import config_manager, etl
 
 
@@ -41,6 +42,18 @@ PROVIDER_SIGNALS_DELTA_VERSION = jobparser.get_arg(
     "--provider_signals_delta_version"
 )
 PROVIDER_SOURCE_RUN_DATE = jobparser.get_arg("--provider_source_run_date")
+FOUNDATION_SNAPSHOT_ID = jobparser.get_arg("--foundation_snapshot_id")
+FOUNDATION_SOURCE_RUN_DATE = jobparser.get_arg("--foundation_source_run_date")
+CUSTOMER_CELLS_TABLE = jobparser.get_arg("--customer_cells_table")
+CUSTOMER_CELLS_DELTA_VERSION = jobparser.get_arg(
+    "--customer_cells_delta_version"
+)
+REPEAT_AD_EXPOSURE_TABLE = jobparser.get_arg("--repeat_ad_exposure_table")
+REPEAT_AD_EXPOSURE_DELTA_VERSION = jobparser.get_arg(
+    "--repeat_ad_exposure_delta_version"
+)
+AD_FEEDBACK_TABLE = jobparser.get_arg("--ad_feedback_table")
+AD_FEEDBACK_DELTA_VERSION = jobparser.get_arg("--ad_feedback_delta_version")
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
@@ -78,6 +91,34 @@ except (TypeError, ValueError) as exc:
         "--provider_signals_delta_version must be an integer"
     ) from exc
 
+foundation_values = {
+    "snapshot_id": FOUNDATION_SNAPSHOT_ID,
+    "source_run_date": FOUNDATION_SOURCE_RUN_DATE,
+    "customer_cells_table": CUSTOMER_CELLS_TABLE,
+    "repeat_ad_exposure_table": REPEAT_AD_EXPOSURE_TABLE,
+    "ad_feedback_table": AD_FEEDBACK_TABLE,
+}
+missing_foundation = [
+    name for name, value in foundation_values.items() if not value
+]
+if missing_foundation:
+    raise ValueError(
+        "Missing candidate foundation values: "
+        + ", ".join(missing_foundation)
+    )
+try:
+    foundation_inputs = load_candidate_foundation_inputs(
+        spark,
+        **foundation_values,
+        customer_cells_delta_version=int(CUSTOMER_CELLS_DELTA_VERSION),
+        repeat_ad_exposure_delta_version=int(
+            REPEAT_AD_EXPOSURE_DELTA_VERSION
+        ),
+        ad_feedback_delta_version=int(AD_FEEDBACK_DELTA_VERSION),
+    )
+except (TypeError, ValueError) as exc:
+    raise ValueError("Candidate foundation bindings are invalid") from exc
+
 tbl_args = {
     "catalog": config.catalog_write,
     "schema": config.schema_write,
@@ -105,5 +146,6 @@ run_theme_score_mapping(
     output_grain="page_type",
     top_ads_per_group=TOP_ADS_PER_PAGE_TYPE,
     write_score_components=False,
+    foundation_inputs=foundation_inputs,
     logger=logger,
 )

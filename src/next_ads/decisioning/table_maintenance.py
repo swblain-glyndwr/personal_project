@@ -176,6 +176,37 @@ SCORING_FOUNDATION_TABLE_SPECS = (
     ),
 )
 
+CANDIDATE_FOUNDATION_TABLE_SPECS = (
+    MaintenanceTableSpec(
+        name="candidate_foundation_builds",
+        config_key="candidate_foundation_builds",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    MaintenanceTableSpec(
+        name="candidate_foundation_sources",
+        config_key="candidate_foundation_sources",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    MaintenanceTableSpec(
+        name="candidate_repeat_ad_exposure",
+        config_key="candidate_repeat_ad_exposure",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    MaintenanceTableSpec(
+        name="candidate_ad_feedback",
+        config_key="candidate_ad_feedback",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+)
+
 SCORING_PROVIDER_TABLE_SPECS = (
     MaintenanceTableSpec(
         name="score_provider_builds",
@@ -274,6 +305,7 @@ CONFIGURED_TABLE_SPECS = (
     *ATTRIBUTE_THEME_TABLE_SPECS,
     *SCORING_INPUT_SNAPSHOT_TABLE_SPECS,
     *SCORING_FOUNDATION_TABLE_SPECS,
+    *CANDIDATE_FOUNDATION_TABLE_SPECS,
     *SCORING_PROVIDER_TABLE_SPECS,
     *LEGACY_SCORING_TABLE_SPECS,
     *CANDIDATE_TABLE_SPECS,

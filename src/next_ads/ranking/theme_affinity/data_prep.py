@@ -7,8 +7,15 @@ import string
 from typing import Any
 
 
-def calculate_target_month(reference_date: str) -> dict[str, str]:
-    ref_date = _resolve_reference_date(reference_date)
+def calculate_target_month(
+    reference_date: str,
+    *,
+    operational: bool = False,
+) -> dict[str, str]:
+    ref_date = _resolve_reference_date(
+        reference_date,
+        operational=operational,
+    )
     target_start = ref_date + timedelta(days=1)
     target_end = ref_date + timedelta(days=31)
     return {
@@ -21,8 +28,13 @@ def calculate_custom_date_range(
     reference_date: str,
     lookback: int,
     days_lag: int = 0,
+    *,
+    operational: bool = False,
 ) -> dict[str, str]:
-    ref_date = _resolve_reference_date(reference_date)
+    ref_date = _resolve_reference_date(
+        reference_date,
+        operational=operational,
+    )
     start_date = (ref_date - timedelta(days=lookback)).strftime("%Y-%m-%d")
     today = datetime.today().date()
     if ref_date.date() == today:
@@ -32,11 +44,26 @@ def calculate_custom_date_range(
     return {"start_date": start_date, "end_date": end_date}
 
 
-def build_common_params(reference_date: str, namespace: str, table_prefix: str):
-    target_dates = calculate_target_month(reference_date)
-    start_date_views, end_date_views = _range_values(reference_date, 30)
-    start_date_atbs, end_date_atbs = _range_values(reference_date, 30)
-    start_date_baskets, end_date_baskets = _range_values(reference_date, 365)
+def build_common_params(
+    reference_date: str,
+    namespace: str,
+    table_prefix: str,
+    *,
+    operational: bool = False,
+):
+    target_dates = calculate_target_month(
+        reference_date,
+        operational=operational,
+    )
+    start_date_views, end_date_views = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_atbs, end_date_atbs = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_baskets, end_date_baskets = _range_values(
+        reference_date, 365, operational=operational
+    )
     end_date_views_ly = _offset_date(end_date_views, 365)
     start_date_views_ly = _offset_date(end_date_views_ly, 30)
     end_date_baskets_ly = _offset_date(end_date_baskets, 365)
@@ -44,9 +71,10 @@ def build_common_params(reference_date: str, namespace: str, table_prefix: str):
     return {
         "catalog": namespace,
         "schema": namespace,
-        "reference_date": _resolve_reference_date(reference_date).strftime(
-            "%Y-%m-%d"
-        ),
+        "reference_date": _resolve_reference_date(
+            reference_date,
+            operational=operational,
+        ).strftime("%Y-%m-%d"),
         "table_prefix": table_prefix,
         "start_date_views": start_date_views,
         "end_date_views": end_date_views,
@@ -62,11 +90,25 @@ def build_common_params(reference_date: str, namespace: str, table_prefix: str):
     }
 
 
-def build_sql_entries(reference_date: str, table_prefix: str):
-    target_dates = calculate_target_month(reference_date)
-    start_date_views, end_date_views = _range_values(reference_date, 30)
-    start_date_atbs, end_date_atbs = _range_values(reference_date, 30)
-    start_date_baskets, end_date_baskets = _range_values(reference_date, 365)
+def build_sql_entries(
+    reference_date: str,
+    table_prefix: str,
+    *,
+    operational: bool = False,
+):
+    target_dates = calculate_target_month(
+        reference_date,
+        operational=operational,
+    )
+    start_date_views, end_date_views = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_atbs, end_date_atbs = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_baskets, end_date_baskets = _range_values(
+        reference_date, 365, operational=operational
+    )
     end_date_views_ly = _offset_date(end_date_views, 365)
     start_date_views_ly = _offset_date(end_date_views_ly, 30)
     end_date_baskets_ly = _offset_date(end_date_baskets, 365)
@@ -551,22 +593,38 @@ def apply_post_process(df, post_process_name):
     )
 
 
-def _resolve_reference_date(reference_date: str | None) -> datetime:
+def _resolve_reference_date(
+    reference_date: str | None,
+    *,
+    operational: bool = False,
+) -> datetime:
     reference_date_value = (reference_date or "").strip().lower()
     if reference_date_value == "current":
         return datetime.today()
     if not reference_date_value:
         raise ValueError("reference_date must be current or YYYY-MM-DD")
     resolved = datetime.strptime(reference_date_value, "%Y-%m-%d")
-    if (datetime.today() - resolved).days < 28:
+    now = datetime.today()
+    if resolved.date() > now.date():
+        raise ValueError("reference_date cannot be in the future")
+    if not operational and (now - resolved).days < 28:
         raise ValueError(
             "reference_date must be at least 28 days ago unless set to current"
         )
     return resolved
 
 
-def _range_values(reference_date: str, lookback: int) -> tuple[str, str]:
-    result = calculate_custom_date_range(reference_date, lookback)
+def _range_values(
+    reference_date: str,
+    lookback: int,
+    *,
+    operational: bool = False,
+) -> tuple[str, str]:
+    result = calculate_custom_date_range(
+        reference_date,
+        lookback,
+        operational=operational,
+    )
     return result["start_date"], result["end_date"]
 
 

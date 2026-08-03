@@ -7,6 +7,7 @@ bundle:
 
 include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_inputs.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml

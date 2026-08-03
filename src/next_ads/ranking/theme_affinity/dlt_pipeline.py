@@ -42,10 +42,19 @@ PINNED_ITEM_THEMES = pinned_item_themes(
     "theme_rank",
 )
 
-COMMON_PARAMS = build_common_params(REFERENCE_DATE, SCHEMA, TABLE_PREFIX)
+COMMON_PARAMS = build_common_params(
+    REFERENCE_DATE,
+    SCHEMA,
+    TABLE_PREFIX,
+    operational=True,
+)
 COMMON_PARAMS["sql_path"] = SQL_PATH
 COMMON_PARAMS["job_env"] = JOB_ENV
-SQL_ENTRIES = build_sql_entries(REFERENCE_DATE, TABLE_PREFIX)
+SQL_ENTRIES = build_sql_entries(
+    REFERENCE_DATE,
+    TABLE_PREFIX,
+    operational=True,
+)
 
 
 def _pipeline_sql(entry):

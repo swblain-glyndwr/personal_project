@@ -133,7 +133,7 @@ def test_transient_cells_publish_history_then_latest_even_when_empty():
     )
 
 
-def test_combined_cells_latest_is_a_full_atomic_snapshot():
+def test_combined_cells_latest_is_atomic_and_preserves_safe_fallback():
     source, tree = _source_and_tree(COMBINE_PATH)
 
     assert len(_calls_named(tree, "capture_run_date")) == 0
@@ -159,7 +159,9 @@ def test_combined_cells_latest_is_a_full_atomic_snapshot():
 
     assert '"AlgoDivision" in df_cells_transient.columns' in source
     assert "df_cells_transient.isEmpty()" in source
-    assert (
-        "spark.createDataFrame([], schema=combined_schema)"
-        in source
-    )
+    assert "spark.createDataFrame([], schema=combined_schema)" not in source
+    assert "publish_new_snapshot" in source
+    assert "read_delta_version(" in source
+    assert "summary.require_valid(\"accepted combined customer cells\")" in source
+    assert "Accepted combined customer cells are more than one day old" in source
+    assert "customer_cells_delta_version" in source

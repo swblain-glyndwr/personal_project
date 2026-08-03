@@ -18,8 +18,7 @@ def test_main_job_uses_moved_non_v2_entrypoints():
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
     expected_paths = {
-        "assign_customer_cells": "../../../jobs/nextads_cells/assign_customer_cells.py",
-        "combine_customer_cells": "../../../jobs/nextads_cells/combine_customer_cells.py",
+        "select_candidate_foundation": "../../../jobs/orchestration/select_candidate_foundation.py",
         "load_control_sheet_v1": "../../../jobs/nextads_control/load_control_sheet.py",
         "audit_control_sheet_v1": "../../../jobs/nextads_control/audit_control_sheet.py",
         "select_score_provider_build_v1": "../../../jobs/orchestration/select_score_provider_build.py",
@@ -36,6 +35,40 @@ def test_main_job_uses_moved_non_v2_entrypoints():
         "${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}"
     )
     assert "spark_python_task" not in tasks_by_key["run_page_build_v1"]
+
+
+def test_candidate_foundation_job_uses_moved_shared_input_entrypoints():
+    job = _load_job(
+        "pipelines/databricks/jobs/"
+        "mktg_next_uk_nextads_candidate_foundation.yml",
+        "mktg_next_uk_nextads_candidate_foundation_cicd",
+    )
+    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+    expected_paths = {
+        "assign_customer_cells": (
+            "../../../jobs/nextads_cells/assign_customer_cells.py"
+        ),
+        "combine_customer_cells": (
+            "../../../jobs/nextads_cells/combine_customer_cells.py"
+        ),
+        "build_repeat_ad_exposure": (
+            "../../../jobs/nextads_candidates/"
+            "build_candidate_repeat_exposure.py"
+        ),
+        "build_ad_feedback": (
+            "../../../jobs/nextads_candidates/"
+            "build_candidate_ad_feedback.py"
+        ),
+        "publish_candidate_foundation": (
+            "../../../jobs/nextads_candidates/"
+            "publish_candidate_foundation.py"
+        ),
+    }
+
+    for task_key, expected_path in expected_paths.items():
+        assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
+            expected_path
+        )
 
 
 def test_markov_scoring_job_uses_moved_control_and_scoring_entrypoints():

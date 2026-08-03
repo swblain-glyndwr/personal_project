@@ -19,7 +19,11 @@ def build_theme_to_ad_mapping(df_ads):
 
 
 def load_customer_base(spark, customer_cells_latest: str):
-    return spark.table(customer_cells_latest).select("AccountNumber")
+    return customer_base_from_cells(spark.table(customer_cells_latest))
+
+
+def customer_base_from_cells(customer_cells):
+    return customer_cells.select("AccountNumber")
 
 
 def load_theme_scores(spark, theme_scores_latest: str, customer_base_df):

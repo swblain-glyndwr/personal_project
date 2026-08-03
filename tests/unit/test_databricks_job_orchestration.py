@@ -84,10 +84,68 @@ def _selector_values(route):
     }
 
 
+def _foundation_provenance_values():
+    selector = "select_candidate_foundation"
+    return {
+        "foundation_snapshot_id": (
+            f"{{{{tasks.{selector}.values.foundation_snapshot_id}}}}"
+        ),
+        "foundation_selection_status": (
+            f"{{{{tasks.{selector}.values.foundation_selection_status}}}}"
+        ),
+        "foundation_source_run_date": (
+            f"{{{{tasks.{selector}.values.foundation_source_run_date}}}}"
+        ),
+    }
+
+
+def _foundation_input_values():
+    selector = "select_candidate_foundation"
+    return {
+        "foundation_snapshot_id": (
+            f"{{{{tasks.{selector}.values.foundation_snapshot_id}}}}"
+        ),
+        "foundation_source_run_date": (
+            f"{{{{tasks.{selector}.values.foundation_source_run_date}}}}"
+        ),
+        "customer_cells_table": (
+            f"{{{{tasks.{selector}.values.customer_cells_table}}}}"
+        ),
+        "customer_cells_delta_version": (
+            f"{{{{tasks.{selector}.values.customer_cells_delta_version}}}}"
+        ),
+        "repeat_ad_exposure_table": (
+            f"{{{{tasks.{selector}.values.repeat_ad_exposure_table}}}}"
+        ),
+        "repeat_ad_exposure_delta_version": (
+            f"{{{{tasks.{selector}.values.repeat_ad_exposure_delta_version}}}}"
+        ),
+        "ad_feedback_table": (
+            f"{{{{tasks.{selector}.values.ad_feedback_table}}}}"
+        ),
+        "ad_feedback_delta_version": (
+            f"{{{{tasks.{selector}.values.ad_feedback_delta_version}}}}"
+        ),
+    }
+
+
+def _foundation_page_input_values():
+    values = _foundation_input_values()
+    return {
+        name: values[name]
+        for name in (
+            "customer_cells_table",
+            "customer_cells_delta_version",
+        )
+    }
+
+
 def _expected_page_job_parameters(route):
     return {
         "run_date": "{{job.parameters.run_date}}",
         **_selector_values(route),
+        **_foundation_provenance_values(),
+        **_foundation_page_input_values(),
         "build_run_id": f"{route}_{{{{job.run_id}}}}",
     }
 
@@ -152,11 +210,9 @@ def test_main_job_waits_for_native_page_build_results():
         "run_date": "{{job.parameters.run_date}}",
     }
     assert trigger_v1_task["depends_on"] == [
-        {"task_key": "combine_customer_cells"},
         {"task_key": "map_theme_scores_to_ads_v1"},
     ]
     assert trigger_v2_task["depends_on"] == [
-        {"task_key": "combine_customer_cells"},
         {"task_key": "map_theme_scores_to_ads_v2"},
     ]
     assert trigger_v1_task["run_job_task"] == {
@@ -180,6 +236,7 @@ def test_main_job_waits_for_native_page_build_results():
         "run_date": "{{job.start_time.iso_date}}",
         "v1_score_provider_id": "theme_affinity",
         "v2_score_provider_id": "theme_affinity",
+        "foundation_snapshot_id": "same_day",
     }
 
 
@@ -217,11 +274,11 @@ def test_route_specific_provider_checks_gate_only_their_mapper():
     tasks_by_key = _tasks_by_key(job)
 
     assert tasks_by_key["map_theme_scores_to_ads_v1"]["depends_on"] == [
-        {"task_key": "combine_customer_cells"},
+        {"task_key": "select_candidate_foundation"},
         {"task_key": "validate_score_provider_theme_coverage_v1"},
     ]
     assert tasks_by_key["map_theme_scores_to_ads_v2"]["depends_on"] == [
-        {"task_key": "combine_customer_cells"},
+        {"task_key": "select_candidate_foundation"},
         {"task_key": "validate_score_provider_theme_coverage_v2"},
     ]
     assert tasks_by_key["validate_score_provider_theme_coverage_v1"][
@@ -445,6 +502,10 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
         "mktg_next_uk_nextads_payload_export.yml",
         "mktg_next_uk_nextads_payload_export_cicd",
     )
+    data_pull = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml",
+        "mktg_next_uk_nextads_data_pull",
+    )
 
     candidate_tasks = {
         task["task_key"]: task for task in candidate["tasks"]
@@ -482,19 +543,44 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
     assert page_v2["timeout_seconds"] == 28800
     assert page_v2["timeout_seconds"] >= v2_page_critical_path
 
-    candidate_before_page_v1 = sum(
-        (
-            candidate_tasks["assign_customer_cells"]["timeout_seconds"],
-            candidate_tasks["combine_customer_cells"]["timeout_seconds"],
-            candidate_tasks["map_theme_scores_to_ads_v1"]["timeout_seconds"],
+    v1_control_and_coverage = (
+        max(
+            candidate_tasks["load_control_sheet_v1"]["timeout_seconds"]
+            + candidate_tasks["audit_control_sheet_v1"]["timeout_seconds"],
+            candidate_tasks["select_score_provider_build_v1"][
+                "timeout_seconds"
+            ],
         )
+        + candidate_tasks["validate_score_provider_theme_coverage_v1"][
+            "timeout_seconds"
+        ]
     )
-    candidate_before_page_v2 = sum(
-        (
-            candidate_tasks["assign_customer_cells"]["timeout_seconds"],
-            candidate_tasks["combine_customer_cells"]["timeout_seconds"],
-            candidate_tasks["map_theme_scores_to_ads_v2"]["timeout_seconds"],
+    v2_control_and_coverage = (
+        max(
+            data_pull["timeout_seconds"]
+            + candidate_tasks["load_control_sheet_v2"]["timeout_seconds"]
+            + candidate_tasks["audit_control_sheet_v2"]["timeout_seconds"],
+            candidate_tasks["select_score_provider_build_v2"][
+                "timeout_seconds"
+            ],
         )
+        + candidate_tasks["validate_score_provider_theme_coverage_v2"][
+            "timeout_seconds"
+        ]
+    )
+    candidate_before_page_v1 = (
+        max(
+            candidate_tasks["select_candidate_foundation"]["timeout_seconds"],
+            v1_control_and_coverage,
+        )
+        + candidate_tasks["map_theme_scores_to_ads_v1"]["timeout_seconds"]
+    )
+    candidate_before_page_v2 = (
+        max(
+            candidate_tasks["select_candidate_foundation"]["timeout_seconds"],
+            v2_control_and_coverage,
+        )
+        + candidate_tasks["map_theme_scores_to_ads_v2"]["timeout_seconds"]
     )
     assert candidate["timeout_seconds"] == 72000
     assert candidate["timeout_seconds"] >= (
@@ -536,6 +622,28 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
     )
 
     tasks_by_key = _tasks_by_key(job)
+    foundation_selector = tasks_by_key["select_candidate_foundation"]
+
+    assert foundation_selector["spark_python_task"]["python_file"] == (
+        "../../../jobs/orchestration/select_candidate_foundation.py"
+    )
+    assert "depends_on" not in foundation_selector
+    _assert_cli_values(
+        foundation_selector,
+        {
+            "--client": "next_uk",
+            "--job_env": "${var.job_parameter_environment_name}",
+            "--run_date": "{{job.parameters.run_date}}",
+            "--foundation_snapshot_id": (
+                "{{job.parameters.foundation_snapshot_id}}"
+            ),
+            "--readiness_wait_seconds": "1800",
+            "--readiness_poll_seconds": "60",
+            "--task_run_id": "{{task.run_id}}",
+            "--execution_count": "{{task.execution_count}}",
+            "--orchestration_run_id": "{{job.run_id}}",
+        },
+    )
 
     for route in ("v1", "v2"):
         selector = tasks_by_key[f"select_score_provider_build_{route}"]
@@ -598,6 +706,13 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
                 }
             },
         )
+        _assert_cli_values(
+            mapper,
+            {
+                f"--{name}": value
+                for name, value in _foundation_input_values().items()
+            },
+        )
 
 
 def test_control_sheet_audits_are_warning_only_but_order_route_coverage():
@@ -642,7 +757,7 @@ def test_control_sheet_audits_are_warning_only_but_order_route_coverage():
         ]
 
 
-def test_v1_and_v2_candidate_routes_share_only_customer_cells():
+def test_v1_and_v2_candidate_routes_share_only_candidate_foundation():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
@@ -652,10 +767,7 @@ def test_v1_and_v2_candidate_routes_share_only_customer_cells():
     v1_ancestors = _ancestors(tasks_by_key, "run_page_build_v1")
     v2_ancestors = _ancestors(tasks_by_key, "run_page_build_v2")
 
-    assert v1_ancestors & v2_ancestors == {
-        "assign_customer_cells",
-        "combine_customer_cells",
-    }
+    assert v1_ancestors & v2_ancestors == {"select_candidate_foundation"}
     assert {
         "load_control_sheet_v1",
         "audit_control_sheet_v1",
@@ -780,10 +892,19 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
         "scoring_foundation_build_id",
         "provider_selection_status",
         "provider_source_run_date",
+        "foundation_snapshot_id",
+        "foundation_selection_status",
+        "foundation_source_run_date",
+        "customer_cells_table",
+        "customer_cells_delta_version",
     }
     assert job_parameters["run_date"] == "{{job.start_time.iso_date}}"
     assert job_parameters["build_run_id"] == "v1_{{job.run_id}}"
     for name in _selector_values("v1"):
+        assert job_parameters[name] == ""
+    for name in _foundation_provenance_values():
+        assert job_parameters[name] == ""
+    for name in _foundation_page_input_values():
         assert job_parameters[name] == ""
 
     scope_manifest = json.loads(job_parameters["scope_manifest_json"])
@@ -858,6 +979,10 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
         "{{task.run_id}}",
         "--execution_count",
         "{{task.execution_count}}",
+        "--customer_cells_table",
+        "{{job.parameters.customer_cells_table}}",
+        "--customer_cells_delta_version",
+        "{{job.parameters.customer_cells_delta_version}}",
     ]
 
     secondary = tasks_by_key["build_page_secondary"]
@@ -889,6 +1014,10 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
         "{{task.run_id}}",
         "--execution_count",
         "{{task.execution_count}}",
+        "--customer_cells_table",
+        "{{job.parameters.customer_cells_table}}",
+        "--customer_cells_delta_version",
+        "{{job.parameters.customer_cells_delta_version}}",
     ]
 
     publisher = tasks_by_key["publish_assignment_build_v1"]
@@ -966,10 +1095,19 @@ def test_page_build_v2_publishes_complete_build_before_payload_submission():
         "scoring_foundation_build_id",
         "provider_selection_status",
         "provider_source_run_date",
+        "foundation_snapshot_id",
+        "foundation_selection_status",
+        "foundation_source_run_date",
+        "customer_cells_table",
+        "customer_cells_delta_version",
     }
     assert job_parameters["run_date"] == "{{job.start_time.iso_date}}"
     assert job_parameters["build_run_id"] == "v2_{{job.run_id}}"
     for name in _selector_values("v2"):
+        assert job_parameters[name] == ""
+    for name in _foundation_provenance_values():
+        assert job_parameters[name] == ""
+    for name in _foundation_page_input_values():
         assert job_parameters[name] == ""
 
     scope_manifest = json.loads(job_parameters["scope_manifest_json"])
@@ -1003,6 +1141,10 @@ def test_page_build_v2_publishes_complete_build_before_payload_submission():
         "{{task.run_id}}",
         "--execution_count",
         "{{task.execution_count}}",
+        "--customer_cells_table",
+        "{{job.parameters.customer_cells_table}}",
+        "--customer_cells_delta_version",
+        "{{job.parameters.customer_cells_delta_version}}",
     ]
 
     publisher = tasks_by_key["publish_assignment_build_v2"]

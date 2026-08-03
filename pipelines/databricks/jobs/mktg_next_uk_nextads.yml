@@ -30,41 +30,35 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         default: theme_affinity
       - name: v2_score_provider_id
         default: theme_affinity
+      - name: foundation_snapshot_id
+        default: same_day
     tasks:
-      - task_key: assign_customer_cells
+      - task_key: select_candidate_foundation
         spark_python_task:
-          python_file: ../../../jobs/nextads_cells/assign_customer_cells.py
+          python_file: ../../../jobs/orchestration/select_candidate_foundation.py
           parameters:
             - --client
-            - "next_uk"
-            - --job_env
-            - ${var.job_parameter_environment_name}
-            - --refresh_control_date
-            - "2026-01-08"
-            - --run_date
-            - "{{job.parameters.run_date}}"
-            # - --sample_mode
-            # - "True"
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 7200
-      - task_key: combine_customer_cells
-        depends_on:
-          - task_key: assign_customer_cells
-        spark_python_task:
-          python_file: ../../../jobs/nextads_cells/combine_customer_cells.py
-          parameters:
-            - --client
-            - "next_uk"
+            - next_uk
             - --job_env
             - ${var.job_parameter_environment_name}
             - --run_date
             - "{{job.parameters.run_date}}"
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+            - --foundation_snapshot_id
+            - "{{job.parameters.foundation_snapshot_id}}"
+            - --readiness_wait_seconds
+            - "1800"
+            - --readiness_poll_seconds
+            - "60"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --orchestration_run_id
+            - "{{job.run_id}}"
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
+        max_retries: 1
+        timeout_seconds: 2100
       - task_key: load_control_sheet_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_control/load_control_sheet.py
@@ -268,7 +262,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         timeout_seconds: 1800
       - task_key: map_theme_scores_to_ads_v1
         depends_on:
-          - task_key: combine_customer_cells
+          - task_key: select_candidate_foundation
           - task_key: validate_score_provider_theme_coverage_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_theme_ad_candidates.py
@@ -290,13 +284,29 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - "{{tasks.select_score_provider_build_v1.values.provider_signals_delta_version}}"
             - --provider_source_run_date
             - "{{tasks.select_score_provider_build_v1.values.provider_source_run_date}}"
+            - --foundation_snapshot_id
+            - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            - --foundation_source_run_date
+            - "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            - --customer_cells_table
+            - "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            - --customer_cells_delta_version
+            - "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
+            - --repeat_ad_exposure_table
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_table}}"
+            - --repeat_ad_exposure_delta_version
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_delta_version}}"
+            - --ad_feedback_table
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_table}}"
+            - --ad_feedback_delta_version
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_delta_version}}"
         job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4_v1_candidates
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 10800
       - task_key: map_theme_scores_to_ads_v2
         depends_on:
-          - task_key: combine_customer_cells
+          - task_key: select_candidate_foundation
           - task_key: validate_score_provider_theme_coverage_v2
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_page_type_candidates_v2.py
@@ -317,13 +327,28 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - "{{tasks.select_score_provider_build_v2.values.provider_signals_delta_version}}"
             - --provider_source_run_date
             - "{{tasks.select_score_provider_build_v2.values.provider_source_run_date}}"
+            - --foundation_snapshot_id
+            - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            - --foundation_source_run_date
+            - "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            - --customer_cells_table
+            - "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            - --customer_cells_delta_version
+            - "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
+            - --repeat_ad_exposure_table
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_table}}"
+            - --repeat_ad_exposure_delta_version
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_delta_version}}"
+            - --ad_feedback_table
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_table}}"
+            - --ad_feedback_delta_version
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_delta_version}}"
         job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4_v2_candidates
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 10800
       - task_key: run_page_build_v1
         depends_on:
-          - task_key: combine_customer_cells
           - task_key: map_theme_scores_to_ads_v1
         run_job_task:
           job_id: ${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}
@@ -337,9 +362,13 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             scoring_foundation_build_id: "{{tasks.select_score_provider_build_v1.values.scoring_foundation_build_id}}"
             provider_selection_status: "{{tasks.select_score_provider_build_v1.values.provider_selection_status}}"
             provider_source_run_date: "{{tasks.select_score_provider_build_v1.values.provider_source_run_date}}"
+            foundation_snapshot_id: "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            foundation_selection_status: "{{tasks.select_candidate_foundation.values.foundation_selection_status}}"
+            foundation_source_run_date: "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            customer_cells_table: "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            customer_cells_delta_version: "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
       - task_key: run_page_build_v2
         depends_on:
-          - task_key: combine_customer_cells
           - task_key: map_theme_scores_to_ads_v2
         run_job_task:
           job_id: ${resources.jobs.mktg_next_uk_nextads_page_build_cicd_v2.id}
@@ -353,6 +382,11 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             scoring_foundation_build_id: "{{tasks.select_score_provider_build_v2.values.scoring_foundation_build_id}}"
             provider_selection_status: "{{tasks.select_score_provider_build_v2.values.provider_selection_status}}"
             provider_source_run_date: "{{tasks.select_score_provider_build_v2.values.provider_source_run_date}}"
+            foundation_snapshot_id: "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            foundation_selection_status: "{{tasks.select_candidate_foundation.values.foundation_selection_status}}"
+            foundation_source_run_date: "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            customer_cells_table: "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            customer_cells_delta_version: "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
 
 targets:
   SANDBOX:

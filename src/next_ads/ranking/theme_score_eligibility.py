@@ -6,6 +6,17 @@ from next_ads.decisioning.assignment import (
     get_ad_feedback_scores,
     greedy_assignment,
 )
+from next_ads.candidates.foundation import score_ad_feedback_metrics
+
+
+def select_feedback_scaling_population(df_ads):
+    """Preserve the legacy full active-ad population used for scaling."""
+    return (
+        df_ads.select("UniqueAdID")
+        .groupBy("UniqueAdID")
+        .count()
+        .drop("count")
+    )
 
 
 def apply_auto_trading_filter(df_ads, enabled: bool, logger):
@@ -141,6 +152,8 @@ def append_ad_feedback_scores(
     sessions_threshold,
     lookback_period_days,
     logger,
+    ad_feedback_metrics_df=None,
+    active_ads_df=None,
 ):
     if not enabled:
         logger.info("Ad feedback loop not enabled")
@@ -148,21 +161,31 @@ def append_ad_feedback_scores(
         return df_theme2ad.withColumn("IncrementalScore", F.lit(1.0))
 
     logger.info(f"Getting ad feedback scores (weight: {ad_feedback_weight})")
-    df_ad_feedback_scores = get_ad_feedback_scores(
-        ad_results_table=ad_results_table,
-        control_sheet_latest_table=control_sheet_latest_table,
-        ad_feedback_weight=ad_feedback_weight,
-        sessions_threshold=sessions_threshold,
-        lookback_period_days=lookback_period_days,
-    )
+    if ad_feedback_metrics_df is not None:
+        if active_ads_df is None:
+            raise ValueError(
+                "active_ads_df is required with pinned ad feedback metrics"
+            )
+        df_ad_feedback_scores = score_ad_feedback_metrics(
+            ad_feedback_metrics_df,
+            active_ads_df,
+            ad_feedback_weight=float(ad_feedback_weight),
+        )
+    else:
+        df_ad_feedback_scores = get_ad_feedback_scores(
+            ad_results_table=ad_results_table,
+            control_sheet_latest_table=control_sheet_latest_table,
+            ad_feedback_weight=ad_feedback_weight,
+            sessions_threshold=sessions_threshold,
+            lookback_period_days=lookback_period_days,
+        )
 
-    if not df_ad_feedback_scores or df_ad_feedback_scores.isEmpty():
+    if df_ad_feedback_scores is None:
         logger.warning("No ad feedback scores returned")
         logger.info("Defaulting to incremental score of 1.0 for all ads")
         return df_theme2ad.withColumn("IncrementalScore", F.lit(1.0))
 
-    n_afs = df_ad_feedback_scores.count()
-    logger.info(f"{n_afs:,} ad feedback scores returned, appending")
+    logger.info("Appending available ad feedback scores")
     return (
         df_theme2ad.join(df_ad_feedback_scores, on="UniqueAdID", how="left")
         .withColumnRenamed("AdFeedbackScore", "IncrementalScore")
