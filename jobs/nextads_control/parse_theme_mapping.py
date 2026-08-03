@@ -6,7 +6,7 @@ try:
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
     notebook_path = (
-        dbutils.notebook.entry_point.getDbutils()  # type: ignore[name-defined]
+        dbutils.notebook.entry_point.getDbutils()  # type: ignore[name-defined]  # noqa: F821
         .notebook()
         .getContext()
         .notebookPath()
@@ -26,6 +26,7 @@ from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
 from dsutils.etl import post_to_webhook
 from dsutils.logtools import configure_logging, get_logger
+from pyspark.sql import functions as F
 
 from next_ads.control.theme_mapping import (
     build_item_themes,
@@ -94,6 +95,37 @@ def parse_bool(value) -> bool:
     if normalised in {"false", "0", "no", "n", ""}:
         return False
     raise ValueError(f"Unsupported boolean value: {value!r}")
+
+
+def read_landed_theme_mapping(
+    spark,
+    *,
+    table,
+    landing_id,
+    mapping_version,
+    run_date,
+    mapping_columns,
+):
+    mapping_reader = spark.read
+    if mapping_version is not None:
+        mapping_reader = mapping_reader.option(
+            "versionAsOf",
+            int(mapping_version),
+        )
+    landed_mapping = mapping_reader.table(table).where(
+        (F.col("LandingID") == landing_id)
+        & (F.col("SourceRole") == "authoritative_v2")
+    )
+    invalid_landing_date = landed_mapping.where(
+        F.col("RunDate").isNull()
+        | (F.col("RunDate") != F.lit(run_date))
+    ).limit(1)
+    if invalid_landing_date.count():
+        raise ValueError("Theme Mapping landing has the wrong logical RunDate")
+    df_themes = landed_mapping.select(*mapping_columns)
+    if df_themes.limit(1).count() == 0:
+        raise ValueError(f"Theme Mapping landing {landing_id} is empty")
+    return df_themes
 
 
 def main(
@@ -180,29 +212,14 @@ def main(
         mapping_columns = [
             column[0] for column in mapping_config["read_schema"]
         ]
-        mapping_reader = spark.read
-        if THEME_MAPPING_VERSION is not None:
-            mapping_reader = mapping_reader.option(
-                "versionAsOf",
-                int(THEME_MAPPING_VERSION),
-            )
-        landed_mapping = mapping_reader.table(THEME_MAPPING_TABLE).where(
-            (F.col("LandingID") == THEME_MAPPING_LANDING_ID)
-            & (F.col("SourceRole") == "authoritative_v2")
+        df_themes = read_landed_theme_mapping(
+            spark,
+            table=THEME_MAPPING_TABLE,
+            landing_id=THEME_MAPPING_LANDING_ID,
+            mapping_version=THEME_MAPPING_VERSION,
+            run_date=run_date,
+            mapping_columns=mapping_columns,
         )
-        invalid_landing_date = landed_mapping.where(
-            F.col("RunDate").isNull()
-            | (F.col("RunDate") != F.lit(run_date))
-        ).limit(1)
-        if invalid_landing_date.count():
-            raise ValueError(
-                "Theme Mapping landing has the wrong logical RunDate"
-            )
-        df_themes = landed_mapping.select(*mapping_columns)
-        if df_themes.limit(1).count() == 0:
-            raise ValueError(
-                f"Theme Mapping landing {THEME_MAPPING_LANDING_ID} is empty"
-            )
     else:
         df_themes = gcp.spark_df_from_sheets(
             url=mapping_config["url"],
