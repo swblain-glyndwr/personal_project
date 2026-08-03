@@ -163,6 +163,8 @@ try {
                 $uri,
                 "--resource",
                 $azureDevOpsResource,
+                "--headers",
+                "Content-Type=application/json",
                 "--body",
                 $body,
                 "--output",
