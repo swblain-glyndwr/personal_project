@@ -11,6 +11,7 @@ $project = "DirectoryMarketing.Personalisation"
 $pipelineName = "mktg-next-ads-ci-cd"
 $azureDevOpsResource = "499b84ac-1321-427f-aa17-267ca6975798"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$bodyFile = $null
 
 function Invoke-CheckedCommand {
     param(
@@ -148,6 +149,15 @@ try {
         return
     }
 
+    $bodyFile = Join-Path (
+        [System.IO.Path]::GetTempPath()
+    ) "nextads-dev-deployment-$([System.Guid]::NewGuid().ToString('N')).json"
+    [System.IO.File]::WriteAllText(
+        $bodyFile,
+        $body,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
     $uri = (
         "$organization/$project/_apis/pipelines/$pipelineId/runs" +
         "?api-version=7.1"
@@ -166,7 +176,7 @@ try {
                 "--headers",
                 "Content-Type=application/json",
                 "--body",
-                $body,
+                "@$bodyFile",
                 "--output",
                 "json",
                 "--only-show-errors"
@@ -182,5 +192,8 @@ try {
         Start-Process $runUrl
     }
 } finally {
+    if ($bodyFile -and (Test-Path -LiteralPath $bodyFile)) {
+        Remove-Item -LiteralPath $bodyFile -Force
+    }
     Pop-Location
 }
