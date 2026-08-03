@@ -1,6 +1,7 @@
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +15,7 @@ from next_ads.ranking.provider_context import (
 
 
 NOW = datetime(2026, 7, 30, 13, 0, tzinfo=timezone.utc)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class _Expression:
@@ -228,3 +230,19 @@ def test_failed_finalizer_is_safe_before_a_lease_or_after_consumption(
     )
 
     assert spark.statements == []
+
+
+def test_only_ready_provider_publication_consumes_theme_affinity_context():
+    clean_entrypoint = (
+        PROJECT_ROOT / "jobs/model/theme_affinity/clean_output.py"
+    ).read_text()
+    publish_entrypoint = (
+        PROJECT_ROOT / "jobs/orchestration/publish_score_provider_build.py"
+    ).read_text()
+
+    assert "transition_provider_context(" not in clean_entrypoint
+    publication = publish_entrypoint.index(
+        "result = publish_theme_affinity_provider_build("
+    )
+    consumption = publish_entrypoint.index("transition_provider_context(")
+    assert publication < consumption

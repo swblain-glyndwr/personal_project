@@ -24,12 +24,11 @@ finally:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils.argparser import get_job_parser
-from dsutils.dbc import configure_spark
+from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 
-from next_ads.ranking.theme_affinity.clean_output import clean_model_output
+from next_ads.ranking.theme_affinity.clean_output import stage_model_output
 from next_ads.ranking.theme_affinity.config import resolve_context_runtime
-from next_ads.ranking.provider_context import transition_provider_context
 
 
 jobparser = get_job_parser()
@@ -42,6 +41,7 @@ INPUT_SNAPSHOT_ID = jobparser.get_arg("--input_snapshot_id")
 PROVIDER_BUILD_ID = jobparser.get_arg("--provider_build_id")
 PROVIDER_BUILD_ATTEMPT_ID = jobparser.get_arg("--provider_build_attempt_id")
 CONTEXT_SLOT = jobparser.get_arg("--context_slot")
+PREDICTION_DELTA_VERSION = jobparser.get_arg("--prediction_delta_version")
 
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
@@ -58,13 +58,16 @@ runtime, context = resolve_context_runtime(
 )
 
 logger.info("Cleaning Theme Affinity output into %s", runtime.namespace)
-clean_model_output(spark, runtime)
-from datetime import datetime, timezone
-
-transition_provider_context(
+provider_signals_delta_version = stage_model_output(
     spark,
-    context_table=runtime.config.tables_write.score_provider_run_contexts,
-    context=context,
-    status="CONSUMED",
-    completed_at=datetime.now(timezone.utc),
+    runtime,
+    int(PREDICTION_DELTA_VERSION),
+)
+get_dbutils().jobs.taskValues.set(
+    key="provider_signals_delta_version",
+    value=provider_signals_delta_version,
+)
+logger.info(
+    "Staged canonical provider signals at Delta version %s",
+    provider_signals_delta_version,
 )

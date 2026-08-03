@@ -76,7 +76,6 @@ def _predict_with_model(model_kind, model, raw_feature_pdf, encoders, model_inpu
 def run_prediction(spark, runtime):
     import mlflow
     from pyspark.sql import functions as F
-    from next_ads.common.snapshot_writes import replace_validated_snapshot
     from next_ads.ranking.theme_affinity.config import (
         read_runtime_foundation_output,
     )
@@ -123,13 +122,11 @@ def run_prediction(spark, runtime):
             F.col("baskets_behavior__recency_rank"),
             F.col("prediction").cast("float").alias("prediction"),
         )
-        replace_validated_snapshot(
+        return _publish_prediction_snapshot(
             spark,
             predictions.select(*output_cols),
             table=model_tables.predict_output_table,
-            key_columns=["account_number", "theme"],
         )
-        return
 
     encoder_path = (
         runtime.project_root
@@ -144,12 +141,34 @@ def run_prediction(spark, runtime):
         _predict_partition(runtime.model_uri, encoder_path, model_input_cols),
         schema=prediction_schema,
     )
-    replace_validated_snapshot(
+    return _publish_prediction_snapshot(
         spark,
         predictions.select(*output_cols),
         table=model_tables.predict_output_table,
+    )
+
+
+def _publish_prediction_snapshot(spark, predictions, *, table: str) -> int:
+    """Publish prediction staging and return the exact Delta version."""
+    from next_ads.common.snapshot_writes import replace_validated_snapshot
+    from next_ads.ranking.scoring_inputs import latest_delta_version
+
+    previous_version = latest_delta_version(spark, table)
+    validation = replace_validated_snapshot(
+        spark,
+        predictions,
+        table=table,
         key_columns=["account_number", "theme"],
     )
+    if validation.row_count == 0:
+        raise ValueError("Theme Affinity prediction output is empty")
+    output_version = latest_delta_version(spark, table)
+    if output_version != previous_version + 1:
+        raise ValueError(
+            "Theme Affinity predictions were written amid another "
+            "table transaction"
+        )
+    return output_version
 
 
 def _prediction_input_columns(model_input_cols, output_cols):

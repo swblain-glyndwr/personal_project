@@ -24,7 +24,7 @@ finally:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils.argparser import get_job_parser
-from dsutils.dbc import configure_spark
+from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.ranking.theme_affinity.config import resolve_context_runtime
@@ -60,4 +60,12 @@ if runtime.model_uri != MODEL_URI:
     raise ValueError("Model URI does not match the active provider context")
 
 logger.info("Running Theme Affinity prediction into %s", runtime.namespace)
-run_prediction(spark, runtime)
+prediction_delta_version = run_prediction(spark, runtime)
+get_dbutils().jobs.taskValues.set(
+    key="prediction_delta_version",
+    value=prediction_delta_version,
+)
+logger.info(
+    "Staged Theme Affinity prediction at Delta version %s",
+    prediction_delta_version,
+)

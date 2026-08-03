@@ -43,7 +43,7 @@ def _ranked_theme_mapping(
 
 def _write_inference_log(
     spark,
-    full_results,
+    signals,
     model_tables,
     model_id: str,
     *,
@@ -54,16 +54,16 @@ def _write_inference_log(
     from next_ads.common.snapshot_writes import replace_validated_scope
 
     inference_log_table = model_tables.inference_log
-    inference_log = full_results.select(
-        F.col("rundate").alias("inference_date"),
+    inference_log = signals.select(
+        F.col("RunDate").alias("inference_date"),
         F.lit(inference_timestamp).cast("timestamp").alias(
             "inference_timestamp"
         ),
         F.lit(model_id).alias("model_id"),
         F.col("AccountNumber").alias("account_number"),
-        F.col("NextTheme").alias("theme"),
-        F.col("ProbAggRebased").cast("double").alias("prediction"),
-        F.col("final_rank").cast("int").alias("rank"),
+        F.regexp_replace("EntityID", "[^a-zA-Z0-9]", "").alias("theme"),
+        F.col("Score").cast("double").alias("prediction"),
+        F.col("ProviderRank").cast("int").alias("rank"),
         F.lit(None).cast("int").alias("label"),
         F.lit(None).cast("date").alias("label_observed_until"),
         F.lit(None).cast("timestamp").alias("label_updated_timestamp"),
@@ -120,18 +120,11 @@ def _rerank_model_output(full_results, penalty_themes, penalty: float):
     )
 
 
-def clean_model_output(spark, runtime):
-    from pyspark import StorageLevel
+def stage_model_output(spark, runtime, prediction_delta_version: int) -> int:
     from pyspark.sql import functions as F
-    from next_ads.common.delta_writes import (
-        replace_scope_by_name,
-        replace_table_by_name,
-        validate_unique_non_null_keys,
-    )
-    from next_ads.common.snapshot_writes import (
-        capture_run_date,
-        with_run_date,
-    )
+    from next_ads.ranking.provider_publication import stage_provider_signals
+    from next_ads.ranking.provider_signals import adapt_account_entity_scores
+    from next_ads.ranking.scoring_inputs import read_delta_version
     from next_ads.ranking.theme_affinity.config import (
         read_runtime_foundation_output,
     )
@@ -139,12 +132,17 @@ def clean_model_output(spark, runtime):
 
     model_config = runtime.config.ranking_model
     model_tables = runtime.config.ranking_model_tables
-    run_date = runtime.run_date or capture_run_date(spark)
-    inference_timestamp = spark.sql(
-        "SELECT current_timestamp() AS run_timestamp"
-    ).first()["run_timestamp"]
+    run_date = runtime.run_date
+    if run_date is None:
+        raise ValueError("Theme Affinity staging requires an exact run date")
+    if runtime.provider_context is None:
+        raise ValueError("Theme Affinity staging requires a provider context")
 
-    full_results = spark.table(model_tables.predict_output_table)
+    full_results = read_delta_version(
+        spark,
+        model_tables.predict_output_table,
+        int(prediction_delta_version),
+    )
     stats_df = (
         read_runtime_foundation_output(spark, runtime, "complete")
         .groupBy("theme_clean")
@@ -173,12 +171,6 @@ def clean_model_output(spark, runtime):
         penalty_themes,
         penalty,
     )
-    full_results = (
-        final_results.withColumnRenamed("adjusted_score", "ProbAggRebased")
-        .withColumnRenamed("account_number", "AccountNumber")
-        .withColumnRenamed("theme", "NextTheme")
-    )
-    full_results = with_run_date(full_results, run_date)
     item_themes_table = (
         runtime.item_themes_table
         or runtime.config.tables_write.item_themes_latest
@@ -195,41 +187,171 @@ def clean_model_output(spark, runtime):
         ),
     )
     fixed = (
-        full_results.join(
-            theme_mapping,
-            full_results["NextTheme"] == theme_mapping["theme_clean"],
+        final_results.alias("scores")
+        .join(
+            theme_mapping.alias("mapping"),
+            F.col("scores.theme") == F.col("mapping.theme_clean"),
             how="left",
         )
-        .select("AccountNumber", "theme", "ProbAggRebased", "rundate")
-        .withColumnRenamed("theme", "NextTheme")
+        .select(
+            F.col("scores.account_number").alias("AccountNumber"),
+            F.col("mapping.theme").alias("NextTheme"),
+            F.col("scores.prediction").alias("RawScore"),
+            F.col("scores.adjusted_score").alias("Score"),
+        )
+    )
+    provider = runtime.config.scoring.providers[
+        runtime.provider_context.provider_id
+    ]
+    signals = adapt_account_entity_scores(
+        fixed,
+        provider_build_id=runtime.provider_context.provider_build_id,
+        provider_id=runtime.provider_context.provider_id,
+        entity_type=provider.entity_type,
+        run_date=run_date,
+        account_column="AccountNumber",
+        entity_column="NextTheme",
+        raw_score_column="RawScore",
+        score_column="Score",
+        score_direction=provider.score_direction,
+        max_entities_per_account=int(provider.max_entities_per_account),
+    )
+    return stage_provider_signals(
+        spark,
+        signals,
+        context=runtime.provider_context,
+        table=runtime.config.tables_write.score_provider_signals,
     )
 
-    fixed = fixed.persist(StorageLevel.MEMORY_AND_DISK)
+
+def _require_single_transaction(
+    spark,
+    table: str,
+    previous_version: int,
+) -> int:
+    from next_ads.ranking.scoring_inputs import latest_delta_version
+
+    output_version = latest_delta_version(spark, table)
+    if output_version != previous_version + 1:
+        raise ValueError(f"Table {table} changed during provider publication")
+    return output_version
+
+
+def publish_theme_affinity_compatibility_outputs(
+    spark,
+    runtime,
+    signals,
+    completed_at,
+):
+    """Publish legacy Theme Affinity tables behind the provider gate."""
+    from pyspark import StorageLevel
+    from pyspark.sql import functions as F
+    from next_ads.common.delta_writes import (
+        replace_scope_by_name,
+        replace_table_by_name,
+    )
+    from next_ads.ranking.scoring_inputs import latest_delta_version
+
+    model_tables = runtime.config.ranking_model_tables
+    run_date = runtime.run_date
+    legacy = signals.select(
+        "AccountNumber",
+        F.col("EntityID").alias("NextTheme"),
+        F.col("Score").cast("float").alias("ProbAggRebased"),
+        F.col("RunDate").alias("rundate"),
+    ).persist(StorageLevel.MEMORY_AND_DISK)
     try:
-        validate_unique_non_null_keys(
-            fixed,
-            ["AccountNumber", "NextTheme", "rundate"],
-        )
+        history_before = latest_delta_version(spark, model_tables.model_full)
         replace_scope_by_name(
-            fixed,
+            legacy,
             model_tables.model_full,
             {"rundate": run_date},
-            fixed.columns,
+            legacy.columns,
             spark=spark,
+        )
+        history_version = _require_single_transaction(
+            spark,
+            model_tables.model_full,
+            history_before,
+        )
+
+        inference_before = latest_delta_version(
+            spark,
+            model_tables.inference_log,
         )
         _write_inference_log(
             spark,
-            full_results,
+            signals,
             model_tables,
             runtime.model_uri,
             run_date=run_date,
-            inference_timestamp=inference_timestamp,
+            inference_timestamp=completed_at,
         )
+        inference_version = _require_single_transaction(
+            spark,
+            model_tables.inference_log,
+            inference_before,
+        )
+
+        latest_before = latest_delta_version(spark, model_tables.model_latest)
         replace_table_by_name(
-            fixed,
+            legacy,
             model_tables.model_latest,
-            fixed.columns,
+            legacy.columns,
             spark=spark,
         )
+        latest_version = _require_single_transaction(
+            spark,
+            model_tables.model_latest,
+            latest_before,
+        )
+        return {
+            "history": history_version,
+            "inference_log": inference_version,
+            "latest": latest_version,
+        }
     finally:
-        fixed.unpersist()
+        legacy.unpersist()
+
+
+def publish_theme_affinity_provider_build(
+    spark,
+    runtime,
+    *,
+    provider_signals_delta_version: int,
+    task_run_id: int,
+    execution_count: int,
+):
+    """Publish compatible outputs and accept the canonical build last."""
+    from next_ads.ranking.provider_publication import publish_provider_build
+
+    context = runtime.provider_context
+    if context is None:
+        raise ValueError("Theme Affinity publication requires a provider context")
+    provider = runtime.config.scoring.providers[context.provider_id]
+    return publish_provider_build(
+        spark,
+        context=context,
+        signals_table=runtime.config.tables_write.score_provider_signals,
+        signals_delta_version=int(provider_signals_delta_version),
+        builds_table=runtime.config.tables_write.score_provider_builds,
+        provider_config=provider,
+        contract_version=runtime.config.scoring.contract_version,
+        compatibility_publisher=(
+            lambda signals, completed_at: (
+                publish_theme_affinity_compatibility_outputs(
+                    spark,
+                    runtime,
+                    signals,
+                    completed_at,
+                )
+            )
+        ),
+        task_run_id=int(task_run_id),
+        execution_count=int(execution_count),
+    )
+
+
+def clean_model_output(spark, runtime, prediction_delta_version: int) -> int:
+    """Compatibility name for the staging-only clean step."""
+    return stage_model_output(spark, runtime, prediction_delta_version)

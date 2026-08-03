@@ -107,6 +107,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         "model_predict",
         "sense_check_dlt_data",
         "clean_output",
+        "publish_provider_build",
         "sense_check_model_outputs",
         "finalize_foundation_context",
         "finalize_provider_context",
@@ -243,6 +244,53 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         assert "ds_sandbox" not in parameters
         assert "next_uk_nextAds_predict_prod" not in parameters
 
+    clean_parameters = tasks["clean_output"]["spark_python_task"][
+        "parameters"
+    ]
+    assert clean_parameters[
+        clean_parameters.index("--prediction_delta_version") + 1
+    ] == "{{tasks.model_predict.values.prediction_delta_version}}"
+
+    provider_publish = tasks["publish_provider_build"]
+    assert provider_publish["depends_on"] == [{"task_key": "clean_output"}]
+    assert (
+        provider_publish["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/publish_score_provider_build.py"
+    )
+    assert provider_publish["libraries"] == "${var.theme_affinity_libraries}"
+    provider_publish_parameters = provider_publish["spark_python_task"][
+        "parameters"
+    ]
+    assert dict(
+        zip(
+            provider_publish_parameters[::2],
+            provider_publish_parameters[1::2],
+            strict=True,
+        )
+    ) == {
+        "--client": "next_uk",
+        "--job_env": "${var.job_parameter_environment_name}",
+        "--run_date": "{{job.parameters.run_date}}",
+        "--input_snapshot_id": (
+            "{{tasks.prepare_provider_context.values.input_snapshot_id}}"
+        ),
+        "--provider_build_id": (
+            "{{tasks.prepare_provider_context.values.provider_build_id}}"
+        ),
+        "--provider_build_attempt_id": (
+            "{{tasks.prepare_provider_context.values."
+            "provider_build_attempt_id}}"
+        ),
+        "--provider_signals_delta_version": (
+            "{{tasks.clean_output.values.provider_signals_delta_version}}"
+        ),
+        "--context_slot": "theme_affinity_serving",
+        "--orchestration_run_id": "{{job.run_id}}",
+        "--task_run_id": "{{task.run_id}}",
+        "--execution_count": "{{task.execution_count}}",
+        "--log_level": "INFO",
+    }
+
     dlt_sense_check = tasks["sense_check_dlt_data"]
     assert dlt_sense_check["depends_on"] == [{"task_key": "predict_data_prep"}]
     assert "notebook_task" not in dlt_sense_check
@@ -259,7 +307,9 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert "data" in dlt_sense_check["spark_python_task"]["parameters"]
 
     model_sense_check = tasks["sense_check_model_outputs"]
-    assert model_sense_check["depends_on"] == [{"task_key": "clean_output"}]
+    assert model_sense_check["depends_on"] == [
+        {"task_key": "publish_provider_build"}
+    ]
     assert "notebook_task" not in model_sense_check
     assert "spark_python_task" in model_sense_check
     assert (
@@ -280,7 +330,9 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     )
 
     finalizer = tasks["finalize_provider_context"]
-    assert finalizer["depends_on"] == [{"task_key": "clean_output"}]
+    assert finalizer["depends_on"] == [
+        {"task_key": "publish_provider_build"}
+    ]
     assert finalizer["run_if"] == "ALL_DONE"
     assert (
         finalizer["spark_python_task"]["python_file"]

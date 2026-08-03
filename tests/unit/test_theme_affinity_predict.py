@@ -1,10 +1,14 @@
 import importlib
+from types import SimpleNamespace
+
+import pytest
 
 from next_ads.ranking.theme_affinity.predict import (
     _configure_mlflow_for_model_uri,
     _install_numpy_pickle_compat,
     _is_unity_catalog_model_uri,
     _load_mlflow_model,
+    _publish_prediction_snapshot,
     _prediction_input_columns,
 )
 
@@ -33,6 +37,55 @@ def test_prediction_input_columns_keep_output_passthrough_fields():
         "baskets_behavior__recency_rank",
         "theme_clean",
     ]
+
+
+def test_prediction_snapshot_returns_its_exact_delta_version(monkeypatch):
+    versions = iter((7, 8))
+    monkeypatch.setattr(
+        "next_ads.ranking.scoring_inputs.latest_delta_version",
+        lambda _spark, _table: next(versions),
+    )
+    monkeypatch.setattr(
+        "next_ads.common.snapshot_writes.replace_validated_snapshot",
+        lambda *_args, **_kwargs: SimpleNamespace(row_count=10),
+    )
+
+    assert _publish_prediction_snapshot(
+        object(),
+        object(),
+        table="catalog.schema.predictions",
+    ) == 8
+
+
+@pytest.mark.parametrize(
+    ("versions", "row_count", "message"),
+    [
+        ((7, 8), 0, "empty"),
+        ((7, 9), 10, "another table transaction"),
+    ],
+)
+def test_prediction_snapshot_rejects_unusable_or_ambiguous_output(
+    monkeypatch,
+    versions,
+    row_count,
+    message,
+):
+    versions = iter(versions)
+    monkeypatch.setattr(
+        "next_ads.ranking.scoring_inputs.latest_delta_version",
+        lambda _spark, _table: next(versions),
+    )
+    monkeypatch.setattr(
+        "next_ads.common.snapshot_writes.replace_validated_snapshot",
+        lambda *_args, **_kwargs: SimpleNamespace(row_count=row_count),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        _publish_prediction_snapshot(
+            object(),
+            object(),
+            table="catalog.schema.predictions",
+        )
 
 
 def test_numpy_pickle_compat_supports_numpy_2_serialized_artifacts():

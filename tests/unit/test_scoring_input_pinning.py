@@ -404,6 +404,9 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
     neutral_finalize = (
         "../../../jobs/orchestration/finalize_score_provider_context.py"
     )
+    neutral_publish = (
+        "../../../jobs/orchestration/publish_score_provider_build.py"
+    )
     assert (
         affinity_tasks["prepare_provider_context"]["spark_python_task"][
             "python_file"
@@ -429,6 +432,12 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
             "python_file"
         ]
         == neutral_finalize
+    )
+    assert (
+        affinity_tasks["publish_provider_build"]["spark_python_task"][
+            "python_file"
+        ]
+        == neutral_publish
     )
 
     expected_prepare = {
@@ -477,6 +486,32 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
         "--context_slot",
         "--log_level",
     }
+    clean_parameters = _task_parameter_map(affinity_tasks["clean_output"])
+    assert clean_parameters["--prediction_delta_version"] == (
+        "{{tasks.model_predict.values.prediction_delta_version}}"
+    )
+    assert set(
+        _task_parameter_map(affinity_tasks["publish_provider_build"])
+    ) == {
+        "--client",
+        "--job_env",
+        "--run_date",
+        "--input_snapshot_id",
+        "--provider_build_id",
+        "--provider_build_attempt_id",
+        "--provider_signals_delta_version",
+        "--context_slot",
+        "--orchestration_run_id",
+        "--task_run_id",
+        "--execution_count",
+        "--log_level",
+    }
+    publish_parameters = _task_parameter_map(
+        affinity_tasks["publish_provider_build"]
+    )
+    assert publish_parameters["--provider_signals_delta_version"] == (
+        "{{tasks.clean_output.values.provider_signals_delta_version}}"
+    )
     assert set(_task_parameter_map(affinity_tasks["clean_output"])) == {
         "--client",
         "--job_env",
@@ -484,6 +519,7 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
         "--input_snapshot_id",
         "--provider_build_id",
         "--provider_build_attempt_id",
+        "--prediction_delta_version",
         "--context_slot",
         "--log_level",
     }
@@ -499,6 +535,9 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
     assert set(
         _task_parameter_map(affinity_tasks["finalize_provider_context"])
     ) == expected_finalize
+    assert affinity_tasks["finalize_provider_context"]["depends_on"] == [
+        {"task_key": "publish_provider_build"}
+    ]
     for task_key in (
         "complete_provider_context",
         "finalize_provider_context",

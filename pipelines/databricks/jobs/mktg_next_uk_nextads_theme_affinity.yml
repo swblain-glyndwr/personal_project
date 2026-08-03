@@ -253,6 +253,8 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
             - "{{tasks.prepare_provider_context.values.provider_build_id}}"
             - --provider_build_attempt_id
             - "{{tasks.prepare_provider_context.values.provider_build_attempt_id}}"
+            - --prediction_delta_version
+            - "{{tasks.model_predict.values.prediction_delta_version}}"
             - --context_slot
             - theme_affinity_serving
             - --log_level
@@ -262,9 +264,44 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
         max_retries: 1
         min_retry_interval_millis: 60000
         timeout_seconds: 5400
-      - task_key: sense_check_model_outputs
+      - task_key: publish_provider_build
         depends_on:
           - task_key: clean_output
+        spark_python_task:
+          python_file: ../../../jobs/orchestration/publish_score_provider_build.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --input_snapshot_id
+            - "{{tasks.prepare_provider_context.values.input_snapshot_id}}"
+            - --provider_build_id
+            - "{{tasks.prepare_provider_context.values.provider_build_id}}"
+            - --provider_build_attempt_id
+            - "{{tasks.prepare_provider_context.values.provider_build_attempt_id}}"
+            - --provider_signals_delta_version
+            - "{{tasks.clean_output.values.provider_signals_delta_version}}"
+            - --context_slot
+            - theme_affinity_serving
+            - --orchestration_run_id
+            - "{{job.run_id}}"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.theme_affinity_libraries}
+        max_retries: 1
+        min_retry_interval_millis: 60000
+        timeout_seconds: 5400
+      - task_key: sense_check_model_outputs
+        depends_on:
+          - task_key: publish_provider_build
         spark_python_task:
           python_file: ../../../jobs/model/theme_affinity/sense_check.py
           parameters:
@@ -314,7 +351,7 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
         timeout_seconds: 900
       - task_key: finalize_provider_context
         depends_on:
-          - task_key: clean_output
+          - task_key: publish_provider_build
         run_if: ALL_DONE
         spark_python_task:
           python_file: ../../../jobs/orchestration/finalize_score_provider_context.py

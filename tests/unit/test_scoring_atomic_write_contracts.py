@@ -77,18 +77,25 @@ def test_scoped_atomic_write_rejects_source_before_creating_write_view(
     assert events == ["target_schema", "source_scope"]
 
 
-def test_clean_output_publishes_serving_latest_only_after_durable_outputs():
-    source = _function_source(
+def test_clean_output_stages_before_separate_compatibility_publication():
+    staging = _function_source(
         "src/next_ads/ranking/theme_affinity/clean_output.py",
-        "clean_model_output",
+        "stage_model_output",
+    )
+    publication = _function_source(
+        "src/next_ads/ranking/theme_affinity/clean_output.py",
+        "publish_theme_affinity_compatibility_outputs",
     )
 
-    validation = source.index("validate_unique_non_null_keys(")
-    history = source.index("replace_scope_by_name(")
-    inference_log = source.index("_write_inference_log(")
-    serving_latest = source.index("replace_table_by_name(")
+    assert "stage_provider_signals(" in staging
+    assert "replace_scope_by_name(" not in staging
+    assert "replace_table_by_name(" not in staging
 
-    assert validation < history < inference_log < serving_latest
+    history = publication.index("replace_scope_by_name(")
+    inference_log = publication.index("_write_inference_log(")
+    serving_latest = publication.index("replace_table_by_name(")
+
+    assert history < inference_log < serving_latest
 
 
 def test_theme_scoring_writes_use_one_run_date_and_atomic_helpers():
@@ -122,12 +129,19 @@ def test_theme_scoring_writes_use_one_run_date_and_atomic_helpers():
 
 
 def test_prediction_replaces_validated_snapshot_for_both_model_paths():
-    source = _function_source(
+    prediction = _function_source(
         "src/next_ads/ranking/theme_affinity/predict.py",
         "run_prediction",
     )
+    publication = _function_source(
+        "src/next_ads/ranking/theme_affinity/predict.py",
+        "_publish_prediction_snapshot",
+    )
 
-    assert source.count("replace_validated_snapshot(") == 2
-    assert source.count('key_columns=["account_number", "theme"]') == 2
-    assert ".write.mode(" not in source
-    assert ".saveAsTable(" not in source
+    assert prediction.count("_publish_prediction_snapshot(") == 2
+    assert publication.count("replace_validated_snapshot(") == 1
+    assert 'key_columns=["account_number", "theme"]' in publication
+    assert "latest_delta_version(" in publication
+    for source in (prediction, publication):
+        assert ".write.mode(" not in source
+        assert ".saveAsTable(" not in source

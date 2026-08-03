@@ -279,6 +279,10 @@ def _load_foundation_binding(
         "scoring_foundation_build_attempt_id": (
             scoring_foundation_build_attempt_id
         ),
+        "input_snapshot_attempt_id": build["InputSnapshotAttemptID"],
+        "pipeline_id": build["PipelineID"],
+        "pipeline_update_id": build["PipelineUpdateID"],
+        "pipeline_update_type": build["PipelineUpdateType"],
         "outputs": outputs,
         "input_bindings": input_bindings,
     }

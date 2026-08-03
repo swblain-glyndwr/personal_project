@@ -176,6 +176,27 @@ SCORING_FOUNDATION_TABLE_SPECS = (
     ),
 )
 
+SCORING_PROVIDER_TABLE_SPECS = (
+    MaintenanceTableSpec(
+        name="score_provider_builds",
+        config_key="score_provider_builds",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    MaintenanceTableSpec(
+        name="score_provider_signals",
+        config_key="score_provider_signals",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    _snapshot(
+        "score_provider_run_contexts",
+        "score_provider_run_contexts",
+    ),
+)
+
 LEGACY_SCORING_TABLE_SPECS = (
     _snapshot("theme_scoring_event_latest", "theme_scoring_events_latest"),
     _legacy_history("theme_transition_history", "theme_transitions"),
@@ -253,6 +274,7 @@ CONFIGURED_TABLE_SPECS = (
     *ATTRIBUTE_THEME_TABLE_SPECS,
     *SCORING_INPUT_SNAPSHOT_TABLE_SPECS,
     *SCORING_FOUNDATION_TABLE_SPECS,
+    *SCORING_PROVIDER_TABLE_SPECS,
     *LEGACY_SCORING_TABLE_SPECS,
     *CANDIDATE_TABLE_SPECS,
     *PAYLOAD_TABLE_SPECS,
