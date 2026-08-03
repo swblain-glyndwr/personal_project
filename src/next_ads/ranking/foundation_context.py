@@ -165,6 +165,7 @@ def activate_foundation_context(
     task_run_id: int,
     execution_count: int,
     activated_at: datetime,
+    allow_serial_run_takeover: bool = False,
 ) -> None:
     """Claim one static pipeline slot with exact repair ownership."""
     if activated_at.tzinfo is None:
@@ -205,6 +206,19 @@ def activate_foundation_context(
     insert_values = ", ".join(
         f"source.{quote_identifier(column)}" for column in columns
     )
+    serial_run_takeover = ""
+    if allow_serial_run_takeover:
+        serial_run_takeover = """
+  OR (
+    target.Status = 'ACTIVE'
+    AND target.OrchestrationRunID <> source.OrchestrationRunID
+    AND target.ExpiresAt > source.ActivatedAt
+    AND (
+      target.ActivatedAt IS NULL
+      OR target.ActivatedAt < source.ActivatedAt
+    )
+  )
+"""
     statement = f"""
 MERGE INTO {quote_qualified_identifier(context_table)} AS target
 USING {quote_qualified_identifier(source_view)} AS source
@@ -220,6 +234,7 @@ WHEN MATCHED AND (
     AND target.ScoringFoundationBuildID = source.ScoringFoundationBuildID
     AND source.ExecutionCount > target.ExecutionCount
   )
+{serial_run_takeover}
 ) THEN UPDATE SET {assignments}
 WHEN NOT MATCHED THEN INSERT ({insert_columns}) VALUES ({insert_values})
 """
@@ -234,7 +249,8 @@ WHEN NOT MATCHED THEN INSERT ({insert_columns}) VALUES ({insert_values})
         now=activated_at,
     )
     if (
-        owner.scoring_foundation_build_id
+        owner.orchestration_run_id != context.orchestration_run_id
+        or owner.scoring_foundation_build_id
         != context.scoring_foundation_build_id
         or owner.scoring_foundation_build_attempt_id
         != context.scoring_foundation_build_attempt_id

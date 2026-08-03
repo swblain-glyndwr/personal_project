@@ -144,6 +144,32 @@ def test_foreign_run_cannot_take_an_unexpired_context(monkeypatch):
         )
 
 
+def test_serial_job_can_take_over_a_prior_run_context(monkeypatch):
+    requested = _context()
+    spark = _Spark()
+    monkeypatch.setattr(
+        foundation_context,
+        "load_active_foundation_context",
+        lambda *args, **kwargs: requested,
+    )
+
+    activate_foundation_context(
+        spark,
+        context_table="catalog.schema.contexts",
+        context=requested,
+        task_run_id=456,
+        execution_count=0,
+        activated_at=NOW,
+        allow_serial_run_takeover=True,
+    )
+
+    claim = spark.statements[0]
+    assert "target.Status = 'ACTIVE'" in claim
+    assert "target.OrchestrationRunID <> source.OrchestrationRunID" in claim
+    assert "target.ExpiresAt > source.ActivatedAt" in claim
+    assert "target.ActivatedAt < source.ActivatedAt" in claim
+
+
 def test_transition_requires_exact_run_build_and_attempt_ownership(monkeypatch):
     context = _context()
     rows = [

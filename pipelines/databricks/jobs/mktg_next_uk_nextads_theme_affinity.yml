@@ -56,6 +56,7 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
             - account_theme_features
             - --context_slot
             - account_theme_features_v2
+            - --allow-serial-run-takeover
             - --readiness_wait_seconds
             - "5400"
             - --readiness_poll_seconds
@@ -157,6 +158,7 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
             - "{{job.parameters.model_uri}}"
             - --context_slot
             - theme_affinity_serving
+            - --allow-serial-run-takeover
             - --readiness_wait_seconds
             - "0"
             - --readiness_poll_seconds

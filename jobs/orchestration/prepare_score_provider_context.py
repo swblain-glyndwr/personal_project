@@ -305,6 +305,7 @@ def main(
     ORCHESTRATION_RUN_ID=None,
     SCORING_FOUNDATION_BUILD_ID=None,
     SCORING_FOUNDATION_BUILD_ATTEMPT_ID=None,
+    ALLOW_SERIAL_RUN_TAKEOVER=False,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -428,6 +429,7 @@ def main(
         task_run_id=task_run_id,
         execution_count=execution_count,
         activated_at=activated_at,
+        allow_serial_run_takeover=ALLOW_SERIAL_RUN_TAKEOVER,
     )
     logger.info(
         "Activated %s for provider build %s and input %s",
@@ -457,4 +459,5 @@ if __name__ == "__main__":
         parser.get_arg("--orchestration_run_id"),
         parser.get_arg("--scoring_foundation_build_id"),
         parser.get_arg("--scoring_foundation_build_attempt_id"),
+        parser.has_arg("--allow-serial-run-takeover"),
     )

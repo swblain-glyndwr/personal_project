@@ -257,6 +257,7 @@ def main(
     READINESS_WAIT_SECONDS,
     READINESS_POLL_SECONDS,
     ORCHESTRATION_RUN_ID,
+    ALLOW_SERIAL_RUN_TAKEOVER=False,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -331,6 +332,7 @@ def main(
         task_run_id=task_run_id,
         execution_count=execution_count,
         activated_at=activated_at,
+        allow_serial_run_takeover=ALLOW_SERIAL_RUN_TAKEOVER,
     )
     task_values = get_dbutils().jobs.taskValues
     task_values.set(key="input_snapshot_id", value=input_snapshot_id)
@@ -363,4 +365,5 @@ if __name__ == "__main__":
         parser.get_arg("--readiness_wait_seconds") or "1800",
         parser.get_arg("--readiness_poll_seconds") or "60",
         parser.get_arg("--orchestration_run_id"),
+        parser.has_arg("--allow-serial-run-takeover"),
     )

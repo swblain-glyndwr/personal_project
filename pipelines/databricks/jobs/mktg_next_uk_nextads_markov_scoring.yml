@@ -43,6 +43,7 @@ mktg_next_uk_nextads_markov_scoring_config: &mktg_next_uk_nextads_markov_scoring
             - code:/markov/v1
             - --context_slot
             - markov_scoring
+            - --allow-serial-run-takeover
             - --provider_id
             - markov
             - --use_case

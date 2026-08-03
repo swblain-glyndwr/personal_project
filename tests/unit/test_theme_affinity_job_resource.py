@@ -340,6 +340,38 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     )
 
 
+def test_theme_affinity_serial_queue_allows_cancelled_lease_recovery():
+    jobs = (
+        _theme_affinity_job(),
+        _load_yaml(
+            "pipelines/databricks/jobs/"
+            "mktg_next_uk_nextads_markov_scoring.yml"
+        )["mktg_next_uk_nextads_markov_scoring_config"][
+            "mktg_next_uk_nextads_markov_scoring_cicd"
+        ],
+    )
+    opted_in_slots = []
+    for job in jobs:
+        assert job["queue"] == {"enabled": True}
+        assert job["max_concurrent_runs"] == 1
+        for task in job["tasks"]:
+            parameters = task.get("spark_python_task", {}).get(
+                "parameters",
+                [],
+            )
+            if "--allow-serial-run-takeover" not in parameters:
+                continue
+            context_index = parameters.index("--context_slot")
+            opted_in_slots.append(parameters[context_index + 1])
+
+    assert sorted(opted_in_slots) == [
+        "account_theme_features_v2",
+        "markov_scoring",
+        "theme_affinity_serving",
+    ]
+    assert len(opted_in_slots) == len(set(opted_in_slots))
+
+
 def test_theme_affinity_libraries_avoid_full_runtime_requirements():
     variables = _load_yaml("pipelines/databricks/variables/libraries.yml")["variables"]
 
