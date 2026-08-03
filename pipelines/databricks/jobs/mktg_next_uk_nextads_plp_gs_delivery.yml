@@ -3,9 +3,26 @@ mktg_next_uk_nextads_plp_gs_delivery_config: &mktg_next_uk_nextads_plp_gs_delive
     name: mktg_next_uk_nextads_plp_gs_delivery
     queue:
       enabled: true
+    max_concurrent_runs: 1
     parameters:
       - name: run_date
         default: "{{job.start_time.iso_date}}"
+      - name: build_run_id
+        default: ""
+      - name: provider_build_id
+        default: ""
+      - name: provider_signals_table
+        default: ""
+      - name: provider_signals_delta_version
+        default: ""
+      - name: input_snapshot_id
+        default: ""
+      - name: scoring_foundation_build_id
+        default: ""
+      - name: provider_selection_status
+        default: ""
+      - name: provider_source_run_date
+        default: ""
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}

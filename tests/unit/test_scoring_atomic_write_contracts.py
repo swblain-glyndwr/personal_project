@@ -117,7 +117,9 @@ def test_theme_scoring_writes_use_one_run_date_and_atomic_helpers():
     assert '.mode("errorifexists").saveAsTable(' in build_source
     assert "quote_qualified_identifier(temp_table_name)" in build_source
 
-    assert mapping_source.count("capture_run_date(") == 1
+    assert mapping_source.count("capture_run_date(") == 0
+    assert "if isinstance(run_date, str):" in mapping_source
+    assert "run_date = date.fromisoformat(run_date)" in mapping_source
     assert "publish_history_and_latest(" in mapping_source
     assert "replace_validated_snapshot(" in mapping_source
     assert "with_run_date(df_ad_scores, run_date)" in mapping_source

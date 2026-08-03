@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -28,7 +29,6 @@ from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
 from next_ads.common.snapshot_writes import (
-    capture_run_date,
     replace_validated_snapshot,
     with_run_date,
 )
@@ -40,10 +40,16 @@ jobparser._parse_args()
 JOB_ENV = jobparser.get_arg("--job_env")
 CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
+RUN_DATE_RAW = jobparser.get_arg("--run_date")
+if not RUN_DATE_RAW:
+    raise ValueError("--run_date is required")
+try:
+    RUN_DATE = date.fromisoformat(RUN_DATE_RAW)
+except ValueError as exc:
+    raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
-RUN_DATE = capture_run_date(spark)
 logger.info(f"Running in job environment: {JOB_ENV}")
 logger.info(f"Run date set to: {RUN_DATE}")
 

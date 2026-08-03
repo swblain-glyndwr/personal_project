@@ -36,7 +36,13 @@ CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
-ALGO = jobparser.get_arg("--algo") or "champion"
+RUN_DATE = jobparser.get_arg("--run_date")
+PROVIDER_BUILD_ID = jobparser.get_arg("--provider_build_id")
+PROVIDER_SIGNALS_TABLE = jobparser.get_arg("--provider_signals_table")
+PROVIDER_SIGNALS_DELTA_VERSION = jobparser.get_arg(
+    "--provider_signals_delta_version"
+)
+PROVIDER_SOURCE_RUN_DATE = jobparser.get_arg("--provider_source_run_date")
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
 
@@ -51,13 +57,32 @@ config = config_manager.load_config(JOB_ENV, client=CLIENT)
 logger.info(f"Configuring run for client: {CLIENT}")
 cfg = load_client_config(CLIENT)
 
+if not RUN_DATE:
+    raise ValueError("--run_date is required")
+if not PROVIDER_BUILD_ID:
+    raise ValueError("--provider_build_id is required")
+if not PROVIDER_SIGNALS_TABLE:
+    raise ValueError("--provider_signals_table is required")
+if not PROVIDER_SOURCE_RUN_DATE:
+    raise ValueError("--provider_source_run_date is required")
+try:
+    PROVIDER_SIGNALS_DELTA_VERSION = int(PROVIDER_SIGNALS_DELTA_VERSION)
+except (TypeError, ValueError) as exc:
+    raise ValueError(
+        "--provider_signals_delta_version must be an integer"
+    ) from exc
+
 run_theme_score_mapping(
     spark=spark,
     config=config,
     cfg=cfg,
     client=CLIENT,
     job_env=JOB_ENV,
-    algo=ALGO,
+    run_date=RUN_DATE,
+    provider_build_id=PROVIDER_BUILD_ID,
+    provider_signals_table=PROVIDER_SIGNALS_TABLE,
+    provider_signals_delta_version=PROVIDER_SIGNALS_DELTA_VERSION,
+    provider_source_run_date=PROVIDER_SOURCE_RUN_DATE,
     apply_ad_feedback=jobparser.has_arg("--apply-ad-feedback"),
     ad_feedback_weight=jobparser.get_arg("--ad-feedback-weight") or 0.05,
     top_ads_per_location=jobparser.get_arg("--top-ads-per-location") or 20,

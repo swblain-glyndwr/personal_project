@@ -23,29 +23,37 @@ For target availability and release-route rules, see
 ### `mktg_next_uk_nextads_candidate_build`
 
 Main NextAds candidate-generation graph. It builds shared customer cells, loads
-the independent v1/v2 control sheets, maps the shared Theme Affinity output to
-each route, and submits the route-specific page-build jobs. Legacy product Theme
+the independent v1/v2 control sheets, selects an accepted score-provider build
+for each route, maps that exact output version, and waits for the route-specific
+page-build jobs. Legacy product Theme
 Mapping and Markov scoring run independently in
 `mktg_next_uk_nextads_markov_scoring`; candidate publication does not wait for
 that job.
 
 The candidate job parameter `run_date` defaults to
-`{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. A v1
-control-sheet failure cannot block the v2 mapper, and a v2 control-sheet failure
-cannot block the v1 mapper. The warning-only Theme Affinity coverage task reports
-cross-route input problems but is not an upstream dependency of either mapper.
+`{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. The
+`v1_score_provider_id` and `v2_score_provider_id` parameters default to
+`theme_affinity`, but can select different registered providers without changing
+the candidate mapper. A v1 control or provider failure cannot block the v2 route,
+and the reverse is also true. Business coverage findings remain warning-only;
+technical inability to run an audit or read the pinned provider output fails only
+that route.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
-| `assign_customer_cells` | `client`, `job_env`, `refresh_control_date` | `refresh_control_date` is date-gated; use a current `YYYY-MM-DD` only when deliberately refreshing control assignments. |
-| `combine_customer_cells` | `client`, `job_env` | Combines outputs from assignment. |
-| `load_control_sheet_v1` | `client`, `job_env` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
-| `load_control_sheet_v2` | `client`, `job_env` | Loads v2 page-type control-sheet data and writes `control_sheet_latest_v2`. |
-| `validate_theme_affinity_theme_coverage` | `client`, `job_env`, `warn-only` flag | Checks active v1/v2 ad `Themes` from the loaded control sheets exist in shared `theme_affinity_model_latest.NextTheme`. Candidate build passes `warn-only`, so missing coverage is reported but does not block the route mappers. |
-| `map_theme_scores_to_ads_v1` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest`, joins `NextTheme` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. `apply-ad-feedback` is a flag. |
-| `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest_v2`, joins `NextTheme` to ad `Themes`, ranks by `PageType`, and writes `preranked_ads_from_themes_v2_latest`; it does not read v1 preranked output. |
-| `trigger_page_build_v1_job` | `job-id`, `job-name`, `job-parameter run_date`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build` job id and forwards the candidate job's logical run date. |
-| `trigger_page_build_v2_job` | `job-id`, `job-name`, `job-parameter run_date`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build_v2` job id and forwards the same logical run date. |
+| `assign_customer_cells` | `client`, `job_env`, `refresh_control_date`, `run_date` | `refresh_control_date` is date-gated; use a current `YYYY-MM-DD` only when deliberately refreshing control assignments. |
+| `combine_customer_cells` | `client`, `job_env`, `run_date` | Combines the accepted cell outputs for the logical run date. |
+| `load_control_sheet_v1` | `client`, `job_env`, `run_date` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
+| `audit_control_sheet_v1` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Reports business findings as warnings. A technical audit failure stops v1 before mapping. |
+| `trigger_data_pull_for_CMS_pull` | Native child job with `run_date` | Waits for the CMS acquisition job used by the v2 snapshot. |
+| `load_control_sheet_v2` | `client`, `job_env`, `run_date` | Runs after CMS acquisition and writes `control_sheet_latest_v2`. |
+| `audit_control_sheet_v2` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Reports business findings as warnings. A technical audit failure stops v2 before mapping. |
+| `select_score_provider_build_v1/v2` | provider id, capability, use case, route, run date, task attempt | Waits until the fixed 18:30 Europe/London deadline, then selects same-day `READY_FOR_NEXTADS` or a valid accepted fallback no more than 24 hours old. Emits the exact build, table and Delta version. |
+| `validate_score_provider_theme_coverage_v1/v2` | route plus selected provider identity, `warn-only` | Compares that route's active ad themes with the exact selected provider output. Missing business coverage warns; an unreadable or invalid provider version fails the route. |
+| `map_theme_scores_to_ads_v1` | run date, selected provider build/table/version/source date, `apply-ad-feedback`, `top-ads-per-location` | Reads the immutable canonical score version, joins `EntityID` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. |
+| `map_theme_scores_to_ads_v2` | run date, selected provider build/table/version/source date, `top-ads-per-page-type` | Reads the same canonical contract at page-type grain and writes `preranked_ads_from_themes_v2_latest`. |
+| `run_page_build_v1` | Native child job plus run/build/provider identities | Waits for the complete v1 page build, publication, validation and delivery result. |
+| `run_page_build_v2` | Native child job plus run/build/provider identities | Waits for the complete v2 page build, publication and payload result. |
 
 ### `mktg_next_uk_nextads_markov_scoring`
 

@@ -3,6 +3,7 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
     name: mktg_next_uk_nextads_page_build
     queue:
       enabled: true
+    max_concurrent_runs: 1
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
@@ -16,12 +17,28 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
     notification_settings:
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
-    timeout_seconds: 21600 # required by Engineering at job level as Monitoring Dashboard doesnt handle for_each_task type
+    # Covers primary, secondary and publication stages plus the longest
+    # synchronous delivery child. The monitoring dashboard requires this cap.
+    timeout_seconds: 43200
     parameters:
       - name: run_date
         default: "{{job.start_time.iso_date}}"
       - name: build_run_id
         default: "v1_{{job.run_id}}"
+      - name: provider_build_id
+        default: ""
+      - name: provider_signals_table
+        default: ""
+      - name: provider_signals_delta_version
+        default: ""
+      - name: input_snapshot_id
+        default: ""
+      - name: scoring_foundation_build_id
+        default: ""
+      - name: provider_selection_status
+        default: ""
+      - name: provider_source_run_date
+        default: ""
       - name: scope_manifest_json
         default: '[{"scope":"SB1","phase":"primary"},{"scope":"OC1","phase":"primary"},{"scope":"PH3","phase":"primary"},{"scope":"PH4","phase":"primary"},{"scope":"PH5","phase":"primary"},{"scope":"LP1","phase":"primary"},{"scope":"LP2","phase":"primary"},{"scope":"LP3","phase":"primary"},{"scope":"LP4","phase":"primary"},{"scope":"LP5","phase":"primary"},{"scope":"LP6","phase":"primary"},{"scope":"LP7","phase":"primary"},{"scope":"LP8","phase":"primary"},{"scope":"LP9","phase":"primary"},{"scope":"LP10","phase":"primary"},{"scope":"LP11","phase":"primary"},{"scope":"PL1","phase":"primary"},{"scope":"PL2","phase":"primary"},{"scope":"PL3","phase":"primary"},{"scope":"PL4","phase":"primary"},{"scope":"PL5","phase":"primary"},{"scope":"PL6","phase":"primary"},{"scope":"PL7","phase":"primary"},{"scope":"PL8","phase":"primary"},{"scope":"PL9","phase":"primary"},{"scope":"PL10","phase":"primary"},{"scope":"PL11","phase":"primary"},{"scope":"PL12","phase":"primary"},{"scope":"PL13","phase":"primary"},{"scope":"PL14","phase":"primary"},{"scope":"PL15","phase":"primary"},{"scope":"PL16","phase":"primary"},{"scope":"PL17","phase":"primary"},{"scope":"PL18","phase":"primary"},{"scope":"PL19","phase":"primary"},{"scope":"PL20","phase":"primary"},{"scope":"PL21","phase":"primary"},{"scope":"PL22","phase":"primary"},{"scope":"PL23","phase":"primary"},{"scope":"PL24","phase":"primary"},{"scope":"PL25","phase":"primary"},{"scope":"PL26","phase":"primary"},{"scope":"PL27","phase":"primary"},{"scope":"PL28","phase":"primary"},{"scope":"PL29","phase":"primary"},{"scope":"PL30","phase":"primary"},{"scope":"PL31","phase":"primary"},{"scope":"PL32","phase":"primary"},{"scope":"PL33","phase":"primary"},{"scope":"PL34","phase":"primary"},{"scope":"PL35","phase":"primary"},{"scope":"PL36","phase":"primary"},{"scope":"PL37","phase":"primary"},{"scope":"PL38","phase":"primary"},{"scope":"PL39","phase":"primary"},{"scope":"PL40","phase":"primary"},{"scope":"FY1","phase":"primary"},{"scope":"FY2","phase":"primary"},{"scope":"FY3","phase":"primary"},{"scope":"FY4","phase":"primary"},{"scope":"FY5","phase":"primary"},{"scope":"FY6","phase":"primary"},{"scope":"FY7","phase":"primary"},{"scope":"FY8","phase":"primary"},{"scope":"FY9","phase":"primary"},{"scope":"FY10","phase":"primary"},{"scope":"FY11","phase":"primary"},{"scope":"FY12","phase":"primary"},{"scope":"FY13","phase":"primary"},{"scope":"FY14","phase":"primary"},{"scope":"FY15","phase":"primary"},{"scope":"FY16","phase":"primary"},{"scope":"FY17","phase":"primary"},{"scope":"FY18","phase":"primary"},{"scope":"FY19","phase":"primary"},{"scope":"FY20","phase":"primary"},{"scope":"PLX","phase":"primary"},{"scope":"SB2","phase":"secondary","inherit_basic_from":"SB1"},{"scope":"OC2","phase":"secondary","inherit_basic_from":"OC1"}]'
     tasks:
@@ -124,55 +141,51 @@ mktg_next_uk_nextads_page_build_config: &mktg_next_uk_nextads_page_build_config
         max_retries: 2
         min_retry_interval_millis: 5000
         timeout_seconds: 10800
-      - task_key: trigger_assignment_validation_job
+      - task_key: run_assignment_validation
         depends_on:
           - task_key: publish_assignment_build_v1
-        spark_python_task:
-          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
-          parameters:
-            - --job-id
-            - ${resources.jobs.mktg_next_uk_nextads_assignment_validation_cicd.id}
-            - --job-name
-            - "mktg_next_uk_nextads_assignment_validation"
-            - --fail-on-submit-error
-        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
-      - task_key: trigger_masid_handoff_check_job
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_assignment_validation_cicd.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
+            build_run_id: "{{job.parameters.build_run_id}}"
+            provider_build_id: "{{job.parameters.provider_build_id}}"
+            provider_signals_table: "{{job.parameters.provider_signals_table}}"
+            provider_signals_delta_version: "{{job.parameters.provider_signals_delta_version}}"
+            input_snapshot_id: "{{job.parameters.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{job.parameters.scoring_foundation_build_id}}"
+            provider_selection_status: "{{job.parameters.provider_selection_status}}"
+            provider_source_run_date: "{{job.parameters.provider_source_run_date}}"
+      - task_key: run_masid_handoff
         depends_on:
           - task_key: publish_assignment_build_v1
-        spark_python_task:
-          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
-          parameters:
-            - --job-id
-            - ${resources.jobs.mktg_next_uk_nextads_masid_handoff_cicd.id}
-            - --job-name
-            - "mktg_next_uk_nextads_masid_handoff"
-            - --job-parameter
-            - "run_date={{job.parameters.run_date}}"
-            - --fail-on-submit-error
-        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
-      - task_key: trigger_plp_gs_delivery_job
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_masid_handoff_cicd.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
+            build_run_id: "{{job.parameters.build_run_id}}"
+            provider_build_id: "{{job.parameters.provider_build_id}}"
+            provider_signals_table: "{{job.parameters.provider_signals_table}}"
+            provider_signals_delta_version: "{{job.parameters.provider_signals_delta_version}}"
+            input_snapshot_id: "{{job.parameters.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{job.parameters.scoring_foundation_build_id}}"
+            provider_selection_status: "{{job.parameters.provider_selection_status}}"
+            provider_source_run_date: "{{job.parameters.provider_source_run_date}}"
+      - task_key: run_plp_gs_delivery
         depends_on:
           - task_key: publish_assignment_build_v1
-        spark_python_task:
-          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
-          parameters:
-            - --job-id
-            - ${resources.jobs.mktg_next_uk_nextads_plp_gs_delivery_cicd.id}
-            - --job-name
-            - "mktg_next_uk_nextads_plp_gs_delivery"
-            - --job-parameter
-            - "run_date={{job.parameters.run_date}}"
-            - --fail-on-submit-error
-        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_plp_gs_delivery_cicd.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
+            build_run_id: "{{job.parameters.build_run_id}}"
+            provider_build_id: "{{job.parameters.provider_build_id}}"
+            provider_signals_table: "{{job.parameters.provider_signals_table}}"
+            provider_signals_delta_version: "{{job.parameters.provider_signals_delta_version}}"
+            input_snapshot_id: "{{job.parameters.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{job.parameters.scoring_foundation_build_id}}"
+            provider_selection_status: "{{job.parameters.provider_selection_status}}"
+            provider_source_run_date: "{{job.parameters.provider_source_run_date}}"
 
 targets:
   SANDBOX:

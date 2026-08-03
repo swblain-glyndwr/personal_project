@@ -44,10 +44,13 @@ def _string_list(node):
     ]
 
 
-def test_assign_cells_uses_one_run_date_and_no_destructive_writers():
+def test_assign_cells_uses_propagated_run_date_and_no_destructive_writers():
     source, tree = _source_and_tree(ASSIGN_PATH)
 
-    assert len(_calls_named(tree, "capture_run_date")) == 1
+    assert len(_calls_named(tree, "capture_run_date")) == 0
+    assert 'get_arg("--run_date")' in source
+    assert "date.fromisoformat(RUN_DATE_RAW)" in source
+    assert 'raise ValueError("--run_date is required")' in source
     assert "date.today" not in source
     assert "current_date()" not in source
 
@@ -133,7 +136,10 @@ def test_transient_cells_publish_history_then_latest_even_when_empty():
 def test_combined_cells_latest_is_a_full_atomic_snapshot():
     source, tree = _source_and_tree(COMBINE_PATH)
 
-    assert len(_calls_named(tree, "capture_run_date")) == 1
+    assert len(_calls_named(tree, "capture_run_date")) == 0
+    assert 'get_arg("--run_date")' in source
+    assert "date.fromisoformat(RUN_DATE_RAW)" in source
+    assert 'raise ValueError("--run_date is required")' in source
     assert len(_calls_named(tree, "with_run_date")) == 1
 
     snapshot_calls = _calls_named(tree, "replace_validated_snapshot")

@@ -1,6 +1,8 @@
 from pyspark.sql import functions as F
 from pyspark.sql.types import IntegerType, StructField, StructType
 
+from next_ads.ranking.scoring_inputs import read_delta_version
+
 
 def load_control_ads(spark, control_sheet_latest: str):
     return spark.table(control_sheet_latest)
@@ -26,6 +28,68 @@ def load_theme_scores(spark, theme_scores_latest: str, customer_base_df):
         on="AccountNumber",
         how="inner",
     )
+
+
+def load_provider_theme_scores(
+    spark,
+    *,
+    provider_signals_table: str,
+    provider_signals_delta_version: int,
+    provider_build_id: str,
+    provider_source_run_date,
+    customer_base_df,
+):
+    """Read one immutable provider build through the canonical score contract."""
+    source = read_delta_version(
+        spark,
+        provider_signals_table,
+        provider_signals_delta_version,
+    )
+    required_columns = {
+        "ProviderBuildID",
+        "AccountNumber",
+        "EntityType",
+        "EntityID",
+        "RunDate",
+        "RawScore",
+        "Score",
+    }
+    missing = sorted(required_columns.difference(source.columns))
+    if missing:
+        raise ValueError(
+            "Provider signal table is missing columns: "
+            + ", ".join(missing)
+        )
+
+    selected = (
+        source.where(F.col("ProviderBuildID") == provider_build_id)
+        .where(F.col("EntityType") == "theme")
+        .where(F.col("RunDate") == F.lit(provider_source_run_date))
+        .select(
+            "AccountNumber",
+            F.col("EntityID").alias("NextTheme"),
+            F.col("RawScore").alias("ProbBase"),
+            F.col("RawScore").alias("ProbAgg"),
+            F.col("Score").alias("ProbAggRebased"),
+        )
+    )
+    if selected.limit(1).count() == 0:
+        raise ValueError(
+            "Selected provider build contains no theme signals at its "
+            "recorded Delta version"
+        )
+
+    customer_scores = selected.join(
+        customer_base_df,
+        on="AccountNumber",
+        how="inner",
+    )
+    if customer_scores.limit(1).count() == 0:
+        raise ValueError(
+            "Selected provider build contains no signals for the accepted "
+            "customer base"
+        )
+    return customer_scores
 
 
 def build_ad_group_mappings(

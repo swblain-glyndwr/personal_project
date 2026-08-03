@@ -1,6 +1,7 @@
+from datetime import date
+
 from dsutils.logtools import get_logger
 from next_ads.common.snapshot_writes import (
-    capture_run_date,
     publish_history_and_latest,
     replace_validated_snapshot,
     with_run_date,
@@ -24,7 +25,7 @@ from next_ads.ranking.theme_score_retrieval import (
     build_theme_to_ad_mapping,
     load_control_ads,
     load_customer_base,
-    load_theme_scores,
+    load_provider_theme_scores,
 )
 from next_ads.common import etl
 
@@ -36,7 +37,11 @@ def run_theme_score_mapping(
     cfg: dict,
     client: str,
     job_env: str,
-    algo: str = "champion",
+    run_date: date | str,
+    provider_build_id: str,
+    provider_signals_table: str,
+    provider_signals_delta_version: int,
+    provider_source_run_date: date | str,
     apply_ad_feedback: bool = False,
     ad_feedback_weight=0.05,
     top_ads_per_location: int = 20,
@@ -48,7 +53,24 @@ def run_theme_score_mapping(
     logger=None,
 ):
     logger = logger or get_logger(__name__)
-    run_date = capture_run_date(spark)
+    if isinstance(run_date, str):
+        run_date = date.fromisoformat(run_date)
+    if isinstance(provider_source_run_date, str):
+        provider_source_run_date = date.fromisoformat(
+            provider_source_run_date
+        )
+    if not provider_build_id:
+        raise ValueError("provider_build_id is required")
+    if not provider_signals_table:
+        raise ValueError("provider_signals_table is required")
+    if (
+        isinstance(provider_signals_delta_version, bool)
+        or not isinstance(provider_signals_delta_version, int)
+        or provider_signals_delta_version < 0
+    ):
+        raise ValueError(
+            "provider_signals_delta_version must be a non-negative integer"
+        )
     top_ads = int(
         top_ads_per_group
         if top_ads_per_group is not None
@@ -90,17 +112,6 @@ def run_theme_score_mapping(
     sessions = cfg["tables"]["read"]["bq_sessions"]
     actions = cfg["tables"]["read"]["bq_actions"]
 
-    if algo == "challenger":
-        logger.info("Running script as Challenger")
-        next_theme_scores_latest = (
-            config.theme_affinity_assignment_sources.challenger
-        )
-    else:
-        logger.info("Running script as default (Champion)")
-        next_theme_scores_latest = (
-            config.theme_affinity_assignment_sources.champion
-        )
-
     theme_score_components_latest = etl.map_tbl(
         tbls["theme_score_components_latest"],
         **tbl_args,
@@ -133,9 +144,21 @@ def run_theme_score_mapping(
     logger.info(f"Getting customer base from {customer_cells_latest}")
     df_cust = load_customer_base(spark, customer_cells_latest)
 
-    logger.info(f"Getting theme scores from {next_theme_scores_latest}")
-    df_theme_scores = load_theme_scores(
-        spark, next_theme_scores_latest, df_cust
+    logger.info(
+        "Getting theme scores from provider build %s in %s at Delta "
+        "version %s (source run date %s)",
+        provider_build_id,
+        provider_signals_table,
+        provider_signals_delta_version,
+        provider_source_run_date,
+    )
+    df_theme_scores = load_provider_theme_scores(
+        spark,
+        provider_signals_table=provider_signals_table,
+        provider_signals_delta_version=provider_signals_delta_version,
+        provider_build_id=provider_build_id,
+        provider_source_run_date=provider_source_run_date,
+        customer_base_df=df_cust,
     )
 
     logger.info("Normalising theme scores")

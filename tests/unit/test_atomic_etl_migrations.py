@@ -344,18 +344,23 @@ def _called_names(source):
     return names
 
 
-def test_control_entrypoints_capture_one_run_date_and_remove_legacy_writers():
-    paths = [
-        "jobs/nextads_control/load_control_sheet.py",
-        "jobs/nextads_control/load_control_sheet_v2.py",
-        "jobs/nextads_control/parse_attributes.py",
-        "jobs/nextads_control/parse_theme_mapping.py",
-    ]
+def test_control_entrypoints_use_one_logical_date_and_remove_legacy_writers():
+    expected_date_contracts = {
+        "jobs/nextads_control/load_control_sheet.py": "propagated",
+        "jobs/nextads_control/load_control_sheet_v2.py": "propagated",
+        "jobs/nextads_control/parse_attributes.py": "captured",
+        "jobs/nextads_control/parse_theme_mapping.py": "captured",
+    }
 
-    for relative_path in paths:
+    for relative_path, date_contract in expected_date_contracts.items():
         source = (PROJECT_ROOT / relative_path).read_text()
         called_names = _called_names(source)
-        assert called_names.count("capture_run_date") == 1
+        if date_contract == "propagated":
+            assert called_names.count("capture_run_date") == 0
+            assert called_names.count("fromisoformat") == 1
+            assert 'get_arg("--run_date")' in source
+        else:
+            assert called_names.count("capture_run_date") == 1
         assert "delete_from_and_load" not in called_names
         assert "truncate_and_load" not in called_names
         assert "current_date" not in called_names

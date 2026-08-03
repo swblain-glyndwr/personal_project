@@ -211,13 +211,15 @@ def test_theme_affinity_tables_resolve_to_prod_schema(monkeypatch):
     )
 
 
-def test_map_theme_scores_uses_config_led_assignment_sources():
+def test_map_theme_scores_uses_the_selected_provider_build():
     script = (
         PROJECT_ROOT / "src/next_ads/ranking/theme_score_mapping.py"
     ).read_text()
 
-    assert "theme_affinity_assignment_sources.champion" in script
-    assert "theme_affinity_assignment_sources.challenger" in script
+    assert "load_provider_theme_scores(" in script
+    assert "provider_build_id" in script
+    assert "provider_signals_delta_version" in script
+    assert "theme_affinity_assignment_sources" not in script
     assert "config.ranking_model_tables.model_latest" not in script
     assert "cfg['tables']['read'][\"hackathon_assignments\"]" not in script
     assert 'cfg["tables"]["read"]["hackathon_assignments"]' not in script

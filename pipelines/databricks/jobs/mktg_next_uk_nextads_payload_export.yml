@@ -3,6 +3,7 @@ mktg_next_uk_nextads_payload_export_config: &mktg_next_uk_nextads_payload_export
     name: mktg_next_uk_nextads_payload_export
     queue:
       enabled: true
+    max_concurrent_runs: 1
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
@@ -20,6 +21,22 @@ mktg_next_uk_nextads_payload_export_config: &mktg_next_uk_nextads_payload_export
     parameters:
       - name: run_date
         default: "{{job.start_time.iso_date}}"
+      - name: build_run_id
+        default: ""
+      - name: provider_build_id
+        default: ""
+      - name: provider_signals_table
+        default: ""
+      - name: provider_signals_delta_version
+        default: ""
+      - name: input_snapshot_id
+        default: ""
+      - name: scoring_foundation_build_id
+        default: ""
+      - name: provider_selection_status
+        default: ""
+      - name: provider_source_run_date
+        default: ""
     tasks:
       - task_key: Export_for_Bloomreach
         spark_python_task:

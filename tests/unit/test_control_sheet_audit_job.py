@@ -162,7 +162,7 @@ def test_warn_only_prod_audit_reads_snapshots_and_posts_one_message(monkeypatch)
     ]
 
 
-def test_warn_only_audit_runtime_error_is_reported_without_failing(monkeypatch):
+def test_warn_only_audit_propagates_technical_runtime_error(monkeypatch):
     config = _config()
     logger = _Logger()
     posts = []
@@ -177,25 +177,22 @@ def test_warn_only_audit_runtime_error_is_reported_without_failing(monkeypatch):
         lambda logger, url, message: posts.append((url, message)),
     )
 
-    result = audit_job.run_warning_only_audit(
-        spark=_Spark(),
-        config=config,
-        route="v1",
-        run_date=date(2026, 7, 29),
-        warn_only=True,
-        job_env="prod",
-        logger=logger,
-    )
+    with pytest.raises(RuntimeError, match="test audit failure"):
+        audit_job.run_warning_only_audit(
+            spark=_Spark(),
+            config=config,
+            route="v1",
+            run_date=date(2026, 7, 29),
+            warn_only=True,
+            job_env="prod",
+            logger=logger,
+        )
 
-    assert result is None
-    assert len(logger.exception_calls) == 1
-    assert "could not complete" in logger.exception_calls[0][0]
-    assert len(posts) == 1
-    assert posts[0][0] == "input-warning-url"
-    assert "Candidate mapping and publication were not blocked" in posts[0][1]
+    assert logger.exception_calls == []
+    assert posts == []
 
 
-def test_warn_only_main_setup_error_does_not_fail_the_candidate_job(
+def test_warn_only_main_setup_error_fails_the_candidate_route(
     monkeypatch,
 ):
     logger = _Logger()
@@ -215,14 +212,14 @@ def test_warn_only_main_setup_error_does_not_fail_the_candidate_job(
         fail_config,
     )
 
-    audit_job.main(
-        JOB_ENV="dev",
-        CLIENT="next_uk",
-        ROUTE="v1",
-        RUN_DATE="2026-07-29",
-        LOG_LEVEL="",
-        WARN_ONLY=True,
-    )
+    with pytest.raises(RuntimeError, match="test config failure"):
+        audit_job.main(
+            JOB_ENV="dev",
+            CLIENT="next_uk",
+            ROUTE="v1",
+            RUN_DATE="2026-07-29",
+            LOG_LEVEL="",
+            WARN_ONLY=True,
+        )
 
-    assert len(logger.exception_calls) == 1
-    assert "could not start" in logger.exception_calls[0][0]
+    assert logger.exception_calls == []

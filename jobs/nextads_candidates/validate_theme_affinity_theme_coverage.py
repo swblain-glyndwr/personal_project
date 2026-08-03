@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -24,15 +25,29 @@ from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
 from dsutils.etl import post_to_webhook
 from dsutils.logtools import configure_logging, get_logger
+from pyspark.sql import functions as F
 
 from next_ads.common.paths import load_client_config
+from next_ads.ranking.scoring_inputs import read_delta_version
 from next_ads.ranking.theme_coverage import (
     build_missing_theme_affinity_coverage,
 )
 from next_ads.common import config_manager, etl
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, WARN_ONLY=False):
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    ROUTE,
+    RUN_DATE,
+    PROVIDER_BUILD_ID,
+    PROVIDER_SIGNALS_TABLE,
+    PROVIDER_SIGNALS_DELTA_VERSION,
+    PROVIDER_SOURCE_RUN_DATE,
+    PROVIDER_SELECTION_STATUS,
+    WARN_ONLY=False,
+):
     configure_logging(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
@@ -49,6 +64,42 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, WARN_ONLY=False):
 
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
     cfg = load_client_config(CLIENT)
+    route = (ROUTE or "").lower()
+    if route not in {"v1", "v2"}:
+        raise ValueError("--route must be v1 or v2")
+    try:
+        run_date = date.fromisoformat(RUN_DATE)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "--run_date must use ISO format YYYY-MM-DD"
+        ) from exc
+    if not PROVIDER_BUILD_ID:
+        raise ValueError("--provider_build_id is required")
+    if not PROVIDER_SIGNALS_TABLE:
+        raise ValueError("--provider_signals_table is required")
+    try:
+        provider_source_run_date = date.fromisoformat(
+            PROVIDER_SOURCE_RUN_DATE
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "--provider_source_run_date must use ISO format YYYY-MM-DD"
+        ) from exc
+    if not PROVIDER_SELECTION_STATUS:
+        raise ValueError("--provider_selection_status is required")
+    try:
+        provider_signals_delta_version = int(
+            PROVIDER_SIGNALS_DELTA_VERSION
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "--provider_signals_delta_version must be an integer"
+        ) from exc
+    if provider_signals_delta_version < 0:
+        raise ValueError(
+            "--provider_signals_delta_version must not be negative"
+        )
+
     tbl_args = {
         "catalog": config.catalog_write,
         "schema": config.schema_write,
@@ -59,29 +110,49 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, WARN_ONLY=False):
         cfg["tables"]["write"]["control_sheet_latest"],
         **tbl_args,
     )
-    control_sheet_latest_v2 = config.tables_write.control_sheet_latest_v2
-    theme_affinity_latest = config.theme_affinity_assignment_sources.champion
+    control_sheet_table = (
+        control_sheet_latest_v1
+        if route == "v1"
+        else config.tables_write.control_sheet_latest_v2
+    )
 
     logger.info(
-        "Checking v1/v2 ad Themes against shared Theme Affinity output: "
-        f"{theme_affinity_latest}"
+        "Checking %s ad Themes against provider build %s from %s "
+        "at Delta version %s (selection=%s, source_run_date=%s, "
+        "logical_run_date=%s)",
+        route,
+        PROVIDER_BUILD_ID,
+        PROVIDER_SIGNALS_TABLE,
+        provider_signals_delta_version,
+        PROVIDER_SELECTION_STATUS,
+        provider_source_run_date,
+        run_date,
     )
-    theme_affinity_scores = spark.table(theme_affinity_latest)
-    missing_v1 = build_missing_theme_affinity_coverage(
-        spark.table(control_sheet_latest_v1),
-        theme_affinity_scores,
-        route="v1",
+    provider_signals = (
+        read_delta_version(
+            spark,
+            PROVIDER_SIGNALS_TABLE,
+            provider_signals_delta_version,
+        )
+        .where(F.col("ProviderBuildID") == PROVIDER_BUILD_ID)
+        .where(F.col("EntityType") == "theme")
+        .where(F.col("RunDate") == F.lit(provider_source_run_date))
+        .select(F.col("EntityID").alias("NextTheme"))
     )
-    missing_v2 = build_missing_theme_affinity_coverage(
-        spark.table(control_sheet_latest_v2),
-        theme_affinity_scores,
-        route="v2",
+    if provider_signals.limit(1).count() == 0:
+        raise ValueError(
+            "Selected provider build contains no theme signals at its "
+            "recorded Delta version"
+        )
+    missing = build_missing_theme_affinity_coverage(
+        spark.table(control_sheet_table),
+        provider_signals,
+        route=route,
     )
-    missing = missing_v1.unionByName(missing_v2)
 
     missing_count = missing.count()
     if missing_count == 0:
-        logger.info("All route ad Themes are present in Theme Affinity output")
+        logger.info("All %s ad Themes are present in provider output", route)
         return
 
     missing.orderBy("route", "Theme").show(200, truncate=False)
@@ -105,6 +176,21 @@ def parse_args():
         "CLIENT": jobparser.get_arg("--client"),
         "LOG_LEVEL": jobparser.get_arg("--log_level"),
         "WARN_ONLY": jobparser.has_arg("--warn-only"),
+        "ROUTE": jobparser.get_arg("--route"),
+        "RUN_DATE": jobparser.get_arg("--run_date"),
+        "PROVIDER_BUILD_ID": jobparser.get_arg("--provider_build_id"),
+        "PROVIDER_SIGNALS_TABLE": jobparser.get_arg(
+            "--provider_signals_table"
+        ),
+        "PROVIDER_SIGNALS_DELTA_VERSION": jobparser.get_arg(
+            "--provider_signals_delta_version"
+        ),
+        "PROVIDER_SOURCE_RUN_DATE": jobparser.get_arg(
+            "--provider_source_run_date"
+        ),
+        "PROVIDER_SELECTION_STATUS": jobparser.get_arg(
+            "--provider_selection_status"
+        ),
     }
 
 

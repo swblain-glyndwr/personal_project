@@ -4,13 +4,13 @@ Status: Working note
 
 Last refreshed from Databricks: 2026-07-03
 
-This page describes the deployed NextAds Databricks job shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs trigger other jobs, and where reusable model-building routes such as the feature store sit alongside the operational delivery routes.
+This page describes the NextAds Databricks bundle shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs wait for child jobs, and where reusable model-building routes sit alongside the operational delivery routes.
 
 This is a runtime map, not a deployment policy. For target availability rules, see [nextads_databricks_job_environment_matrix.md](nextads_databricks_job_environment_matrix.md). For the wider model, Feature Store and MLflow architecture view, see [../architecture/nextads_model_feature_overview.md](../architecture/nextads_model_feature_overview.md).
 
 ## How to Read This
 
-The diagrams below show the Databricks Asset Bundle job structure currently defined under `pipelines/databricks/jobs`. Schedules and recent runtimes were pulled from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Triggered jobs do not have their own fixed schedule; they are launched by an upstream task.
+The diagrams below show the Databricks Asset Bundle job structure currently defined under `pipelines/databricks/jobs`. Schedules and recent runtimes were pulled from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Child jobs do not have their own fixed schedule; the parent waits for their result.
 
 Durations are recent observed successful run durations, not SLAs. They should be treated as a guide for debugging, planning model refreshes, and understanding where a new model, feature-store table, or challenger route would attach.
 
@@ -26,17 +26,19 @@ flowchart TD
 
   results["07:15 results"]:::reporting
   realtime_results["07:30 realtime results"]:::reporting
-  theme_affinity["09:00 theme_affinity"]:::sharedModel
+  theme_inputs["12:15 theme inputs"]:::sharedModel
+  theme_affinity["13:00 theme_affinity"]:::sharedModel
   candidate["18:00 candidate_build"]:::sharedTask
   realtime_inputs["18:00 realtime inputs"]:::reporting
-  page_build["triggered page_build_v1"]:::v1
-  page_build_v2["triggered page_build_v2"]:::v2
+  page_build["synchronous page_build_v1"]:::v1
+  page_build_v2["synchronous page_build_v2"]:::v2
   qa["assignment_validation"]:::v1
   masid["masid_handoff"]:::v1
   payload["payload_export"]:::v2
   plp["plp_gs_delivery"]:::v1
   feature_store["21:00 feature_store"]:::sharedModel
 
+  theme_inputs --> theme_affinity
   candidate --> page_build
   candidate --> page_build_v2
   page_build --> qa
@@ -63,11 +65,11 @@ flowchart TD
 
 ## Candidate Build Task Graph
 
-This is the main evening operational route. It keeps customer cells, item attributes, product Theme Mapping, and lightweight theme scoring shared. Both page-build routes remain active, and the v1/v2 split happens when shared customer-theme scores are joined to each route's loaded control sheet. `score_lightweight` is still a task dependency in the YAML, but `run_theme_score_mapping` reads Theme Affinity model latest for customer-theme scores.
+This is the main evening operational route. It keeps accepted customer cells shared, while v1 and v2 independently capture their control inputs, select an accepted score-provider build and map its exact canonical signal version. Product Theme Mapping, Theme Affinity and legacy Markov scoring are upstream jobs rather than candidate-task dependencies.
 
-The v2 workbook owns the `Theme Mapping` tab. A Google Sheets Apps Script copies it into the v1 workbook, and `validate_theme_mapping_sync` checks that copy before the shared parser runs. `validate_theme_affinity_theme_coverage` independently checks that active ad `Themes` from both loaded route control sheets exist in the shared Theme Affinity `NextTheme` output. The coverage check is warning-only in candidate build: missing themes are surfaced for follow-up refresh work, but the validation task does not gate either route mapper.
+Each route audit and coverage task reports business findings without hiding technical failures. Missing themes are surfaced for follow-up and naturally cannot produce theme-matched candidates; an unreadable control or pinned provider snapshot stops only the affected route before mapping.
 
-Colour key: blue = shared Theme Affinity model output; teal = shared candidate tasks; green = v1 route; purple = v2 route; amber = guardrail; yellow = external Google Sheet/App Script dependency.
+Colour key: blue = accepted score-provider output; teal = shared candidate tasks; green = v1 route; purple = v2 route; amber = guardrail; yellow = external CMS dependency.
 
 ```mermaid
 flowchart TD
@@ -78,98 +80,74 @@ flowchart TD
   classDef guardrail fill:#fef3c7,stroke:#d97706,color:#111827
   classDef external fill:#fef9c3,stroke:#ca8a04,color:#111827
 
-  subgraph SHEETS["External Google Sheets"]
-    v2_theme_mapping["v2 Theme Mapping<br/>source"]:::external
-    app_script["Apps Script<br/>copy"]:::external
-    v1_theme_mapping["locked v1 Theme Mapping<br/>copy"]:::external
-    v2_theme_mapping --> app_script --> v1_theme_mapping
-  end
-
-  theme_affinity_latest["theme_affinity_model_latest<br/>AccountNumber, NextTheme"]:::sharedModel
+  provider_build["accepted canonical<br/>score-provider build"]:::sharedModel
+  cms_pull["CMS data pull"]:::external
 
   subgraph CANDIDATE_JOB["Job: candidate_build"]
     assign_customer_cells["assign_customer_cells"]:::sharedTask
     combine_customer_cells["combine_customer_cells"]:::sharedTask
-    parse_attributes["parse_attributes"]:::sharedTask
-    validate_theme_mapping_sync["validate_theme_mapping_sync"]:::guardrail
-    parse_theme_mapping["parse_theme_mapping"]:::sharedTask
-    score_lightweight["score_lightweight"]:::sharedTask
     load_control_sheet_v1["load_control_sheet_v1<br/>control_sheet_latest"]:::v1
+    audit_control_sheet_v1["audit_control_sheet_v1"]:::guardrail
     load_control_sheet_v2["load_control_sheet_v2<br/>control_sheet_latest_v2"]:::v2
-    validate_theme_affinity_theme_coverage["validate_theme_affinity<br/>coverage"]:::guardrail
+    audit_control_sheet_v2["audit_control_sheet_v2"]:::guardrail
+    select_provider_v1["select_score_provider_build_v1"]:::v1
+    select_provider_v2["select_score_provider_build_v2"]:::v2
+    validate_provider_coverage_v1["validate provider coverage v1"]:::guardrail
+    validate_provider_coverage_v2["validate provider coverage v2"]:::guardrail
     map_theme_scores_to_ads_v1["map_theme_scores_to_ads_v1<br/>Location"]:::v1
     map_theme_scores_to_ads_v2["map_theme_scores_to_ads_v2<br/>PageType"]:::v2
-    trigger_page_build_v1_job["trigger_page_build_v1_job"]:::v1
-    trigger_page_build_v2_job["trigger_page_build_v2_job"]:::v2
+    run_page_build_v1["run_page_build_v1<br/>waits"]:::v1
+    run_page_build_v2["run_page_build_v2<br/>waits"]:::v2
   end
 
   assign_customer_cells --> combine_customer_cells
-  v1_theme_mapping --> validate_theme_mapping_sync
-  validate_theme_mapping_sync --> parse_theme_mapping
-  parse_attributes --> parse_theme_mapping --> score_lightweight
-  load_control_sheet_v1 --> validate_theme_affinity_theme_coverage
-  load_control_sheet_v2 --> validate_theme_affinity_theme_coverage
-  theme_affinity_latest --> validate_theme_affinity_theme_coverage
-  load_control_sheet_v1 --> map_theme_scores_to_ads_v1
-  theme_affinity_latest --> map_theme_scores_to_ads_v1
-  score_lightweight --> map_theme_scores_to_ads_v1
-  load_control_sheet_v2 --> map_theme_scores_to_ads_v2
-  theme_affinity_latest --> map_theme_scores_to_ads_v2
-  score_lightweight --> map_theme_scores_to_ads_v2
-  combine_customer_cells --> trigger_page_build_v1_job
-  map_theme_scores_to_ads_v1 --> trigger_page_build_v1_job
-  combine_customer_cells --> trigger_page_build_v2_job
-  map_theme_scores_to_ads_v2 --> trigger_page_build_v2_job
-  trigger_page_build_v1_job --> page_build["separate job<br/>page_build_v1"]:::v1
-  trigger_page_build_v2_job --> page_build_v2["separate job<br/>page_build_v2"]:::v2
+  load_control_sheet_v1 --> audit_control_sheet_v1
+  cms_pull --> load_control_sheet_v2 --> audit_control_sheet_v2
+  provider_build --> select_provider_v1
+  provider_build --> select_provider_v2
+  audit_control_sheet_v1 --> validate_provider_coverage_v1
+  select_provider_v1 --> validate_provider_coverage_v1
+  audit_control_sheet_v2 --> validate_provider_coverage_v2
+  select_provider_v2 --> validate_provider_coverage_v2
+  validate_provider_coverage_v1 --> map_theme_scores_to_ads_v1
+  validate_provider_coverage_v2 --> map_theme_scores_to_ads_v2
+  combine_customer_cells --> run_page_build_v1
+  map_theme_scores_to_ads_v1 --> run_page_build_v1
+  combine_customer_cells --> run_page_build_v2
+  map_theme_scores_to_ads_v2 --> run_page_build_v2
+  run_page_build_v1 --> page_build["child job<br/>page_build_v1"]:::v1
+  run_page_build_v2 --> page_build_v2["child job<br/>page_build_v2"]:::v2
 ```
 
 Observed latest successful candidate-build task timing, from run `101421282112344`, with task names normalised to the target route. New guardrail tasks have no observed PROD baseline yet, so their durations are listed as new rather than historical measurements:
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |
-| `assign_customer_cells` | 0m | 38m 52s | None |
-| `load_control_sheet_v1` | 0m | 12m 43s | None |
-| `load_control_sheet_v2` | 0m | 11m 52s | None |
-| `parse_attributes` | 0m | 26m 51s | None |
-| `validate_theme_mapping_sync` | 0m | New guardrail | None |
-| `parse_theme_mapping` | After attributes and Theme Mapping sync | 4m 22s baseline | `parse_attributes`, `validate_theme_mapping_sync` |
-| `score_lightweight` | After Theme Mapping parse | 1h 14m 1s baseline | `parse_theme_mapping` |
-| `combine_customer_cells` | 38m | 2m 43s | `assign_customer_cells` |
-| `validate_theme_affinity_theme_coverage` | After both control sheets | New guardrail | `load_control_sheet_v1`, `load_control_sheet_v2` |
-| `map_theme_scores_to_ads_v1` | After shared scoring and v1 control sheet | 1h 22m 55s baseline | `score_lightweight`, `load_control_sheet_v1` |
-| `map_theme_scores_to_ads_v2` | After shared scoring and v2 control sheet | Prior baseline 43m 36s | `score_lightweight`, `load_control_sheet_v2` |
-| `trigger_page_build_v1_job` | After v1 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
-| `trigger_page_build_v2_job` | After v2 mapping and cells | Prior trigger 45s | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
+| `assign_customer_cells` | 0m | 38m 52s historical baseline | None |
+| `combine_customer_cells` | After cell assignment | 2m 43s historical baseline | `assign_customer_cells` |
+| `load_control_sheet_v1` | 0m | 12m 43s historical baseline | None |
+| `audit_control_sheet_v1` | After v1 control | New route guard | `load_control_sheet_v1` |
+| `trigger_data_pull_for_CMS_pull` | 0m | Child-job runtime | None |
+| `load_control_sheet_v2` | After CMS acquisition | 11m 52s historical loader baseline | `trigger_data_pull_for_CMS_pull` |
+| `audit_control_sheet_v2` | After v2 control | New route guard | `load_control_sheet_v2` |
+| `select_score_provider_build_v1` | 0m | Ready immediately or waits to 18:30 | None |
+| `select_score_provider_build_v2` | 0m | Ready immediately or waits to 18:30 | None |
+| `validate_score_provider_theme_coverage_v1` | After v1 audit and provider selection | New route guard | `audit_control_sheet_v1`, `select_score_provider_build_v1` |
+| `validate_score_provider_theme_coverage_v2` | After v2 audit and provider selection | New route guard | `audit_control_sheet_v2`, `select_score_provider_build_v2` |
+| `map_theme_scores_to_ads_v1` | After cells and v1 checks | 1h 22m 55s historical mapping baseline | `combine_customer_cells`, `validate_score_provider_theme_coverage_v1` |
+| `map_theme_scores_to_ads_v2` | After cells and v2 checks | 43m 36s historical mapping baseline | `combine_customer_cells`, `validate_score_provider_theme_coverage_v2` |
+| `run_page_build_v1` | After v1 mapping | Full child-job runtime | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
+| `run_page_build_v2` | After v2 mapping | Full child-job runtime | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
-```mermaid
-gantt
-  title Candidate build timeline, baseline plus new guardrail positions
-  dateFormat  YYYY-MM-DD HH:mm
-  axisFormat  %H:%M
-  section Parallel inputs
-  assign_customer_cells      :2026-07-02 18:00, 39m
-  load_control_sheet_v1      :2026-07-02 18:00, 13m
-  load_control_sheet_v2      :2026-07-02 18:00, 12m
-  parse_attributes           :2026-07-02 18:00, 27m
-  validate_theme_mapping_sync :2026-07-02 18:00, 2m
-  section Theme scoring
-  parse_theme_mapping        :2026-07-02 18:26, 4m
-  score_lightweight          :2026-07-02 18:30, 74m
-  section Candidate mapping
-  combine_customer_cells     :2026-07-02 18:38, 3m
-  validate_theme_affinity_theme_coverage :2026-07-02 18:13, 2m
-  map_theme_scores_to_ads_v1 :2026-07-02 19:46, 83m
-  map_theme_scores_to_ads_v2 :2026-07-02 19:46, 44m
-  trigger_page_build_v1_job  :2026-07-02 21:07, 1m
-  trigger_page_build_v2_job  :2026-07-02 20:28, 1m
-```
+The prior trigger-task durations are no longer comparable: `run_page_build_v1`
+and `run_page_build_v2` now remain active until their child jobs finish. Capture a
+new three-run DEV baseline before using this table for end-to-end timing targets.
 
 ## Page Build And Delivery Fan-Out
 
 The v1 and v2 page-build jobs are not normally scheduled by themselves in PROD.
-They are submitted by the candidate-build route after their respective mapping
-tables and shared customer cells are ready. The v1 page-build job remains
+They are run as synchronous child jobs after their respective mapping tables and
+shared customer cells are ready. The v1 page-build job remains
 location-based and continues to fan out to QA, MASID handoff, and PLP delivery.
 The v2 page-build job is page-type based and fans out to payload export.
 
@@ -182,23 +160,26 @@ flowchart TD
   subgraph V1_PAGE_BUILD["Job: page_build_v1"]
     build_page_primary["build_page_primary"]:::v1
     build_page_secondary["build_page_secondary"]:::v1
-    trigger_assignment_validation_job["trigger_assignment_validation_job"]:::trigger
-    trigger_masid_handoff_check_job["trigger_masid_handoff_check_job"]:::trigger
-    trigger_plp_gs_delivery_job["trigger_plp_gs_delivery_job"]:::trigger
+    publish_assignment_build_v1["publish_assignment_build_v1"]:::v1
+    run_assignment_validation["run_assignment_validation"]:::trigger
+    run_masid_handoff["run_masid_handoff"]:::trigger
+    run_plp_gs_delivery["run_plp_gs_delivery"]:::trigger
     build_page_primary --> build_page_secondary
-    build_page_secondary --> trigger_assignment_validation_job
-    build_page_secondary --> trigger_masid_handoff_check_job
-    build_page_secondary --> trigger_plp_gs_delivery_job
+    build_page_secondary --> publish_assignment_build_v1
+    publish_assignment_build_v1 --> run_assignment_validation
+    publish_assignment_build_v1 --> run_masid_handoff
+    publish_assignment_build_v1 --> run_plp_gs_delivery
   end
   subgraph V2_PAGE_BUILD["Job: page_build_v2"]
     build_page_v2["build_page_v2"]:::v2
-    trigger_payload_export_job["trigger_payload_export_job"]:::trigger
-    build_page_v2 --> trigger_payload_export_job
+    publish_assignment_build_v2["publish_assignment_build_v2"]:::v2
+    run_payload_export["run_payload_export"]:::trigger
+    build_page_v2 --> publish_assignment_build_v2 --> run_payload_export
   end
-  trigger_assignment_validation_job --> qa["assignment_validation"]:::v1
-  trigger_masid_handoff_check_job --> masid["masid_handoff"]:::v1
-  trigger_payload_export_job --> payload["payload_export"]:::v2
-  trigger_plp_gs_delivery_job --> plp["plp_gs_delivery"]:::v1
+  run_assignment_validation --> qa["assignment_validation"]:::v1
+  run_masid_handoff --> masid["masid_handoff"]:::v1
+  run_payload_export --> payload["payload_export"]:::v2
+  run_plp_gs_delivery --> plp["plp_gs_delivery"]:::v1
 ```
 
 Observed latest successful page-build task timing, from run `724497366216494`:
@@ -207,13 +188,17 @@ Observed latest successful page-build task timing, from run `724497366216494`:
 | --- | ---: | ---: | --- |
 | `build_page_primary` | 0m | 31m 50s | None |
 | `build_page_v2` | 0m | 22m 30s | None |
-| `trigger_payload_export_job` | 21m | 8m 47s | `build_page_v2` |
 | `build_page_secondary` | 31m | 14m 58s | `build_page_primary` |
-| `trigger_plp_gs_delivery_job` | 45m | 52s | `build_page_secondary` |
-| `trigger_qa_job` | 45m | 55s | `build_page_secondary` |
-| `trigger_masid_handoff_check_job` | 45m | 48s | `build_page_secondary` |
+| `publish_assignment_build_v1` | After secondary scopes | New complete-build publisher | `build_page_secondary` |
+| `publish_assignment_build_v2` | After v2 scopes | New complete-build publisher | `build_page_v2` |
+| `run_plp_gs_delivery` | After v1 publication | Full child-job runtime | `publish_assignment_build_v1` |
+| `run_assignment_validation` | After v1 publication | Full child-job runtime | `publish_assignment_build_v1` |
+| `run_masid_handoff` | After v1 publication | Full child-job runtime | `publish_assignment_build_v1` |
+| `run_payload_export` | After v2 publication | Full child-job runtime | `publish_assignment_build_v2` |
 
-The triggered delivery jobs are currently single-purpose jobs: `QA`, `masid_handoff_check`, `Export_for_Bloomreach`, and `nextads_plp_gs`.
+The delivery jobs remain single-purpose and independently runnable, but the
+nightly page route waits for their result: `assignment_validation`,
+`masid_handoff_check`, `Export_for_Bloomreach`, and `nextads_plp_gs`.
 
 ## Theme Affinity Route
 

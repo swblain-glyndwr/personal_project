@@ -5,9 +5,20 @@ from next_ads.decisioning.assignment import generate_repeat_ad_sessions
 
 
 def calculate_score_range(df_theme_scores, logger):
-    min_score = df_theme_scores.agg(F.min("ProbAggRebased")).collect()[0][0]
-    max_score = df_theme_scores.agg(F.max("ProbAggRebased")).collect()[0][0]
+    bounds = df_theme_scores.agg(
+        F.min("ProbAggRebased").alias("min_score"),
+        F.max("ProbAggRebased").alias("max_score"),
+    ).first()
+    min_score = bounds["min_score"]
+    max_score = bounds["max_score"]
+    if min_score is None or max_score is None:
+        raise ValueError("Provider theme scores are empty or all null")
     score_range = max_score - min_score
+    if score_range == 0:
+        logger.warning(
+            "Provider theme scores are constant; using a neutral score range"
+        )
+        score_range = 1.0
     logger.info(f"Norm min/max/range: {min_score}/{max_score}/{score_range}")
     return min_score, score_range
 

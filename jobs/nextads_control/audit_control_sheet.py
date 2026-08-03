@@ -208,32 +208,8 @@ def run_audit(
 
 
 def run_warning_only_audit(**kwargs):
-    """Run the audit without allowing a diagnostic failure to fail the job."""
-    logger = kwargs["logger"]
-    warn_only = kwargs["warn_only"]
-    job_env = kwargs["job_env"]
-    config = kwargs["config"]
-    route = kwargs["route"]
-
-    try:
-        return run_audit(**kwargs)
-    except Exception as exc:
-        if not warn_only:
-            raise
-
-        message = (
-            f"{route} control-sheet warning audit could not complete: "
-            f"{type(exc).__name__}: {exc}. "
-            "Candidate mapping and publication were not blocked."
-        )
-        logger.exception(message)
-        if job_env.lower() == "prod":
-            post_warning_safely(
-                logger,
-                config.webhooks.input_warnings,
-                message,
-            )
-        return None
+    """Keep business findings warning-only; propagate technical failures."""
+    return run_audit(**kwargs)
 
 
 def main(
@@ -248,57 +224,38 @@ def main(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
-    config = None
 
-    try:
-        if not CLIENT:
-            if JOB_ENV.lower() != "dev":
-                raise ValueError(
-                    f"Client must be specified when running in {JOB_ENV}"
-                )
-            CLIENT = "next_uk"
-            logger.warning(f"Client not specified (defaulting to {CLIENT})")
-
-        route = ROUTE.lower()
-        run_date = parse_run_date(RUN_DATE)
-        config = config_manager.load_config(JOB_ENV, client=CLIENT)
-        spark = configure_spark()
-
-        logger.info(
-            "Auditing %s control data for client=%s, "
-            "environment=%s, run_date=%s",
-            route,
-            CLIENT,
-            JOB_ENV,
-            run_date.isoformat(),
-        )
-        run_warning_only_audit(
-            spark=spark,
-            config=config,
-            route=route,
-            run_date=run_date,
-            warn_only=WARN_ONLY,
-            job_env=JOB_ENV,
-            logger=logger,
-        )
-        logger.info("Control-sheet audit complete")
-    except Exception as exc:
-        if not WARN_ONLY:
-            raise
-
-        route_label = (ROUTE or "<missing>").lower()
-        message = (
-            f"{route_label} control-sheet warning audit could not start: "
-            f"{type(exc).__name__}: {exc}. "
-            "Candidate mapping and publication were not blocked."
-        )
-        logger.exception(message)
-        if JOB_ENV.lower() == "prod" and config is not None:
-            post_warning_safely(
-                logger,
-                config.webhooks.input_warnings,
-                message,
+    if not CLIENT:
+        if JOB_ENV.lower() != "dev":
+            raise ValueError(
+                f"Client must be specified when running in {JOB_ENV}"
             )
+        CLIENT = "next_uk"
+        logger.warning(f"Client not specified (defaulting to {CLIENT})")
+
+    route = ROUTE.lower()
+    run_date = parse_run_date(RUN_DATE)
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
+    spark = configure_spark()
+
+    logger.info(
+        "Auditing %s control data for client=%s, "
+        "environment=%s, run_date=%s",
+        route,
+        CLIENT,
+        JOB_ENV,
+        run_date.isoformat(),
+    )
+    run_warning_only_audit(
+        spark=spark,
+        config=config,
+        route=route,
+        run_date=run_date,
+        warn_only=WARN_ONLY,
+        job_env=JOB_ENV,
+        logger=logger,
+    )
+    logger.info("Control-sheet audit complete")
 
 
 def parse_args():

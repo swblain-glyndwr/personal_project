@@ -65,7 +65,8 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     ) in entrypoint
     assert "run_theme_score_mapping(" in entrypoint
     assert "def run_theme_score_mapping(" in package_module
-    assert "capture_run_date(" in package_module
+    assert "capture_run_date(" not in package_module
+    assert "date.fromisoformat(run_date)" in package_module
     assert "publish_history_and_latest(" in package_module
     assert "replace_validated_snapshot(" in package_module
     assert "with_run_date(" in package_module
@@ -75,7 +76,8 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     assert "output_preranked_table" in package_module
     assert "output_grain" in package_module
     assert "top_ads_per_group" in package_module
-    assert "config.theme_affinity_assignment_sources.champion" in package_module
+    assert "load_provider_theme_scores(" in package_module
+    assert "theme_affinity_assignment_sources" not in package_module
     assert "def build_ad_location_mappings(" in retrieval_module
     assert "def build_ad_group_mappings(" in retrieval_module
     assert "def apply_greedy_theme_assignment(" in eligibility_module

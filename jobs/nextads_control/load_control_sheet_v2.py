@@ -1,4 +1,5 @@
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 try:
@@ -26,7 +27,6 @@ finally:
 
 import json
 import pyspark.sql.functions as F
-from datetime import timedelta
 from pyspark.sql.types import BooleanType
 
 # from dsutils.dbc import configure_spark
@@ -37,7 +37,6 @@ import dsutils.gcp as gcp
 from next_ads.ranking.scoring import append_targeting_criteria
 from next_ads.common import config_manager
 from next_ads.common.snapshot_writes import (
-    capture_run_date,
     publish_history_and_latest,
 )
 from dsutils.dbc import configure_spark
@@ -222,7 +221,7 @@ def report_invalid_dates(
 ################################################################################
 
 
-def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
+def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, RUN_DATE: str):
     if LOG_LEVEL:
         configure_logging(log_level=LOG_LEVEL)
     else:
@@ -231,7 +230,12 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger = get_logger(__name__)
 
     spark = configure_spark()
-    run_date = capture_run_date(spark)
+    if not RUN_DATE:
+        raise ValueError("--run_date is required")
+    try:
+        run_date = date.fromisoformat(RUN_DATE)
+    except ValueError as exc:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -721,4 +725,5 @@ if __name__ == "__main__":
     JOB_ENV = jobparser.get_arg("--job_env")
     CLIENT = jobparser.get_arg("--client")
     LOG_LEVEL = jobparser.get_arg("--log_level")
-    main(JOB_ENV, CLIENT, LOG_LEVEL)
+    RUN_DATE = jobparser.get_arg("--run_date")
+    main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE)

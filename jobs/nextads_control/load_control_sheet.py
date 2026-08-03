@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 import pyspark.sql.functions as F
 
@@ -40,7 +41,6 @@ from next_ads.control.load_control_sheet import (
 from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
 from next_ads.common.snapshot_writes import (
-    capture_run_date,
     publish_history_and_latest,
 )
 
@@ -110,14 +110,19 @@ def write_processed_control_sheet_tables(
     )
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL):
+def main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE):
     if LOG_LEVEL:
         configure_logging(log_level=LOG_LEVEL)
     else:
         configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
-    run_date = capture_run_date(spark)
+    if not RUN_DATE:
+        raise ValueError("--run_date is required")
+    try:
+        run_date = date.fromisoformat(RUN_DATE)
+    except ValueError as exc:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -364,6 +369,7 @@ def parse_args():
         "JOB_ENV": jobparser.get_arg("--job_env"),
         "CLIENT": jobparser.get_arg("--client"),
         "LOG_LEVEL": jobparser.get_arg("--log_level"),
+        "RUN_DATE": jobparser.get_arg("--run_date"),
     }
 
 

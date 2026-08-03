@@ -3,6 +3,7 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
     name: mktg_next_uk_nextads_page_build_v2
     queue:
       enabled: true
+    max_concurrent_runs: 1
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
@@ -16,12 +17,28 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
     notification_settings:
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
-    timeout_seconds: 21600 # required by Engineering at job level as Monitoring Dashboard doesnt handle for_each_task type
+    # Covers assignment construction, publication and the synchronous payload
+    # child. The monitoring dashboard requires this job-level cap.
+    timeout_seconds: 28800
     parameters:
       - name: run_date
         default: "{{job.start_time.iso_date}}"
       - name: build_run_id
         default: "v2_{{job.run_id}}"
+      - name: provider_build_id
+        default: ""
+      - name: provider_signals_table
+        default: ""
+      - name: provider_signals_delta_version
+        default: ""
+      - name: input_snapshot_id
+        default: ""
+      - name: scoring_foundation_build_id
+        default: ""
+      - name: provider_selection_status
+        default: ""
+      - name: provider_source_run_date
+        default: ""
       - name: scope_manifest_json
         default: >-
           [{"scope":"HomePage"},{"scope":"ShoppingBagPage"},{"scope":"CheckoutPage"},{"scope":"ProductListingPage"},{"scope":"ForYouPage"}]
@@ -79,23 +96,21 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
         max_retries: 2
         min_retry_interval_millis: 5000
         timeout_seconds: 10800
-      - task_key: trigger_payload_export_job
+      - task_key: run_payload_export
         depends_on:
           - task_key: publish_assignment_build_v2
-        spark_python_task:
-          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
-          parameters:
-            - --job-id
-            - ${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}
-            - --job-name
-            - "mktg_next_uk_nextads_payload_export"
-            - --job-parameter
-            - "run_date={{job.parameters.run_date}}"
-            - --fail-on-submit-error
-        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
+            build_run_id: "{{job.parameters.build_run_id}}"
+            provider_build_id: "{{job.parameters.provider_build_id}}"
+            provider_signals_table: "{{job.parameters.provider_signals_table}}"
+            provider_signals_delta_version: "{{job.parameters.provider_signals_delta_version}}"
+            input_snapshot_id: "{{job.parameters.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{job.parameters.scoring_foundation_build_id}}"
+            provider_selection_status: "{{job.parameters.provider_selection_status}}"
+            provider_source_run_date: "{{job.parameters.provider_source_run_date}}"
 targets:
   SANDBOX:
     resources:

@@ -101,6 +101,22 @@ variables:
           autoscale:
             min_workers: 1
             max_workers: 4
+      - job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4_v1_candidates
+        new_cluster:
+          <<: *base_cluster_standard
+          node_type_id: Standard_D32ads_v5
+          driver_node_type_id: Standard_D32ads_v5
+          autoscale:
+            min_workers: 1
+            max_workers: 4
+      - job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4_v2_candidates
+        new_cluster:
+          <<: *base_cluster_standard
+          node_type_id: Standard_D32ads_v5
+          driver_node_type_id: Standard_D32ads_v5
+          autoscale:
+            min_workers: 1
+            max_workers: 4
       - job_cluster_key: next_ads_job_cluster_E4ds_v5_4
         new_cluster:
           <<: *base_cluster_fixed_standard

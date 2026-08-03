@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -38,7 +39,6 @@ from next_ads.common import config_manager, etl
 from next_ads.common.determinism import stable_fraction
 from next_ads.common.paths import load_client_config, resolve_sql_path
 from next_ads.common.snapshot_writes import (
-    capture_run_date,
     publish_history_and_latest,
     replace_validated_scope,
     replace_validated_snapshot,
@@ -53,10 +53,16 @@ CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
 SAMPLE_MODE = jobparser.get_arg("--sample_mode")  # True/False
 REFRESH_CONTROL_DATE = jobparser.get_arg("--refresh_control_date")
+RUN_DATE_RAW = jobparser.get_arg("--run_date")
+if not RUN_DATE_RAW:
+    raise ValueError("--run_date is required")
+try:
+    RUN_DATE = date.fromisoformat(RUN_DATE_RAW)
+except ValueError as exc:
+    raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
-RUN_DATE = capture_run_date(spark)
 logger.info(f"Running in job environment: {JOB_ENV}")
 logger.info(f"Run date set to: {RUN_DATE}")
 if SAMPLE_MODE:
