@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -33,12 +34,17 @@ def _context():
         input_snapshot_id="scoring_inputs_20260730_abc",
         run_date=RUN_DATE,
         model_uri="models:/catalog.schema.model/1",
-        bindings_json=(
-            '{"item_themes":{"input_snapshot_id":'
-            '"scoring_inputs_20260730_abc",'
-            '"run_date":"2026-07-30",'
-            '"table":"catalog.schema.item_themes",'
-            '"delta_version":7}}'
+        bindings_json=json.dumps(
+            {
+                "item_themes": {
+                    "input_snapshot_id": "scoring_inputs_20260730_abc",
+                    "run_date": "2026-07-30",
+                    "table": "catalog.schema.item_themes",
+                    "delta_version": 7,
+                }
+            },
+            sort_keys=True,
+            separators=(",", ":"),
         ),
         capability="account_theme",
         use_case="theme_ranking",
@@ -263,11 +269,17 @@ def test_pinned_item_themes_rejects_empty_or_wrong_date(spark, monkeypatch):
         **{
             **context.__dict__,
             "run_date": date(2026, 7, 29),
-            "bindings_json": (
-                '{"item_themes":{"input_snapshot_id":'
-                f'"{context.input_snapshot_id}",'
-                '"run_date":"2026-07-29",'
-                f'"table":"{table}","delta_version":7}}'
+            "bindings_json": json.dumps(
+                {
+                    "item_themes": {
+                        "input_snapshot_id": context.input_snapshot_id,
+                        "run_date": "2026-07-29",
+                        "table": table,
+                        "delta_version": 7,
+                    }
+                },
+                sort_keys=True,
+                separators=(",", ":"),
             ),
         }
     )

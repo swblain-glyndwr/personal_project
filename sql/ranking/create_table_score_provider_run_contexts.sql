@@ -4,8 +4,6 @@ create table {catalog}.{schema}.{client}_nextads_score_provider_run_contexts (
     ProviderID string not null,
     ProviderBuildID string not null,
     ProviderBuildAttemptID string not null,
-    ScoringFoundationBuildID string,
-    ScoringFoundationBuildAttemptID string,
     InputSnapshotID string not null,
     RunDate date not null,
     ModelURI string not null,
@@ -18,6 +16,8 @@ create table {catalog}.{schema}.{client}_nextads_score_provider_run_contexts (
     TaskRunID bigint not null,
     ExecutionCount int not null,
     ActivatedAt timestamp not null,
+    ScoringFoundationBuildID string,
+    ScoringFoundationBuildAttemptID string,
   constraint pk_{client}_nextads_score_provider_run_contexts primary key (
     ContextSlot
     )

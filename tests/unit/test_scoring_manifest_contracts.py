@@ -427,6 +427,24 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     assert "ProviderBuildAttemptID string not null" in builds_sql
     assert "ScoringFoundationBuildID string" in builds_sql
     assert "ScoringFoundationBuildAttemptID string" in builds_sql
+    assert [
+        column
+        for column, _ in extract_create_table_columns(builds_sql)
+    ][-2:] == [
+        "ScoringFoundationBuildID",
+        "ScoringFoundationBuildAttemptID",
+    ]
+
+    contexts_sql = resolve_sql_contract_path(
+        "score_provider_run_contexts"
+    ).read_text()
+    assert [
+        column
+        for column, _ in extract_create_table_columns(contexts_sql)
+    ][-2:] == [
+        "ScoringFoundationBuildID",
+        "ScoringFoundationBuildAttemptID",
+    ]
 
     foundation_builds_sql = resolve_sql_contract_path(
         "scoring_foundation_builds"

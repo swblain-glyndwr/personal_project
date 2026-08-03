@@ -2,8 +2,6 @@ create table {catalog}.{schema}.{client}_nextads_score_provider_builds (
     ProviderBuildID string not null,
     ProviderBuildAttemptID string not null,
     InputSnapshotID string not null,
-    ScoringFoundationBuildID string,
-    ScoringFoundationBuildAttemptID string,
     RunDate date not null,
     Capability string not null,
     UseCase string not null,
@@ -29,6 +27,8 @@ create table {catalog}.{schema}.{client}_nextads_score_provider_builds (
     TaskRunID bigint not null,
     ExecutionCount int not null,
     CompletedAt timestamp not null,
+    ScoringFoundationBuildID string,
+    ScoringFoundationBuildAttemptID string,
   constraint pk_{client}_nextads_score_provider_builds primary key (
     ProviderBuildAttemptID
     )
