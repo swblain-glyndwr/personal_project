@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ READY = "READY"
 READY_WITH_WARNINGS = "READY_WITH_WARNINGS"
 FAILED = "FAILED"
 READY_FOR_NEXTADS = "READY_FOR_NEXTADS"
+READY_FOR_PROVIDERS = "READY_FOR_PROVIDERS"
 FALLBACK_PREVIOUS = "FALLBACK_PREVIOUS"
 FAILED_BEFORE_PUBLISH = "FAILED_BEFORE_PUBLISH"
 SERVING = "SERVING"
@@ -20,6 +22,9 @@ ALL = "*"
 VALID_INPUT_STATUSES = frozenset({READY, READY_WITH_WARNINGS, FAILED})
 VALID_PROVIDER_BUILD_STATUSES = frozenset(
     {READY_FOR_NEXTADS, FAILED_BEFORE_PUBLISH}
+)
+VALID_FOUNDATION_BUILD_STATUSES = frozenset(
+    {READY_FOR_PROVIDERS, FAILED_BEFORE_PUBLISH}
 )
 VALID_PORTFOLIO_STATUSES = frozenset(
     {READY_FOR_NEXTADS, FALLBACK_PREVIOUS, FAILED_BEFORE_PUBLISH}
@@ -35,7 +40,10 @@ SELECTOR_FIELDS = frozenset(
 
 ManifestItem = TypeVar(
     "ManifestItem",
-    bound="ScoringInputSnapshot | ScoreProviderBuild | ScoringPortfolio",
+    bound=(
+        "ScoringInputSnapshot | ScoringFoundationBuild | "
+        "ScoreProviderBuild | ScoringPortfolio"
+    ),
 )
 
 
@@ -204,6 +212,192 @@ class ScoringInputSnapshot:
 
 
 @dataclass(frozen=True)
+class ScoringFoundationOutput:
+    scoring_foundation_build_id: str
+    scoring_foundation_build_attempt_id: str
+    run_date: date
+    output_name: str
+    source_table: str
+    source_delta_version: int
+    source_schema_checksum: str
+    output_table: str
+    output_delta_version: int
+    output_schema_version: str
+    output_schema_checksum: str
+    is_required: bool
+    row_count: int
+    account_count: int
+    entity_count: int
+    null_key_count: int
+    duplicate_key_count: int
+    invalid_value_count: int
+    output_checksum: str
+    published_at: datetime
+
+    def __post_init__(self) -> None:
+        """Validate one immutable scoring-foundation output binding."""
+        for name in (
+            "scoring_foundation_build_id",
+            "scoring_foundation_build_attempt_id",
+            "output_name",
+            "source_table",
+            "source_schema_checksum",
+            "output_table",
+            "output_schema_version",
+            "output_schema_checksum",
+            "output_checksum",
+        ):
+            _text(getattr(self, name), name)
+        _date(self.run_date, "run_date")
+        _timestamp(self.published_at, "published_at")
+        if not isinstance(self.is_required, bool):
+            raise ValueError("is_required must be a boolean")
+        for name in (
+            "output_delta_version",
+            "source_delta_version",
+            "row_count",
+            "account_count",
+            "entity_count",
+            "null_key_count",
+            "duplicate_key_count",
+            "invalid_value_count",
+        ):
+            _count(getattr(self, name), name)
+        if self.account_count > self.row_count:
+            raise ValueError("account_count must not exceed row_count")
+        if self.entity_count > self.row_count:
+            raise ValueError("entity_count must not exceed row_count")
+        if self.is_required:
+            if self.row_count == 0:
+                raise ValueError("A required foundation output cannot be empty")
+            if (
+                self.null_key_count
+                or self.duplicate_key_count
+                or self.invalid_value_count
+            ):
+                raise ValueError(
+                    "A required foundation output must have valid unique keys"
+                )
+
+
+@dataclass(frozen=True)
+class ScoringFoundationBuild:
+    scoring_foundation_build_id: str
+    scoring_foundation_build_attempt_id: str
+    input_snapshot_id: str
+    input_snapshot_attempt_id: str
+    run_date: date
+    foundation_id: str
+    foundation_version: str
+    capability: str
+    contract_version: str
+    invocation_checksum: str
+    required_output_names: tuple[str, ...]
+    status: str
+    warning_count: int
+    task_run_id: int
+    execution_count: int
+    completed_at: datetime
+    outputs: tuple[ScoringFoundationOutput, ...]
+    input_bindings_json: str
+    pipeline_id: str | None = None
+    pipeline_update_id: str | None = None
+    pipeline_task_run_id: int | None = None
+    pipeline_update_type: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate one provider-neutral scoring-foundation attempt."""
+        for name in (
+            "scoring_foundation_build_id",
+            "scoring_foundation_build_attempt_id",
+            "input_snapshot_id",
+            "input_snapshot_attempt_id",
+            "foundation_id",
+            "foundation_version",
+            "capability",
+            "contract_version",
+            "invocation_checksum",
+        ):
+            _text(getattr(self, name), name)
+        _date(self.run_date, "run_date")
+        _timestamp(self.completed_at, "completed_at")
+        _text(self.input_bindings_json, "input_bindings_json")
+        try:
+            input_bindings = json.loads(self.input_bindings_json)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "input_bindings_json must be valid JSON"
+            ) from error
+        if not isinstance(input_bindings, dict) or not input_bindings:
+            raise ValueError("input_bindings_json must contain an object")
+        for name in (
+            "pipeline_id",
+            "pipeline_update_id",
+            "pipeline_update_type",
+        ):
+            _optional_text(getattr(self, name), name)
+        if self.pipeline_task_run_id is not None:
+            _count(self.pipeline_task_run_id, "pipeline_task_run_id", 1)
+        if self.status not in VALID_FOUNDATION_BUILD_STATUSES:
+            raise ValueError(
+                f"Unsupported foundation build status: {self.status}"
+            )
+        _count(self.warning_count, "warning_count")
+        _count(self.task_run_id, "task_run_id", 1)
+        _count(self.execution_count, "execution_count")
+
+        required_output_names = tuple(self.required_output_names)
+        object.__setattr__(
+            self,
+            "required_output_names",
+            required_output_names,
+        )
+        if not required_output_names:
+            raise ValueError("A scoring foundation must define required outputs")
+        for output_name in required_output_names:
+            _text(output_name, "required_output_name")
+        if len(required_output_names) != len(set(required_output_names)):
+            raise ValueError("Required foundation output names must be unique")
+
+        outputs = tuple(self.outputs)
+        object.__setattr__(self, "outputs", outputs)
+        output_names = [output.output_name for output in outputs]
+        if len(output_names) != len(set(output_names)):
+            raise ValueError("Foundation output names must be unique")
+        for output in outputs:
+            identity = (
+                output.scoring_foundation_build_id,
+                output.scoring_foundation_build_attempt_id,
+                output.run_date,
+            )
+            expected = (
+                self.scoring_foundation_build_id,
+                self.scoring_foundation_build_attempt_id,
+                self.run_date,
+            )
+            if identity != expected:
+                raise ValueError("Foundation outputs must match the build attempt")
+
+        if self.status == READY_FOR_PROVIDERS:
+            for name in (
+                "pipeline_id",
+                "pipeline_update_id",
+                "pipeline_update_type",
+            ):
+                _text(getattr(self, name), name)
+            _count(self.pipeline_task_run_id, "pipeline_task_run_id", 1)
+            required_outputs = {
+                output.output_name
+                for output in outputs
+                if output.is_required
+            }
+            if required_outputs != set(required_output_names):
+                raise ValueError(
+                    "Ready foundation outputs do not match the required contract"
+                )
+
+
+@dataclass(frozen=True)
 class ScoreProviderBuild:
     provider_build_id: str
     provider_build_attempt_id: str
@@ -233,6 +427,8 @@ class ScoreProviderBuild:
     output_snapshot_id: str | None = None
     output_table: str | None = None
     output_delta_version: int | None = None
+    scoring_foundation_build_id: str | None = None
+    scoring_foundation_build_attempt_id: str | None = None
 
     def __post_init__(self) -> None:
         """Validate one role-neutral score provider attempt."""
@@ -307,6 +503,22 @@ class ScoreProviderBuild:
 
         if self.output_delta_version is not None:
             _count(self.output_delta_version, "output_delta_version")
+
+        foundation_values = (
+            self.scoring_foundation_build_id,
+            self.scoring_foundation_build_attempt_id,
+        )
+        if any(value is None for value in foundation_values) and not all(
+            value is None for value in foundation_values
+        ):
+            raise ValueError(
+                "Provider foundation build and attempt IDs must be supplied together"
+            )
+        for name in (
+            "scoring_foundation_build_id",
+            "scoring_foundation_build_attempt_id",
+        ):
+            _optional_text(getattr(self, name), name)
 
 
 @dataclass(frozen=True)
@@ -531,6 +743,16 @@ def validate_scoring_input_snapshots(
     )
 
 
+def validate_scoring_foundation_builds(
+    builds: Iterable[ScoringFoundationBuild],
+) -> tuple[ScoringFoundationBuild, ...]:
+    return _select_latest_attempts(
+        builds,
+        logical_id_field="scoring_foundation_build_id",
+        attempt_id_field="scoring_foundation_build_attempt_id",
+    )
+
+
 def validate_score_provider_builds(
     builds: Iterable[ScoreProviderBuild],
 ) -> tuple[ScoreProviderBuild, ...]:
@@ -646,11 +868,15 @@ def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
     )
     canonical = scoring.get("canonical")
     capabilities = scoring.get("capabilities")
+    foundations = scoring.get("foundations")
     providers = scoring.get("providers")
     client_portfolios = scoring.get("client_portfolios")
     if not isinstance(canonical, Mapping):
         raise ValueError("scoring.canonical must be a mapping")
     for field in (
+        "foundation_builds_table",
+        "foundation_outputs_table",
+        "foundation_run_contexts_table",
         "provider_builds_table",
         "provider_signals_table",
         "portfolios_table",
@@ -659,6 +885,8 @@ def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
         _text(canonical.get(field), f"scoring.canonical.{field}")
     if not isinstance(capabilities, Mapping) or not capabilities:
         raise ValueError("scoring.capabilities must be a non-empty mapping")
+    if not isinstance(foundations, Mapping) or not foundations:
+        raise ValueError("scoring.foundations must be a non-empty mapping")
     if not isinstance(providers, Mapping) or not providers:
         raise ValueError("scoring.providers must be a non-empty mapping")
     if not isinstance(client_portfolios, Mapping) or not client_portfolios:
@@ -675,11 +903,44 @@ def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
             f"{capability}.entity_type",
         )
 
+    for foundation_key, foundation in foundations.items():
+        if not isinstance(foundation, Mapping):
+            raise ValueError(f"Foundation {foundation_key} must be a mapping")
+        if (
+            _text(foundation.get("foundation_id"), "foundation_id")
+            != foundation_key
+        ):
+            raise ValueError("Foundation key must match foundation_id")
+        _text(foundation.get("foundation_version"), "foundation_version")
+        capability = _text(foundation.get("capability"), "capability")
+        if capability not in capabilities:
+            raise ValueError(f"Unknown foundation capability: {capability}")
+        _text(foundation.get("contract_version"), "contract_version")
+        required_outputs = foundation.get("required_outputs")
+        if not isinstance(required_outputs, Mapping) or not required_outputs:
+            raise ValueError("Foundation required_outputs must be a mapping")
+        for output_name, schema_version in required_outputs.items():
+            _text(output_name, "foundation output_name")
+            _text(schema_version, "foundation output schema_version")
+        input_bindings = foundation.get("input_bindings")
+        if not isinstance(input_bindings, Mapping) or not input_bindings:
+            raise ValueError("Foundation input_bindings must be a mapping")
+        for binding_name, binding in input_bindings.items():
+            _text(binding_name, "foundation input binding")
+            if not isinstance(binding, Mapping):
+                raise ValueError("Foundation input binding must be a mapping")
+            _text(binding.get("table"), "foundation input table")
+            _text(
+                binding.get("schema_version"),
+                "foundation input schema_version",
+            )
+
     for provider_key, provider in providers.items():
         if not isinstance(provider, Mapping):
             raise ValueError(f"Provider {provider_key} must be a mapping")
         if _text(provider.get("provider_id"), "provider_id") != provider_key:
             raise ValueError("Provider key must match provider_id")
+        _text(provider.get("implementation"), "implementation")
         capability = _text(provider.get("capability"), "capability")
         if capability not in capabilities:
             raise ValueError(f"Unknown provider capability: {capability}")
@@ -709,6 +970,13 @@ def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
             "max_entities_per_account",
             1,
         )
+        foundation_id = provider.get("foundation_id")
+        if foundation_id is not None:
+            foundation_id = _text(foundation_id, "foundation_id")
+            if foundation_id not in foundations:
+                raise ValueError("Provider references an unknown foundation")
+            if foundations[foundation_id].get("capability") != capability:
+                raise ValueError("Provider foundation capability does not match")
 
     for client, portfolios in client_portfolios.items():
         if not isinstance(portfolios, Mapping) or not portfolios:
@@ -788,15 +1056,19 @@ __all__ = [
     "FALLBACK_PREVIOUS",
     "READY",
     "READY_FOR_NEXTADS",
+    "READY_FOR_PROVIDERS",
     "READY_WITH_WARNINGS",
     "SERVING",
     "ScoreProviderBuild",
     "ScoreProviderSignal",
+    "ScoringFoundationBuild",
+    "ScoringFoundationOutput",
     "ScoringInputSnapshot",
     "ScoringInputSource",
     "ScoringPortfolio",
     "ScoringPortfolioEntry",
     "validate_score_provider_builds",
+    "validate_scoring_foundation_builds",
     "validate_scoring_config",
     "validate_scoring_input_snapshots",
     "validate_scoring_portfolios",

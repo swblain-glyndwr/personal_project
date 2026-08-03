@@ -21,6 +21,7 @@ class ThemeAffinityRuntime:
     provider_build_attempt_id: str | None = None
     item_themes_table: str | None = None
     context_slot: str | None = None
+    provider_context: object | None = None
 
 
 def _project_root() -> Path:
@@ -40,6 +41,7 @@ def resolve_runtime(
     provider_build_attempt_id: str | None = None,
     item_themes_table: str | None = None,
     context_slot: str | None = None,
+    provider_context: object | None = None,
 ) -> ThemeAffinityRuntime:
     config = config_manager.load_config(job_env, client=client)
     project_root = _project_root()
@@ -70,41 +72,27 @@ def resolve_runtime(
         provider_build_attempt_id=provider_build_attempt_id,
         item_themes_table=item_themes_table,
         context_slot=context_slot,
+        provider_context=provider_context,
     )
 
 
-def validate_provider_build_marker(spark, runtime: ThemeAffinityRuntime) -> None:
-    required = (
-        runtime.run_date,
-        runtime.input_snapshot_id,
-        runtime.provider_build_id,
-        runtime.provider_build_attempt_id,
-        runtime.context_slot,
-    )
-    if any(value is None for value in required):
+def read_runtime_foundation_output(
+    spark,
+    runtime: ThemeAffinityRuntime,
+    output_name: str,
+):
+    """Read a foundation output only through its provider-bound Delta version."""
+    if runtime.provider_context is None:
         raise ValueError("Theme Affinity provider context is incomplete")
-    rows = spark.table(runtime.config.ranking_model_tables.build_marker).collect()
-    if len(rows) != 1:
-        raise ValueError(
-            f"Expected one Theme Affinity build marker, found {len(rows)}"
-        )
-    row = rows[0]
-    expected = {
-        "ContextSlot": runtime.context_slot,
-        "ProviderBuildID": runtime.provider_build_id,
-        "ProviderBuildAttemptID": runtime.provider_build_attempt_id,
-        "InputSnapshotID": runtime.input_snapshot_id,
-        "RunDate": runtime.run_date,
-        "ModelURI": runtime.model_uri,
-    }
-    mismatched = [
-        field for field, value in expected.items() if row[field] != value
-    ]
-    if mismatched:
-        raise ValueError(
-            "Theme Affinity build marker does not match provider context: "
-            + ", ".join(mismatched)
-        )
+    from next_ads.ranking.provider_context import (
+        read_bound_foundation_output,
+    )
+
+    return read_bound_foundation_output(
+        spark,
+        runtime.provider_context,
+        output_name,
+    )
 
 
 def resolve_context_runtime(
@@ -121,6 +109,7 @@ def resolve_context_runtime(
     from datetime import date
 
     from next_ads.ranking.provider_context import (
+        foundation_output_binding,
         load_active_provider_context,
     )
 
@@ -146,6 +135,8 @@ def resolve_context_runtime(
             "Active provider context does not match task parameters: "
             + ", ".join(mismatched)
         )
+    for output_name in ("ranked", "complete"):
+        foundation_output_binding(context, output_name)
     return (
         resolve_runtime(
             job_env,
@@ -157,6 +148,7 @@ def resolve_context_runtime(
             provider_build_attempt_id=context.provider_build_attempt_id,
             item_themes_table=config.tables_write.scoring_input_item_themes,
             context_slot=context.context_slot,
+            provider_context=context,
         ),
         context,
     )

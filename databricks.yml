@@ -82,8 +82,8 @@ variables:
     description: Schema used by the Theme Affinity Lakeflow pipeline outputs before optional warehouse publication
     default: ${var.user_schema}
   theme_affinity_publish_table_suffixes:
-    description: Comma-separated Theme Affinity Lakeflow output suffixes to publish as normal Delta tables
-    default: ranked,complete,advanced_features,customer_features,customer_segments,popularity_metrics,build_marker
+    description: Comma-separated non-foundation Theme Affinity compatibility outputs
+    default: advanced_features,customer_features,customer_segments,popularity_metrics
   deploy_timestamp:
     description: Deployment timestamp
     default: "unknown"

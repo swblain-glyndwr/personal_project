@@ -129,8 +129,8 @@ individually so a new experiment entrypoint cannot be added without review.
 | `src/next_ads/features/nextads_core.py` | `deduplicate` | 15 | Deployed feature foundation | Out of scope feature foundation | Feature-contract deduplication is explicitly excluded from this incident fix; feature-platform owner review is required. |
 | `src/next_ads/features/theme_affinity.py` | `deduplicate` | 7 | Deployed feature foundation | Out of scope feature foundation | Feature-contract deduplication is explicitly excluded from this incident fix; feature-platform owner review is required. |
 | `src/next_ads/ranking/scoring.py` | `deduplicate` | 1 | Active Markov dependency | Deterministic | Exact distinct model names constrain the model lookup and never select one of multiple score records. |
-| `src/next_ads/ranking/theme_affinity/clean_output.py` | `deduplicate` | 1 | Active future inference | Deterministic | Exact distinct penalty themes form set membership only; total-order windows govern all subsequent single-row selections. |
-| `src/next_ads/ranking/theme_affinity/data_prep.py` | `deduplicate` | 1 | Deployed model pipeline | Out of scope model lifecycle | Exact full-row deduplication is inside the model data pipeline; model-owner review is required before semantic changes. |
+| `src/next_ads/ranking/theme_affinity/clean_output.py` | `deduplicate` | 2 | Active future inference | Deterministic | Exact distinct penalty themes form set membership only; total-order windows govern all subsequent single-row selections. |
+| `src/next_ads/ranking/theme_affinity/data_prep.py` | `deduplicate` | 4 | Deployed scoring foundation | Deterministic | Exact distinct projections establish the reusable account and theme spine once; validated business keys and total-order ranking govern later selection. |
 | `src/next_ads/ranking/theme_affinity/data_prep.py` | `saveAsTable` | 2 | Deployed model pipeline | Out of scope model lifecycle | Intermediate model-pipeline table replacement is outside model retraining and promotion boundaries for this change. |
 | `src/next_ads/ranking/theme_affinity/data_prep.py` | `overwrite_mode` | 1 | Deployed model pipeline | Out of scope model lifecycle | The complete intermediate model dataset is replaced as one Delta snapshot; model-owner review is required before migration. |
 | `src/next_ads/ranking/theme_affinity/dlt_pipeline.py` | `deduplicate` | 1 | Deployed model pipeline | Out of scope model lifecycle | Exact full-row deduplication is inside the managed model pipeline; model-owner review is required before semantic changes. |
@@ -207,9 +207,9 @@ updated, even when the per-file pattern count is unchanged.
 | `src/next_ads/features/nextads_core.py` | `c0c506a3d561cf00` |
 | `src/next_ads/features/theme_affinity.py` | `29132ead649f42f5` |
 | `src/next_ads/ranking/scoring.py` | `e366917953536f92` |
-| `src/next_ads/ranking/theme_affinity/clean_output.py` | `564ec69c118a3ef4` |
-| `src/next_ads/ranking/theme_affinity/data_prep.py` | `aa4a89f5d6d8772b` |
-| `src/next_ads/ranking/theme_affinity/dlt_pipeline.py` | `72e1539a944c6f04` |
+| `src/next_ads/ranking/theme_affinity/clean_output.py` | `bb70272c46cf2860` |
+| `src/next_ads/ranking/theme_affinity/data_prep.py` | `e6d4a8cd497e8285` |
+| `src/next_ads/ranking/theme_affinity/dlt_pipeline.py` | `5d25f3006ed9e7e3` |
 | `src/next_ads/ranking/theme_affinity/sense_check.py` | `17c5bc37cd36e7b1` |
 | `src/next_ads/ranking/theme_affinity/sql/2_atbs_bythemes.sql` | `68cad891323c39a3` |
 | `src/next_ads/ranking/theme_affinity/sql/2_views_bythemes.sql` | `1ef162775f5feac5` |
@@ -238,12 +238,15 @@ covered by the focused determinism tests.
 | `jobs/nextads_candidates/conditional_probability_recs.py` | 2 | Unbundled legacy | Out of scope | The entrypoint is not deployed; candidate-route owner review is required before reuse. |
 | `jobs/nextads_reporting/realtime_results.py` | 2 | Deployed reporting | Total order | Latest update and action windows finish with stable hash-backed business keys. |
 | `jobs/nextads_reporting/results_top_ads_by_location.py` | 1 | Deployed reporting | Total order | The single-row selection finishes with `UniqueAdID`. |
+| `jobs/orchestration/prepare_score_provider_context.py` | 1 | Active scoring-provider route | Total order | Accepted input attempts finish with execution count, completion timestamp and task run ID before the stable snapshot identifier. |
+| `jobs/orchestration/prepare_scoring_foundation_context.py` | 1 | Active scoring-foundation route | Total order | Accepted input attempts finish with execution count, completion timestamp and task run ID before the stable snapshot identifier. |
 | `jobs/realtime/viewed_bought.py` | 2 | Active realtime input | Total order | Revenue and association ranks finish with item identifiers. |
 | `src/next_ads/control/control_sheet_audit.py` | 1 | Active warning-only control audit | Total order | Capped diagnostic examples are ordered by their unique rendered example key before aggregation. |
 | `src/next_ads/control/theme_mapping.py` | 2 | Active Markov dependency | Tie preserving | Both use `dense_rank`; equal scoring inputs intentionally share a rank and no arbitrary single row is selected. |
 | `src/next_ads/decisioning/assignment.py` | 12 | Active assignment dependency | Total order | Exact assignment selections finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
 | `src/next_ads/features/nextads_core.py` | 2 | Deployed feature foundation | Out of scope | Feature-foundation ranking is outside this incident route; feature-platform owner review is required. |
 | `src/next_ads/features/theme_affinity.py` | 2 | Deployed feature foundation | Total order | Feature ranks finish with the theme key, but feature-foundation output validation remains separately owned. |
+| `src/next_ads/ranking/provider_signals.py` | 1 | Active scoring-provider route | Total order | Provider ranking finishes with the entity identifier, giving identical scores a stable and replay-safe order. |
 | `src/next_ads/ranking/theme_affinity/clean_output.py` | 2 | Active future inference | Total order | Penalty and final ranks finish with theme identifiers and stable hashes. |
 | `src/next_ads/ranking/theme_affinity/sense_check.py` | 1 | Deployed model checks | Total order | Top-theme comparison finishes with `NextTheme`. |
 | `src/next_ads/ranking/theme_affinity/spark_model.py` | 3 | Future model training | Total order | Ranking and score-bin windows use stable business-key ordering; model promotion is outside this change. |
@@ -265,7 +268,6 @@ results that are invariant to equal ordering values.
 | Path | Count | Reachability | Disposition | Rationale and review boundary |
 | --- | ---: | --- | --- | --- |
 | `src/next_ads/ranking/theme_affinity/data_prep.py` | 1 | Deployed model pipeline | Total order | The simple-rules `ROW_NUMBER` finishes with `theme_clean`. |
-| `src/next_ads/ranking/theme_affinity/dlt_pipeline.py` | 1 | Active future inference | Total order | The DLT simple-rules `ROW_NUMBER` finishes with `theme_clean`. |
 | `src/next_ads/ranking/theme_affinity/sql/1a_vatb.sql` | 1 | Active future inference | Total order | The VATB rank finishes with `theme_clean2`. |
 | `src/next_ads/ranking/theme_affinity/sql/2_atbs_bythemes.sql` | 2 | Active future inference | Total order | Both recency ranks finish with `theme_clean` after date, timestamp and frequency. |
 | `src/next_ads/ranking/theme_affinity/sql/2_baskets_bythemes.sql` | 1 | Active future inference | Total order | The basket recency rank finishes with `theme_clean`. |

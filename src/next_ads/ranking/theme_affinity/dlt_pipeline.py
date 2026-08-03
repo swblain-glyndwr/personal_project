@@ -9,14 +9,14 @@ spark = SparkSession.builder.getOrCreate()
 
 from next_ads.ranking.theme_affinity.data_prep import (
     apply_post_process,
+    build_account_theme_spine,
     build_common_params,
+    build_ranked_sql,
     build_sql_entries,
     render_sql_file,
 )
-from next_ads.ranking.provider_context import (
-    load_active_provider_context,
-    pinned_item_themes,
-)
+from next_ads.ranking.foundation_context import load_active_foundation_context
+from next_ads.ranking.provider_context import pinned_item_themes
 
 
 SCHEMA = spark.conf.get("pipeline.schema")
@@ -26,15 +26,15 @@ JOB_ENV = spark.conf.get("pipeline.job_env", "dev")
 CONTEXT_TABLE = spark.conf.get("pipeline.context_table")
 CONTEXT_SLOT = spark.conf.get("pipeline.context_slot")
 ITEM_THEMES_TABLE = spark.conf.get("pipeline.item_themes_table")
-PROVIDER_CONTEXT = load_active_provider_context(
+FOUNDATION_CONTEXT = load_active_foundation_context(
     spark,
     context_table=CONTEXT_TABLE,
     context_slot=CONTEXT_SLOT,
 )
-REFERENCE_DATE = PROVIDER_CONTEXT.run_date.isoformat()
+REFERENCE_DATE = FOUNDATION_CONTEXT.run_date.isoformat()
 PINNED_ITEM_THEMES = pinned_item_themes(
     spark,
-    PROVIDER_CONTEXT,
+    FOUNDATION_CONTEXT,
     input_table=ITEM_THEMES_TABLE,
 ).select(
     "pid",
@@ -105,82 +105,11 @@ def pinned_theme_mapping_input():
 
 @dp.table(name="spine", private=True)
 def spine():
-    sql = """
-WITH base AS (
-  SELECT DISTINCT account_number, itemno, theme
-  FROM marketingdata_prod.warehouse.baskets_uk_3y
-  INNER JOIN (
-    SELECT DISTINCT pid, theme
-    FROM pinned_item_themes
-  )
-  ON pid = itemno
-  WHERE order_date >= date_add(date"{reference_date}", -365)
-  AND theme IS NOT NULL
-),
-base_filtered AS (
-  SELECT DISTINCT account_number FROM base
-),
-0_theme_mapping AS (
-  SELECT DISTINCT *, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean
-  FROM pinned_item_themes
-  WHERE theme_rank = 1
-),
-themes AS (
-  SELECT DISTINCT *, date"{reference_date}" AS reference_date
-  FROM base_filtered
-  CROSS JOIN (SELECT DISTINCT theme_clean FROM 0_theme_mapping)
-),
-spine AS (
-  SELECT reference_date, account_number, theme_clean
-  FROM (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_atbs1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_atbs5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_baskets1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_baskets5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_views1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_views5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_atbs_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_baskets_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_views_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_repurchase
-    WHERE reference_date = date"{reference_date}"
-  )
-)
-SELECT a.*, spine.* EXCEPT(account_number, theme_clean, reference_date)
-FROM (SELECT * FROM themes GROUP BY ALL) a
-LEFT JOIN spine
-USING(account_number, theme_clean, reference_date)
-WHERE a.account_number IS NOT NULL
-"""
-    return spark.sql(sql.format(**COMMON_PARAMS))
+    return build_account_theme_spine(
+        spark.table("marketingdata_prod.warehouse.baskets_uk_3y"),
+        PINNED_ITEM_THEMES,
+        REFERENCE_DATE,
+    )
 
 
 for _layer in [0, 1, 2, 3, 4, 5]:
@@ -193,7 +122,7 @@ for _layer in [0, 1, 2, 3, 4, 5]:
 def complete():
     predict_df = (
         spark.read.table(f"{TABLE_PREFIX}_master")
-        .filter(F.col("rundate") == F.lit(PROVIDER_CONTEXT.run_date))
+        .filter(F.col("rundate") == F.lit(FOUNDATION_CONTEXT.run_date))
         .distinct()
     )
     month_value = F.month(F.date_add(F.col("reference_date"), 1))
@@ -221,20 +150,25 @@ def build_marker():
     return spark.createDataFrame(
         [
             {
-                "ContextSlot": PROVIDER_CONTEXT.context_slot,
+                "ContextSlot": FOUNDATION_CONTEXT.context_slot,
                 "OrchestrationRunID": (
-                    PROVIDER_CONTEXT.orchestration_run_id
+                    FOUNDATION_CONTEXT.orchestration_run_id
                 ),
-                "ProviderID": PROVIDER_CONTEXT.provider_id,
-                "ProviderBuildID": PROVIDER_CONTEXT.provider_build_id,
-                "ProviderBuildAttemptID": (
-                    PROVIDER_CONTEXT.provider_build_attempt_id
+                "FoundationID": FOUNDATION_CONTEXT.foundation_id,
+                "FoundationVersion": FOUNDATION_CONTEXT.foundation_version,
+                "ScoringFoundationBuildID": (
+                    FOUNDATION_CONTEXT.scoring_foundation_build_id
                 ),
-                "InputSnapshotID": PROVIDER_CONTEXT.input_snapshot_id,
-                "RunDate": PROVIDER_CONTEXT.run_date,
-                "ModelURI": PROVIDER_CONTEXT.model_uri,
+                "ScoringFoundationBuildAttemptID": (
+                    FOUNDATION_CONTEXT.scoring_foundation_build_attempt_id
+                ),
+                "InputSnapshotID": FOUNDATION_CONTEXT.input_snapshot_id,
+                "InputSnapshotAttemptID": (
+                    FOUNDATION_CONTEXT.input_snapshot_attempt_id
+                ),
+                "RunDate": FOUNDATION_CONTEXT.run_date,
                 "InvocationChecksum": (
-                    PROVIDER_CONTEXT.invocation_checksum
+                    FOUNDATION_CONTEXT.invocation_checksum
                 ),
             }
         ]
@@ -243,75 +177,4 @@ def build_marker():
 
 @dp.table(name=f"{TABLE_PREFIX}_ranked")
 def ranked():
-    sql = f"""
-WITH t0 AS (
-  SELECT *,
-  CASE WHEN theme_clean LIKE '%women%'
-      AND GREATEST(Womenswearconfidence_score,Menswearconfidence_score,Beautyconfidence_score,Homeconfidence_score) == Womenswearconfidence_score
-      THEN 1
-  WHEN (theme_clean LIKE '%girls%' OR theme_clean LIKE '%boys%')
-      AND GREATEST(Womenswearconfidence_score,Menswearconfidence_score,Beautyconfidence_score,Homeconfidence_score,Familyconfidence_score) == Familyconfidence_score
-      THEN 1
-  WHEN theme_clean LIKE '%men%'
-      AND GREATEST(Womenswearconfidence_score,Menswearconfidence_score,Beautyconfidence_score,Homeconfidence_score) == Menswearconfidence_score
-      THEN 1
-  WHEN theme_clean LIKE '%beauty%'
-      AND GREATEST(Womenswearconfidence_score,Menswearconfidence_score,Beautyconfidence_score,Homeconfidence_score) == Beautyconfidence_score
-      THEN 1
-  WHEN theme_clean LIKE '%home%'
-      AND GREATEST(Womenswearconfidence_score,Menswearconfidence_score,Beautyconfidence_score,Homeconfidence_score) == Homeconfidence_score
-      THEN 1
-  ELSE 0
-  END AS same_dept
-  FROM {TABLE_PREFIX}_complete
-),
-t1 AS (
-  SELECT *,
-  ROW_NUMBER() OVER (
-      PARTITION BY account_number, reference_date
-      ORDER BY
-      CASE WHEN views_behavior__recency = 0 THEN 999999 ELSE views_behavior__recency END ASC,
-      CASE WHEN atbs_behavior__recency = 0 THEN 999999 ELSE atbs_behavior__recency END ASC,
-      repurchase_ratio DESC,
-      num_retrieval_methods DESC,
-      baskets_behavior__frequency DESC,
-      atbs_behavior__frequency DESC,
-      views_behavior__frequency DESC,
-      COALESCE(algo_baskets5__lift_top10, 0) DESC,
-      COALESCE(algo_atbs5__lift_top10, 0) DESC,
-      COALESCE(algo_views5__lift_top10, 0) DESC,
-      same_dept DESC,
-      theme_clean
-  ) AS simple_rules_rank
-  FROM t0
-),
-final AS (
-  SELECT *,
-  CASE
-  WHEN views_behavior__recency > 0 AND views_behavior__recency < 9999 THEN 'views_recency'
-  WHEN atbs_behavior__recency > 0 AND atbs_behavior__recency < 9999 THEN 'atbs_recency'
-  WHEN repurchase_ratio > 0 THEN 'repurchase_ratio'
-  WHEN num_retrieval_methods > 0 AND baskets_behavior__frequency > 0 THEN 'ret_met_baskets_frequency'
-  WHEN num_retrieval_methods > 0 AND atbs_behavior__frequency > 0 THEN 'ret_met_atbs_frequency'
-  WHEN num_retrieval_methods > 0 AND views_behavior__frequency > 0 THEN 'ret_met_views_frequency'
-  WHEN num_retrieval_methods > 0 AND algo_baskets5__lift_top10 > 0 THEN 'ret_met_algo_baskets5_lift_top10'
-  WHEN num_retrieval_methods > 0 AND algo_atbs5__lift_top10 > 0 THEN 'ret_met_algo_atbs5_lift_top10'
-  WHEN num_retrieval_methods > 0 AND algo_views5__lift_top10 > 0 THEN 'ret_met_algo_views5_lift_top10'
-  WHEN num_retrieval_methods > 0 AND same_dept = 1 THEN 'ret_met_same_dept'
-  WHEN baskets_behavior__frequency > 0 THEN 'baskets_frequency'
-  WHEN atbs_behavior__frequency > 0 THEN 'atbs_frequency'
-  WHEN views_behavior__frequency > 0 THEN 'views_frequency'
-  WHEN algo_baskets5__lift_top10 > 0 THEN 'algo_baskets5_lift_top10'
-  WHEN algo_atbs5__lift_top10 > 0 THEN 'algo_atbs5_lift_top10'
-  WHEN algo_views5__lift_top10 > 0 THEN 'algo_views5_lift_top10'
-  WHEN same_dept = 1 THEN 'same_dept'
-  ELSE 'theme'
-  END AS rules_rank_source
-  FROM t1
-  GROUP BY ALL
-)
-SELECT DISTINCT *
-FROM final
-ORDER BY account_number, simple_rules_rank
-"""
-    return spark.sql(sql)
+    return spark.sql(build_ranked_sql(f"{TABLE_PREFIX}_complete"))

@@ -4,6 +4,7 @@ def _ranked_theme_mapping(
     *,
     input_snapshot_id=None,
     run_date=None,
+    item_themes_frame=None,
 ):
     from pyspark.sql import functions as F
 
@@ -14,7 +15,11 @@ def _ranked_theme_mapping(
             f"FROM {item_themes_table} WHERE theme_rank = 1"
         )
     else:
-        source = spark.table(item_themes_table)
+        source = (
+            item_themes_frame
+            if item_themes_frame is not None
+            else spark.table(item_themes_table)
+        )
         source = source.where(
             (F.col("InputSnapshotID") == input_snapshot_id)
             & (F.col("RunDate") == F.lit(run_date))
@@ -128,10 +133,10 @@ def clean_model_output(spark, runtime):
         with_run_date,
     )
     from next_ads.ranking.theme_affinity.config import (
-        validate_provider_build_marker,
+        read_runtime_foundation_output,
     )
+    from next_ads.ranking.provider_context import pinned_item_themes
 
-    validate_provider_build_marker(spark, runtime)
     model_config = runtime.config.ranking_model
     model_tables = runtime.config.ranking_model_tables
     run_date = runtime.run_date or capture_run_date(spark)
@@ -141,7 +146,7 @@ def clean_model_output(spark, runtime):
 
     full_results = spark.table(model_tables.predict_output_table)
     stats_df = (
-        spark.table(model_tables.predict_complete)
+        read_runtime_foundation_output(spark, runtime, "complete")
         .groupBy("theme_clean")
         .agg(
             F.avg("repurchase_ratio").alias("rep_ratio"),
@@ -174,12 +179,20 @@ def clean_model_output(spark, runtime):
         .withColumnRenamed("theme", "NextTheme")
     )
     full_results = with_run_date(full_results, run_date)
+    item_themes_table = (
+        runtime.item_themes_table
+        or runtime.config.tables_write.item_themes_latest
+    )
     theme_mapping = _ranked_theme_mapping(
         spark,
-        runtime.item_themes_table
-        or runtime.config.tables_write.item_themes_latest,
+        item_themes_table,
         input_snapshot_id=runtime.input_snapshot_id,
         run_date=run_date,
+        item_themes_frame=pinned_item_themes(
+            spark,
+            runtime.provider_context,
+            input_table=item_themes_table,
+        ),
     )
     fixed = (
         full_results.join(

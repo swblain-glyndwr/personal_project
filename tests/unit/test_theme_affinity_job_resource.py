@@ -57,6 +57,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         "timezone_id": "Europe/London",
     }
     assert job["max_concurrent_runs"] == 1
+    assert job["queue"] == {"enabled": True}
     assert job["job_clusters"] == "${var.job_clusters_config}"
     assert job["parameters"] == [
         {
@@ -80,14 +81,14 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         },
         {
             "name": "publish_source_table_prefix",
-            "default": "next_uk_nextads_theme_affinity_predict",
+            "default": "next_uk_nextads_account_theme_foundation_stage",
         },
         {
             "name": "publish_target_table_prefix",
             "default": "next_uk_nextads_theme_affinity_predict",
         },
         {
-            "name": "publish_table_suffixes",
+            "name": "compatibility_table_suffixes",
             "default": "${var.theme_affinity_publish_table_suffixes}",
         },
         {
@@ -98,15 +99,32 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
 
     tasks = {task["task_key"]: task for task in job["tasks"]}
     assert set(tasks) == {
+        "prepare_foundation_context",
+        "publish_foundation",
         "prepare_provider_context",
         "predict_data_prep",
-        "publish_dlt_outputs",
+        "publish_compatibility_outputs",
         "model_predict",
         "sense_check_dlt_data",
         "clean_output",
         "sense_check_model_outputs",
+        "finalize_foundation_context",
         "finalize_provider_context",
     }
+    foundation_prepare = tasks["prepare_foundation_context"]
+    assert (
+        foundation_prepare["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/prepare_scoring_foundation_context.py"
+    )
+    foundation_parameters = foundation_prepare["spark_python_task"][
+        "parameters"
+    ]
+    assert foundation_parameters[
+        foundation_parameters.index("--foundation_id") + 1
+    ] == "account_theme_features"
+    assert foundation_parameters[
+        foundation_parameters.index("--context_slot") + 1
+    ] == "account_theme_features_v2"
     prepare_task = tasks["prepare_provider_context"]
     assert (
         prepare_task["spark_python_task"]["python_file"]
@@ -120,10 +138,24 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         prepare_parameters[
             prepare_parameters.index("--readiness_wait_seconds") + 1
         ]
-    ) == 5400
-    assert prepare_task["timeout_seconds"] > 5400
+    ) == 0
+    assert prepare_task["depends_on"] == [{"task_key": "publish_foundation"}]
+    assert prepare_task["timeout_seconds"] == 900
+    assert (
+        "{{tasks.publish_foundation.values.input_snapshot_id}}"
+        in prepare_parameters
+    )
+    assert (
+        "{{tasks.publish_foundation.values.scoring_foundation_build_id}}"
+        in prepare_parameters
+    )
+    assert (
+        "{{tasks.publish_foundation.values."
+        "scoring_foundation_build_attempt_id}}"
+        in prepare_parameters
+    )
     assert tasks["predict_data_prep"]["depends_on"] == [
-        {"task_key": "prepare_provider_context"}
+        {"task_key": "prepare_foundation_context"}
     ]
     assert "pipeline_task" in tasks["predict_data_prep"]
     assert (
@@ -131,7 +163,36 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         == "${resources.pipelines.nextads_theme_affinity_predict_data_prep.id}"
     )
 
-    publish_task = tasks["publish_dlt_outputs"]
+    foundation_publish = tasks["publish_foundation"]
+    assert foundation_publish["depends_on"] == [
+        {"task_key": "predict_data_prep"}
+    ]
+    assert (
+        foundation_publish["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/publish_scoring_foundation.py"
+    )
+    foundation_publish_parameters = foundation_publish["spark_python_task"][
+        "parameters"
+    ]
+    parameter_defaults = {
+        parameter["name"]: parameter["default"]
+        for parameter in job["parameters"]
+    }
+    assert (
+        parameter_defaults["publish_source_table_prefix"]
+        != parameter_defaults["publish_target_table_prefix"]
+    )
+    assert foundation_publish_parameters[
+        foundation_publish_parameters.index("--pipeline_id") + 1
+    ] == "${resources.pipelines.nextads_theme_affinity_predict_data_prep.id}"
+    assert foundation_publish_parameters[
+        foundation_publish_parameters.index("--pipeline_task_run_id") + 1
+    ] == "{{tasks.predict_data_prep.run_id}}"
+    assert foundation_publish_parameters[
+        foundation_publish_parameters.index("--context_slot") + 1
+    ] == "account_theme_features_v2"
+
+    publish_task = tasks["publish_compatibility_outputs"]
     assert publish_task["depends_on"] == [{"task_key": "predict_data_prep"}]
     assert "notebook_task" not in publish_task
     assert "spark_python_task" in publish_task
@@ -159,11 +220,17 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     )
     assert (
         publish_parameters[publish_parameters.index("--table_suffixes") + 1]
-        == "{{job.parameters.publish_table_suffixes}}"
+        == "{{job.parameters.compatibility_table_suffixes}}"
     )
+    compatibility_suffixes = {
+        parameter["name"]: parameter["default"]
+        for parameter in job["parameters"]
+    }["compatibility_table_suffixes"]
+    assert "ranked" not in compatibility_suffixes
+    assert "complete" not in compatibility_suffixes
 
     assert tasks["model_predict"]["depends_on"] == [
-        {"task_key": "publish_dlt_outputs"}
+        {"task_key": "prepare_provider_context"}
     ]
     for task_key in ["model_predict", "clean_output"]:
         task = tasks[task_key]
@@ -179,6 +246,10 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     dlt_sense_check = tasks["sense_check_dlt_data"]
     assert dlt_sense_check["depends_on"] == [{"task_key": "predict_data_prep"}]
     assert "notebook_task" not in dlt_sense_check
+    dlt_sense_parameters = dlt_sense_check["spark_python_task"]["parameters"]
+    assert dlt_sense_parameters[
+        dlt_sense_parameters.index("--candidate_intermediate_prefix") + 1
+    ] == "{{job.parameters.publish_source_table_prefix}}"
     assert "spark_python_task" in dlt_sense_check
     assert (
         dlt_sense_check["spark_python_task"]["python_file"]
@@ -197,6 +268,16 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     )
     assert model_sense_check["libraries"] == "${var.theme_affinity_libraries}"
     assert "model_outputs" in model_sense_check["spark_python_task"]["parameters"]
+
+    foundation_finalizer = tasks["finalize_foundation_context"]
+    assert foundation_finalizer["depends_on"] == [
+        {"task_key": "publish_foundation"}
+    ]
+    assert foundation_finalizer["run_if"] == "ALL_DONE"
+    assert (
+        foundation_finalizer["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/finalize_scoring_foundation_context.py"
+    )
 
     finalizer = tasks["finalize_provider_context"]
     assert finalizer["depends_on"] == [{"task_key": "clean_output"}]
@@ -674,8 +755,8 @@ def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
     assert (
         bundle["variables"]["theme_affinity_publish_table_suffixes"]["default"]
         == (
-            "ranked,complete,advanced_features,customer_features,"
-            "customer_segments,popularity_metrics,build_marker"
+            "advanced_features,customer_features,customer_segments,"
+            "popularity_metrics"
         )
     )
     assert (
@@ -701,7 +782,7 @@ def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
         )
         assert (
             pipeline_config["configuration"]["pipeline.table_prefix"]
-            == "next_uk_nextads_theme_affinity_predict"
+            == "next_uk_nextads_account_theme_foundation_stage"
         )
         assert (
             pipeline_config["configuration"]["pipeline.sql_path"]
@@ -786,17 +867,17 @@ def test_theme_affinity_dlt_uses_the_leased_logical_run_context():
         configuration = pipeline_config["configuration"]
         assert "pipeline.reference_date" not in configuration
         assert configuration["pipeline.context_slot"] == (
-            "theme_affinity_serving"
+            "account_theme_features_v2"
         )
         assert configuration["pipeline.context_table"].endswith(
-            ".next_uk_nextads_score_provider_run_contexts"
+            ".next_uk_nextads_scoring_foundation_run_contexts"
         )
         assert configuration["pipeline.item_themes_table"].endswith(
             ".next_uk_nextads_scoring_input_item_themes"
         )
 
     assert 'REFERENCE_DATE = datetime.today().strftime("%Y-%m-%d")' not in dlt_source
-    assert "PROVIDER_CONTEXT.run_date.isoformat()" in dlt_source
+    assert "FOUNDATION_CONTEXT.run_date.isoformat()" in dlt_source
     assert "pipeline.reference_date: predict" not in (
         PROJECT_ROOT / "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     ).read_text()

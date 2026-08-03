@@ -78,6 +78,7 @@ class SenseCheckConfig:
     summary_table: str
     check_scope: str = "all"
     candidate_intermediate_namespace: str | None = None
+    candidate_intermediate_prefix: str | None = None
 
 
 def default_summary_table(runtime: ThemeAffinityRuntime) -> str:
@@ -90,7 +91,10 @@ def default_summary_table(runtime: ThemeAffinityRuntime) -> str:
 def run_sense_checks(spark, runtime: ThemeAffinityRuntime, config):
     rows = []
     checked_at = datetime.utcnow().isoformat(timespec="seconds")
-    candidate_prefix = runtime.config.ranking_model_table_prefix
+    candidate_prefix = (
+        config.candidate_intermediate_prefix
+        or runtime.config.ranking_model_table_prefix
+    )
     candidate_intermediate_namespace = (
         config.candidate_intermediate_namespace or runtime.namespace
     )

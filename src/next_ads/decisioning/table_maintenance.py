@@ -155,6 +155,27 @@ SCORING_INPUT_SNAPSHOT_TABLE_SPECS = (
     ),
 )
 
+SCORING_FOUNDATION_TABLE_SPECS = (
+    MaintenanceTableSpec(
+        name="scoring_foundation_builds",
+        config_key="scoring_foundation_builds",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    MaintenanceTableSpec(
+        name="scoring_foundation_outputs",
+        config_key="scoring_foundation_outputs",
+        retention_days=35,
+        retention_column="RunDate",
+        retention_comparison="<=",
+    ),
+    _snapshot(
+        "scoring_foundation_run_contexts",
+        "scoring_foundation_run_contexts",
+    ),
+)
+
 LEGACY_SCORING_TABLE_SPECS = (
     _snapshot("theme_scoring_event_latest", "theme_scoring_events_latest"),
     _legacy_history("theme_transition_history", "theme_transitions"),
@@ -231,6 +252,7 @@ CONFIGURED_TABLE_SPECS = (
     *V2_CONTROL_TABLE_SPECS,
     *ATTRIBUTE_THEME_TABLE_SPECS,
     *SCORING_INPUT_SNAPSHOT_TABLE_SPECS,
+    *SCORING_FOUNDATION_TABLE_SPECS,
     *LEGACY_SCORING_TABLE_SPECS,
     *CANDIDATE_TABLE_SPECS,
     *PAYLOAD_TABLE_SPECS,

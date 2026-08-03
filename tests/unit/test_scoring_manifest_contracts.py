@@ -41,6 +41,9 @@ TABLE_REFS = (
     "scoring_input_snapshot_sources",
     "scoring_input_item_themes",
     "scoring_input_theme_mapping_raw",
+    "scoring_foundation_builds",
+    "scoring_foundation_outputs",
+    "scoring_foundation_run_contexts",
     "score_provider_run_contexts",
     "score_provider_builds",
     "score_provider_signals",
@@ -422,6 +425,32 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     builds_sql = resolve_sql_contract_path("score_provider_builds").read_text()
     assert "ThemeAffinityBuildID" not in builds_sql
     assert "ProviderBuildAttemptID string not null" in builds_sql
+    assert "ScoringFoundationBuildID string" in builds_sql
+    assert "ScoringFoundationBuildAttemptID string" in builds_sql
+
+    foundation_builds_sql = resolve_sql_contract_path(
+        "scoring_foundation_builds"
+    ).read_text()
+    assert "InputSnapshotAttemptID string not null" in foundation_builds_sql
+    assert "InputBindingsJSON string not null" in foundation_builds_sql
+    assert "PipelineID string" in foundation_builds_sql
+    assert "PipelineUpdateID string" in foundation_builds_sql
+    assert "PipelineTaskRunID bigint" in foundation_builds_sql
+    assert "PipelineUpdateType string" in foundation_builds_sql
+
+    foundation_outputs_sql = resolve_sql_contract_path(
+        "scoring_foundation_outputs"
+    ).read_text()
+    assert "SourceTable string not null" in foundation_outputs_sql
+    assert "SourceDeltaVersion bigint not null" in foundation_outputs_sql
+    assert "SourceSchemaChecksum string not null" in foundation_outputs_sql
+    assert "OutputSchemaChecksum string not null" in foundation_outputs_sql
+    assert "InvalidValueCount bigint not null" in foundation_outputs_sql
+
+    foundation_contexts_sql = resolve_sql_contract_path(
+        "scoring_foundation_run_contexts"
+    ).read_text()
+    assert "InputSnapshotAttemptID string not null" in foundation_contexts_sql
 
 
 @pytest.mark.parametrize(
@@ -486,7 +515,9 @@ def test_config_accepts_native_provider_and_typed_scope_policy(monkeypatch):
     scoring["providers"]["ad_ctr"] = {
         "provider_id": "ad_ctr",
         "provider_version": "ad_ctr/v1",
+        "implementation": "ad_ctr",
         "capability": "account_ad",
+        "foundation_id": None,
         "adapter": "canonical_provider_job",
         "entity_type": "ad",
         "score_direction": "higher_is_better",

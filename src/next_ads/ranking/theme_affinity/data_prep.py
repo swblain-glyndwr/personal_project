@@ -352,8 +352,15 @@ def write_complete_table(spark, runtime):
 def rank_complete_table(spark, runtime):
     predict_complete = _runtime_table(runtime, "complete")
     predict_input_table = _runtime_table(runtime, "ranked")
-    sql = f"""
-CREATE OR REPLACE TABLE {predict_input_table} AS
+    spark.sql(
+        f"CREATE OR REPLACE TABLE {predict_input_table} AS\n"
+        + build_ranked_sql(predict_complete)
+    )
+
+
+def build_ranked_sql(predict_complete: str) -> str:
+    """Return the single deterministic account-theme ranking definition."""
+    return f"""
 WITH t0 AS (
   SELECT *,
   CASE WHEN theme_clean LIKE '%women%'
@@ -418,13 +425,10 @@ final AS (
   ELSE 'theme'
   END AS rules_rank_source
   FROM t1
-  GROUP BY ALL
 )
-SELECT DISTINCT *
+SELECT *
 FROM final
-ORDER BY account_number, simple_rules_rank
 """
-    spark.sql(sql)
 
 
 def _entry(
@@ -593,80 +597,55 @@ WHERE theme_rank = 1
 
 
 def create_spine_view(spark, common_params):
-    sql = """
-CREATE OR REPLACE TEMPORARY VIEW spine AS
-WITH base AS (
-  SELECT DISTINCT account_number, itemno, theme
-  FROM marketingdata_prod.warehouse.baskets_uk_3y
-  INNER JOIN (
-    SELECT DISTINCT pid, theme
-    FROM marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest
-  )
-  ON pid = itemno
-  WHERE order_date >= date_add(date"{reference_date}", -365)
-  AND theme IS NOT NULL
-),
-base_filtered AS (
-  SELECT DISTINCT account_number FROM base
-),
-0_theme_mapping AS (
-  SELECT DISTINCT *, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean
-  FROM marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest
-  WHERE theme_rank = 1
-),
-themes AS (
-  SELECT DISTINCT *, date"{reference_date}" AS reference_date
-  FROM base_filtered
-  CROSS JOIN (SELECT DISTINCT theme_clean FROM 0_theme_mapping)
-),
-spine AS (
-  SELECT reference_date, account_number, theme_clean
-  FROM (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_atbs1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_atbs5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_baskets1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_baskets5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_views1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_views5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_atbs_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_baskets_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_views_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_repurchase
-    WHERE reference_date = date"{reference_date}"
-  )
-)
-SELECT a.*, spine.* EXCEPT(account_number, theme_clean, reference_date)
-FROM (SELECT * FROM themes GROUP BY ALL) a
-LEFT JOIN spine
-USING(account_number, theme_clean, reference_date)
-WHERE a.account_number IS NOT NULL
-"""
-    return spark.sql(sql.format(**common_params))
+    item_themes = spark.table(
+        "marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest"
+    )
+    baskets = spark.table("marketingdata_prod.warehouse.baskets_uk_3y")
+    frame = build_account_theme_spine(
+        baskets,
+        item_themes,
+        common_params["reference_date"],
+    )
+    frame.createOrReplaceTempView("spine")
+    return frame
+
+
+def build_account_theme_spine(baskets, item_themes, reference_date: str):
+    """Build the complete eligible-account by accepted-theme universe."""
+    from pyspark.sql import functions as F
+
+    item_ids = (
+        item_themes.where(F.col("theme").isNotNull())
+        .select(F.col("pid"))
+        .distinct()
+    )
+    eligible_accounts = (
+        baskets.where(
+            F.col("order_date")
+            >= F.date_add(F.lit(reference_date).cast("date"), -365)
+        )
+        .alias("baskets")
+        .join(
+            F.broadcast(item_ids).alias("item_ids"),
+            F.col("baskets.itemno") == F.col("item_ids.pid"),
+            "left_semi",
+        )
+        .where(F.col("account_number").isNotNull())
+        .select("account_number")
+        .distinct()
+    )
+    theme_catalogue = (
+        item_themes.where(F.col("theme_rank") == F.lit(1))
+        .select(
+            F.regexp_replace("theme", "[^a-zA-Z0-9]", "").alias(
+                "theme_clean"
+            )
+        )
+        .where(F.col("theme_clean").isNotNull())
+        .distinct()
+    )
+    return (
+        eligible_accounts.crossJoin(F.broadcast(theme_catalogue))
+        .withColumn("reference_date", F.lit(reference_date).cast("date"))
+        .select("reference_date", "account_number", "theme_clean")
+    )

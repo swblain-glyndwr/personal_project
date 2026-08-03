@@ -41,9 +41,7 @@ def test_markov_scoring_job_uses_moved_control_and_scoring_entrypoints():
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
     expected_paths = {
-        "parse_attributes": "../../../jobs/nextads_control/parse_attributes.py",
-        "validate_theme_mapping_sync": "../../../jobs/nextads_control/validate_theme_mapping_sync.py",
-        "parse_theme_mapping": "../../../jobs/nextads_control/parse_theme_mapping.py",
+        "prepare_provider_context": "../../../jobs/orchestration/prepare_score_provider_context.py",
         "score_lightweight": "../../../jobs/nextads_candidates/build_theme_scores.py",
     }
 
@@ -51,6 +49,12 @@ def test_markov_scoring_job_uses_moved_control_and_scoring_entrypoints():
         assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
             expected_path
         )
+
+    assert not {
+        "parse_attributes",
+        "validate_theme_mapping_sync",
+        "parse_theme_mapping",
+    }.intersection(tasks_by_key)
 
 
 def test_v2_main_job_entrypoints_use_jobs_folder():

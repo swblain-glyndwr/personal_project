@@ -31,17 +31,16 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
-from next_ads.ranking.provider_context import (
-    ProviderContext,
-    transition_provider_context,
+from next_ads.ranking.foundation_context import (
+    ScoringFoundationContext,
+    transition_foundation_context,
 )
 
 
-def _optional_row_value(row, field):
-    try:
-        return row[field]
-    except (KeyError, ValueError):
-        return None
+def _as_utc(value):
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def main(
@@ -58,61 +57,50 @@ def main(
     logger = get_logger(__name__)
     spark = configure_spark()
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
-    table = config.tables_write.score_provider_run_contexts
+    table = config.tables_write.scoring_foundation_run_contexts
     rows = (
         spark.table(table)
         .where(
             (F.col("ContextSlot") == CONTEXT_SLOT)
-            & (
-                F.col("OrchestrationRunID")
-                == int(ORCHESTRATION_RUN_ID)
-            )
+            & (F.col("OrchestrationRunID") == int(ORCHESTRATION_RUN_ID))
         )
         .collect()
     )
     if not rows and STATUS == "FAILED":
-        logger.info("No provider context lease requires cleanup")
+        logger.info("No scoring foundation context lease requires cleanup")
         return
     if len(rows) != 1:
-        raise ValueError("Provider context finaliser cannot verify ownership")
+        raise ValueError("Foundation context finaliser cannot verify ownership")
     row = rows[0]
     if STATUS not in {"CONSUMED", "FAILED"}:
-        raise ValueError("Final provider context status is invalid")
+        raise ValueError("Final foundation context status is invalid")
     if row["Status"] == STATUS:
-        logger.info(
-            "Provider context already has final status %s",
-            STATUS,
-        )
+        logger.info("Foundation context already has final status %s", STATUS)
         return
     if row["Status"] == "CONSUMED" and STATUS == "FAILED":
-        logger.info("Provider context was consumed successfully")
+        logger.info("Foundation context was consumed successfully")
         return
     if row["Status"] != "ACTIVE":
-        raise ValueError(f"Unexpected provider context status {row['Status']}")
-    context = ProviderContext(
+        raise ValueError(f"Unexpected foundation context status {row['Status']}")
+    context = ScoringFoundationContext(
         context_slot=row["ContextSlot"],
         orchestration_run_id=int(row["OrchestrationRunID"]),
-        provider_id=row["ProviderID"],
-        provider_build_id=row["ProviderBuildID"],
-        provider_build_attempt_id=row["ProviderBuildAttemptID"],
+        foundation_id=row["FoundationID"],
+        foundation_version=row["FoundationVersion"],
+        scoring_foundation_build_id=row["ScoringFoundationBuildID"],
+        scoring_foundation_build_attempt_id=(
+            row["ScoringFoundationBuildAttemptID"]
+        ),
         input_snapshot_id=row["InputSnapshotID"],
+        input_snapshot_attempt_id=row["InputSnapshotAttemptID"],
         run_date=row["RunDate"],
-        model_uri=row["ModelURI"],
         bindings_json=row["BindingsJSON"],
         capability=row["Capability"],
-        use_case=row["UseCase"],
+        contract_version=row["ContractVersion"],
         invocation_checksum=row["InvocationChecksum"],
-        expires_at=row["ExpiresAt"].replace(tzinfo=timezone.utc),
-        scoring_foundation_build_id=_optional_row_value(
-            row,
-            "ScoringFoundationBuildID",
-        ),
-        scoring_foundation_build_attempt_id=_optional_row_value(
-            row,
-            "ScoringFoundationBuildAttemptID",
-        ),
+        expires_at=_as_utc(row["ExpiresAt"]),
     )
-    transition_provider_context(
+    transition_foundation_context(
         spark,
         context_table=table,
         context=context,
@@ -120,9 +108,9 @@ def main(
         completed_at=datetime.now(timezone.utc),
     )
     if STATUS == "CONSUMED":
-        logger.info("Provider context was consumed successfully")
+        logger.info("Foundation context was consumed successfully")
     else:
-        logger.warning("Released failed provider context %s", CONTEXT_SLOT)
+        logger.warning("Released failed foundation context %s", CONTEXT_SLOT)
 
 
 if __name__ == "__main__":

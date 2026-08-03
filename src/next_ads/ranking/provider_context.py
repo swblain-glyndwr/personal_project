@@ -52,6 +52,8 @@ class ProviderContext:
     use_case: str
     invocation_checksum: str
     expires_at: datetime
+    scoring_foundation_build_id: str | None = None
+    scoring_foundation_build_attempt_id: str | None = None
 
     def __post_init__(self) -> None:
         """Validate one leased physical provider execution context."""
@@ -89,6 +91,67 @@ class ProviderContext:
             raise ValueError("bindings_json must be valid JSON") from error
         if not isinstance(bindings, dict):
             raise ValueError("bindings_json must contain an object")
+        foundation_ids = (
+            self.scoring_foundation_build_id,
+            self.scoring_foundation_build_attempt_id,
+        )
+        if any(value is None for value in foundation_ids) and not all(
+            value is None for value in foundation_ids
+        ):
+            raise ValueError(
+                "Foundation build and attempt IDs must be supplied together"
+            )
+        foundation_binding = bindings.get("foundation")
+        if all(value is None for value in foundation_ids):
+            if foundation_binding is not None:
+                raise ValueError(
+                    "A foundation-free provider cannot contain a foundation binding"
+                )
+        else:
+            if not isinstance(foundation_binding, dict):
+                raise ValueError("Provider context is missing its foundation binding")
+            expected = {
+                "scoring_foundation_build_id": (
+                    self.scoring_foundation_build_id
+                ),
+                "scoring_foundation_build_attempt_id": (
+                    self.scoring_foundation_build_attempt_id
+                ),
+            }
+            mismatched = [
+                field
+                for field, value in expected.items()
+                if foundation_binding.get(field) != value
+            ]
+            if mismatched:
+                raise ValueError(
+                    "Provider foundation binding does not match its IDs: "
+                    + ", ".join(mismatched)
+                )
+            if not isinstance(foundation_binding.get("outputs"), dict):
+                raise ValueError("Provider foundation outputs must be a mapping")
+
+
+@dataclass(frozen=True)
+class FoundationOutputBinding:
+    output_name: str
+    table: str
+    delta_version: int
+    schema_version: str
+
+    def __post_init__(self) -> None:
+        """Validate one exact foundation output binding."""
+        for field in ("output_name", "table", "schema_version"):
+            if not isinstance(getattr(self, field), str) or not getattr(
+                self, field
+            ).strip():
+                raise ValueError(f"{field} must not be empty")
+        if (
+            isinstance(self.delta_version, bool)
+            or not isinstance(self.delta_version, int)
+            or self.delta_version < 0
+        ):
+            raise ValueError("delta_version must be a non-negative integer")
 
 
 def build_provider_invocation_checksum(
@@ -96,6 +159,7 @@ def build_provider_invocation_checksum(
     provider_id: str,
     provider_config: dict[str, Any],
     ranking_model_config: dict[str, Any] | None = None,
+    provider_implementation: str | None = None,
 ) -> str:
     """Hash only settings that can change a provider's inference output."""
     provider_semantics = {
@@ -104,7 +168,8 @@ def build_provider_invocation_checksum(
         if field in provider_config
     }
     payload: dict[str, Any] = {"provider": provider_semantics}
-    if provider_id == "theme_affinity":
+    implementation = provider_implementation or provider_id
+    if implementation == "theme_affinity":
         if ranking_model_config is None:
             raise ValueError(
                 "Theme Affinity invocation requires ranking model config"
@@ -131,6 +196,7 @@ def build_provider_build_id(
     model_uri: str,
     invocation_checksum: str,
     run_date: date,
+    scoring_foundation_build_id: str | None = None,
 ) -> str:
     values = (
         provider_id,
@@ -138,6 +204,7 @@ def build_provider_build_id(
         input_snapshot_id,
         model_uri,
         invocation_checksum,
+        scoring_foundation_build_id or "foundation-free",
         run_date.isoformat(),
     )
     if any(not value for value in values):
@@ -180,6 +247,10 @@ def activate_provider_context(
         "Capability": context.capability,
         "UseCase": context.use_case,
         "InvocationChecksum": context.invocation_checksum,
+        "ScoringFoundationBuildID": context.scoring_foundation_build_id,
+        "ScoringFoundationBuildAttemptID": (
+            context.scoring_foundation_build_attempt_id
+        ),
         "Status": ACTIVE,
         "ExpiresAt": context.expires_at,
         "TaskRunID": task_run_id,
@@ -327,12 +398,60 @@ def load_active_provider_context(
         use_case=row["UseCase"],
         invocation_checksum=row["InvocationChecksum"],
         expires_at=expires_at,
+        scoring_foundation_build_id=_optional_row_value(
+            row,
+            "ScoringFoundationBuildID",
+        ),
+        scoring_foundation_build_attempt_id=(
+            _optional_row_value(row, "ScoringFoundationBuildAttemptID")
+        ),
     )
+
+
+def _optional_row_value(row: Any, field: str):
+    try:
+        return row[field]
+    except (KeyError, ValueError):
+        return None
+
+
+def foundation_output_binding(
+    context: ProviderContext,
+    output_name: str,
+) -> FoundationOutputBinding:
+    if context.scoring_foundation_build_id is None:
+        raise ValueError(
+            f"Provider {context.provider_id} has no scoring foundation"
+        )
+    foundation = json.loads(context.bindings_json).get("foundation")
+    if not isinstance(foundation, dict):
+        raise ValueError("Provider context has no foundation binding")
+    outputs = foundation.get("outputs")
+    definition = outputs.get(output_name) if isinstance(outputs, dict) else None
+    if not isinstance(definition, dict):
+        raise ValueError(f"Foundation output {output_name} is not bound")
+    return FoundationOutputBinding(
+        output_name=output_name,
+        table=definition.get("table"),
+        delta_version=definition.get("delta_version"),
+        schema_version=definition.get("schema_version"),
+    )
+
+
+def read_bound_foundation_output(
+    spark: Any,
+    context: ProviderContext,
+    output_name: str,
+):
+    from next_ads.ranking.scoring_inputs import read_delta_version
+
+    binding = foundation_output_binding(context, output_name)
+    return read_delta_version(spark, binding.table, binding.delta_version)
 
 
 def pinned_item_themes(
     spark: Any,
-    context: ProviderContext,
+    context: Any,
     *,
     input_table: str,
 ):
@@ -344,9 +463,15 @@ def pinned_item_themes(
         "input_snapshot_id": context.input_snapshot_id,
         "run_date": context.run_date.isoformat(),
     }
-    if binding != expected_binding:
+    if not isinstance(binding, dict) or any(
+        binding.get(field) != value
+        for field, value in expected_binding.items()
+    ):
         raise ValueError("Item-theme binding does not match provider context")
-    frame = spark.table(input_table).where(
+    from next_ads.ranking.scoring_inputs import read_delta_version
+
+    delta_version = binding.get("delta_version")
+    frame = read_delta_version(spark, input_table, delta_version).where(
         (F.col("InputSnapshotID") == context.input_snapshot_id)
         & (F.col("RunDate") == F.lit(context.run_date))
     )

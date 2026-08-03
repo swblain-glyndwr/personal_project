@@ -2,6 +2,9 @@ default:
   scoring:
     contract_version: account_entity_scores/v1
     canonical:
+      foundation_builds_table: "@format {this.tables_write.scoring_foundation_builds}"
+      foundation_outputs_table: "@format {this.tables_write.scoring_foundation_outputs}"
+      foundation_run_contexts_table: "@format {this.tables_write.scoring_foundation_run_contexts}"
       provider_builds_table: "@format {this.tables_write.score_provider_builds}"
       provider_signals_table: "@format {this.tables_write.score_provider_signals}"
       portfolios_table: "@format {this.tables_write.scoring_portfolios}"
@@ -11,11 +14,26 @@ default:
         entity_type: theme
       account_ad:
         entity_type: ad
+    foundations:
+      account_theme_features:
+        foundation_id: account_theme_features
+        foundation_version: account_theme_features/v2
+        capability: account_theme
+        contract_version: account_theme_foundation/v1
+        required_outputs:
+          ranked: account_theme_ranked/v1
+          complete: account_theme_complete/v1
+        input_bindings:
+          item_themes:
+            table: "@format {this.tables_write.scoring_input_item_themes}"
+            schema_version: item_themes/v1
     providers:
       theme_affinity:
         provider_id: theme_affinity
         provider_version: theme_affinity/v1
+        implementation: theme_affinity
         capability: account_theme
+        foundation_id: account_theme_features
         adapter: legacy_account_entity_table
         legacy_source_table: "@format {this.tables_write.theme_affinity_model_latest}"
         entity_type: theme
@@ -28,7 +46,9 @@ default:
       markov:
         provider_id: markov
         provider_version: markov/v1
+        implementation: markov
         capability: account_theme
+        foundation_id: null
         adapter: legacy_account_entity_table
         legacy_source_table: "@format {this.tables_write.next_theme_scores_latest}"
         entity_type: theme

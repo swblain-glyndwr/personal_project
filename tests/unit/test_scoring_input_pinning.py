@@ -37,7 +37,8 @@ def _context():
             '{"item_themes":{"input_snapshot_id":'
             '"scoring_inputs_20260730_abc",'
             '"run_date":"2026-07-30",'
-            '"table":"catalog.schema.item_themes"}}'
+            '"table":"catalog.schema.item_themes",'
+            '"delta_version":7}}'
         ),
         capability="account_theme",
         use_case="theme_ranking",
@@ -232,10 +233,9 @@ def test_theme_affinity_build_changes_for_inference_setting_or_model_uri():
     assert changed_model != baseline
 
 
-def test_pinned_item_themes_rejects_empty_or_wrong_date(spark):
+def test_pinned_item_themes_rejects_empty_or_wrong_date(spark, monkeypatch):
     table = "catalog.schema.item_themes"
     context = _context()
-    original_table = spark.table
     frame = spark.createDataFrame(
         [
             (
@@ -248,29 +248,35 @@ def test_pinned_item_themes_rejects_empty_or_wrong_date(spark):
         ],
         ["InputSnapshotID", "RunDate", "pid", "theme", "theme_rank"],
     )
-    spark.table = lambda name: frame if name == table else original_table(name)
-    try:
-        assert pinned_item_themes(
+    monkeypatch.setattr(
+        "next_ads.ranking.scoring_inputs.read_delta_version",
+        lambda _spark, name, version: (
+            frame if (name, version) == (table, 7) else None
+        ),
+    )
+    assert pinned_item_themes(
+        spark,
+        context,
+        input_table=table,
+    ).count() == 1
+    wrong_date = ProviderContext(
+        **{
+            **context.__dict__,
+            "run_date": date(2026, 7, 29),
+            "bindings_json": (
+                '{"item_themes":{"input_snapshot_id":'
+                f'"{context.input_snapshot_id}",'
+                '"run_date":"2026-07-29",'
+                f'"table":"{table}","delta_version":7}}'
+            ),
+        }
+    )
+    with pytest.raises(ValueError, match="empty"):
+        pinned_item_themes(
             spark,
-            context,
+            wrong_date,
             input_table=table,
-        ).count() == 1
-        wrong_date = ProviderContext(
-            **{
-                **context.__dict__,
-                "run_date": date(2026, 7, 29),
-                "bindings_json": (
-                    '{"item_themes":{"input_snapshot_id":'
-                    f'"{context.input_snapshot_id}",'
-                    '"run_date":"2026-07-29",'
-                    f'"table":"{table}"}}'
-                ),
-            }
         )
-        with pytest.raises(ValueError, match="empty"):
-            pinned_item_themes(spark, wrong_date, input_table=table)
-    finally:
-        spark.table = original_table
 
 
 def test_canonical_adapter_allows_constant_finite_scores(spark):
@@ -320,19 +326,34 @@ def test_jobs_pin_same_day_inputs_and_static_context_slot():
     assert "context_slot" not in {
         parameter["name"] for parameter in affinity["parameters"]
     }
-    prepare = next(
+    prepare_foundation = next(
+        task
+        for task in affinity["tasks"]
+        if task["task_key"] == "prepare_foundation_context"
+    )
+    foundation_parameters = prepare_foundation["spark_python_task"][
+        "parameters"
+    ]
+    assert int(
+        foundation_parameters[
+            foundation_parameters.index("--readiness_wait_seconds") + 1
+        ]
+    ) == 5400
+    assert prepare_foundation["timeout_seconds"] > 5400
+
+    prepare_provider = next(
         task
         for task in affinity["tasks"]
         if task["task_key"] == "prepare_provider_context"
     )
-    parameters = prepare["spark_python_task"]["parameters"]
+    parameters = prepare_provider["spark_python_task"]["parameters"]
     assert parameters[parameters.index("--context_slot") + 1] == (
         "theme_affinity_serving"
     )
     assert int(
         parameters[parameters.index("--readiness_wait_seconds") + 1]
-    ) == 5400
-    assert prepare["timeout_seconds"] > 5400
+    ) == 0
+    assert prepare_provider["timeout_seconds"] > 0
 
 
 def _task_parameter_map(task):
@@ -414,7 +435,10 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
     }
     assert set(
         _task_parameter_map(affinity_tasks["prepare_provider_context"])
-    ) == expected_prepare
+    ) == expected_prepare | {
+        "--scoring_foundation_build_id",
+        "--scoring_foundation_build_attempt_id",
+    }
     assert set(
         _task_parameter_map(markov_tasks["prepare_provider_context"])
     ) == expected_prepare | {"--provider_id", "--use_case"}

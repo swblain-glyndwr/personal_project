@@ -15,6 +15,7 @@ from next_ads.decisioning.table_maintenance import (
     ASSIGNMENT_TABLE_SPECS,
     CONFIGURED_TABLE_SPECS,
     PLP_HISTORY_SPEC,
+    SCORING_FOUNDATION_TABLE_SPECS,
     SCORING_INPUT_SNAPSHOT_TABLE_SPECS,
     VACUUM_RETENTION_HOURS,
     build_maintenance_plan,
@@ -63,6 +64,9 @@ EXPECTED_CONFIG_KEYS = {
     "scoring_input_snapshot_sources",
     "scoring_input_item_themes",
     "scoring_input_theme_mapping_raw",
+    "scoring_foundation_builds",
+    "scoring_foundation_outputs",
+    "scoring_foundation_run_contexts",
     "theme_scoring_events_latest",
     "theme_transitions",
     "theme_transitions_latest",
@@ -163,8 +167,8 @@ def test_allowlist_covers_every_migrated_active_output_contract():
     assert {spec.config_key for spec in CONFIGURED_TABLE_SPECS} == (
         EXPECTED_CONFIG_KEYS
     )
-    assert len(resolved) == 51
-    assert len({table.table for table in resolved}) == 51
+    assert len(resolved) == 54
+    assert len({table.table for table in resolved}) == 54
     assert {table.spec.name for table in resolved}.issuperset(
         {spec.name for spec in ASSIGNMENT_TABLE_SPECS}
     )
@@ -179,7 +183,7 @@ def test_actual_next_uk_config_resolves_only_repo_owned_tables(monkeypatch):
 
     resolved = resolve_maintenance_tables(config)
 
-    assert len(resolved) == 51
+    assert len(resolved) == 54
     assert all(
         table.table.startswith("marketingdata_dev.maintenance_test.")
         for table in resolved
@@ -265,6 +269,8 @@ def test_daily_plan_preserves_latest_and_applies_exact_retention_contracts():
         "v2_assignment_staging",
         "assignment_build_events",
         "scoring_input_item_themes",
+        "scoring_foundation_builds",
+        "scoring_foundation_outputs",
         "plp_gs_history",
     }
     assert {statement.operation for statement in statements} == {"retention"}
@@ -390,6 +396,36 @@ def test_scoring_input_manifests_are_preserved_and_large_snapshot_is_bounded():
     assert snapshot_statements == {"scoring_input_item_themes"}
 
 
+def test_foundation_manifests_are_bounded_but_active_context_is_preserved():
+    specs = {
+        spec.config_key: spec for spec in SCORING_FOUNDATION_TABLE_SPECS
+    }
+    for key in ("scoring_foundation_builds", "scoring_foundation_outputs"):
+        spec = specs[key]
+        assert (
+            spec.retention_days,
+            spec.retention_column,
+            spec.retention_comparison,
+        ) == (35, "RunDate", "<=")
+    context = specs["scoring_foundation_run_contexts"]
+    assert (
+        context.retention_days,
+        context.retention_column,
+        context.retention_comparison,
+    ) == (None, None, None)
+
+    statements = build_maintenance_plan(_config(), date(2026, 7, 27))
+    foundation_retention = {
+        statement.table_name
+        for statement in statements
+        if statement.table_name.startswith("scoring_foundation")
+    }
+    assert foundation_retention == {
+        "scoring_foundation_builds",
+        "scoring_foundation_outputs",
+    }
+
+
 def test_assignment_cutoff_keeps_exactly_731_calendar_dates():
     run_date = date(2026, 7, 27)
     cutoff = run_date - timedelta(days=731)
@@ -419,8 +455,8 @@ def test_weekly_plan_optimizes_and_safely_vacuums_every_allowlisted_table():
     ]
 
     assert is_weekly_maintenance_day(run_date)
-    assert len(optimize) == 51
-    assert len(vacuum) == 51
+    assert len(optimize) == 54
+    assert len(vacuum) == 54
     assert {statement.table_name for statement in optimize} == {
         table.spec.name for table in resolve_maintenance_tables(_config())
     }

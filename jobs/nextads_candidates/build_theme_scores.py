@@ -135,6 +135,8 @@ def main(
                 "Markov provider context does not match this scorer: "
                 + ", ".join(mismatched)
             )
+        if provider_context.scoring_foundation_build_id is not None:
+            raise ValueError("Markov must not consume a scoring foundation")
         logger.info(
             "Using provider build %s with pinned input %s",
             PROVIDER_BUILD_ID,

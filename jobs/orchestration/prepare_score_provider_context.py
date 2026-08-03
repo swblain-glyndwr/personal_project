@@ -34,6 +34,9 @@ from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
+from next_ads.ranking.foundation_context import (
+    build_foundation_invocation_checksum,
+)
 from next_ads.ranking.provider_context import (
     ProviderContext,
     activate_provider_context,
@@ -41,6 +44,7 @@ from next_ads.ranking.provider_context import (
     build_provider_invocation_checksum,
     pinned_item_themes,
 )
+from next_ads.ranking.scoring_inputs import latest_delta_version
 
 
 def _as_dict(value):
@@ -156,6 +160,130 @@ def _wait_for_snapshot_id(
             time.sleep(min(poll_seconds, max(0, deadline - time.monotonic())))
 
 
+def _load_foundation_binding(
+    spark,
+    *,
+    config,
+    provider,
+    input_snapshot_id,
+    run_date,
+    scoring_foundation_build_id,
+    scoring_foundation_build_attempt_id,
+):
+    foundation_id = provider.foundation_id
+    supplied = (
+        scoring_foundation_build_id,
+        scoring_foundation_build_attempt_id,
+    )
+    if foundation_id is None:
+        if any(supplied):
+            raise ValueError("Foundation-free provider received foundation IDs")
+        return None
+    if not all(supplied):
+        raise ValueError("Provider requires an exact scoring foundation attempt")
+    foundation = config.scoring.foundations[foundation_id]
+    build_rows = (
+        spark.table(config.tables_write.scoring_foundation_builds)
+        .where(
+            (F.col("ScoringFoundationBuildID") == scoring_foundation_build_id)
+            & (
+                F.col("ScoringFoundationBuildAttemptID")
+                == scoring_foundation_build_attempt_id
+            )
+            & (F.col("Status") == "READY_FOR_PROVIDERS")
+        )
+        .collect()
+    )
+    if len(build_rows) != 1:
+        raise ValueError("Expected one ready scoring foundation attempt")
+    build = build_rows[0]
+    try:
+        input_bindings = json.loads(build["InputBindingsJSON"])
+    except (TypeError, json.JSONDecodeError) as error:
+        raise ValueError(
+            "Scoring foundation input bindings are invalid"
+        ) from error
+    if not isinstance(input_bindings, dict) or not input_bindings:
+        raise ValueError("Scoring foundation input bindings are incomplete")
+    expected_build = {
+        "InputSnapshotID": input_snapshot_id,
+        "RunDate": run_date,
+        "FoundationID": foundation_id,
+        "FoundationVersion": foundation.foundation_version,
+        "Capability": provider.capability,
+        "ContractVersion": foundation.contract_version,
+        "InvocationChecksum": build_foundation_invocation_checksum(foundation),
+    }
+    mismatched = [
+        field
+        for field, value in expected_build.items()
+        if build[field] != value
+    ]
+    if mismatched:
+        raise ValueError(
+            "Scoring foundation does not match provider requirements: "
+            + ", ".join(mismatched)
+        )
+    output_rows = (
+        spark.table(config.tables_write.scoring_foundation_outputs)
+        .where(
+            F.col("ScoringFoundationBuildAttemptID")
+            == scoring_foundation_build_attempt_id
+        )
+        .collect()
+    )
+    required_outputs = _as_dict(foundation.required_outputs)
+    if tuple(json.loads(build["RequiredOutputsJSON"])) != tuple(
+        sorted(required_outputs)
+    ):
+        raise ValueError("Scoring foundation required outputs do not match config")
+    observed = {row["OutputName"]: row for row in output_rows}
+    if len(observed) != len(output_rows) or set(observed) != set(
+        required_outputs
+    ):
+        raise ValueError("Scoring foundation output contract is incomplete")
+    outputs = {}
+    for output_name, schema_version in sorted(required_outputs.items()):
+        row = observed[output_name]
+        invalid = (
+            row["ScoringFoundationBuildID"]
+            != scoring_foundation_build_id
+            or row["RunDate"] != run_date
+            or row["OutputSchemaVersion"] != schema_version
+            or not bool(row["IsRequired"])
+            or int(row["RowCount"]) < 1
+            or int(row["NullKeyCount"]) != 0
+            or int(row["DuplicateKeyCount"]) != 0
+            or int(row["InvalidValueCount"]) != 0
+            or int(row["OutputDeltaVersion"]) < 0
+            or not row["OutputChecksum"]
+            or not row["SourceSchemaChecksum"]
+            or not row["OutputSchemaChecksum"]
+            or row["SourceSchemaChecksum"] != row["OutputSchemaChecksum"]
+        )
+        if invalid:
+            raise ValueError(
+                f"Scoring foundation output {output_name} is invalid"
+            )
+        outputs[output_name] = {
+            "source_table": row["SourceTable"],
+            "source_delta_version": int(row["SourceDeltaVersion"]),
+            "table": row["OutputTable"],
+            "delta_version": int(row["OutputDeltaVersion"]),
+            "schema_version": row["OutputSchemaVersion"],
+            "schema_checksum": row["OutputSchemaChecksum"],
+            "output_checksum": row["OutputChecksum"],
+        }
+    return {
+        "scoring_foundation_build_id": scoring_foundation_build_id,
+        "scoring_foundation_build_attempt_id": (
+            scoring_foundation_build_attempt_id
+        ),
+        "outputs": outputs,
+        "input_bindings": input_bindings,
+    }
+
+
 def main(
     JOB_ENV,
     CLIENT,
@@ -171,6 +299,8 @@ def main(
     PROVIDER_ID="theme_affinity",
     USE_CASE="theme_ranking",
     ORCHESTRATION_RUN_ID=None,
+    SCORING_FOUNDATION_BUILD_ID=None,
+    SCORING_FOUNDATION_BUILD_ATTEMPT_ID=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -185,9 +315,10 @@ def main(
     invocation_checksum = build_provider_invocation_checksum(
         provider_id=PROVIDER_ID,
         provider_config=_as_dict(provider),
+        provider_implementation=provider.implementation,
         ranking_model_config=(
             _as_dict(config.ranking_model)
-            if PROVIDER_ID == "theme_affinity"
+            if provider.implementation == "theme_affinity"
             else None
         ),
     )
@@ -207,11 +338,50 @@ def main(
         model_uri=MODEL_URI,
         invocation_checksum=invocation_checksum,
         run_date=run_date,
+        scoring_foundation_build_id=SCORING_FOUNDATION_BUILD_ID,
     )
     provider_build_attempt_id = (
         f"{provider_build_id}:{task_run_id}:{execution_count}"
     )
     activated_at = datetime.now(timezone.utc)
+    foundation_binding = _load_foundation_binding(
+        spark,
+        config=config,
+        provider=provider,
+        input_snapshot_id=input_snapshot_id,
+        run_date=run_date,
+        scoring_foundation_build_id=SCORING_FOUNDATION_BUILD_ID,
+        scoring_foundation_build_attempt_id=(
+            SCORING_FOUNDATION_BUILD_ATTEMPT_ID
+        ),
+    )
+    if foundation_binding is None:
+        item_themes_binding = {
+            "table": config.tables_write.scoring_input_item_themes,
+            "input_snapshot_id": input_snapshot_id,
+            "run_date": run_date.isoformat(),
+            "delta_version": latest_delta_version(
+                spark,
+                config.tables_write.scoring_input_item_themes,
+            ),
+        }
+        bindings = {"item_themes": item_themes_binding}
+    else:
+        item_themes_binding = foundation_binding["input_bindings"].get(
+            "item_themes"
+        )
+        if not isinstance(item_themes_binding, dict):
+            raise ValueError(
+                "Scoring foundation has no exact item-theme input binding"
+            )
+        bindings = {
+            "item_themes": item_themes_binding,
+            "foundation": {
+                key: value
+                for key, value in foundation_binding.items()
+                if key != "input_bindings"
+            },
+        }
     context = ProviderContext(
         context_slot=CONTEXT_SLOT,
         orchestration_run_id=int(ORCHESTRATION_RUN_ID),
@@ -222,13 +392,7 @@ def main(
         run_date=run_date,
         model_uri=MODEL_URI,
         bindings_json=json.dumps(
-            {
-                "item_themes": {
-                    "table": config.tables_write.scoring_input_item_themes,
-                    "input_snapshot_id": input_snapshot_id,
-                    "run_date": run_date.isoformat(),
-                }
-            },
+            bindings,
             sort_keys=True,
             separators=(",", ":"),
         ),
@@ -236,6 +400,10 @@ def main(
         use_case=USE_CASE,
         invocation_checksum=invocation_checksum,
         expires_at=activated_at + timedelta(hours=8),
+        scoring_foundation_build_id=SCORING_FOUNDATION_BUILD_ID,
+        scoring_foundation_build_attempt_id=(
+            SCORING_FOUNDATION_BUILD_ATTEMPT_ID
+        ),
     )
     task_values = get_dbutils().jobs.taskValues
     task_values.set(key="input_snapshot_id", value=input_snapshot_id)
@@ -283,4 +451,6 @@ if __name__ == "__main__":
         parser.get_arg("--provider_id") or "theme_affinity",
         parser.get_arg("--use_case") or "theme_ranking",
         parser.get_arg("--orchestration_run_id"),
+        parser.get_arg("--scoring_foundation_build_id"),
+        parser.get_arg("--scoring_foundation_build_attempt_id"),
     )

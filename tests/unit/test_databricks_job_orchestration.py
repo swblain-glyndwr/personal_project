@@ -182,6 +182,46 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
     }
 
 
+def test_theme_affinity_foundation_and_provider_stages_are_explicit():
+    job = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml",
+        "mktg_next_uk_nextads_theme_affinity_cicd",
+    )
+    tasks = {task["task_key"]: task for task in job["tasks"]}
+
+    assert job["queue"] == {"enabled": True}
+    assert job["max_concurrent_runs"] == 1
+    assert tasks["predict_data_prep"]["depends_on"] == [
+        {"task_key": "prepare_foundation_context"}
+    ]
+    assert tasks["publish_foundation"]["depends_on"] == [
+        {"task_key": "predict_data_prep"}
+    ]
+    assert tasks["prepare_provider_context"]["depends_on"] == [
+        {"task_key": "publish_foundation"}
+    ]
+    assert tasks["model_predict"]["depends_on"] == [
+        {"task_key": "prepare_provider_context"}
+    ]
+    assert tasks["clean_output"]["depends_on"] == [
+        {"task_key": "model_predict"}
+    ]
+    assert tasks["publish_compatibility_outputs"]["depends_on"] == [
+        {"task_key": "predict_data_prep"}
+    ]
+    assert all(
+        {"task_key": "publish_compatibility_outputs"}
+        not in task.get("depends_on", [])
+        for task in tasks.values()
+        if task["task_key"] != "publish_compatibility_outputs"
+    )
+    for task_key in (
+        "finalize_foundation_context",
+        "finalize_provider_context",
+    ):
+        assert tasks[task_key]["run_if"] == "ALL_DONE"
+
+
 def test_candidate_resource_excludes_legacy_markov_tasks():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",

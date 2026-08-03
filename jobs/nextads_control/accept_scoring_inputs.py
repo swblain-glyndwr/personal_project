@@ -194,7 +194,9 @@ def main(
                 frame=frame.select(*columns),
                 key_columns=keys,
                 content_columns=columns,
-                schema_version="v1",
+                schema_version=(
+                    "item_themes/v1" if name == "item_themes" else "v1"
+                ),
                 is_required=is_required,
             )
         )

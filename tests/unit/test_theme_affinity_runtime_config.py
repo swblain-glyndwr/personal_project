@@ -1,15 +1,126 @@
+import json
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from next_ads.common.config_manager import load_config
+from next_ads.ranking.provider_context import ProviderContext
 from next_ads.ranking.theme_affinity.data_prep import (
     build_common_params,
     build_sql_entries,
 )
+from next_ads.ranking.theme_affinity.config import (
+    read_runtime_foundation_output,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _provider_context():
+    return ProviderContext(
+        context_slot="theme_affinity_serving",
+        orchestration_run_id=123,
+        provider_id="theme_affinity",
+        provider_build_id="provider-build",
+        provider_build_attempt_id="provider-build:task:0",
+        input_snapshot_id="input-snapshot",
+        run_date=date(2026, 7, 30),
+        model_uri="models:/catalog.schema.model/1",
+        bindings_json=json.dumps(
+            {
+                "foundation": {
+                    "scoring_foundation_build_id": "foundation-build",
+                    "scoring_foundation_build_attempt_id": (
+                        "foundation-build:task:0"
+                    ),
+                    "outputs": {
+                        "ranked": {
+                            "table": "catalog.schema.foundation_ranked",
+                            "delta_version": 17,
+                            "schema_version": "account_theme_ranked/v1",
+                        },
+                        "complete": {
+                            "table": "catalog.schema.foundation_complete",
+                            "delta_version": 23,
+                            "schema_version": "account_theme_complete/v1",
+                        },
+                    },
+                }
+            }
+        ),
+        capability="account_theme",
+        use_case="theme_ranking",
+        invocation_checksum="checksum",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=8),
+        scoring_foundation_build_id="foundation-build",
+        scoring_foundation_build_attempt_id="foundation-build:task:0",
+    )
+
+
+class _VersionedReader:
+    def __init__(self):
+        self.calls = []
+        self.version = None
+
+    def option(self, name, value):
+        self.version = (name, value)
+        return self
+
+    def table(self, table):
+        self.calls.append((table, self.version))
+        return table
+
+
+class _VersionedSpark:
+    def __init__(self):
+        self.read = _VersionedReader()
+
+
+def test_theme_affinity_reads_exact_bound_foundation_delta_versions():
+    spark = _VersionedSpark()
+    runtime = SimpleNamespace(provider_context=_provider_context())
+
+    ranked = read_runtime_foundation_output(spark, runtime, "ranked")
+    complete = read_runtime_foundation_output(spark, runtime, "complete")
+
+    assert ranked == "catalog.schema.foundation_ranked"
+    assert complete == "catalog.schema.foundation_complete"
+    assert spark.read.calls == [
+        ("catalog.schema.foundation_ranked", ("versionAsOf", 17)),
+        ("catalog.schema.foundation_complete", ("versionAsOf", 23)),
+    ]
+
+
+def test_theme_affinity_foundation_read_has_no_mutable_table_fallback():
+    with pytest.raises(ValueError, match="provider context is incomplete"):
+        read_runtime_foundation_output(
+            _VersionedSpark(),
+            SimpleNamespace(provider_context=None),
+            "ranked",
+        )
+
+
+def test_prediction_and_cleaning_do_not_read_mutable_foundation_tables():
+    prediction = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_affinity/predict.py"
+    ).read_text()
+    cleaning = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_affinity/clean_output.py"
+    ).read_text()
+
+    assert (
+        'read_runtime_foundation_output(spark, runtime, "ranked")'
+        in prediction
+    )
+    assert "spark.table(model_tables.predict_input_table)" not in prediction
+    assert (
+        'read_runtime_foundation_output(spark, runtime, "complete")'
+        in cleaning
+    )
+    assert "spark.table(model_tables.predict_complete)" not in cleaning
 
 
 def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
