@@ -925,6 +925,7 @@ def assign_nextgenads_v2(
             F.col('ClusterID').cast('int').alias('assigned_cluster_id'),
             F.col('UniqueAdID'),
         )
+        .distinct()
     )
 
     df_assigned = (
