@@ -658,7 +658,7 @@ def assign_nextgenads(
         .select("AccountNumber", "assigned_cluster_id")
         .join(df_cluster2ad, on="assigned_cluster_id", how="inner")
         .where(
-            (F.xxhash64(F.col("AccountNumber")) % F.col("n_creatives") + 1)
+            (F.pmod(F.xxhash64(F.col("AccountNumber")), F.col("n_creatives")) + 1)
             == F.col("creative_slot")
         )
         .select("AccountNumber", "UniqueAdID")
@@ -919,31 +919,11 @@ def assign_nextgenads_v2(
         f'using cluster assignments from {customer_to_cluster_table}'
     )
 
-    # Number the creatives per cluster on the small ads table, ordered
-    # deterministically by UniqueAdID. When only one creative exists per
-    # cluster this is a no-op. When multiple creatives share the same
-    # ClusterID, a hash of AccountNumber mod n_creatives routes each customer
-    # to exactly one creative at each Rank — splitting the audience roughly
-    # evenly and stably across creatives (matching the xxhash64 pattern used
-    # in best-targeting ranking). The window runs over the tiny ads table, not
-    # the customer table, so cost is negligible.
     df_cluster2ad = (
         df_ads
         .select(
             F.col('ClusterID').cast('int').alias('assigned_cluster_id'),
             F.col('UniqueAdID'),
-        )
-        .withColumn(
-            'creative_slot',
-            F.row_number().over(
-                Window.partitionBy('assigned_cluster_id').orderBy('UniqueAdID')
-            )
-        )
-        .withColumn(
-            'n_creatives',
-            F.count('UniqueAdID').over(
-                Window.partitionBy('assigned_cluster_id')
-            )
         )
     )
 
@@ -958,11 +938,8 @@ def assign_nextgenads_v2(
             F.col('target_score').alias('TriggerScore'),
         )
         .join(df_cluster2ad, on='assigned_cluster_id', how='inner')
-        .where(
-            (F.xxhash64(F.col('AccountNumber')) % F.col('n_creatives') + 1)
-            == F.col('creative_slot')
-        )
         .select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')
+        .distinct()
     )
 
     if df_cust is not None:
