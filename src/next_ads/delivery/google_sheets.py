@@ -174,7 +174,7 @@ def process_control_sheet(
 
     plp_slots = [
         i for i in latest_control_sheet.columns if i.lower().startswith("pl")
-    ] + ["PLX"]
+    ]
 
     latest_control_sheet = latest_control_sheet.select(
         "uniqueadid",
