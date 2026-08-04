@@ -772,6 +772,8 @@ def test_account_feature_task_uses_theme_affinity_source_outputs():
     assert '"customer_features"' in theme_source
     assert '"customer_segments"' in theme_source
     assert '"ranked"' in theme_source
+    assert "next_uk_nextads_theme_affinity_model_latest" in theme_source
+    assert 'table_prefix, "half"' not in theme_source
 
 
 def test_theme_affinity_feature_builders_filter_null_feature_keys():

@@ -409,18 +409,11 @@ def test_theme_affinity_foundation_and_provider_stages_are_explicit():
     assert tasks["model_predict"]["depends_on"] == [
         {"task_key": "prepare_provider_context"}
     ]
-    assert tasks["clean_output"]["depends_on"] == [
+    assert tasks["publish_provider_build"]["depends_on"] == [
         {"task_key": "model_predict"}
     ]
-    assert tasks["publish_compatibility_outputs"]["depends_on"] == [
-        {"task_key": "predict_data_prep"}
-    ]
-    assert all(
-        {"task_key": "publish_compatibility_outputs"}
-        not in task.get("depends_on", [])
-        for task in tasks.values()
-        if task["task_key"] != "publish_compatibility_outputs"
-    )
+    assert "clean_output" not in tasks
+    assert "publish_compatibility_outputs" not in tasks
     for task_key in (
         "finalize_foundation_context",
         "finalize_provider_context",

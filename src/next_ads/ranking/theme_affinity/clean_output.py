@@ -36,7 +36,7 @@ def _ranked_theme_mapping(
     if theme_mapping.limit(1).count() == 0:
         raise ValueError(
             f"Theme mapping table {item_themes_table} has no theme_rank = 1 rows. "
-            "Run the DEV table population job before clean_output."
+            "Run the DEV table population job before provider scoring."
         )
     return theme_mapping
 
@@ -120,29 +120,22 @@ def _rerank_model_output(full_results, penalty_themes, penalty: float):
     )
 
 
-def stage_model_output(spark, runtime, prediction_delta_version: int) -> int:
+def stage_model_output(spark, runtime, predictions) -> int:
     from pyspark.sql import functions as F
     from next_ads.ranking.provider_publication import stage_provider_signals
     from next_ads.ranking.provider_signals import adapt_account_entity_scores
-    from next_ads.ranking.scoring_inputs import read_delta_version
     from next_ads.ranking.theme_affinity.config import (
         read_runtime_foundation_output,
     )
     from next_ads.ranking.provider_context import pinned_item_themes
 
     model_config = runtime.config.ranking_model
-    model_tables = runtime.config.ranking_model_tables
     run_date = runtime.run_date
     if run_date is None:
         raise ValueError("Theme Affinity staging requires an exact run date")
     if runtime.provider_context is None:
         raise ValueError("Theme Affinity staging requires a provider context")
 
-    full_results = read_delta_version(
-        spark,
-        model_tables.predict_output_table,
-        int(prediction_delta_version),
-    )
     stats_df = (
         read_runtime_foundation_output(spark, runtime, "complete")
         .groupBy("theme_clean")
@@ -167,7 +160,7 @@ def stage_model_output(spark, runtime, prediction_delta_version: int) -> int:
 
     penalty = float(model_config.high_repurchase_penalty)
     final_results = _rerank_model_output(
-        full_results,
+        predictions,
         penalty_themes,
         penalty,
     )
@@ -350,8 +343,3 @@ def publish_theme_affinity_provider_build(
         task_run_id=int(task_run_id),
         execution_count=int(execution_count),
     )
-
-
-def clean_model_output(spark, runtime, prediction_delta_version: int) -> int:
-    """Compatibility name for the staging-only clean step."""
-    return stage_model_output(spark, runtime, prediction_delta_version)

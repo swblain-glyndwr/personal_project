@@ -130,20 +130,13 @@ def test_theme_scoring_writes_use_one_run_date_and_atomic_helpers():
         assert "delete_from_and_load" not in calls
 
 
-def test_prediction_replaces_validated_snapshot_for_both_model_paths():
+def test_prediction_build_does_not_write_transient_output_tables():
     prediction = _function_source(
         "src/next_ads/ranking/theme_affinity/predict.py",
-        "run_prediction",
-    )
-    publication = _function_source(
-        "src/next_ads/ranking/theme_affinity/predict.py",
-        "_publish_prediction_snapshot",
+        "build_predictions",
     )
 
-    assert prediction.count("_publish_prediction_snapshot(") == 2
-    assert publication.count("replace_validated_snapshot(") == 1
-    assert 'key_columns=["account_number", "theme"]' in publication
-    assert "latest_delta_version(" in publication
-    for source in (prediction, publication):
-        assert ".write.mode(" not in source
-        assert ".saveAsTable(" not in source
+    assert "predict_output_table" not in prediction
+    assert "replace_validated_snapshot(" not in prediction
+    assert ".write.mode(" not in prediction
+    assert ".saveAsTable(" not in prediction

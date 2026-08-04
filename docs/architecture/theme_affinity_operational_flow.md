@@ -1,100 +1,94 @@
 # Theme Affinity Operational Flow
 
-Theme Affinity is a production model route. It is scheduled separately from the
-main candidate-build route, and its output tables can feed model-building work
-such as Feature Store.
+Theme Affinity is one score provider within the reusable NextAds scoring
+framework. Its accepted output is selected by provider and build identifiers;
+the candidate route does not infer a build from mutable preparation tables.
 
 ```mermaid
 flowchart TD
-  subgraph route["mktg_next_uk_nextads_theme_affinity"]
-    prep["predict_data_prep<br/>Lakeflow pipeline"]
-    publish_foundation["publish_foundation<br/>validated Delta snapshot"]
-    publish_compatibility["publish_compatibility_outputs"]
-    dlt_check["sense_check_dlt_data"]
-    predict["model_predict<br/>loads configured model URI"]
-    clean["clean_output"]
-    output_check["sense_check_model_outputs"]
+  subgraph provider["13:00 Theme Affinity provider build"]
+    prep["Lakeflow preparation"]
+    foundation["publish ranked and complete foundation"]
+    predict["predict, validate and stage provider signals"]
+    publish["publish provider build"]
+    ready["READY_FOR_NEXTADS"]
   end
 
-  subgraph outputs["Theme Affinity output tables"]
-    ranked["ranked"]
-    advanced["advanced_features"]
-    customer_features["customer_features"]
-    customer_segments["customer_segments"]
-    popularity["popularity_metrics"]
-    half["half / prediction output"]
+  subgraph compatibility["19:00 independent feature compatibility"]
+    copy["publish four same-day compatibility outputs"]
   end
 
-  subgraph consumers["Consumers"]
-    current_ops["Current operational NextAds route"]
-    fs["DEV_FEATURE_STORE<br/>model-building feature refresh"]
-    monitoring["Model and data quality monitoring"]
+  subgraph consumers["Independent consumers"]
+    candidate["18:00 candidate route"]
+    feature_store["21:00 Feature Store refresh"]
+    monitoring["post-publication monitoring"]
   end
 
-  prep --> publish_foundation
-  prep --> publish_compatibility
-  prep --> dlt_check
-  publish_foundation --> ranked
-  publish_compatibility --> advanced
-  publish_compatibility --> customer_features
-  publish_compatibility --> customer_segments
-  publish_compatibility --> popularity
-  publish_foundation --> predict
-  predict --> half
-  predict --> clean --> output_check
-
-  ranked --> fs
-  advanced --> fs
-  customer_features --> fs
-  customer_segments --> fs
-  popularity --> fs
-  half --> fs
-
-  ranked --> current_ops
-  half --> current_ops
-  ranked --> monitoring
-  half --> monitoring
+  prep --> foundation --> predict --> publish --> ready
+  ready --> candidate
+  publish --> monitoring
+  prep -. same-day validated source .-> copy --> feature_store
 ```
 
-The Feature Store route reads Theme Affinity outputs as stable sources. It does
-not replace this operational route or change the production model URI.
+## Nightly failure boundaries
 
-## Physical publication boundary
+The provider job publishes only the reusable `ranked` and `complete`
+foundation outputs before prediction. Prediction output is validated and shaped
+in memory, then staged directly into the canonical score-provider signals
+table. There is no permanent `master` copy and no transient `half` table.
 
-The Lakeflow pipeline owns the temporary
+The four preparation outputs required by the Feature Store remain supported,
+but they are copied by `mktg_next_uk_nextads_theme_feature_compatibility` at
+19:00. That job requires rows for its supplied `run_date` and will not replace a
+target with stale or empty data. It has independent alerting and is not a task
+or dependency of the Theme Affinity, candidate, page, assignment or delivery
+jobs. A compatibility failure can therefore delay the 21:00 Feature Store
+refresh without preventing ads from being built or published.
+
+## Stable physical boundary
+
+The Lakeflow pipeline owns the
 `next_uk_nextads_account_theme_foundation_stage_*` relations. After a successful
-pipeline update, the job publishes validated snapshots to ordinary Delta tables
-under `next_uk_nextads_account_theme_foundation_*`. Model prediction and
-model-building consumers use that physical boundary.
+update, the provider job validates and publishes ordinary Delta tables named
+`next_uk_nextads_account_theme_foundation_ranked` and
+`next_uk_nextads_account_theme_foundation_complete`. Provider manifests pin the
+exact accepted Delta versions. This boundary allows another provider or model
+to consume the same foundation without inheriting Theme Affinity task names or
+mutable latest-table reads.
 
-The older `next_uk_nextads_theme_affinity_predict_*` relations remain
-Lakeflow-owned legacy objects. The runtime does not overwrite, drop or convert
-them. Keeping the names separate prevents an ordinary Delta write from targeting
-a view and makes the ownership hand-off explicit: Lakeflow computes the
-foundation, publication accepts it, and score providers consume the pinned
-published version.
+The accepted compatibility outputs
+`next_uk_nextads_theme_affinity_model_full`,
+`next_uk_nextads_theme_affinity_inference_log` and
+`next_uk_nextads_theme_affinity_model_latest` remain in place for current
+consumers. The Feature Store uses the accepted latest score output rather than
+the removed transient prediction table.
 
-## Pipeline provenance
+## Lakeflow provenance
 
-Foundation publication must prove which pipeline task produced the data without
-depending on preview or asynchronously populated observability features. The
-current contract records the configured `PipelineID` and the exact upstream
-`PipelineTaskRunID` supplied by the job, and validates the pipeline-produced
-build marker against the leased foundation context. It then records the source
-and published Delta versions, schema checksums, content checksums and row-level
-validation evidence. Together these bind a published foundation to one job
-execution and one immutable set of outputs across retries and task repairs.
+Foundation publication records the configured pipeline ID and exact upstream
+pipeline task run ID, and validates the pipeline build marker against the
+leased foundation context. It also records source and published Delta versions,
+schema checksums, content checksums and row-level validation evidence.
 
-`PipelineUpdateID` and `PipelineUpdateType` remain nullable reserved fields. The
-nightly route must not query `system.lakeflow.pipeline_update_timeline` while
-that table is Public Preview, and publication must not wait for an asynchronous
-system-table record.
+`PipelineUpdateID` and `PipelineUpdateType` remain nullable reserved fields.
+The provider route must not query
+`system.lakeflow.pipeline_update_timeline` while that source is Public Preview.
+When it is generally available, its delivery latency is supported for same-run
+use, and Data Engineering approves the required least-privilege access, add a
+non-blocking provenance enrichment step after publication. It must not return
+to the provider critical path without separate reliability evidence.
 
-When `pipeline_update_timeline` is generally available, its contract and
-delivery latency are supported for same-run use, and Data Engineering has
-approved the required least-privilege access, add a non-blocking provenance
-enrichment step after foundation publication. That step may populate the
-reserved update fields by matching `PipelineID` and `PipelineTaskRunID`. Moving
-the lookup back onto the publication critical path requires separate evidence
-that the table is timely, stable and available under the production service
-principal; general availability alone is not sufficient.
+## Retiring legacy Lakeflow views
+
+Deployment does not automatically drop existing
+`next_uk_nextads_theme_affinity_predict_*` objects. After DEV acceptance:
+
+1. Identify each object's type and owner through Unity Catalog metadata.
+2. Search repository, job and query-history references for active consumers.
+3. Prove the new physical foundation and independent compatibility job have
+   completed successfully for the agreed observation period.
+4. Have the owning team remove only confirmed-unused objects using the command
+   appropriate to their actual object type.
+
+This retirement is deliberately outside every scheduled build so a cleanup
+mistake cannot interrupt scoring or delivery.

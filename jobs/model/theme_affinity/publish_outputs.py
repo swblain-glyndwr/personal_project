@@ -46,6 +46,7 @@ TARGET_TABLE_PREFIX = (
     or "next_uk_nextads_account_theme_foundation"
 )
 TABLE_SUFFIXES = parse_table_suffixes(jobparser.get_arg("--table_suffixes"))
+RUN_DATE = jobparser.get_arg("--run_date")
 LOG_LEVEL = jobparser.get_arg("--log_level")
 
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
@@ -65,6 +66,7 @@ published_tables = publish_theme_affinity_outputs(
     table_prefix=TABLE_PREFIX,
     target_table_prefix=TARGET_TABLE_PREFIX,
     table_suffixes=TABLE_SUFFIXES,
+    run_date=RUN_DATE,
 )
 if published_tables:
     logger.info("Published Theme Affinity output tables: %s", published_tables)

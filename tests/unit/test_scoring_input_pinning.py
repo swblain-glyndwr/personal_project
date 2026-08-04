@@ -151,7 +151,6 @@ def _theme_affinity_invocation_configs():
             "source_table": "catalog.dev.training",
             "max_accounts": 50_000,
         },
-        "predict_output_table": "catalog.dev.predictions",
         "predict_rank_filter_threshold": 100,
         "high_repurchase_penalty": 0.25,
         "high_repurchase_manual_themes": ["homesofas"],
@@ -181,7 +180,6 @@ def test_theme_affinity_invocation_ignores_environment_and_training_paths():
             **ranking_model["training_frame"],
             "source_table": "catalog.prod.training",
         },
-        "predict_output_table": "catalog.prod.predictions",
     }
 
     assert (
@@ -504,10 +502,6 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
         "--context_slot",
         "--log_level",
     }
-    clean_parameters = _task_parameter_map(affinity_tasks["clean_output"])
-    assert clean_parameters["--prediction_delta_version"] == (
-        "{{tasks.model_predict.values.prediction_delta_version}}"
-    )
     assert set(
         _task_parameter_map(affinity_tasks["publish_provider_build"])
     ) == {
@@ -528,19 +522,9 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
         affinity_tasks["publish_provider_build"]
     )
     assert publish_parameters["--provider_signals_delta_version"] == (
-        "{{tasks.clean_output.values.provider_signals_delta_version}}"
+        "{{tasks.model_predict.values.provider_signals_delta_version}}"
     )
-    assert set(_task_parameter_map(affinity_tasks["clean_output"])) == {
-        "--client",
-        "--job_env",
-        "--run_date",
-        "--input_snapshot_id",
-        "--provider_build_id",
-        "--provider_build_attempt_id",
-        "--prediction_delta_version",
-        "--context_slot",
-        "--log_level",
-    }
+    assert "clean_output" not in affinity_tasks
 
     expected_finalize = {
         "--client",

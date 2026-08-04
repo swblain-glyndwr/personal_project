@@ -73,7 +73,7 @@ def _predict_with_model(model_kind, model, raw_feature_pdf, encoders, model_inpu
     return model.predict(dmatrix)
 
 
-def run_prediction(spark, runtime):
+def build_predictions(spark, runtime):
     import mlflow
     from pyspark.sql import functions as F
     from next_ads.ranking.theme_affinity.config import (
@@ -82,7 +82,6 @@ def run_prediction(spark, runtime):
 
     _configure_mlflow_for_model_uri(mlflow, runtime.model_uri)
     model_config = runtime.config.ranking_model
-    model_tables = runtime.config.ranking_model_tables
     model_input_cols = list(model_config.model_input_cols)
     output_cols = list(model_config.predict_table_cols)
     prediction_input_cols = _prediction_input_columns(model_input_cols, output_cols)
@@ -122,11 +121,7 @@ def run_prediction(spark, runtime):
             F.col("baskets_behavior__recency_rank"),
             F.col("prediction").cast("float").alias("prediction"),
         )
-        return _publish_prediction_snapshot(
-            spark,
-            predictions.select(*output_cols),
-            table=model_tables.predict_output_table,
-        )
+        return predictions.select(*output_cols)
 
     encoder_path = (
         runtime.project_root
@@ -141,34 +136,7 @@ def run_prediction(spark, runtime):
         _predict_partition(runtime.model_uri, encoder_path, model_input_cols),
         schema=prediction_schema,
     )
-    return _publish_prediction_snapshot(
-        spark,
-        predictions.select(*output_cols),
-        table=model_tables.predict_output_table,
-    )
-
-
-def _publish_prediction_snapshot(spark, predictions, *, table: str) -> int:
-    """Publish prediction staging and return the exact Delta version."""
-    from next_ads.common.snapshot_writes import replace_validated_snapshot
-    from next_ads.ranking.scoring_inputs import latest_delta_version
-
-    previous_version = latest_delta_version(spark, table)
-    validation = replace_validated_snapshot(
-        spark,
-        predictions,
-        table=table,
-        key_columns=["account_number", "theme"],
-    )
-    if validation.row_count == 0:
-        raise ValueError("Theme Affinity prediction output is empty")
-    output_version = latest_delta_version(spark, table)
-    if output_version != previous_version + 1:
-        raise ValueError(
-            "Theme Affinity predictions were written amid another "
-            "table transaction"
-        )
-    return output_version
+    return predictions.select(*output_cols)
 
 
 def _prediction_input_columns(model_input_cols, output_cols):

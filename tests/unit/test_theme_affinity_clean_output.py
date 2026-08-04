@@ -64,7 +64,7 @@ def test_model_reranking_uses_theme_as_final_tiebreaker():
     assert reranking_source.count(".desc_nulls_last()") == 2
 
 
-def test_cleaning_reads_the_exact_prediction_delta_version():
+def test_cleaning_consumes_the_supplied_prediction_frame():
     source = (
         PROJECT_ROOT
         / "src/next_ads/ranking/theme_affinity/clean_output.py"
@@ -73,6 +73,6 @@ def test_cleaning_reads_the_exact_prediction_delta_version():
     end = source.index("\ndef _require_single_transaction(")
     staging_source = source[start:end]
 
-    assert "read_delta_version(" in staging_source
-    assert "int(prediction_delta_version)" in staging_source
-    assert "spark.table(model_tables.predict_output_table)" not in staging_source
+    assert "predictions," in staging_source
+    assert "read_delta_version(" not in staging_source
+    assert "predict_output_table" not in staging_source

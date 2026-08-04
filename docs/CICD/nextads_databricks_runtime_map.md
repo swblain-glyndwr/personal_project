@@ -206,11 +206,11 @@ Theme Affinity is its own scheduled production model route. It is not part of th
 
 ```mermaid
 flowchart TD
-  predict_data_prep --> publish_dlt_outputs
+  predict_data_prep --> publish_foundation
   predict_data_prep --> sense_check_dlt_data
-  publish_dlt_outputs --> model_predict
-  model_predict --> clean_output
-  clean_output --> sense_check_model_outputs
+  publish_foundation --> model_predict
+  model_predict --> publish_provider_build
+  publish_provider_build --> sense_check_model_outputs
 ```
 
 Observed latest successful Theme Affinity task timing, from run `11890698402594`:
@@ -219,10 +219,10 @@ Observed latest successful Theme Affinity task timing, from run `11890698402594`
 | --- | ---: | ---: | --- |
 | `predict_data_prep` | 0m | 2h 16m 28s | None |
 | `sense_check_dlt_data` | 2h 16m | 34m 24s | `predict_data_prep` |
-| `publish_dlt_outputs` | 2h 16m | 36m 12s | `predict_data_prep` |
-| `model_predict` | 2h 53m | 9m 17s | `publish_dlt_outputs` |
-| `clean_output` | 3h 2m | 7m 54s | `model_predict` |
-| `sense_check_model_outputs` | 3h 9m | 6m 38s | `clean_output` |
+| `publish_foundation` | 2h 16m | 36m 12s | `predict_data_prep` |
+| `model_predict` | 2h 53m | 9m 17s | `publish_foundation` |
+| `publish_provider_build` | Not yet measured | Not yet measured | `model_predict` |
+| `sense_check_model_outputs` | 3h 9m | 6m 38s | `publish_provider_build` |
 
 ## Results Route
 

@@ -17,6 +17,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_inputs.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_feature_compatibility.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml

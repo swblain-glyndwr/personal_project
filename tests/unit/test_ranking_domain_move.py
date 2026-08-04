@@ -139,9 +139,7 @@ def test_theme_affinity_job_uses_model_entrypoints():
     assert tasks["model_predict"]["spark_python_task"]["python_file"] == (
         "../../../jobs/model/theme_affinity/model_predict.py"
     )
-    assert tasks["clean_output"]["spark_python_task"]["python_file"] == (
-        "../../../jobs/model/theme_affinity/clean_output.py"
-    )
+    assert "clean_output" not in tasks
     assert tasks["sense_check_dlt_data"]["spark_python_task"]["python_file"] == (
         "../../../jobs/model/theme_affinity/sense_check.py"
     )
@@ -160,7 +158,6 @@ def test_theme_affinity_scripts_live_under_model_jobs():
 
     for module_name in [
         "model_predict",
-        "clean_output",
         "sense_check",
     ]:
         assert (

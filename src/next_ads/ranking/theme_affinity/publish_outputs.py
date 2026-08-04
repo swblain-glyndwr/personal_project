@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from next_ads.common.delta_writes import (
     quote_qualified_identifier,
-    replace_table_by_name,
+    replace_scope_by_name,
 )
 
 
@@ -44,6 +44,7 @@ def publish_theme_affinity_outputs(
     table_prefix: str,
     target_table_prefix: str | None = None,
     table_suffixes: tuple[str, ...] = DEFAULT_PUBLISH_TABLE_SUFFIXES,
+    run_date: str,
 ) -> list[str]:
     source_namespace = _normalise_namespace(source_namespace)
     target_namespace = _normalise_namespace(target_namespace)
@@ -68,6 +69,7 @@ def publish_theme_affinity_outputs(
                 table_prefix=table_prefix,
                 target_table_prefix=target_table_prefix,
                 suffix=suffix,
+                run_date=run_date,
             ): index
             for index, suffix in enumerate(table_suffixes)
         }
@@ -92,14 +94,25 @@ def _publish_output(
     table_prefix: str,
     target_table_prefix: str,
     suffix: str,
+    run_date: str,
 ) -> str:
+    from pyspark.sql import functions as F
+
     source_table = f"{source_namespace}.{table_prefix}_{suffix}"
     target_table = f"{target_namespace}.{target_table_prefix}_{suffix}"
-    source_df = _read_required_table(spark, source_table)
+    source_df = _read_required_table(spark, source_table).where(
+        F.col("reference_date") == F.lit(run_date).cast("date")
+    )
+    if source_df.limit(1).count() == 0:
+        raise ValueError(
+            "Required Theme Affinity compatibility output is empty for "
+            f"{run_date}: {source_table}"
+        )
     _ensure_target_table(spark, source_table, target_table)
-    replace_table_by_name(
+    replace_scope_by_name(
         source_df,
         target_table,
+        {"reference_date": run_date},
         source_df.columns,
         spark=spark,
     )

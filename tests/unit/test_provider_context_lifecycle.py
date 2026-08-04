@@ -259,14 +259,14 @@ def test_failed_finalizer_is_safe_before_a_lease_or_after_consumption(
 
 
 def test_only_ready_provider_publication_consumes_theme_affinity_context():
-    clean_entrypoint = (
-        PROJECT_ROOT / "jobs/model/theme_affinity/clean_output.py"
+    prediction_entrypoint = (
+        PROJECT_ROOT / "jobs/model/theme_affinity/model_predict.py"
     ).read_text()
     publish_entrypoint = (
         PROJECT_ROOT / "jobs/orchestration/publish_score_provider_build.py"
     ).read_text()
 
-    assert "transition_provider_context(" not in clean_entrypoint
+    assert "transition_provider_context(" not in prediction_entrypoint
     publication = publish_entrypoint.index(
         "result = publish_theme_affinity_provider_build("
     )

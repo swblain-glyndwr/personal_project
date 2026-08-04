@@ -15,13 +15,13 @@ def test_theme_affinity_sense_check_covers_intermediate_tables():
     assert "master" in INTERMEDIATE_TABLE_SUFFIXES
     assert "complete" in INTERMEDIATE_TABLE_SUFFIXES
     assert "ranked" in INTERMEDIATE_TABLE_SUFFIXES
-    assert "half" in INTERMEDIATE_TABLE_SUFFIXES
+    assert "half" not in INTERMEDIATE_TABLE_SUFFIXES
 
 
 def test_theme_affinity_sense_check_splits_data_and_model_outputs():
     assert "ranked" in DATA_TABLE_SUFFIXES
     assert "half" not in DATA_TABLE_SUFFIXES
-    assert MODEL_OUTPUT_TABLE_SUFFIXES == ["half"]
+    assert MODEL_OUTPUT_TABLE_SUFFIXES == []
 
 
 def test_theme_affinity_sense_check_validates_scope():

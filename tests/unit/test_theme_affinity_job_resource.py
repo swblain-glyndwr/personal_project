@@ -19,11 +19,26 @@ def _theme_affinity_job():
     ]
 
 
+def _theme_feature_compatibility_job():
+    job_config = _load_yaml(
+        "pipelines/databricks/jobs/"
+        "mktg_next_uk_nextads_theme_feature_compatibility.yml"
+    )
+    return job_config[
+        "mktg_next_uk_nextads_theme_feature_compatibility_config"
+    ]["mktg_next_uk_nextads_theme_feature_compatibility_cicd"]
+
+
 def test_theme_affinity_resources_are_included_in_bundle():
     bundle_config = _load_yaml("databricks.yml")
 
     assert (
         "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml"
+        in bundle_config["include"]
+    )
+    assert (
+        "pipelines/databricks/jobs/"
+        "mktg_next_uk_nextads_theme_feature_compatibility.yml"
         in bundle_config["include"]
     )
     assert "jobs/**" in bundle_config["sync"]["include"]
@@ -88,10 +103,6 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
             "default": "next_uk_nextads_account_theme_foundation",
         },
         {
-            "name": "compatibility_table_suffixes",
-            "default": "${var.theme_affinity_publish_table_suffixes}",
-        },
-        {
             "name": "model_uri",
             "default": "${var.theme_affinity_model_uri}",
         },
@@ -103,10 +114,8 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         "publish_foundation",
         "prepare_provider_context",
         "predict_data_prep",
-        "publish_compatibility_outputs",
         "model_predict",
         "sense_check_dlt_data",
-        "clean_output",
         "publish_provider_build",
         "sense_check_model_outputs",
         "finalize_foundation_context",
@@ -193,47 +202,10 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         foundation_publish_parameters.index("--context_slot") + 1
     ] == "account_theme_features_v2"
 
-    publish_task = tasks["publish_compatibility_outputs"]
-    assert publish_task["depends_on"] == [{"task_key": "predict_data_prep"}]
-    assert "notebook_task" not in publish_task
-    assert "spark_python_task" in publish_task
-    assert (
-        publish_task["spark_python_task"]["python_file"]
-        == "../../../jobs/model/theme_affinity/publish_outputs.py"
-    )
-    assert publish_task["libraries"] == "${var.theme_affinity_libraries}"
-    publish_parameters = publish_task["spark_python_task"]["parameters"]
-    assert (
-        publish_parameters[publish_parameters.index("--source_namespace") + 1]
-        == "{{job.parameters.publish_source_namespace}}"
-    )
-    assert (
-        publish_parameters[publish_parameters.index("--target_namespace") + 1]
-        == "{{job.parameters.publish_target_namespace}}"
-    )
-    assert (
-        publish_parameters[publish_parameters.index("--table_prefix") + 1]
-        == "{{job.parameters.publish_source_table_prefix}}"
-    )
-    assert (
-        publish_parameters[publish_parameters.index("--target_table_prefix") + 1]
-        == "{{job.parameters.publish_target_table_prefix}}"
-    )
-    assert (
-        publish_parameters[publish_parameters.index("--table_suffixes") + 1]
-        == "{{job.parameters.compatibility_table_suffixes}}"
-    )
-    compatibility_suffixes = {
-        parameter["name"]: parameter["default"]
-        for parameter in job["parameters"]
-    }["compatibility_table_suffixes"]
-    assert "ranked" not in compatibility_suffixes
-    assert "complete" not in compatibility_suffixes
-
     assert tasks["model_predict"]["depends_on"] == [
         {"task_key": "prepare_provider_context"}
     ]
-    for task_key in ["model_predict", "clean_output"]:
+    for task_key in ["model_predict"]:
         task = tasks[task_key]
         assert "notebook_task" not in task
         assert "spark_python_task" in task
@@ -244,15 +216,8 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         assert "ds_sandbox" not in parameters
         assert "next_uk_nextAds_predict_prod" not in parameters
 
-    clean_parameters = tasks["clean_output"]["spark_python_task"][
-        "parameters"
-    ]
-    assert clean_parameters[
-        clean_parameters.index("--prediction_delta_version") + 1
-    ] == "{{tasks.model_predict.values.prediction_delta_version}}"
-
     provider_publish = tasks["publish_provider_build"]
-    assert provider_publish["depends_on"] == [{"task_key": "clean_output"}]
+    assert provider_publish["depends_on"] == [{"task_key": "model_predict"}]
     assert (
         provider_publish["spark_python_task"]["python_file"]
         == "../../../jobs/orchestration/publish_score_provider_build.py"
@@ -282,7 +247,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
             "provider_build_attempt_id}}"
         ),
         "--provider_signals_delta_version": (
-            "{{tasks.clean_output.values.provider_signals_delta_version}}"
+            "{{tasks.model_predict.values.provider_signals_delta_version}}"
         ),
         "--context_slot": "theme_affinity_serving",
         "--orchestration_run_id": "{{job.run_id}}",
@@ -290,7 +255,6 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         "--execution_count": "{{task.execution_count}}",
         "--log_level": "INFO",
     }
-
     dlt_sense_check = tasks["sense_check_dlt_data"]
     assert dlt_sense_check["depends_on"] == [{"task_key": "predict_data_prep"}]
     assert "notebook_task" not in dlt_sense_check
@@ -337,6 +301,24 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert (
         finalizer["spark_python_task"]["python_file"]
         == "../../../jobs/orchestration/finalize_score_provider_context.py"
+    )
+
+
+def test_theme_feature_compatibility_is_an_independent_1900_job():
+    job = _theme_feature_compatibility_job()
+    assert job["name"] == "mktg_next_uk_nextads_theme_feature_compatibility"
+    assert job["schedule"] == {
+        "quartz_cron_expression": "0 0 19 * * ?",
+        "timezone_id": "Europe/London",
+    }
+    assert job["queue"] == {"enabled": True}
+    assert job["max_concurrent_runs"] == 1
+    task = job["tasks"][0]
+    assert task["task_key"] == "publish_feature_compatibility"
+    assert "depends_on" not in task
+    parameters = task["spark_python_task"]["parameters"]
+    assert parameters[parameters.index("--run_date") + 1] == (
+        "{{job.parameters.run_date}}"
     )
 
 
@@ -756,7 +738,6 @@ def test_theme_affinity_mlflow_lifecycle_excludes_old_branch_artifacts():
 def test_theme_affinity_script_bootstrap_handles_workspace_paths():
     script_paths = {
         "jobs/model/theme_affinity/model_predict.py": "Path(notebook_path).parents[3]",
-        "jobs/model/theme_affinity/clean_output.py": "Path(notebook_path).parents[3]",
         "jobs/model/theme_affinity/publish_outputs.py": (
             "Path(notebook_path).parents[3]"
         ),

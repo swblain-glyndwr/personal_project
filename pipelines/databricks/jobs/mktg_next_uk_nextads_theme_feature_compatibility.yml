@@ -1,0 +1,83 @@
+mktg_next_uk_nextads_theme_feature_compatibility_config: &mktg_next_uk_nextads_theme_feature_compatibility_config
+  mktg_next_uk_nextads_theme_feature_compatibility_cicd:
+    name: mktg_next_uk_nextads_theme_feature_compatibility
+    queue:
+      enabled: true
+    max_concurrent_runs: 1
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: feature_compatibility
+    email_notifications:
+      on_failure: ${var.data_team_notification_emails}
+    notification_settings:
+      no_alert_for_skipped_runs: true
+      no_alert_for_canceled_runs: true
+    schedule:
+      quartz_cron_expression: 0 0 19 * * ?
+      timezone_id: Europe/London
+    timeout_seconds: 5400
+    parameters:
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
+      - name: source_namespace
+        default: ${var.mktgdata_catalog}.${var.theme_affinity_pipeline_schema}
+      - name: target_namespace
+        default: ${var.mktgdata_catalog}.${var.user_schema}
+      - name: source_table_prefix
+        default: next_uk_nextads_account_theme_foundation_stage
+      - name: target_table_prefix
+        default: next_uk_nextads_account_theme_foundation
+      - name: table_suffixes
+        default: ${var.theme_affinity_publish_table_suffixes}
+    tasks:
+      - task_key: publish_feature_compatibility
+        spark_python_task:
+          python_file: ../../../jobs/model/theme_affinity/publish_outputs.py
+          parameters:
+            - --source_namespace
+            - "{{job.parameters.source_namespace}}"
+            - --target_namespace
+            - "{{job.parameters.target_namespace}}"
+            - --table_prefix
+            - "{{job.parameters.source_table_prefix}}"
+            - --target_table_prefix
+            - "{{job.parameters.target_table_prefix}}"
+            - --table_suffixes
+            - "{{job.parameters.table_suffixes}}"
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.shared_libraries}
+        max_retries: 1
+        min_retry_interval_millis: 60000
+        timeout_seconds: 5400
+
+targets:
+  SANDBOX:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_theme_feature_compatibility_config
+  DEV:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_theme_feature_compatibility_config
+  DEV_INTEGRATION:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_theme_feature_compatibility_config
+  PREPROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_theme_feature_compatibility_config
+  PROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_theme_feature_compatibility_config

@@ -284,15 +284,11 @@ def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
     config = load_config("dev")
 
     expected_setup_tables = {
-        "account_theme_foundation_master": config.ranking_model_tables.predict_master,
         "account_theme_foundation_complete": (
             config.ranking_model_tables.predict_complete
         ),
         "account_theme_foundation_ranked": (
             config.ranking_model_tables.predict_input_table
-        ),
-        "account_theme_foundation_half": (
-            config.ranking_model_tables.predict_output_table
         ),
         "theme_affinity_model_latest": config.ranking_model_tables.model_latest,
         "theme_affinity_model_full": config.ranking_model_tables.model_full,
@@ -312,7 +308,7 @@ def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
             "create_table_account_theme_foundation_*.sql"
         )
     )
-    assert len(foundation_contracts) == 4
+    assert len(foundation_contracts) == 2
     for contract in foundation_contracts:
         sql = contract.read_text()
         assert "_nextads_account_theme_foundation_" in sql

@@ -35,12 +35,9 @@ INTERMEDIATE_TABLE_SUFFIXES = [
     "master",
     "complete",
     "ranked",
-    "half",
 ]
-DATA_TABLE_SUFFIXES = [
-    suffix for suffix in INTERMEDIATE_TABLE_SUFFIXES if suffix != "half"
-]
-MODEL_OUTPUT_TABLE_SUFFIXES = ["half"]
+DATA_TABLE_SUFFIXES = list(INTERMEDIATE_TABLE_SUFFIXES)
+MODEL_OUTPUT_TABLE_SUFFIXES = []
 VALID_CHECK_SCOPES = {"all", "data", "model_outputs"}
 ROW_RATIO_WARN_MIN = 0.95
 ROW_RATIO_WARN_MAX = 1.05
