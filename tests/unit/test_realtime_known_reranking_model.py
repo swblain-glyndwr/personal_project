@@ -85,3 +85,45 @@ def test_incrementality_retains_cms_page_id_for_payload_builders(
             "fragmentIds": ["next-fragment"],
         }
     ]
+
+
+def _customer_cells(fallow_control):
+    return pd.DataFrame(
+        [
+            {
+                "AccountNumber": "account-1",
+                "FallowControl": fallow_control,
+                "ShoppingBagTest1": "Best",
+                "PageTypeIsolation": "AllPages",
+                "AdHocABTest1": "A",
+            }
+        ]
+    )
+
+
+def _payload_results():
+    return pd.DataFrame(
+        [
+            {
+                "roamingprofileid": 123,
+                "AtbCMSPageID": "next-fragment",
+                "lift_adjusted": 2.5,
+                "PageType": "HomePage",
+            }
+        ]
+    )
+
+
+def test_payload_control_is_calculated_per_request(model_module):
+    payload_generator = model_module.NextAdsPayloadGenerator()
+    results = _payload_results()
+
+    control_payload = payload_generator.build_payload_structure(
+        _customer_cells("NoAds"), results
+    )
+    ads_payload = payload_generator.build_payload_structure(
+        _customer_cells("Ads"), results
+    )
+
+    assert control_payload["ads"]["control"] is True
+    assert ads_payload["ads"]["control"] is False

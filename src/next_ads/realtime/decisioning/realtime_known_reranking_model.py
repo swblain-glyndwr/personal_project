@@ -125,7 +125,6 @@ class NextAdsPayloadGenerator:
         self.fragments_record_limit: int = fragments_record_limit
         self.ad_fatigue_active_locations: list = ad_fatigue_active_locations
 
-        self.control: bool = False  # Default set to False so no impact to customer experience on issue
         # Experiment Settings
         self.control_value: str = "NoAds"
         self.experiment_settings: dict = {
@@ -161,7 +160,7 @@ class NextAdsPayloadGenerator:
             ],
         }
 
-    def determine_control(self, df: pd.DataFrame) -> None:
+    def determine_control(self, df: pd.DataFrame) -> bool:
         """Determine whether or not the customer is a control customer
 
         Parameters
@@ -169,8 +168,7 @@ class NextAdsPayloadGenerator:
         df: pd.DataFrame
             single row dataframe of customer experiment settings
         """
-        if df["FallowControl"] == self.control_value:
-            self.control = True
+        return df["FallowControl"].iloc[0] == self.control_value
 
     def build_triggers(self, df: pd.DataFrame) -> list:
         """Determine the top Advert trigger score levels to be added to google metadata
@@ -387,8 +385,8 @@ class NextAdsPayloadGenerator:
                 "fragments": list,
             }}
         """
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            executor.submit(self.determine_control, customer_cells_df)
+        control = self.determine_control(customer_cells_df)
+        with ThreadPoolExecutor(max_workers=3) as executor:
             triggers = executor.submit(self.build_triggers, results_df)
             experiment_id = executor.submit(
                 self.build_experiment_id, customer_cells_df
@@ -400,7 +398,7 @@ class NextAdsPayloadGenerator:
                 "adFatigueImpressionThreshold": self.ad_fatigue_threshold,
                 "experimentId": experiment_id.result(),
                 "triggers": triggers.result(),
-                "control": self.control,
+                "control": control,
                 "fragments": fragments.result(),
             }
         }
