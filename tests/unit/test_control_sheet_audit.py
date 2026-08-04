@@ -6,6 +6,7 @@ import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
+from next_ads.control import control_sheet_audit as audit_module
 from next_ads.control.control_sheet_audit import (
     REVIEW,
     WARNING,
@@ -14,6 +15,14 @@ from next_ads.control.control_sheet_audit import (
     ControlSheetAuditSpec,
     audit_control_sheet,
 )
+
+
+def test_cms_audit_reference_grain_retains_the_control_url():
+    assert audit_module._CMS_AUDIT_REFERENCE_GRAIN == (
+        "_UniqueAdID",
+        "_CMSPageID",
+        "_ControlURL",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -635,6 +644,68 @@ def test_cms_target_url_checks_cover_missing_and_wrong_links(audit_spark):
     assert "ad-target-match" not in " ".join(
         findings["CMS_TARGET_URL_MISMATCH"].examples
     )
+
+
+def test_cms_target_url_checks_preserve_every_distinct_control_url(
+    audit_spark,
+):
+    raw = _raw(
+        audit_spark,
+        [
+            (
+                "ad-multiple-targets",
+                "cms-multiple-targets",
+                "29/07/2026",
+                "31/07/2026",
+                "Active",
+                "",
+                "",
+                "TRUE",
+                "FALSE",
+            )
+        ],
+    ).withColumn(
+        "URL",
+        F.explode(F.array(F.lit("/expected"), F.lit("/wrong"))),
+    )
+    processed = _processed(
+        audit_spark,
+        [
+            (
+                "ad-multiple-targets",
+                "cms-multiple-targets",
+                "HomePage",
+                date(2026, 7, 29),
+                date(2026, 7, 31),
+                0,
+                "",
+            )
+        ],
+    )
+    cms = _cms(
+        audit_spark,
+        [
+            (
+                "cms-multiple-targets",
+                (
+                    '{"data":{"externalPageId":"cms-multiple-targets",'
+                    '"title":"Multiple targets","placements":[{"content":'
+                    '[{"items":[{"target":"/expected"}]}]}]}}'
+                ),
+            )
+        ],
+    )
+
+    report = audit_control_sheet(
+        raw_current=raw,
+        processed_current=processed,
+        cms_latest=cms,
+        spec=_spec(),
+    )
+    mismatch = _findings_by_code(report)["CMS_TARGET_URL_MISMATCH"]
+
+    assert mismatch.count == 1
+    assert "/wrong" in " ".join(mismatch.examples)
 
 
 def test_report_is_partition_stable_sorted_and_capped(audit_spark):

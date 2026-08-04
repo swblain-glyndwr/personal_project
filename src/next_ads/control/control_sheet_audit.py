@@ -13,6 +13,15 @@ from pyspark.sql.types import DateType, StringType, StructType
 WARNING = "WARNING"
 REVIEW = "REVIEW"
 
+# A control URL is part of the CMS audit decision grain. Keeping it in the
+# grouped frame ensures every distinct control-sheet destination is compared
+# with the CMS targets without selecting an arbitrary duplicate row.
+_CMS_AUDIT_REFERENCE_GRAIN = (
+    "_UniqueAdID",
+    "_CMSPageID",
+    "_ControlURL",
+)
+
 DEFAULT_AUDIENCE_VALUES = ("TRUE", "FALSE")
 DEFAULT_AD_VARIANTS = ("newborn", "toddler", "younger", "older", "teen")
 V2_PAGE_TYPES = (
@@ -890,7 +899,7 @@ def _cms_finding_frames(
             & F.col("_HasSelectedPlacement")
             & (F.col("_CMSPageID") != "")
         )
-        .groupBy("_UniqueAdID", "_CMSPageID")
+        .groupBy(*_CMS_AUDIT_REFERENCE_GRAIN)
         .agg(F.count(F.lit(1)).alias("_RawRows"))
         .join(cms, on="_CMSPageID", how="left")
     )
