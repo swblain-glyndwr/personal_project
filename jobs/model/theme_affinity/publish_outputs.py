@@ -39,9 +39,12 @@ SOURCE_NAMESPACE = jobparser.get_arg("--source_namespace")
 TARGET_NAMESPACE = jobparser.get_arg("--target_namespace")
 TABLE_PREFIX = (
     jobparser.get_arg("--table_prefix")
-    or "next_uk_nextads_theme_affinity_predict"
+    or "next_uk_nextads_account_theme_foundation_stage"
 )
-TARGET_TABLE_PREFIX = jobparser.get_arg("--target_table_prefix") or TABLE_PREFIX
+TARGET_TABLE_PREFIX = (
+    jobparser.get_arg("--target_table_prefix")
+    or "next_uk_nextads_account_theme_foundation"
+)
 TABLE_SUFFIXES = parse_table_suffixes(jobparser.get_arg("--table_suffixes"))
 LOG_LEVEL = jobparser.get_arg("--log_level")
 

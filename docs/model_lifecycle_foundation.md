@@ -157,7 +157,7 @@ population-versus-sample strata counts.
 
 A successful Databricks job run is not sufficient evidence of a valid model.
 For example, a stale DEV Spark train job once ran against
-`marketingdata_dev.stephen_blain.next_uk_nextads_theme_affinity_predict_ranked`
+`marketingdata_dev.stephen_blain.next_uk_nextads_account_theme_foundation_ranked`
 without an explicit `--input_table` override and produced
 `training_frame_positive_rows = 0`. That run completed technically, but all
 ranking metrics were zero because it trained on an unlabeled scoring snapshot.
@@ -222,7 +222,7 @@ Theme Affinity now has two monitoring layers:
 
 - `pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml`
   creates or updates a Databricks quality monitor over
-  `next_uk_nextads_theme_affinity_predict_ranked`. This is target-scoped to
+  `next_uk_nextads_account_theme_foundation_ranked`. This is target-scoped to
   PROD only and is intentionally unscheduled. Run it only after the production
   ranked table exists, because Databricks creates the monitor against an
   existing Unity Catalog table and requires production table permissions.
@@ -239,7 +239,7 @@ the native monitor under the production identity that runs the job.
 
 For Theme Affinity production, the current table to monitor for time-series
 distribution drift is
-`marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked`.
+`marketingdata_prod.warehouse.next_uk_nextads_account_theme_foundation_ranked`.
 That table is a ranked candidate/model input table, not an inference log.
 
 Use `monitor_type=inference_log` only against a table or view with a true

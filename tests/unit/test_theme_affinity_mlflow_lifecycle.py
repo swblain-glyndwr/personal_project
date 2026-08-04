@@ -37,7 +37,7 @@ def test_lifecycle_config_resolves_dev_registered_model(monkeypatch):
         "/Shared/mlflow/nextads/dev/experiments/theme_affinity_ranker"
     )
     assert lifecycle_config.train_table == (
-        "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
+        "marketingdata_dev.test_user.next_uk_nextads_account_theme_foundation_ranked"
     )
     assert lifecycle_config.categorical_cols == (
         "repurchase_stage",

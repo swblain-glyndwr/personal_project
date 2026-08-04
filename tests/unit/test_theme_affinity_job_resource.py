@@ -85,7 +85,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         },
         {
             "name": "publish_target_table_prefix",
-            "default": "next_uk_nextads_theme_affinity_predict",
+            "default": "next_uk_nextads_account_theme_foundation",
         },
         {
             "name": "compatibility_table_suffixes",
@@ -689,7 +689,7 @@ def test_theme_affinity_quality_monitor_setup_job_is_native_and_prod_only():
             "name": "table_name",
             "default": (
                 "${var.mktgdata_catalog}.${var.user_schema}."
-                "next_uk_nextads_theme_affinity_predict_ranked"
+                "next_uk_nextads_account_theme_foundation_ranked"
             ),
         },
         {

@@ -34,7 +34,7 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
       - name: publish_source_table_prefix
         default: next_uk_nextads_account_theme_foundation_stage
       - name: publish_target_table_prefix
-        default: next_uk_nextads_theme_affinity_predict
+        default: next_uk_nextads_account_theme_foundation
       - name: compatibility_table_suffixes
         default: ${var.theme_affinity_publish_table_suffixes}
       - name: model_uri

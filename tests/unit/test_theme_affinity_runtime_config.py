@@ -143,7 +143,7 @@ def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
     )
     assert (
         config.ranking_model_tables.predict_input_table
-        == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
+        == "marketingdata_dev.test_user.next_uk_nextads_account_theme_foundation_ranked"
     )
     assert (
         config.ranking_model_tables.model_train_input_table
@@ -151,7 +151,7 @@ def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
     )
     assert (
         config.ranking_model_tables.model_train_input_table
-        == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
+        == "marketingdata_dev.test_user.next_uk_nextads_account_theme_foundation_ranked"
     )
     assert (
         "complete_ranked"
@@ -284,14 +284,14 @@ def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
     config = load_config("dev")
 
     expected_setup_tables = {
-        "theme_affinity_predict_master": config.ranking_model_tables.predict_master,
-        "theme_affinity_predict_complete": (
+        "account_theme_foundation_master": config.ranking_model_tables.predict_master,
+        "account_theme_foundation_complete": (
             config.ranking_model_tables.predict_complete
         ),
-        "theme_affinity_predict_ranked": (
+        "account_theme_foundation_ranked": (
             config.ranking_model_tables.predict_input_table
         ),
-        "theme_affinity_predict_half": (
+        "account_theme_foundation_half": (
             config.ranking_model_tables.predict_output_table
         ),
         "theme_affinity_model_latest": config.ranking_model_tables.model_latest,
@@ -306,6 +306,17 @@ def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
         PROJECT_ROOT
         / "sql/ranking/theme_affinity/create_table_theme_affinity_inference_log.sql"
     ).exists()
+
+    foundation_contracts = sorted(
+        (PROJECT_ROOT / "sql/ranking/theme_affinity").glob(
+            "create_table_account_theme_foundation_*.sql"
+        )
+    )
+    assert len(foundation_contracts) == 4
+    for contract in foundation_contracts:
+        sql = contract.read_text()
+        assert "_nextads_account_theme_foundation_" in sql
+        assert "_nextads_theme_affinity_predict_" not in sql
 
 
 def test_adsv2_write_tables_are_available_under_tables_write(monkeypatch):

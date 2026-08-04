@@ -1,4 +1,4 @@
-create table {catalog}.{schema}.{client}_nextads_theme_affinity_predict_master (
+create table {catalog}.{schema}.{client}_nextads_account_theme_foundation_master (
     reference_date date not null,
     account_number string not null,
     theme_clean string not null,
@@ -40,7 +40,7 @@ create table {catalog}.{schema}.{client}_nextads_theme_affinity_predict_master (
     baskets_dates string,
     target_dates string,
     rundate date not null,
-  constraint pk_{client}_nextads_theme_affinity_predict_master primary key (
+  constraint pk_{client}_nextads_account_theme_foundation_master primary key (
     reference_date,
     account_number,
     theme_clean

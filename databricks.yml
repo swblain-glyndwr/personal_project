@@ -129,7 +129,7 @@ variables:
     default: warehouse
   feature_store_theme_table_prefix:
     description: Table prefix for Theme Affinity runtime source tables consumed by feature-store materialisation
-    default: next_uk_nextads_theme_affinity_predict
+    default: next_uk_nextads_account_theme_foundation
   feature_store_theme_training_reference_date:
     description: Historical reference date for labelled Theme Affinity training input materialisation; set to skip for normal latest-feature refreshes
     default: skip
@@ -144,7 +144,7 @@ variables:
     default: ${var.theme_affinity_training_input_table}
   theme_affinity_monitor_candidate_table:
     description: Candidate table used by the Theme Affinity MLflow drift monitor
-    default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_predict_ranked
+    default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_account_theme_foundation_ranked
 
 targets:
   SANDBOX:
@@ -176,8 +176,8 @@ targets:
       run_as_SPN_name: 7ecc733a-4b66-4783-b984-985333d55c38
       job_parameter_environment_name: dev
       feature_store_schema: ${workspace.current_user.short_name}
-      theme_affinity_monitor_baseline_table: marketingdata_dev.${workspace.current_user.short_name}.next_uk_nextads_theme_affinity_predict_ranked
-      theme_affinity_monitor_candidate_table: marketingdata_dev.${workspace.current_user.short_name}.next_uk_nextads_theme_affinity_predict_ranked
+      theme_affinity_monitor_baseline_table: marketingdata_dev.${workspace.current_user.short_name}.next_uk_nextads_account_theme_foundation_ranked
+      theme_affinity_monitor_candidate_table: marketingdata_dev.${workspace.current_user.short_name}.next_uk_nextads_account_theme_foundation_ranked
 
   # deployed with cicd SPN but with user schema derived from last git commit author to avoid collision of user schemas in dev when multiple developers are deploying
   DEV:
@@ -248,7 +248,7 @@ targets:
       feature_store_theme_source_schema: nextads_integration
       theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
       theme_affinity_monitor_baseline_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
-      theme_affinity_monitor_candidate_table: marketingdata_dev.nextads_integration.next_uk_nextads_theme_affinity_predict_ranked
+      theme_affinity_monitor_candidate_table: marketingdata_dev.nextads_integration.next_uk_nextads_account_theme_foundation_ranked
 
   # Shared DEV feature-store target for scheduled model-building features.
   DEV_FEATURE_STORE:
@@ -335,7 +335,7 @@ targets:
       job_parameter_environment_name: preprod
       user_schema: ds_sandbox
       theme_affinity_monitor_baseline_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
-      theme_affinity_monitor_candidate_table: marketingdata_prod.ds_sandbox.next_uk_nextads_theme_affinity_predict_ranked
+      theme_affinity_monitor_candidate_table: marketingdata_prod.ds_sandbox.next_uk_nextads_account_theme_foundation_ranked
 
   PROD:
     mode: production
@@ -377,8 +377,8 @@ targets:
       job_parameter_environment_name: prod
       user_schema: warehouse
       theme_affinity_pipeline_schema: ds_sandbox
-      theme_affinity_monitor_baseline_table: marketingdata_prod.ds_sandbox.next_uk_nextads_theme_affinity_predict_ranked
-      theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
+      theme_affinity_monitor_baseline_table: marketingdata_prod.ds_sandbox.next_uk_nextads_account_theme_foundation_ranked
+      theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_account_theme_foundation_ranked
       data_team_notification_emails:
         - edward_taylor@next.co.uk
         - adrienne_lowe@next.co.uk

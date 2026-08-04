@@ -475,7 +475,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         bundle_config["variables"]["feature_store_theme_table_prefix"][
             "default"
         ]
-        == "next_uk_nextads_theme_affinity_predict"
+        == "next_uk_nextads_account_theme_foundation"
     )
     assert (
         bundle_config["variables"]["feature_store_theme_training_reference_date"][

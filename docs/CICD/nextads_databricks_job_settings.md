@@ -133,7 +133,7 @@ Shared DEV feature-store build.
 | `reference_date` | Feature snapshot date. | `current` or `YYYY-MM-DD`. |
 | `source_catalog`, `source_schema` | Primary source namespace. | Existing Unity Catalog catalog/schema. |
 | `theme_source_catalog`, `theme_source_schema` | Theme source namespace. | Existing Unity Catalog catalog/schema. |
-| `theme_table_prefix` | Prefix for theme source tables. | Table-name prefix, for example `next_uk_nextads_theme_affinity_predict`. |
+| `theme_table_prefix` | Prefix for theme source tables. | Physical Delta prefix, for example `next_uk_nextads_account_theme_foundation`. |
 | `theme_training_reference_date` | Reference date for theme-affinity training input. | `current` or `YYYY-MM-DD`. |
 | `recreate_feature_tables` | Recreate feature-store tables before building. | `false` by default; use `true` only for intentional table rebuilds. |
 | Fixed task settings | `catalog`, `schema`, `manage_principal`, `all_privileges_principal`, `replace_reference_date`, `log_level` | Set by bundle variables/job definition; only change with feature-store ownership review. |

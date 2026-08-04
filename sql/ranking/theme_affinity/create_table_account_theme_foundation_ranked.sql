@@ -1,4 +1,4 @@
-create table {catalog}.{schema}.{client}_nextads_theme_affinity_predict_complete (
+create table {catalog}.{schema}.{client}_nextads_account_theme_foundation_ranked (
     reference_date date not null,
     account_number string not null,
     theme_clean string not null,
@@ -41,7 +41,10 @@ create table {catalog}.{schema}.{client}_nextads_theme_affinity_predict_complete
     target_dates string,
     rundate date not null,
     month int,
-  constraint pk_{client}_nextads_theme_affinity_predict_complete primary key (
+    same_dept int,
+    simple_rules_rank int,
+    rules_rank_source string,
+  constraint pk_{client}_nextads_account_theme_foundation_ranked primary key (
     reference_date,
     account_number,
     theme_clean

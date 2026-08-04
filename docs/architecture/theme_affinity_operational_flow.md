@@ -7,8 +7,9 @@ such as Feature Store.
 ```mermaid
 flowchart TD
   subgraph route["mktg_next_uk_nextads_theme_affinity"]
-    prep["predict_data_prep<br/>DLT / Lakeflow pipeline"]
-    publish["publish_dlt_outputs"]
+    prep["predict_data_prep<br/>Lakeflow pipeline"]
+    publish_foundation["publish_foundation<br/>validated Delta snapshot"]
+    publish_compatibility["publish_compatibility_outputs"]
     dlt_check["sense_check_dlt_data"]
     predict["model_predict<br/>loads configured model URI"]
     clean["clean_output"]
@@ -30,14 +31,15 @@ flowchart TD
     monitoring["Model and data quality monitoring"]
   end
 
-  prep --> publish
+  prep --> publish_foundation
+  prep --> publish_compatibility
   prep --> dlt_check
-  publish --> ranked
-  publish --> advanced
-  publish --> customer_features
-  publish --> customer_segments
-  publish --> popularity
-  publish --> predict
+  publish_foundation --> ranked
+  publish_compatibility --> advanced
+  publish_compatibility --> customer_features
+  publish_compatibility --> customer_segments
+  publish_compatibility --> popularity
+  publish_foundation --> predict
   predict --> half
   predict --> clean --> output_check
 
@@ -56,6 +58,21 @@ flowchart TD
 
 The Feature Store route reads Theme Affinity outputs as stable sources. It does
 not replace this operational route or change the production model URI.
+
+## Physical publication boundary
+
+The Lakeflow pipeline owns the temporary
+`next_uk_nextads_account_theme_foundation_stage_*` relations. After a successful
+pipeline update, the job publishes validated snapshots to ordinary Delta tables
+under `next_uk_nextads_account_theme_foundation_*`. Model prediction and
+model-building consumers use that physical boundary.
+
+The older `next_uk_nextads_theme_affinity_predict_*` relations remain
+Lakeflow-owned legacy objects. The runtime does not overwrite, drop or convert
+them. Keeping the names separate prevents an ordinary Delta write from targeting
+a view and makes the ownership hand-off explicit: Lakeflow computes the
+foundation, publication accepts it, and score providers consume the pinned
+published version.
 
 ## Pipeline provenance
 

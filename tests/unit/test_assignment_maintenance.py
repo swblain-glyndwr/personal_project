@@ -101,7 +101,7 @@ EXPECTED_CONFIG_KEYS = {
 
 EXCLUDED_TABLE_CONFIG_KEYS = {
     "customer_cells_fixed_history",
-    "theme_affinity_predict_half",
+    "account_theme_foundation_half",
     "theme_affinity_model_latest",
     "theme_affinity_model_full",
     "theme_affinity_inference_log",
