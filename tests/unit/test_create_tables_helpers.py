@@ -458,3 +458,14 @@ def test_adsv2_control_sheet_tables_include_underperforming_flag_before_rundate(
         assert columns.index(("IsUnderperforming", "BOOLEAN")) < columns.index(
             ("rundate", "DATE NOT NULL")
         )
+
+
+def test_realtime_reranking_advert_features_requires_cms_page_id():
+    contract = (
+        PROJECT_ROOT
+        / "sql/realtime/create_table_nextads_realtime_reranking_advert_features.sql"
+    ).read_text()
+
+    assert ("CMSPageID", "STRING NOT NULL") in extract_create_table_columns(
+        contract
+    )
