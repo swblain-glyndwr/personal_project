@@ -45,6 +45,19 @@ class FakeLakebaseConnector:
         return self.results.copy()
 
 
+class QueryRoutingLakebaseConnector:
+    def __init__(self):
+        self.results_by_table = {}
+        self.queries = []
+
+    def run_query(self, query):
+        self.queries.append(query)
+        for table_name, results in self.results_by_table.items():
+            if table_name in query:
+                return results.copy()
+        raise AssertionError(f"Unexpected Lakebase query: {query}")
+
+
 class FakePredicate:
     def __init__(self, evaluate):
         self.evaluate = evaluate
@@ -168,6 +181,110 @@ def test_payload_control_is_calculated_per_request(model_module):
 
     assert control_payload["ads"]["control"] is True
     assert ads_payload["ads"]["control"] is False
+
+
+def test_predict_builds_complete_payload_with_mocked_lakebase(
+    model_module, monkeypatch
+):
+    connector = QueryRoutingLakebaseConnector()
+    monkeypatch.setattr(
+        model_module,
+        "NextAdsLakeBaseConnector",
+        lambda: connector,
+    )
+    model = model_module.RealtimeKnownRerankingModel()
+    model.load_context(
+        {
+            "pagetype_filter": ["HomePage"],
+            "min_number_of_ads": 1,
+        }
+    )
+
+    advert = {column: "A" for column in model.customer_cells_columns}
+    advert.update(
+        {
+            "AccountNumber": "account-1",
+            "roamingprofileid": 123,
+            "FallowControl": "Ads",
+            "ShoppingBagTest1": "Best",
+            "PageTypeIsolation": "AllPages",
+            "AdHocABTest1": "A",
+            "UniqueAdID": "view-ad",
+            "PageType": "HomePage",
+            "Score": 1.0,
+            "TriggerScore": 2.0,
+            "brand": "BRAND",
+            "brand_perc_coverage": 1.0,
+            "next_category": "CATEGORY",
+            "next_category_perc_coverage": 1.0,
+            "department": "DEPARTMENT",
+            "department_perc_coverage": 1.0,
+            "prem_level_brand": True,
+            "prem_level_brand_perc_coverage": 1.0,
+        }
+    )
+    connector.results_by_table = {
+        "next_uk_nextads_realtime_reranking_preranked_ads_online": (
+            pd.DataFrame([advert])
+        ),
+        "next_uk_nextads_realtime_reranking_item_weighting_rules_online": (
+            pd.DataFrame(
+                [
+                    {
+                        "pid": "PID-1",
+                        "action": "view",
+                        "brand": "BRAND",
+                        "weighting_brand": 0.2,
+                        "next_category": "CATEGORY",
+                        "weighting_next_category": 0.1,
+                        "department": "DEPARTMENT",
+                        "weighting_department": 0.1,
+                        "prem_level_brand": True,
+                        "weighting_prem_level_brand": 0.05,
+                    }
+                ]
+            )
+        ),
+        "next_uk_nextads_advert_advert_association_online": pd.DataFrame(
+            [
+                {
+                    "ViewUniqueAdID": "view-ad",
+                    "AtbUniqueAdID": "next-ad",
+                    "AtbCMSPageID": "next-fragment",
+                    "lift_adjusted": 2.5,
+                    "HomePage": True,
+                }
+            ]
+        ),
+    }
+
+    payload = model.predict(
+        {
+            "rpid": 123,
+            "items": {
+                "1": {"item": "pid-1", "action": "view"},
+            },
+        }
+    )
+
+    assert payload == {
+        "ads": {
+            "adFatigueImpressionThreshold": 2,
+            "experimentId": (
+                "NextAds_BE | PageIsolation_AP | NextGenAds_A"
+            ),
+            "triggers": [{"t": 2.5, "id": "next-fragment"}],
+            "control": False,
+            "fragments": [
+                {
+                    "pageTypes": ["HomePage"],
+                    "enableAdFatigueRotation": False,
+                    "fragmentIds": ["next-fragment"],
+                }
+            ],
+        }
+    }
+    assert len(connector.queries) == 3
 
 
 def test_top_feature_filter_applies_coverage_threshold(monkeypatch):
