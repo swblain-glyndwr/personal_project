@@ -202,3 +202,71 @@ def test_top_feature_filter_applies_coverage_threshold(monkeypatch):
     filtered = _filter_top_feature_coverage(features, "brand", 0.2)
 
     assert [row["UniqueAdID"] for row in filtered.collect()] == ["above"]
+
+
+def test_predict_returns_empty_payload_for_empty_incrementality(model_module):
+    model = object.__new__(model_module.RealtimeKnownRerankingModel)
+    model.pagetype_filter = ["HomePage"]
+    model.advert_data_formatting = lambda _rpid, _pages: pd.DataFrame(
+        [{"UniqueAdID": "view-ad"}]
+    )
+    model.item_data_formatting = lambda _items: pd.DataFrame(
+        [{"pid": "item-1"}]
+    )
+    model.item_customer_weighting_cross = (
+        lambda _ads, _items: pd.DataFrame([{"AdjustedRanking": 1}])
+    )
+    model.incrementality = lambda _best_ads: pd.DataFrame()
+
+    assert model.predict({"rpid": 123, "items": {}}) == {}
+
+
+@pytest.mark.parametrize(
+    ("rows", "expected"),
+    [
+        (
+            [
+                {"UniqueAdID": "home-1", "PageType": "HomePage"},
+                {"UniqueAdID": "home-2", "PageType": "HomePage"},
+                {
+                    "UniqueAdID": "shopping-bag-1",
+                    "PageType": "ShoppingBagPage",
+                },
+                {
+                    "UniqueAdID": "shopping-bag-2",
+                    "PageType": "ShoppingBagPage",
+                },
+            ],
+            True,
+        ),
+        (
+            [
+                {"UniqueAdID": "home-1", "PageType": "HomePage"},
+                {
+                    "UniqueAdID": "shopping-bag-1",
+                    "PageType": "ShoppingBagPage",
+                },
+                {
+                    "UniqueAdID": "shopping-bag-2",
+                    "PageType": "ShoppingBagPage",
+                },
+            ],
+            False,
+        ),
+        (
+            [
+                {"UniqueAdID": "home-1", "PageType": "HomePage"},
+                {"UniqueAdID": "home-2", "PageType": "HomePage"},
+            ],
+            False,
+        ),
+    ],
+)
+def test_minimum_ads_requires_every_requested_page_type(
+    model_module, rows, expected
+):
+    model = object.__new__(model_module.RealtimeKnownRerankingModel)
+    model.pagetype_filter = ["HomePage", "ShoppingBagPage"]
+    model.min_number_of_ads = 2
+
+    assert model._has_minimum_ads(pd.DataFrame(rows)) is expected

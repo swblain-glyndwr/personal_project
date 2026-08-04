@@ -559,19 +559,11 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
 
         if results.empty:
             logger.error("No incrementality results found")
-            # TODO: decide on action here
+            return {}
 
-        # TODO: Finish/Improve the final formatting
-        number_records = results.groupby("PageType", as_index=False).agg(
-            {"UniqueAdID": "count"}
-        )
-        missing_records = number_records[
-            number_records["UniqueAdID"] < self.min_number_of_ads
-        ]
-
-        if not missing_records.empty:
+        if not self._has_minimum_ads(results):
             logger.info("Insufficient records for PageTypes")
-            # TODO take results for each PageType if &  combine with records from cross data. (no dups)
+            return {}
 
         customer_cells = ad_df[self.customer_cells_columns].drop_duplicates()
 
@@ -586,6 +578,13 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
         return payload
 
     ##Reranking Model Functions
+
+    def _has_minimum_ads(self, results: pd.DataFrame) -> bool:
+        adverts_per_page = results.groupby("PageType")["UniqueAdID"].count()
+        return all(
+            adverts_per_page.get(page_type, 0) >= self.min_number_of_ads
+            for page_type in self.pagetype_filter
+        )
 
     def advert_data_formatting(
         self, input_rpid: int, page_type_filter: list
