@@ -831,6 +831,7 @@ class RealtimeKnownRerankingModel(mlflow.pyfunc.PythonModel):
                 "PageType",
                 "UniqueAdID",
                 "AtbUniqueAdID",
+                "AtbCMSPageID",
                 "lift_adjusted",
                 "AdjustedTriggerScore",
             ]
