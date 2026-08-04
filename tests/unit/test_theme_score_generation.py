@@ -16,15 +16,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 @pytest.fixture
 def local_spark():
     try:
-        spark = (
+        return (
             SparkSession.builder.master("local[1]")
             .appName("next-ads-theme-score-generation-tests")
             .getOrCreate()
         )
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         pytest.skip(f"Local Spark unavailable: {exc}")
-    yield spark
-    spark.stop()
 
 
 def _rows(df, columns):

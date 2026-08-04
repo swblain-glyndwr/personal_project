@@ -28,16 +28,14 @@ def test_cms_audit_reference_grain_retains_the_control_url():
 @pytest.fixture(scope="module")
 def audit_spark():
     try:
-        spark = (
+        return (
             SparkSession.builder.master("local[2]")
             .appName("control-sheet-audit-tests")
             .config("spark.sql.shuffle.partitions", "2")
             .getOrCreate()
         )
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         pytest.skip(f"Local Spark unavailable: {exc}")
-    yield spark
-    spark.stop()
 
 
 def _raw(
@@ -140,7 +138,7 @@ def test_audit_reports_raw_processed_and_cms_facts_without_blocking(audit_spark)
                 "unknown",
                 "maybe",
                 "Younger",
-                "FALSE",
+                "yes",
                 "FALSE",
             ),
             (
@@ -610,12 +608,16 @@ def test_cms_target_url_checks_cover_missing_and_wrong_links(audit_spark):
         [
             (
                 "cms-target-missing",
-                '{"data":{"externalPageId":"cms-target-missing"}}',
+                (
+                    '{"data":{"externalPageId":"cms-target-missing",'
+                    '"title":"Missing target"}}'
+                ),
             ),
             (
                 "cms-target-wrong",
                 (
                     '{"data":{"externalPageId":"cms-target-wrong",'
+                    '"title":"Wrong target",'
                     '"placements":[{"content":[{"items":'
                     '[{"target":"/wrong"}]}]}]}}'
                 ),
@@ -624,6 +626,7 @@ def test_cms_target_url_checks_cover_missing_and_wrong_links(audit_spark):
                 "cms-target-match",
                 (
                     '{"data":{"externalPageId":"cms-target-match",'
+                    '"title":"Matching target",'
                     '"placements":[{"content":[{"items":'
                     '[{"target":"/expected"}]}]}]}}'
                 ),
