@@ -128,6 +128,17 @@ def create_central_product_details_by_pid(
     return
 
 
+def _filter_top_feature_coverage(
+    feature_df, feature: str, coverage_min_threshold: float
+):
+    from pyspark.sql import functions as F
+
+    return feature_df.filter(
+        (F.col(f"{feature}_ranking") == 1)
+        & (F.col(f"{feature}_perc_coverage") > coverage_min_threshold)
+    )
+
+
 def advert_details_build(
     spark,
     cfg,
@@ -194,13 +205,11 @@ def advert_details_build(
                     )
                 ),
             )
-            .filter(
-                (F.col(f"{col}_ranking") == 1)
-                & (F.col(f"{col}_ranking") > coverage_min_threshold)
-            )
-            .select(
-                F.col("UniqueAdID"), F.col(col), F.col(f"{col}_perc_coverage")
-            )
+        )
+        feat_df = _filter_top_feature_coverage(
+            feat_df, col, coverage_min_threshold
+        ).select(
+            F.col("UniqueAdID"), F.col(col), F.col(f"{col}_perc_coverage")
         )
 
         unique_ads = unique_ads.join(
