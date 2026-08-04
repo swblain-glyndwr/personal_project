@@ -379,12 +379,7 @@ class ScoringFoundationBuild:
                 raise ValueError("Foundation outputs must match the build attempt")
 
         if self.status == READY_FOR_PROVIDERS:
-            for name in (
-                "pipeline_id",
-                "pipeline_update_id",
-                "pipeline_update_type",
-            ):
-                _text(getattr(self, name), name)
+            _text(self.pipeline_id, "pipeline_id")
             _count(self.pipeline_task_run_id, "pipeline_task_run_id", 1)
             required_outputs = {
                 output.output_name

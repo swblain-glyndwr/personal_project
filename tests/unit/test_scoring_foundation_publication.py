@@ -264,8 +264,8 @@ def test_ready_manifest_is_written_after_its_exact_output_bindings(monkeypatch):
         outputs=outputs,
         required_output_names=("complete", "ranked"),
         pipeline_id="pipeline-123",
-        pipeline_update_id="update-123",
-        pipeline_update_type="REFRESH",
+        pipeline_update_id=None,
+        pipeline_update_type=None,
         builds_table="catalog.schema.foundation_builds",
         outputs_table="catalog.schema.foundation_outputs",
         task_run_id=456,
@@ -278,9 +278,9 @@ def test_ready_manifest_is_written_after_its_exact_output_bindings(monkeypatch):
         "catalog.schema.foundation_outputs",
         "catalog.schema.foundation_builds",
     ]
-    assert build.pipeline_update_id == "update-123"
+    assert build.pipeline_update_id is None
     assert build.pipeline_id == "pipeline-123"
-    assert build.pipeline_update_type == "REFRESH"
+    assert build.pipeline_update_type is None
     assert build.pipeline_task_run_id == 321
     bindings = json.loads(foundation_output_bindings_json(build))["foundation"]
     assert bindings["scoring_foundation_build_id"] == "foundation-build"

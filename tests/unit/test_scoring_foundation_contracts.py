@@ -171,6 +171,19 @@ def test_ready_foundation_requires_its_complete_valid_output_contract():
         replace(build, input_bindings_json="{}")
 
 
+def test_ready_foundation_keeps_exact_task_provenance_without_preview_metadata():
+    build = replace(
+        _foundation(),
+        pipeline_update_id=None,
+        pipeline_update_type=None,
+    )
+
+    assert build.pipeline_id == "pipeline-123"
+    assert build.pipeline_task_run_id == 200
+    assert build.pipeline_update_id is None
+    assert build.pipeline_update_type is None
+
+
 def test_foundation_repair_selection_uses_execution_completion_and_task_order():
     original = _foundation()
     repaired = _foundation(attempt=1)

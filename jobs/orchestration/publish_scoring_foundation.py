@@ -41,7 +41,7 @@ from next_ads.ranking.foundation_publication import (
     register_ready_foundation,
     validate_foundation_build_marker,
 )
-from next_ads.ranking.pipeline_metadata import resolve_pipeline_update
+from next_ads.ranking.pipeline_metadata import pipeline_task_identity
 
 
 def _as_dict(value):
@@ -77,8 +77,7 @@ def main(
     if context.orchestration_run_id != int(ORCHESTRATION_RUN_ID):
         raise ValueError("Foundation context belongs to a different job run")
     pipeline_task_run_id = int(PIPELINE_TASK_RUN_ID)
-    pipeline_update = resolve_pipeline_update(
-        spark,
+    pipeline_task = pipeline_task_identity(
         pipeline_id=PIPELINE_ID,
         pipeline_task_run_id=pipeline_task_run_id,
     )
@@ -125,14 +124,14 @@ def main(
         context=context,
         outputs=outputs,
         required_output_names=tuple(sorted(required_outputs)),
-        pipeline_id=PIPELINE_ID,
-        pipeline_update_id=pipeline_update.update_id,
-        pipeline_update_type=pipeline_update.update_type,
+        pipeline_id=pipeline_task.pipeline_id,
+        pipeline_update_id=None,
+        pipeline_update_type=None,
         builds_table=config.tables_write.scoring_foundation_builds,
         outputs_table=config.tables_write.scoring_foundation_outputs,
         task_run_id=int(TASK_RUN_ID),
         execution_count=int(EXECUTION_COUNT),
-        pipeline_task_run_id=pipeline_task_run_id,
+        pipeline_task_run_id=pipeline_task.pipeline_task_run_id,
     )
     transition_foundation_context(
         spark,
