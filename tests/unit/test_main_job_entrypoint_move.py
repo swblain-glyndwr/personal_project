@@ -80,7 +80,8 @@ def test_markov_scoring_job_uses_moved_control_and_scoring_entrypoints():
 
     expected_paths = {
         "prepare_provider_context": "../../../jobs/orchestration/prepare_score_provider_context.py",
-        "score_lightweight": "../../../jobs/nextads_candidates/build_theme_scores.py",
+        "build_markov_scores": "../../../jobs/nextads_candidates/build_theme_scores.py",
+        "publish_provider_build": "../../../jobs/orchestration/publish_score_provider_build.py",
     }
 
     for task_key, expected_path in expected_paths.items():

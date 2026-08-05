@@ -18,9 +18,9 @@ mktg_next_uk_nextads_markov_scoring_config: &mktg_next_uk_nextads_markov_scoring
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
     schedule:
-      quartz_cron_expression: 0 0 18 * * ?
+      quartz_cron_expression: 0 0 13 * * ?
       timezone_id: Europe/London
-    timeout_seconds: 8100 # 18:00 schedule plus the 20:15 completion deadline
+    timeout_seconds: 26100 # 13:00 schedule plus the 20:15 completion deadline
     parameters:
       - name: run_date
         default: "{{job.start_time.iso_date}}"
@@ -49,7 +49,7 @@ mktg_next_uk_nextads_markov_scoring_config: &mktg_next_uk_nextads_markov_scoring
             - --use_case
             - theme_ranking
             - --readiness_wait_seconds
-            - "60"
+            - "5400"
             - --readiness_poll_seconds
             - "30"
             - --task_run_id
@@ -62,9 +62,9 @@ mktg_next_uk_nextads_markov_scoring_config: &mktg_next_uk_nextads_markov_scoring
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 900
-      - task_key: score_lightweight
+        max_retries: 0
+        timeout_seconds: 5700
+      - task_key: build_markov_scores
         depends_on:
           - task_key: prepare_provider_context
         spark_python_task:
@@ -92,31 +92,43 @@ mktg_next_uk_nextads_markov_scoring_config: &mktg_next_uk_nextads_markov_scoring
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 18000
-      - task_key: complete_provider_context
+      - task_key: publish_provider_build
         depends_on:
-          - task_key: score_lightweight
+          - task_key: build_markov_scores
         spark_python_task:
-          python_file: ../../../jobs/orchestration/finalize_score_provider_context.py
+          python_file: ../../../jobs/orchestration/publish_score_provider_build.py
           parameters:
             - --client
             - next_uk
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --input_snapshot_id
+            - "{{tasks.prepare_provider_context.values.input_snapshot_id}}"
+            - --provider_build_id
+            - "{{tasks.prepare_provider_context.values.provider_build_id}}"
+            - --provider_build_attempt_id
+            - "{{tasks.prepare_provider_context.values.provider_build_attempt_id}}"
+            - --provider_signals_delta_version
+            - "{{tasks.build_markov_scores.values.provider_signals_delta_version}}"
             - --context_slot
             - markov_scoring
             - --orchestration_run_id
             - "{{job.run_id}}"
-            - --status
-            - CONSUMED
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
             - --log_level
             - INFO
-        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
         libraries: ${var.shared_libraries}
         max_retries: 1
-        timeout_seconds: 900
+        timeout_seconds: 5400
       - task_key: finalize_provider_context
         depends_on:
-          - task_key: complete_provider_context
+          - task_key: publish_provider_build
         run_if: ALL_DONE
         spark_python_task:
           python_file: ../../../jobs/orchestration/finalize_score_provider_context.py

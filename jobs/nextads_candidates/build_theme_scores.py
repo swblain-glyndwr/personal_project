@@ -30,7 +30,7 @@ from pyspark.sql import functions as F
 from pyspark.sql import Window
 from datetime import date, timedelta
 
-from dsutils.dbc import configure_spark
+from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from next_ads.common import config_manager
@@ -51,6 +51,10 @@ from next_ads.ranking.theme_score_generation import (
 from next_ads.ranking.provider_context import (
     load_active_provider_context,
     pinned_item_themes,
+)
+from next_ads.ranking.provider_publication import stage_provider_signals
+from next_ads.ranking.provider_signals import (
+    adapt_configured_provider_scores,
 )
 
 from next_ads.reporting.plotting import DirectedGraphPlotter
@@ -176,10 +180,6 @@ def main(
         tbls["theme_transitions_latest"], **tbl_args
     )  # noqa
     THEME_TRANSITIONS = etl.map_tbl(tbls["theme_transitions"], **tbl_args)
-    NEXT_THEME_SCORES_LATEST = etl.map_tbl(
-        tbls["next_theme_scores_latest"], **tbl_args
-    )  # noqa
-    NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
     THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
         tbls["theme_scoring_events_latest"], **tbl_args
     )  # noqa
@@ -558,6 +558,10 @@ def main(
             .show(100, truncate=False)
         )
     else:
+        if provider_context is None:
+            raise ValueError(
+                "Markov publication requires an active provider context"
+            )
         next_theme_probs = next_theme_probs.withColumnsRenamed(
             {
                 "account_number": "AccountNumber",
@@ -583,22 +587,25 @@ def main(
                 )
             )
             temp_next_theme_probs = spark.table(temp_table_name)
-
-            logger.info(
-                "Loading customer next-theme scores to"
-                + f" {NEXT_THEME_SCORES}"
-            )
-            logger.info(
-                "Loading customer next-theme scores to"
-                + f" {NEXT_THEME_SCORES_LATEST}"
-            )
-            publish_history_and_latest(
-                spark,
+            provider = config.scoring.providers[provider_context.provider_id]
+            signals = adapt_configured_provider_scores(
                 temp_next_theme_probs,
-                history_table=NEXT_THEME_SCORES,
-                latest_table=NEXT_THEME_SCORES_LATEST,
-                key_columns=["AccountNumber", "NextTheme"],
-                run_date=run_date,
+                context=provider_context,
+                provider_config=provider,
+            )
+            provider_signals_delta_version = stage_provider_signals(
+                spark,
+                signals,
+                context=provider_context,
+                table=config.tables_write.score_provider_signals,
+            )
+            get_dbutils().jobs.taskValues.set(
+                key="provider_signals_delta_version",
+                value=provider_signals_delta_version,
+            )
+            logger.info(
+                "Staged canonical Markov signals at Delta version %s",
+                provider_signals_delta_version,
             )
         finally:
             spark.sql(

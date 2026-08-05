@@ -34,6 +34,9 @@ VALID_EXECUTION_MODES = frozenset({SERVING, EVALUATE})
 VALID_PROVIDER_ADAPTERS = frozenset(
     {"legacy_account_entity_table", "canonical_provider_job"}
 )
+VALID_COMPATIBILITY_PUBLISHERS = frozenset(
+    {"none", "theme_affinity_legacy", "markov_legacy"}
+)
 SELECTOR_FIELDS = frozenset(
     {"locations", "page_types", "audiences", "customer_cells"}
 )
@@ -944,6 +947,12 @@ def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
         adapter = _text(provider.get("adapter"), "adapter")
         if adapter not in VALID_PROVIDER_ADAPTERS:
             raise ValueError("Provider adapter is unsupported")
+        compatibility_publisher = provider.get(
+            "compatibility_publisher",
+            "none",
+        )
+        if compatibility_publisher not in VALID_COMPATIBILITY_PUBLISHERS:
+            raise ValueError("Provider compatibility publisher is unsupported")
         entity_type = _text(provider.get("entity_type"), "entity_type")
         if entity_type != capability_entities[capability]:
             raise ValueError("Provider entity_type must match its capability")

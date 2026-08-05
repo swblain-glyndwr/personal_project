@@ -57,22 +57,51 @@ that route.
 
 ### `mktg_next_uk_nextads_markov_scoring`
 
-Independent legacy product Theme Mapping and Markov-scoring graph. It is
-scheduled separately at 18:00 Europe/London, has its own failure alert, and has
-an 8,100-second job deadline so an 18:00 run cannot continue beyond 20:15.
-Its existing output tables are preserved for external consumers.
+Independent Markov score-provider graph. It starts at 13:00 Europe/London and
+waits for the same accepted daily scoring input for up to 90 minutes. That
+accepted input carries the item-theme mapping produced by the separate theme
+input job; Markov does not refresh the mapping itself. It has its own failure
+alert and a 26,100-second job deadline, so a delayed run cannot continue beyond
+20:15. A Markov failure remains outside the candidate-build failure domain
+because Markov is registered as a shadow provider, not selected for serving.
 
-The v2 workbook remains the source of truth for the `Theme Mapping` tab. An
-external Google Sheets Apps Script copies it to the locked v1 workbook tab.
-`validate_theme_mapping_sync` is a hard gate for this legacy scorer, but it is
-outside the candidate-build failure domain.
+`build_markov_scores` materialises the model result once, converts that exact
+frame to the canonical account/entity score contract, and stages it. The shared
+`publish_provider_build` task then reads the exact staged Delta version,
+validates keys, scores, ranks and metadata, publishes the legacy Markov tables
+from the same frame, and records `READY_FOR_NEXTADS` last. The provider context
+is consumed only after publication succeeds.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
-| `parse_attributes` | `client`, `job_env`, `refresh_attributes_date` | Refreshes the attribute set only when the date is today; otherwise remaps using latest attributes. |
-| `validate_theme_mapping_sync` | `client`, `job_env` | Compares the v2 source Theme Mapping tab with the copied v1 Theme Mapping tab and stops this job on drift. |
-| `parse_theme_mapping` | `client`, `job_env`, `refresh_theme_mapping`, `refresh_themes_date` | Runs after attributes and sync validation, then writes `theme_mapping_latest` / `item_themes_latest`. |
-| `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs after Theme Mapping and preserves the legacy transition and next-theme score outputs. |
+| `prepare_provider_context` | provider, run date, input snapshot selection and orchestration identity | Waits up to 90 minutes for the accepted daily scoring input and pins its exact identity. |
+| `build_markov_scores` | `client`, `job_env`, `refresh_model_date`, pinned input/build/context values | Uses the pinned item-theme input, produces one canonical Markov account-theme output and preserves the transition output. |
+| `publish_provider_build` | pinned input/build/context values plus the staged Delta version | Uses the model-neutral publisher to validate the exact output, publish legacy next-theme compatibility tables, and mark the build ready last. |
+| `finalize_provider_context` | context slot and orchestration run | Marks an unconsumed context failed after an unsuccessful build or publication; an already-consumed context is left unchanged. |
+
+### Adding another score provider
+
+A new challenger follows the same route whether its entities are themes, ads,
+or another registered account/entity capability:
+
+1. Register the provider, capability, entity type and source-column mapping in
+   `configs/scoring/scoring_settings.yaml`.
+2. Build the model and emit one row per account/entity with its raw and final
+   score.
+3. Use `adapt_configured_provider_scores` to convert those configured columns
+   to the canonical contract, then use `stage_provider_signals` to stage the
+   exact build.
+4. Run the shared `publish_score_provider_build.py` task. It validates and
+   versions the output, then records readiness last.
+5. Add the provider to a portfolio as `SHADOW`/`EVALUATE` first. Promotion to a
+   serving challenger or champion is a separate reviewed configuration change.
+
+No model-specific code belongs in the shared adapter or publisher. A
+compatibility publisher is configured only where an existing consumer still
+needs a legacy table shape. The consuming route must already support the
+provider capability; the current theme-ranking route consumes `account_theme`,
+while `account_ad` is accepted by the contract for a route that supports ad
+scores.
 
 ### `mktg_next_uk_nextads_dev_setup`
 

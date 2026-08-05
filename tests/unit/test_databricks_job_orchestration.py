@@ -314,10 +314,10 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
 
     assert job["name"] == "mktg_next_uk_nextads_markov_scoring"
     assert job["schedule"] == {
-        "quartz_cron_expression": "0 0 18 * * ?",
+        "quartz_cron_expression": "0 0 13 * * ?",
         "timezone_id": "Europe/London",
     }
-    assert job["timeout_seconds"] == 8100
+    assert job["timeout_seconds"] == 26100
     assert job["job_clusters"] == "${var.job_clusters_config}"
     assert job["email_notifications"]["on_failure"] == (
         "${var.data_team_notification_emails}"
@@ -333,8 +333,8 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
     }
     assert list(tasks_by_key) == [
         "prepare_provider_context",
-        "score_lightweight",
-        "complete_provider_context",
+        "build_markov_scores",
+        "publish_provider_build",
         "finalize_provider_context",
     ]
     prepare = tasks_by_key["prepare_provider_context"]
@@ -350,10 +350,13 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
     assert prepare_parameters[
         prepare_parameters.index("--context_slot") + 1
     ] == "markov_scoring"
-    assert tasks_by_key["score_lightweight"]["depends_on"] == [
+    assert prepare_parameters[
+        prepare_parameters.index("--readiness_wait_seconds") + 1
+    ] == "5400"
+    assert tasks_by_key["build_markov_scores"]["depends_on"] == [
         {"task_key": "prepare_provider_context"},
     ]
-    score_parameters = tasks_by_key["score_lightweight"][
+    score_parameters = tasks_by_key["build_markov_scores"][
         "spark_python_task"
     ]["parameters"]
     assert "{{job.parameters.run_date}}" in score_parameters
@@ -361,11 +364,11 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
         "{{tasks.prepare_provider_context.values.input_snapshot_id}}"
         in score_parameters
     )
-    assert tasks_by_key["complete_provider_context"]["depends_on"] == [
-        {"task_key": "score_lightweight"},
+    assert tasks_by_key["publish_provider_build"]["depends_on"] == [
+        {"task_key": "build_markov_scores"},
     ]
     assert tasks_by_key["finalize_provider_context"]["depends_on"] == [
-        {"task_key": "complete_provider_context"},
+        {"task_key": "publish_provider_build"},
     ]
     assert tasks_by_key["finalize_provider_context"]["run_if"] == "ALL_DONE"
     assert {
@@ -373,17 +376,17 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
         for task_key, task in tasks_by_key.items()
     } == {
         "prepare_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
-        "score_lightweight": "next_ads_job_cluster_D32ads_v5_1_4",
-        "complete_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
+        "build_markov_scores": "next_ads_job_cluster_D32ads_v5_1_4",
+        "publish_provider_build": "next_ads_job_cluster_D32ads_v5_1_4",
         "finalize_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
     }
     assert {
         task_key: task["timeout_seconds"]
         for task_key, task in tasks_by_key.items()
     } == {
-        "prepare_provider_context": 900,
-        "score_lightweight": 18000,
-        "complete_provider_context": 900,
+        "prepare_provider_context": 5700,
+        "build_markov_scores": 18000,
+        "publish_provider_build": 5400,
         "finalize_provider_context": 900,
     }
 
@@ -596,6 +599,8 @@ def test_candidate_resource_excludes_legacy_markov_tasks():
         "validate_theme_mapping_sync",
         "parse_theme_mapping",
         "score_lightweight",
+        "build_markov_scores",
+        "publish_provider_build",
     }.isdisjoint(task_keys)
 
     bundle_config = yaml.safe_load(

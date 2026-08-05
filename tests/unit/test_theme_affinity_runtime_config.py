@@ -254,7 +254,7 @@ def test_theme_affinity_clean_output_writes_inference_log():
     ).read_text()
 
     assert "model_tables.inference_log" in source
-    assert "runtime.model_uri" in source
+    assert "context.model_uri" in source
     assert 'F.lit(model_id).alias("model_id")' in source
     assert 'F.col("Score").cast("double").alias("prediction")' in source
     assert 'F.lit(None).cast("int").alias("label")' in source

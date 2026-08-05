@@ -503,6 +503,10 @@ def test_scoring_config_preserves_current_serving_and_shadow_policy(
     providers = scoring["providers"]
     assert providers["theme_affinity"]["capability"] == "account_theme"
     assert providers["markov"]["capability"] == "account_theme"
+    assert providers["theme_affinity"]["compatibility_publisher"] == (
+        "theme_affinity_legacy"
+    )
+    assert providers["markov"]["compatibility_publisher"] == "markov_legacy"
     assert scoring["canonical"]["provider_signals_table"].endswith(
         "next_uk_nextads_score_provider_signals"
     )
@@ -552,6 +556,13 @@ def test_config_accepts_native_provider_and_typed_scope_policy(monkeypatch):
     v2["policies"].append(page_policy)
 
     validate_scoring_config(scoring)
+
+    scoring["providers"]["ad_ctr"]["compatibility_publisher"] = (
+        "unknown_legacy_writer"
+    )
+    with pytest.raises(ValueError, match="compatibility publisher"):
+        validate_scoring_config(scoring)
+    scoring["providers"]["ad_ctr"].pop("compatibility_publisher")
 
     scoring["providers"]["ad_ctr"]["entity_type"] = "theme"
     with pytest.raises(ValueError, match="must match its capability"):

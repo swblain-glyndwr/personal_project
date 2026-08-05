@@ -232,7 +232,8 @@ def _require_single_transaction(
 
 def publish_theme_affinity_compatibility_outputs(
     spark,
-    runtime,
+    config,
+    context,
     signals,
     completed_at,
 ):
@@ -245,8 +246,8 @@ def publish_theme_affinity_compatibility_outputs(
     )
     from next_ads.ranking.scoring_inputs import latest_delta_version
 
-    model_tables = runtime.config.ranking_model_tables
-    run_date = runtime.run_date
+    model_tables = config.ranking_model_tables
+    run_date = context.run_date
     legacy = signals.select(
         "AccountNumber",
         F.col("EntityID").alias("NextTheme"),
@@ -276,7 +277,7 @@ def publish_theme_affinity_compatibility_outputs(
             spark,
             signals,
             model_tables,
-            runtime.model_uri,
+            context.model_uri,
             run_date=run_date,
             inference_timestamp=completed_at,
         )
@@ -305,41 +306,3 @@ def publish_theme_affinity_compatibility_outputs(
         }
     finally:
         legacy.unpersist()
-
-
-def publish_theme_affinity_provider_build(
-    spark,
-    runtime,
-    *,
-    provider_signals_delta_version: int,
-    task_run_id: int,
-    execution_count: int,
-):
-    """Publish compatible outputs and accept the canonical build last."""
-    from next_ads.ranking.provider_publication import publish_provider_build
-
-    context = runtime.provider_context
-    if context is None:
-        raise ValueError("Theme Affinity publication requires a provider context")
-    provider = runtime.config.scoring.providers[context.provider_id]
-    return publish_provider_build(
-        spark,
-        context=context,
-        signals_table=runtime.config.tables_write.score_provider_signals,
-        signals_delta_version=int(provider_signals_delta_version),
-        builds_table=runtime.config.tables_write.score_provider_builds,
-        provider_config=provider,
-        contract_version=runtime.config.scoring.contract_version,
-        compatibility_publisher=(
-            lambda signals, completed_at: (
-                publish_theme_affinity_compatibility_outputs(
-                    spark,
-                    runtime,
-                    signals,
-                    completed_at,
-                )
-            )
-        ),
-        task_run_id=int(task_run_id),
-        execution_count=int(execution_count),
-    )

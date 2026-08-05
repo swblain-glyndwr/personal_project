@@ -32,6 +32,7 @@ default:
         provider_id: theme_affinity
         provider_version: theme_affinity/v1
         implementation: theme_affinity
+        compatibility_publisher: theme_affinity_legacy
         capability: account_theme
         foundation_id: account_theme_features
         adapter: legacy_account_entity_table
@@ -47,6 +48,7 @@ default:
         provider_id: markov
         provider_version: markov/v1
         implementation: markov
+        compatibility_publisher: markov_legacy
         capability: account_theme
         foundation_id: null
         adapter: legacy_account_entity_table

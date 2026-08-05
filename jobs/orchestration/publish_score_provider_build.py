@@ -1,6 +1,6 @@
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 try:
@@ -29,11 +29,17 @@ from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 
-from next_ads.ranking.provider_context import transition_provider_context
-from next_ads.ranking.theme_affinity.clean_output import (
-    publish_theme_affinity_provider_build,
+from next_ads.common import config_manager
+from next_ads.ranking.provider_compatibility import (
+    configured_compatibility_publisher,
 )
-from next_ads.ranking.theme_affinity.config import resolve_context_runtime
+from next_ads.ranking.provider_context import (
+    load_active_provider_context,
+    transition_provider_context,
+)
+from next_ads.ranking.provider_publication import (
+    publish_provider_build,
+)
 
 
 def main(
@@ -55,26 +61,44 @@ def main(
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
-    runtime, context = resolve_context_runtime(
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
+    context = load_active_provider_context(
         spark,
-        job_env=JOB_ENV,
-        client=CLIENT,
+        context_table=config.tables_write.score_provider_run_contexts,
         context_slot=CONTEXT_SLOT,
-        expected_run_date=RUN_DATE,
-        expected_input_snapshot_id=INPUT_SNAPSHOT_ID,
-        expected_provider_build_id=PROVIDER_BUILD_ID,
-        expected_provider_build_attempt_id=PROVIDER_BUILD_ATTEMPT_ID,
     )
-    if context.orchestration_run_id != int(ORCHESTRATION_RUN_ID):
+    expected_context = {
+        "run_date": date.fromisoformat(RUN_DATE),
+        "input_snapshot_id": INPUT_SNAPSHOT_ID,
+        "provider_build_id": PROVIDER_BUILD_ID,
+        "provider_build_attempt_id": PROVIDER_BUILD_ATTEMPT_ID,
+        "orchestration_run_id": int(ORCHESTRATION_RUN_ID),
+    }
+    mismatched = [
+        field
+        for field, expected in expected_context.items()
+        if getattr(context, field) != expected
+    ]
+    if mismatched:
         raise ValueError(
-            "Provider context does not belong to this orchestration run"
+            "Active provider context does not match publication parameters: "
+            + ", ".join(mismatched)
         )
+    provider = config.scoring.providers[context.provider_id]
 
-    result = publish_theme_affinity_provider_build(
+    result = publish_provider_build(
         spark,
-        runtime,
-        provider_signals_delta_version=int(
-            PROVIDER_SIGNALS_DELTA_VERSION
+        context=context,
+        signals_table=config.tables_write.score_provider_signals,
+        signals_delta_version=int(PROVIDER_SIGNALS_DELTA_VERSION),
+        builds_table=config.tables_write.score_provider_builds,
+        provider_config=provider,
+        contract_version=config.scoring.contract_version,
+        compatibility_publisher=configured_compatibility_publisher(
+            spark,
+            config=config,
+            context=context,
+            provider_config=provider,
         ),
         task_run_id=int(TASK_RUN_ID),
         execution_count=int(EXECUTION_COUNT),
@@ -97,7 +121,7 @@ def main(
     transition_provider_context(
         spark,
         context_table=(
-            runtime.config.tables_write.score_provider_run_contexts
+            config.tables_write.score_provider_run_contexts
         ),
         context=context,
         status="CONSUMED",

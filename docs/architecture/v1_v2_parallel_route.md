@@ -4,7 +4,7 @@ Status: Active route on `feature/SWB/nextads-retry-stability`
 
 This route treats Theme Affinity as the current implementation of a generic account-theme score provider. V1 and v2 independently select an accepted immutable provider build, read its exact Delta version, join canonical theme signals to their own control sheet, and rank the resulting customer-ad candidates at the route grain.
 
-Product Theme Mapping and scoring input acceptance happen upstream. The independent Theme Affinity and Markov routes consume those accepted inputs; the 18:00 candidate job captures route control sheets and does not rebuild model features or legacy Markov scores.
+Product Theme Mapping and scoring input acceptance happen upstream. The independent Theme Affinity and Markov routes consume those accepted inputs. Markov starts at 13:00, waits up to 90 minutes for the accepted daily input, and publishes a canonical shadow build plus its legacy compatibility output. The evening candidate job captures route control sheets and does not rebuild provider models.
 
 Each route has its own control audit, provider selector, coverage check, mapper and synchronous page child. A technical failure blocks that route but does not prevent the healthy sibling from completing. Business audit and coverage findings remain visible warnings.
 
@@ -140,7 +140,7 @@ The previous migration assumption was that v2 would fully replace v1 after a sho
 | Boundary | Recommendation | Reason |
 | --- | --- | --- |
 | Score providers | Keep provider builds independent of the candidate job. | The candidate route selects one accepted immutable provider build, so Theme Affinity or a future provider can change without embedding model logic in assignment. |
-| Product Theme Mapping and lightweight scoring | Keep in the independent input, Theme Affinity, and Markov routes. | Candidate building consumes an accepted provider output and does not wait for legacy scoring. |
+| Product Theme Mapping and provider scoring | Keep in the independent input, Theme Affinity, and Markov routes. | Each model adapts its result to the canonical contract; candidate building selects an accepted serving provider and does not wait for the Markov shadow. |
 | Control sheets | Keep separate tasks. | V1 is location-based and v2 is page-type based. Each loaded table carries its own ad `Themes` values. |
 | Theme coverage | Validate independently before each mapper. | A route may proceed only after its own control snapshot is technically readable and its active themes have been compared with the exact selected provider version. |
 | Candidate mapping | Split v1 and v2 tasks. | This is where customer-theme scores are joined to route-specific ad themes and ranked by `Location` or `PageType`. |
@@ -153,6 +153,7 @@ The current YAMLs do not create a separate Databricks job for every node in the 
 | Databricks job | YAML | Runnable independently? | Contains / runs |
 | --- | --- | --- | --- |
 | `mktg_next_uk_nextads_theme_affinity` | `pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml` | Yes | Scheduled upstream score-provider route; publishes an accepted canonical provider build and compatibility outputs. |
+| `mktg_next_uk_nextads_markov_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml` | Yes | Scheduled shadow-provider route; builds Markov scores from the accepted input, publishes through the shared canonical contract, and retains legacy compatibility outputs. |
 | `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Yes, as one multi-task job | Customer cells, isolated v1/v2 control routes, exact provider-build selection and coverage, v1/v2 candidate mapping, and synchronous page-build jobs. |
 | `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Yes | V1 complete-build publication, then synchronous validation, MASID handoff, and PLP delivery jobs. |
 | `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Yes | V2 complete-build publication, then synchronous payload export. |

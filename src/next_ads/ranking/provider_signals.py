@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from pyspark.sql import Window
 from pyspark.sql import functions as F
 
@@ -7,6 +9,12 @@ from pyspark.sql import functions as F
 VALID_SCORE_DIRECTIONS = frozenset(
     {"higher_is_better", "lower_is_better"}
 )
+
+
+def _config_value(config, name):
+    if isinstance(config, Mapping):
+        return config[name]
+    return getattr(config, name)
 
 
 def adapt_account_entity_scores(
@@ -103,8 +111,54 @@ def adapt_account_theme_scores(
     )
 
 
+def adapt_configured_provider_scores(
+    df,
+    *,
+    context,
+    provider_config,
+):
+    """Adapt configured account/entity output without model-specific code."""
+    adapter = _config_value(provider_config, "adapter")
+    if adapter != "legacy_account_entity_table":
+        raise ValueError(f"Unsupported provider output adapter: {adapter}")
+    expected = {
+        "provider_id": context.provider_id,
+        "capability": context.capability,
+        "entity_type": context.capability.removeprefix("account_"),
+    }
+    mismatched = [
+        field
+        for field, value in expected.items()
+        if _config_value(provider_config, field) != value
+    ]
+    if mismatched:
+        raise ValueError(
+            "Provider output configuration does not match its context: "
+            + ", ".join(mismatched)
+        )
+    return adapt_account_entity_scores(
+        df,
+        provider_build_id=context.provider_build_id,
+        provider_id=context.provider_id,
+        entity_type=_config_value(provider_config, "entity_type"),
+        run_date=context.run_date,
+        account_column=_config_value(
+            provider_config,
+            "account_number_column",
+        ),
+        entity_column=_config_value(provider_config, "entity_id_column"),
+        raw_score_column=_config_value(provider_config, "raw_score_column"),
+        score_column=_config_value(provider_config, "score_column"),
+        score_direction=_config_value(provider_config, "score_direction"),
+        max_entities_per_account=int(
+            _config_value(provider_config, "max_entities_per_account")
+        ),
+    )
+
+
 __all__ = [
     "VALID_SCORE_DIRECTIONS",
     "adapt_account_entity_scores",
     "adapt_account_theme_scores",
+    "adapt_configured_provider_scores",
 ]

@@ -430,14 +430,12 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
         ]
         == neutral_prepare
     )
-    for task_key in (
-        "complete_provider_context",
-        "finalize_provider_context",
-    ):
-        assert (
-            markov_tasks[task_key]["spark_python_task"]["python_file"]
-            == neutral_finalize
-        )
+    assert (
+        markov_tasks["finalize_provider_context"]["spark_python_task"][
+            "python_file"
+        ]
+        == neutral_finalize
+    )
     assert (
         affinity_tasks["finalize_provider_context"]["spark_python_task"][
             "python_file"
@@ -446,6 +444,12 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
     )
     assert (
         affinity_tasks["publish_provider_build"]["spark_python_task"][
+            "python_file"
+        ]
+        == neutral_publish
+    )
+    assert (
+        markov_tasks["publish_provider_build"]["spark_python_task"][
             "python_file"
         ]
         == neutral_publish
@@ -479,7 +483,7 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
         "--provider_id",
         "--use_case",
     }
-    assert set(_task_parameter_map(markov_tasks["score_lightweight"])) == {
+    assert set(_task_parameter_map(markov_tasks["build_markov_scores"])) == {
         "--client",
         "--job_env",
         "--refresh_model_date",
@@ -518,11 +522,36 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
         "--execution_count",
         "--log_level",
     }
+    assert set(
+        _task_parameter_map(markov_tasks["publish_provider_build"])
+    ) == {
+        "--client",
+        "--job_env",
+        "--run_date",
+        "--input_snapshot_id",
+        "--provider_build_id",
+        "--provider_build_attempt_id",
+        "--provider_signals_delta_version",
+        "--context_slot",
+        "--orchestration_run_id",
+        "--task_run_id",
+        "--execution_count",
+        "--log_level",
+    }
     publish_parameters = _task_parameter_map(
         affinity_tasks["publish_provider_build"]
     )
     assert publish_parameters["--provider_signals_delta_version"] == (
         "{{tasks.model_predict.values.provider_signals_delta_version}}"
+    )
+    markov_publish_parameters = _task_parameter_map(
+        markov_tasks["publish_provider_build"]
+    )
+    assert markov_publish_parameters[
+        "--provider_signals_delta_version"
+    ] == (
+        "{{tasks.build_markov_scores.values."
+        "provider_signals_delta_version}}"
     )
     assert "clean_output" not in affinity_tasks
 
@@ -540,10 +569,9 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
     assert affinity_tasks["finalize_provider_context"]["depends_on"] == [
         {"task_key": "publish_provider_build"}
     ]
-    for task_key in (
-        "complete_provider_context",
-        "finalize_provider_context",
-    ):
-        assert set(
-            _task_parameter_map(markov_tasks[task_key])
-        ) == expected_finalize
+    assert set(
+        _task_parameter_map(markov_tasks["finalize_provider_context"])
+    ) == expected_finalize
+    assert markov_tasks["finalize_provider_context"]["depends_on"] == [
+        {"task_key": "publish_provider_build"}
+    ]

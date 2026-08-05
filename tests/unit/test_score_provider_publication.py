@@ -462,3 +462,47 @@ def test_ready_manifest_is_the_last_write_and_binds_exact_staged_output(
     )
     assert manifest_row["OutputTable"] == SIGNALS_TABLE
     assert manifest_row["OutputDeltaVersion"] == SIGNALS_VERSION
+
+
+def test_compatibility_failure_never_records_a_ready_build(
+    spark,
+    monkeypatch,
+):
+    operations = []
+    staged = spark.createDataFrame(_valid_rows(), schema=SIGNAL_SCHEMA)
+
+    monkeypatch.setattr(
+        publication,
+        "read_delta_version",
+        lambda _spark, _table, _version: staged,
+    )
+
+    def fail_compatibility(_frame, _completed_at):
+        operations.append("compatibility")
+        raise RuntimeError("legacy publication failed")
+
+    def manifest_write(*_args, **_kwargs):
+        operations.append("ready_manifest")
+
+    monkeypatch.setattr(
+        publication,
+        "replace_scope_by_name",
+        manifest_write,
+    )
+
+    with pytest.raises(RuntimeError, match="legacy publication failed"):
+        publish_provider_build(
+            spark,
+            context=_context(),
+            signals_table=SIGNALS_TABLE,
+            signals_delta_version=SIGNALS_VERSION,
+            builds_table=BUILDS_TABLE,
+            provider_config=_provider_config(),
+            contract_version="account_entity_scores/v1",
+            compatibility_publisher=fail_compatibility,
+            task_run_id=456,
+            execution_count=0,
+            completed_at=NOW,
+        )
+
+    assert operations == ["compatibility"]
