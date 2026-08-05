@@ -49,6 +49,9 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     package_module = (
         PROJECT_ROOT / "src/next_ads/ranking/theme_score_mapping.py"
     ).read_text()
+    runtime_module = (
+        PROJECT_ROOT / "src/next_ads/candidates/runtime.py"
+    ).read_text()
     retrieval_module = (
         PROJECT_ROOT / "src/next_ads/ranking/theme_score_retrieval.py"
     ).read_text()
@@ -60,10 +63,11 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     ).read_text()
 
     assert (
-        "from next_ads.ranking.theme_score_mapping "
-        "import run_theme_score_mapping"
+        "from next_ads.candidates.runtime "
+        "import run_portfolio_candidate_build"
     ) in entrypoint
-    assert "run_theme_score_mapping(" in entrypoint
+    assert "run_portfolio_candidate_build(" in entrypoint
+    assert "run_theme_score_mapping(" in runtime_module
     assert "def run_theme_score_mapping(" in package_module
     assert "capture_run_date(" not in package_module
     assert "date.fromisoformat(run_date)" in package_module
@@ -91,9 +95,9 @@ def test_v2_theme_score_mapping_uses_v2_control_sheet_directly():
         PROJECT_ROOT / "jobs/nextads_candidates/build_page_type_candidates_v2.py"
     ).read_text()
 
-    assert "run_theme_score_mapping(" in v2_entrypoint
+    assert "run_portfolio_candidate_build(" in v2_entrypoint
     assert (
-        "control_sheet_latest_table=config.tables_write.control_sheet_latest_v2"
+        "control_table=config.tables_write.control_sheet_latest_v2"
         in v2_entrypoint
     )
     assert "output_grain=\"page_type\"" in v2_entrypoint

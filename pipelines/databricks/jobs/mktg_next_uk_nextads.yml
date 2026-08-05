@@ -284,18 +284,16 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - "100"
             - --run_date
             - "{{job.parameters.run_date}}"
-            - --provider_build_id
-            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_build_id}}"
-            - --provider_signals_table
-            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_table}}"
-            - --provider_signals_delta_version
-            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_delta_version}}"
-            - --provider_source_run_date
-            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_source_run_date}}"
-            - --provider_input_snapshot_id
-            - "{{tasks.resolve_scoring_portfolio_v1.values.input_snapshot_id}}"
+            - --portfolio_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.portfolio_id}}"
+            - --portfolio_attempt_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.portfolio_attempt_id}}"
             - --current_input_snapshot_id
             - "{{tasks.resolve_scoring_portfolio_v1.values.current_input_snapshot_id}}"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
             - --foundation_snapshot_id
             - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
             - --foundation_source_run_date
@@ -331,18 +329,16 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - "100"
             - --run_date
             - "{{job.parameters.run_date}}"
-            - --provider_build_id
-            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_build_id}}"
-            - --provider_signals_table
-            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_table}}"
-            - --provider_signals_delta_version
-            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_delta_version}}"
-            - --provider_source_run_date
-            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_source_run_date}}"
-            - --provider_input_snapshot_id
-            - "{{tasks.resolve_scoring_portfolio_v2.values.input_snapshot_id}}"
+            - --portfolio_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.portfolio_id}}"
+            - --portfolio_attempt_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.portfolio_attempt_id}}"
             - --current_input_snapshot_id
             - "{{tasks.resolve_scoring_portfolio_v2.values.current_input_snapshot_id}}"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
             - --foundation_snapshot_id
             - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
             - --foundation_source_run_date
@@ -371,6 +367,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           job_parameters:
             run_date: "{{job.parameters.run_date}}"
             build_run_id: "v1_{{job.run_id}}"
+            candidate_build_attempt_id: "{{tasks.map_theme_scores_to_ads_v1.values.candidate_build_attempt_id}}"
             provider_build_id: "{{tasks.resolve_scoring_portfolio_v1.values.provider_build_id}}"
             provider_signals_table: "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_table}}"
             provider_signals_delta_version: "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_delta_version}}"
@@ -391,6 +388,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           job_parameters:
             run_date: "{{job.parameters.run_date}}"
             build_run_id: "v2_{{job.run_id}}"
+            candidate_build_attempt_id: "{{tasks.map_theme_scores_to_ads_v2.values.candidate_build_attempt_id}}"
             provider_build_id: "{{tasks.resolve_scoring_portfolio_v2.values.provider_build_id}}"
             provider_signals_table: "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_table}}"
             provider_signals_delta_version: "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_delta_version}}"

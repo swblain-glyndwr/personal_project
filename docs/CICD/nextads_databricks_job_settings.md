@@ -25,7 +25,8 @@ For target availability and release-route rules, see
 Main NextAds candidate-generation graph. It builds shared customer cells, loads
 the independent v1/v2 control sheets, resolves an immutable scoring portfolio
 for each route, maps the serving output version, and waits for the route-specific
-page-build jobs. Legacy product Theme
+page-build jobs. Candidate rows are accepted through an internal manifest before
+the page job receives their exact attempt ID. Legacy product Theme
 Mapping and Markov scoring run independently in
 `mktg_next_uk_nextads_markov_scoring`; candidate publication does not wait for
 that job.
@@ -51,10 +52,17 @@ that route.
 | `audit_control_sheet_v2` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Reports business findings as warnings. A technical audit failure stops v2 before mapping. |
 | `resolve_scoring_portfolio_v1/v2` | policy id, capability, use case, route, run date, task attempt | Applies priority then stable policy-ID precedence. Required serving providers wait until the fixed 18:30 Europe/London deadline and select same-day readiness or an accepted fallback no more than 24 hours old. Shadow providers never block the route. Each entry pins the exact provider attempt, table, Delta version, input snapshot, experiment and variant; entries publish before the ready portfolio header. |
 | `validate_score_provider_theme_coverage_v1/v2` | route plus serving portfolio entry, provider/current input snapshots, `warn-only` | Compares active ad themes with the exact serving output. When fallback uses an older input snapshot, themes whose accepted definition changed are excluded. Missing business coverage warns; an unreadable or invalid provider version fails the route. |
-| `map_theme_scores_to_ads_v1` | run date, serving provider build/table/version/source date, provider/current input snapshots, `apply-ad-feedback`, `top-ads-per-location` | Reads the immutable canonical score version, quarantines changed fallback themes, joins `EntityID` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. |
-| `map_theme_scores_to_ads_v2` | run date, serving provider build/table/version/source date, provider/current input snapshots, `top-ads-per-page-type` | Applies the same immutable and fallback rules at page-type grain and writes `preranked_ads_from_themes_v2_latest`. |
-| `run_page_build_v1` | Native child job plus run/build/provider identities | Waits for the complete v1 page build, publication, validation and delivery result. |
-| `run_page_build_v2` | Native child job plus run/build/provider identities | Waits for the complete v2 page build, publication and payload result. |
+| `map_theme_scores_to_ads_v1` | run date, exact portfolio attempt, current input snapshot, candidate-foundation bindings, task attempt, compatibility limit | Captures the control-table Delta version once, calculates each unique serving provider once, stores up to 20 candidates per account/ad set/provider entry, then marks the candidate build ready. The `best` entry continues to populate `preranked_ads_from_themes_latest`. |
+| `map_theme_scores_to_ads_v2` | run date, exact portfolio attempt, current input snapshot, candidate-foundation bindings, task attempt, compatibility limit | Applies the same accepted-candidate contract at page-type grain. The `best` entry continues to populate `preranked_ads_from_themes_v2_latest`. |
+| `run_page_build_v1` | Native child job plus accepted candidate attempt and existing provenance | Waits for the complete v1 page build, publication, validation and delivery result. |
+| `run_page_build_v2` | Native child job plus accepted candidate attempt and existing provenance | Waits for the complete v2 page build, publication and payload result. |
+
+Candidate publication uses three internal tables. `candidate_ad_sets` records
+content-stable ad-set membership and route scopes. `candidate_scores` records the
+compact top-20 account/ad-set rows for every serving portfolio entry.
+`candidate_builds` is written last and is the only readiness signal. Rows from a
+failed or interrupted attempt are therefore not selectable. Shadow entries are
+not materialised on the nightly candidate path.
 
 ### `mktg_next_uk_nextads_markov_scoring`
 
@@ -102,6 +110,10 @@ serving or evaluation slot, then binds the exact validated model build. The
 candidate route depends on that contract, not on how the model produced its
 scores. The current default keeps Theme Affinity in both `best` and
 `best_challenger` and records Markov as non-blocking shadow evidence.
+
+When two serving entries bind the same provider build, candidate scoring is
+computed once and published under both entry identities. A different compatible
+provider uses the same canonical adapter without a provider-specific branch.
 
 No model-specific code belongs in the shared adapter or publisher. A
 compatibility publisher is configured only where an existing consumer still

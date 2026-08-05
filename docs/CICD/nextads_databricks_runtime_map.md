@@ -65,7 +65,7 @@ flowchart TD
 
 ## Candidate Build Task Graph
 
-This is the main evening operational route. It keeps accepted customer cells shared, while v1 and v2 independently capture their control inputs, resolve a declared scoring portfolio and map the exact canonical signal version in its serving slot. Product Theme Mapping, Theme Affinity and Markov scoring are upstream jobs rather than candidate-task dependencies.
+This is the main evening operational route. It keeps accepted customer cells shared, while v1 and v2 independently capture their control inputs, resolve a declared scoring portfolio and publish an accepted candidate attempt from its serving entries. Product Theme Mapping, Theme Affinity and Markov scoring are upstream jobs rather than candidate-task dependencies.
 
 Each route audit and coverage task reports business findings without hiding technical failures. Missing themes are surfaced for follow-up and naturally cannot produce theme-matched candidates; an unreadable control or pinned provider snapshot stops only the affected route before mapping.
 
@@ -94,8 +94,8 @@ flowchart TD
     select_provider_v2["resolve_scoring_portfolio_v2"]:::v2
     validate_provider_coverage_v1["validate provider coverage v1"]:::guardrail
     validate_provider_coverage_v2["validate provider coverage v2"]:::guardrail
-    map_theme_scores_to_ads_v1["map_theme_scores_to_ads_v1<br/>Location"]:::v1
-    map_theme_scores_to_ads_v2["map_theme_scores_to_ads_v2<br/>PageType"]:::v2
+    map_theme_scores_to_ads_v1["map_theme_scores_to_ads_v1<br/>accepted Location candidates"]:::v1
+    map_theme_scores_to_ads_v2["map_theme_scores_to_ads_v2<br/>accepted PageType candidates"]:::v2
     run_page_build_v1["run_page_build_v1<br/>waits"]:::v1
     run_page_build_v2["run_page_build_v2<br/>waits"]:::v2
   end
@@ -134,14 +134,19 @@ Observed latest successful candidate-build task timing, from run `10142128211234
 | `resolve_scoring_portfolio_v2` | 0m | Ready immediately or required serving entry waits to 18:30 | None |
 | `validate_score_provider_theme_coverage_v1` | After v1 audit and portfolio resolution | New route guard | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |
 | `validate_score_provider_theme_coverage_v2` | After v2 audit and portfolio resolution | New route guard | `audit_control_sheet_v2`, `resolve_scoring_portfolio_v2` |
-| `map_theme_scores_to_ads_v1` | After cells and v1 checks | 1h 22m 55s historical mapping baseline | `combine_customer_cells`, `validate_score_provider_theme_coverage_v1` |
-| `map_theme_scores_to_ads_v2` | After cells and v2 checks | 43m 36s historical mapping baseline | `combine_customer_cells`, `validate_score_provider_theme_coverage_v2` |
+| `map_theme_scores_to_ads_v1` | After cells and v1 checks | 1h 22m 55s historical mapping baseline | Builds every serving entry, writes ad sets and top-20 candidate rows, then publishes the accepted attempt. |
+| `map_theme_scores_to_ads_v2` | After cells and v2 checks | 43m 36s historical mapping baseline | Applies the same manifest-last candidate publication at page-type grain. |
 | `run_page_build_v1` | After v1 mapping | Full child-job runtime | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
 | `run_page_build_v2` | After v2 mapping | Full child-job runtime | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
 
 The prior trigger-task durations are no longer comparable: `run_page_build_v1`
 and `run_page_build_v2` now remain active until their child jobs finish. Capture a
 new three-run DEV baseline before using this table for end-to-end timing targets.
+
+The candidate tasks retain the current preranked tables as compatibility
+outputs. Page-build child jobs also receive `candidate_build_attempt_id`; the
+next assignment checkpoint switches their reads from compatibility tables to
+that accepted attempt.
 
 ## Page Build And Delivery Fan-Out
 

@@ -143,6 +143,10 @@ def _foundation_page_input_values():
 def _expected_page_job_parameters(route):
     return {
         "run_date": "{{job.parameters.run_date}}",
+        "candidate_build_attempt_id": (
+            f"{{{{tasks.map_theme_scores_to_ads_{route}.values."
+            f"candidate_build_attempt_id}}}}"
+        ),
         **_selector_values(route),
         **_foundation_provenance_values(),
         **_foundation_page_input_values(),
@@ -706,22 +710,22 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
         _assert_cli_values(
             mapper,
             {
-                option: value
-                for option, value in selector_arguments.items()
-                if option
-                not in {
-                    "--input_snapshot_id",
-                    "--scoring_foundation_build_id",
-                    "--provider_selection_status",
-                }
+                "--run_date": "{{job.parameters.run_date}}",
+                "--portfolio_id": (
+                    f"{{{{tasks.resolve_scoring_portfolio_{route}.values."
+                    f"portfolio_id}}}}"
+                ),
+                "--portfolio_attempt_id": (
+                    f"{{{{tasks.resolve_scoring_portfolio_{route}.values."
+                    f"portfolio_attempt_id}}}}"
+                ),
+                "--task_run_id": "{{task.run_id}}",
+                "--execution_count": "{{task.execution_count}}",
             },
         )
         _assert_cli_values(
             mapper,
             {
-                "--provider_input_snapshot_id": _selector_values(route)[
-                    "input_snapshot_id"
-                ],
                 "--current_input_snapshot_id": (
                     f"{{{{tasks.resolve_scoring_portfolio_{route}.values."
                     f"current_input_snapshot_id}}}}"
@@ -906,6 +910,7 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
     assert set(job_parameters) == {
         "run_date",
         "build_run_id",
+        "candidate_build_attempt_id",
         "scope_manifest_json",
         "provider_build_id",
         "provider_signals_table",
@@ -922,6 +927,7 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
     }
     assert job_parameters["run_date"] == "{{job.start_time.iso_date}}"
     assert job_parameters["build_run_id"] == "v1_{{job.run_id}}"
+    assert job_parameters["candidate_build_attempt_id"] == ""
     for name in _selector_values("v1"):
         assert job_parameters[name] == ""
     for name in _foundation_provenance_values():
@@ -997,6 +1003,8 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
         "{{job.parameters.run_date}}",
         "--build_run_id",
         "{{job.parameters.build_run_id}}",
+        "--candidate_build_attempt_id",
+        "{{job.parameters.candidate_build_attempt_id}}",
         "--task_run_id",
         "{{task.run_id}}",
         "--execution_count",
@@ -1032,6 +1040,8 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
         "{{job.parameters.run_date}}",
         "--build_run_id",
         "{{job.parameters.build_run_id}}",
+        "--candidate_build_attempt_id",
+        "{{job.parameters.candidate_build_attempt_id}}",
         "--task_run_id",
         "{{task.run_id}}",
         "--execution_count",
@@ -1109,6 +1119,7 @@ def test_page_build_v2_publishes_complete_build_before_payload_submission():
     assert set(job_parameters) == {
         "run_date",
         "build_run_id",
+        "candidate_build_attempt_id",
         "scope_manifest_json",
         "provider_build_id",
         "provider_signals_table",
@@ -1125,6 +1136,7 @@ def test_page_build_v2_publishes_complete_build_before_payload_submission():
     }
     assert job_parameters["run_date"] == "{{job.start_time.iso_date}}"
     assert job_parameters["build_run_id"] == "v2_{{job.run_id}}"
+    assert job_parameters["candidate_build_attempt_id"] == ""
     for name in _selector_values("v2"):
         assert job_parameters[name] == ""
     for name in _foundation_provenance_values():
@@ -1159,6 +1171,8 @@ def test_page_build_v2_publishes_complete_build_before_payload_submission():
         "{{job.parameters.run_date}}",
         "--build_run_id",
         "{{job.parameters.build_run_id}}",
+        "--candidate_build_attempt_id",
+        "{{job.parameters.candidate_build_attempt_id}}",
         "--task_run_id",
         "{{task.run_id}}",
         "--execution_count",

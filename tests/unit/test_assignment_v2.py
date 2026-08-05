@@ -187,6 +187,7 @@ def test_v2_builder_requires_complete_build_identity_arguments():
         "--scope_manifest_json",
         "--run_date",
         "--build_run_id",
+        "--candidate_build_attempt_id",
         "--customer_cells_table",
     }.issubset(required_names)
 

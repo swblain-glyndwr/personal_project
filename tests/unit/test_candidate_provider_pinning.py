@@ -194,9 +194,9 @@ def test_active_candidate_entrypoints_do_not_read_mutable_provider_latest():
     assert "theme_affinity_assignment_sources" not in mapping
     assert "load_provider_theme_scores(" in mapping
     for entrypoint in (v1, v2):
-        assert 'get_arg("--provider_build_id")' in entrypoint
-        assert '"--provider_signals_delta_version"' in entrypoint
-        assert 'get_arg("--provider_source_run_date")' in entrypoint
-        assert 'get_arg("--provider_input_snapshot_id")' in entrypoint
+        assert 'get_arg("--provider_build_id")' not in entrypoint
+        assert 'get_arg("--portfolio_id")' in entrypoint
+        assert 'get_arg("--portfolio_attempt_id")' in entrypoint
         assert 'get_arg("--current_input_snapshot_id")' in entrypoint
-        assert "unchanged_provider_themes(" in entrypoint
+        assert "run_portfolio_candidate_build(" in entrypoint
+    assert "control_sheet_delta_version" in mapping

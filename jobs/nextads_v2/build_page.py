@@ -80,6 +80,10 @@ try:
 except ValueError as exc:
     raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
 BUILD_RUN_ID = _get_required_job_arg(jobparser, "--build_run_id")
+CANDIDATE_BUILD_ATTEMPT_ID = _get_required_job_arg(
+    jobparser,
+    "--candidate_build_attempt_id",
+)
 if not BUILD_RUN_ID.startswith("v2_") or BUILD_RUN_ID == "v2_":
     raise ValueError(
         "--build_run_id must start with 'v2_' and include a run identifier"
@@ -107,6 +111,10 @@ configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
+logger.info(
+    "Using accepted candidate build attempt %s",
+    CANDIDATE_BUILD_ATTEMPT_ID,
+)
 
 if not CLIENT:
     assert JOB_ENV.lower() == "dev", (

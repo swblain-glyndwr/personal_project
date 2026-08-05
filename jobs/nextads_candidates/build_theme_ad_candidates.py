@@ -22,11 +22,10 @@ finally:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils.argparser import get_job_parser
-from dsutils.dbc import configure_spark
+from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
-from next_ads.ranking.theme_score_mapping import run_theme_score_mapping
-from next_ads.ranking.portfolio_resolution import unchanged_provider_themes
 from next_ads.candidates.foundation import load_candidate_foundation_inputs
+from next_ads.candidates.runtime import run_portfolio_candidate_build
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
 
@@ -39,14 +38,11 @@ LOG_LEVEL = jobparser.get_arg("--log_level")
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 RUN_DATE = jobparser.get_arg("--run_date")
-PROVIDER_BUILD_ID = jobparser.get_arg("--provider_build_id")
-PROVIDER_SIGNALS_TABLE = jobparser.get_arg("--provider_signals_table")
-PROVIDER_SIGNALS_DELTA_VERSION = jobparser.get_arg(
-    "--provider_signals_delta_version"
-)
-PROVIDER_SOURCE_RUN_DATE = jobparser.get_arg("--provider_source_run_date")
-PROVIDER_INPUT_SNAPSHOT_ID = jobparser.get_arg("--provider_input_snapshot_id")
+PORTFOLIO_ID = jobparser.get_arg("--portfolio_id")
+PORTFOLIO_ATTEMPT_ID = jobparser.get_arg("--portfolio_attempt_id")
 CURRENT_INPUT_SNAPSHOT_ID = jobparser.get_arg("--current_input_snapshot_id")
+TASK_RUN_ID = jobparser.get_arg("--task_run_id")
+EXECUTION_COUNT = jobparser.get_arg("--execution_count")
 FOUNDATION_SNAPSHOT_ID = jobparser.get_arg("--foundation_snapshot_id")
 FOUNDATION_SOURCE_RUN_DATE = jobparser.get_arg("--foundation_source_run_date")
 CUSTOMER_CELLS_TABLE = jobparser.get_arg("--customer_cells_table")
@@ -75,22 +71,17 @@ cfg = load_client_config(CLIENT)
 
 if not RUN_DATE:
     raise ValueError("--run_date is required")
-if not PROVIDER_BUILD_ID:
-    raise ValueError("--provider_build_id is required")
-if not PROVIDER_SIGNALS_TABLE:
-    raise ValueError("--provider_signals_table is required")
-if not PROVIDER_SOURCE_RUN_DATE:
-    raise ValueError("--provider_source_run_date is required")
-if not PROVIDER_INPUT_SNAPSHOT_ID or not CURRENT_INPUT_SNAPSHOT_ID:
-    raise ValueError(
-        "Provider and current input snapshot IDs are required"
-    )
+if not PORTFOLIO_ID or not PORTFOLIO_ATTEMPT_ID:
+    raise ValueError("Portfolio ID and attempt ID are required")
+if not CURRENT_INPUT_SNAPSHOT_ID:
+    raise ValueError("--current_input_snapshot_id is required")
 try:
-    PROVIDER_SIGNALS_DELTA_VERSION = int(PROVIDER_SIGNALS_DELTA_VERSION)
+    TASK_RUN_ID = int(TASK_RUN_ID)
+    EXECUTION_COUNT = int(EXECUTION_COUNT)
 except (TypeError, ValueError) as exc:
-    raise ValueError(
-        "--provider_signals_delta_version must be an integer"
-    ) from exc
+    raise ValueError("Candidate task identity must be integer-valued") from exc
+if TASK_RUN_ID < 1 or EXECUTION_COUNT < 0:
+    raise ValueError("Candidate task identity is invalid")
 
 foundation_values = {
     "snapshot_id": FOUNDATION_SNAPSHOT_ID,
@@ -120,32 +111,38 @@ try:
 except (TypeError, ValueError) as exc:
     raise ValueError("Candidate foundation bindings are invalid") from exc
 
-allowed_provider_themes = (
-    None
-    if PROVIDER_INPUT_SNAPSHOT_ID == CURRENT_INPUT_SNAPSHOT_ID
-    else unchanged_provider_themes(
-        spark,
-        item_themes_table=config.tables_write.scoring_input_item_themes,
-        provider_input_snapshot_id=PROVIDER_INPUT_SNAPSHOT_ID,
-        current_input_snapshot_id=CURRENT_INPUT_SNAPSHOT_ID,
-    )
-)
-
-run_theme_score_mapping(
+top_ads = int(jobparser.get_arg("--top-ads-per-location") or 20)
+result = run_portfolio_candidate_build(
     spark=spark,
     config=config,
     cfg=cfg,
     client=CLIENT,
     job_env=JOB_ENV,
     run_date=RUN_DATE,
-    provider_build_id=PROVIDER_BUILD_ID,
-    provider_signals_table=PROVIDER_SIGNALS_TABLE,
-    provider_signals_delta_version=PROVIDER_SIGNALS_DELTA_VERSION,
-    provider_source_run_date=PROVIDER_SOURCE_RUN_DATE,
-    apply_ad_feedback=jobparser.has_arg("--apply-ad-feedback"),
-    ad_feedback_weight=jobparser.get_arg("--ad-feedback-weight") or 0.05,
-    top_ads_per_location=jobparser.get_arg("--top-ads-per-location") or 20,
+    route="v1",
+    output_grain="location",
+    portfolio_id=PORTFOLIO_ID,
+    portfolio_attempt_id=PORTFOLIO_ATTEMPT_ID,
+    current_input_snapshot_id=CURRENT_INPUT_SNAPSHOT_ID,
+    candidate_foundation_snapshot_id=FOUNDATION_SNAPSHOT_ID,
     foundation_inputs=foundation_inputs,
-    allowed_provider_themes=allowed_provider_themes,
+    control_table=config.tables_write.control_sheet_latest,
+    output_preranked_table=(
+        config.tables_write.preranked_ads_from_themes_latest
+    ),
+    task_run_id=TASK_RUN_ID,
+    execution_count=EXECUTION_COUNT,
+    compatibility_top_count=top_ads,
+    apply_ad_feedback=jobparser.has_arg("--apply-ad-feedback"),
+    ad_feedback_weight=float(
+        jobparser.get_arg("--ad-feedback-weight") or 0.05
+    ),
+    write_score_components=True,
     logger=logger,
+)
+task_values = get_dbutils().jobs.taskValues
+task_values.set(key="candidate_build_id", value=result.candidate_build_id)
+task_values.set(
+    key="candidate_build_attempt_id",
+    value=result.candidate_build_attempt_id,
 )

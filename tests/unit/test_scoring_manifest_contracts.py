@@ -49,6 +49,9 @@ TABLE_REFS = (
     "score_provider_signals",
     "scoring_portfolios",
     "scoring_portfolio_entries",
+    "candidate_builds",
+    "candidate_scores",
+    "candidate_ad_sets",
 )
 
 
@@ -502,6 +505,30 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
         "VariantID string not null",
     ):
         assert column in entries_sql
+
+    candidate_builds_sql = resolve_sql_contract_path(
+        "candidate_builds"
+    ).read_text()
+    assert "PortfolioAttemptID string not null" in candidate_builds_sql
+    assert "ControlDeltaVersion bigint not null" in candidate_builds_sql
+    assert "CandidatePolicyChecksum string not null" in candidate_builds_sql
+    assert "ProviderBindingsJSON string not null" in candidate_builds_sql
+    assert "CandidateChecksum string not null" in candidate_builds_sql
+
+    candidate_scores_sql = resolve_sql_contract_path(
+        "candidate_scores"
+    ).read_text()
+    assert "CandidateID string not null" in candidate_scores_sql
+    assert "AdSetID string not null" in candidate_scores_sql
+    assert "PortfolioEntryID string not null" in candidate_scores_sql
+    assert "ProviderBuildAttemptID string not null" in candidate_scores_sql
+
+    candidate_ad_sets_sql = resolve_sql_contract_path(
+        "candidate_ad_sets"
+    ).read_text()
+    assert "AdSetID string not null" in candidate_ad_sets_sql
+    assert "ScopeType string not null" in candidate_ad_sets_sql
+    assert "ScopeValue string not null" in candidate_ad_sets_sql
 
 
 @pytest.mark.parametrize(

@@ -49,12 +49,15 @@ def run_theme_score_mapping(
     ad_feedback_weight=0.05,
     top_ads_per_location: int = 20,
     control_sheet_latest_table: str | None = None,
+    control_sheet_delta_version: int | None = None,
     output_preranked_table: str | None = None,
     output_grain: str = "location",
     top_ads_per_group: int | None = None,
     write_score_components: bool = True,
     foundation_inputs: CandidateFoundationInputs | None = None,
     allowed_provider_themes=None,
+    candidate_publisher=None,
+    publish_compatibility: bool = True,
     logger=None,
 ):
     logger = logger or get_logger(__name__)
@@ -75,6 +78,14 @@ def run_theme_score_mapping(
     ):
         raise ValueError(
             "provider_signals_delta_version must be a non-negative integer"
+        )
+    if control_sheet_delta_version is not None and (
+        isinstance(control_sheet_delta_version, bool)
+        or not isinstance(control_sheet_delta_version, int)
+        or control_sheet_delta_version < 0
+    ):
+        raise ValueError(
+            "control_sheet_delta_version must be a non-negative integer"
         )
     top_ads = int(
         top_ads_per_group
@@ -138,7 +149,12 @@ def run_theme_score_mapping(
     )
 
     logger.info(f"Getting theme to ad mappings from {control_sheet_latest}")
-    df_ads = load_control_ads(spark, control_sheet_latest)
+    df_control_ads = load_control_ads(
+        spark,
+        control_sheet_latest,
+        control_sheet_delta_version,
+    )
+    df_ads = df_control_ads
     # Feedback scaling historically uses every active advert in the route.
     # Keep that population separate from the theme/AudienceOnly/AutoTrading
     # eligibility filters so moving the calculation earlier cannot alter all
@@ -269,6 +285,7 @@ def run_theme_score_mapping(
         control_sheet_latest,
         logger,
         group_col=output_group_col,
+        control_ads_df=df_control_ads,
     )
 
     logger.info(f"Ranking and returning top {top_ads} ads per ad set")
@@ -303,15 +320,26 @@ def run_theme_score_mapping(
     row_count = df_ad_scores.count()
     logger.info(f"Materialized {row_count} rows in final result set")
 
-    logger.info(
-        f"Loading preranked theme ads to {preranked_ads_from_themes_latest}"
-    )
-    replace_validated_snapshot(
-        spark,
-        with_run_date(df_ad_scores, run_date),
-        table=preranked_ads_from_themes_latest,
-        key_columns=["AccountNumber", "UniqueAdID", output_group_col],
-    )
+    if candidate_publisher is not None:
+        candidate_publisher(
+            df_adset_scores,
+            df_adset2group,
+            df_ad2adset,
+        )
+
+    if publish_compatibility:
+        logger.info(
+            "Loading preranked theme ads to "
+            f"{preranked_ads_from_themes_latest}"
+        )
+        replace_validated_snapshot(
+            spark,
+            with_run_date(df_ad_scores, run_date),
+            table=preranked_ads_from_themes_latest,
+            key_columns=["AccountNumber", "UniqueAdID", output_group_col],
+        )
+    else:
+        logger.info("Skipping preranked compatibility publication")
 
     df_ad_scores.show()
 

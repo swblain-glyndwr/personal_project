@@ -25,6 +25,8 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
         default: "{{job.start_time.iso_date}}"
       - name: build_run_id
         default: "v2_{{job.run_id}}"
+      - name: candidate_build_attempt_id
+        default: ""
       - name: provider_build_id
         default: ""
       - name: provider_signals_table
@@ -74,6 +76,8 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
                 - "{{job.parameters.run_date}}"
                 - --build_run_id
                 - "{{job.parameters.build_run_id}}"
+                - --candidate_build_attempt_id
+                - "{{job.parameters.candidate_build_attempt_id}}"
                 - --task_run_id
                 - "{{task.run_id}}"
                 - --execution_count
