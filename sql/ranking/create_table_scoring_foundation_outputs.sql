@@ -4,7 +4,7 @@ create table {catalog}.{schema}.{client}_nextads_scoring_foundation_outputs (
     RunDate date not null,
     OutputName string not null,
     SourceTable string not null,
-    SourceDeltaVersion bigint not null,
+    SourceDeltaVersion bigint,
     SourceSchemaChecksum string not null,
     OutputTable string not null,
     OutputDeltaVersion bigint not null,

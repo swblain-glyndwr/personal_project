@@ -460,7 +460,7 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
         "scoring_foundation_outputs"
     ).read_text()
     assert "SourceTable string not null" in foundation_outputs_sql
-    assert "SourceDeltaVersion bigint not null" in foundation_outputs_sql
+    assert "SourceDeltaVersion bigint," in foundation_outputs_sql
     assert "SourceSchemaChecksum string not null" in foundation_outputs_sql
     assert "OutputSchemaChecksum string not null" in foundation_outputs_sql
     assert "InvalidValueCount bigint not null" in foundation_outputs_sql

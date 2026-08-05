@@ -3,7 +3,13 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from pyspark.sql.types import DateType, StringType, StructField, StructType
+from pyspark.sql.types import (
+    DateType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 import next_ads.ranking.foundation_publication as publication
 from next_ads.ranking.foundation_context import ScoringFoundationContext
@@ -14,6 +20,7 @@ from next_ads.ranking.foundation_publication import (
     publish_required_foundation_outputs,
     register_ready_foundation,
     validate_foundation_build_marker,
+    validate_foundation_output_manifest_contract,
 )
 from next_ads.ranking.scoring_manifest import ScoringFoundationOutput
 
@@ -88,13 +95,15 @@ class _Spark:
     def __init__(self):
         self.catalog = SimpleNamespace(tableExists=lambda _table: True)
         self.created = []
+        self.created_schemas = []
 
     def table(self, _table):
         return _Frame()
 
-    def createDataFrame(self, rows):  # noqa: N802
+    def createDataFrame(self, rows, schema=None):  # noqa: N802
         frame = SimpleNamespace(columns=list(rows[0]), rows=rows)
         self.created.append(frame)
+        self.created_schemas.append(schema)
         return frame
 
 
@@ -139,6 +148,31 @@ def test_foundation_marker_must_match_the_exact_pipeline_attempt():
             context=_context(),
             marker_table="catalog.schema.build_marker",
         )
+
+
+@pytest.mark.parametrize("nullable", [True, False])
+def test_pipeline_manifest_contract_requires_nullable_source_version(nullable):
+    schema = StructType(
+        [StructField("SourceDeltaVersion", LongType(), nullable=nullable)]
+    )
+    spark = SimpleNamespace(
+        catalog=SimpleNamespace(tableExists=lambda _table: True),
+        table=lambda _table: SimpleNamespace(schema=schema),
+    )
+
+    if nullable:
+        validate_foundation_output_manifest_contract(
+            spark,
+            outputs_table="catalog.schema.foundation_outputs",
+            pipeline_relations=True,
+        )
+    else:
+        with pytest.raises(ValueError, match="must allow a null"):
+            validate_foundation_output_manifest_contract(
+                spark,
+                outputs_table="catalog.schema.foundation_outputs",
+                pipeline_relations=True,
+            )
 
 
 def test_required_outputs_publish_to_exact_deterministic_delta_versions(
@@ -220,6 +254,92 @@ def test_required_outputs_publish_to_exact_deterministic_delta_versions(
     assert set(writes) == {"catalog.target.complete", "catalog.target.ranked"}
 
 
+def test_pipeline_relations_publish_without_requesting_delta_history(
+    monkeypatch,
+):
+    writes = []
+    target_versions = {
+        "catalog.target.complete": iter((40, 41)),
+        "catalog.target.ranked": iter((41, 42)),
+    }
+    monkeypatch.setattr(
+        publication,
+        "summarise_foundation_output",
+        lambda *_args, **_kwargs: FoundationOutputSummary(
+            row_count=10,
+            account_count=2,
+            entity_count=5,
+            null_key_count=0,
+            duplicate_key_count=0,
+            invalid_value_count=0,
+            output_checksum="checksum",
+        ),
+    )
+    monkeypatch.setattr(
+        publication,
+        "replace_table_by_name",
+        lambda _frame, table, _columns, *, spark: writes.append(table),
+    )
+
+    def latest_version(_spark, table):
+        assert table in target_versions
+        return next(target_versions[table])
+
+    monkeypatch.setattr(publication, "latest_delta_version", latest_version)
+    monkeypatch.setattr(
+        publication,
+        "read_delta_version",
+        lambda _spark, table, _version: (
+            _Frame()
+            if table in target_versions
+            else pytest.fail("Pipeline views must not use versionAsOf")
+        ),
+    )
+    specs = tuple(
+        FoundationOutputSpec(
+            name,
+            f"catalog.pipeline.{name}",
+            f"catalog.target.{name}",
+            f"account_theme_{name}/v1",
+            ("reference_date", "account_number", "theme_clean"),
+            "account_number",
+            "theme_clean",
+            source_kind="pipeline_relation",
+        )
+        for name in ("complete", "ranked")
+    )
+
+    outputs = publish_required_foundation_outputs(
+        _Spark(),
+        context=_context(),
+        output_specs=specs,
+    )
+
+    assert [output.source_delta_version for output in outputs] == [None, None]
+    assert [output.output_delta_version for output in outputs] == [41, 42]
+    assert set(writes) == {"catalog.target.complete", "catalog.target.ranked"}
+
+
+def test_unknown_foundation_source_kind_fails_before_publication():
+    spec = FoundationOutputSpec(
+        "complete",
+        "catalog.pipeline.complete",
+        "catalog.target.complete",
+        "account_theme_complete/v1",
+        ("reference_date", "account_number", "theme_clean"),
+        "account_number",
+        "theme_clean",
+        source_kind="unknown",
+    )
+
+    with pytest.raises(ValueError, match="Unsupported foundation source kind"):
+        publication._publish_one_output(
+            _Spark(),
+            context=_context(),
+            spec=spec,
+        )
+
+
 def test_output_failure_is_propagated_before_any_ready_manifest(monkeypatch):
     def fail_one(_spark, *, context, spec):
         if spec.output_name == "ranked":
@@ -278,6 +398,9 @@ def test_ready_manifest_is_written_after_its_exact_output_bindings(monkeypatch):
         "catalog.schema.foundation_outputs",
         "catalog.schema.foundation_builds",
     ]
+    assert spark.created_schemas[0] == spark.table(
+        "catalog.schema.foundation_outputs"
+    ).schema
     assert build.pipeline_update_id is None
     assert build.pipeline_id == "pipeline-123"
     assert build.pipeline_update_type is None

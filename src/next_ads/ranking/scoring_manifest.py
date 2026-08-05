@@ -218,7 +218,7 @@ class ScoringFoundationOutput:
     run_date: date
     output_name: str
     source_table: str
-    source_delta_version: int
+    source_delta_version: int | None
     source_schema_checksum: str
     output_table: str
     output_delta_version: int
@@ -254,7 +254,6 @@ class ScoringFoundationOutput:
             raise ValueError("is_required must be a boolean")
         for name in (
             "output_delta_version",
-            "source_delta_version",
             "row_count",
             "account_count",
             "entity_count",
@@ -263,6 +262,8 @@ class ScoringFoundationOutput:
             "invalid_value_count",
         ):
             _count(getattr(self, name), name)
+        if self.source_delta_version is not None:
+            _count(self.source_delta_version, "source_delta_version")
         if self.account_count > self.row_count:
             raise ValueError("account_count must not exceed row_count")
         if self.entity_count > self.row_count:

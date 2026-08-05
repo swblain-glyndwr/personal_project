@@ -184,6 +184,13 @@ def test_ready_foundation_keeps_exact_task_provenance_without_preview_metadata()
     assert build.pipeline_update_type is None
 
 
+def test_pipeline_foundation_output_allows_no_source_delta_version():
+    output = replace(_output("ranked"), source_delta_version=None)
+
+    assert output.source_delta_version is None
+    assert output.output_delta_version == 42
+
+
 def test_foundation_repair_selection_uses_execution_completion_and_task_order():
     original = _foundation()
     repaired = _foundation(attempt=1)

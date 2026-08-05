@@ -40,6 +40,7 @@ from next_ads.ranking.foundation_publication import (
     publish_required_foundation_outputs,
     register_ready_foundation,
     validate_foundation_build_marker,
+    validate_foundation_output_manifest_contract,
 )
 from next_ads.ranking.pipeline_metadata import pipeline_task_identity
 
@@ -88,6 +89,11 @@ def main(
     target_namespace = TARGET_NAMESPACE.strip().strip(".")
     if source_namespace.count(".") != 1 or target_namespace.count(".") != 1:
         raise ValueError("Foundation namespaces must use catalog.schema")
+    validate_foundation_output_manifest_contract(
+        spark,
+        outputs_table=config.tables_write.scoring_foundation_outputs,
+        pipeline_relations=True,
+    )
     validate_foundation_build_marker(
         spark,
         context=context,
@@ -111,6 +117,7 @@ def main(
             required_non_null_columns=(
                 ("simple_rules_rank",) if output_name == "ranked" else ()
             ),
+            source_kind="pipeline_relation",
         )
         for output_name, schema_version in sorted(required_outputs.items())
     )
@@ -118,6 +125,16 @@ def main(
         spark,
         context=context,
         output_specs=specs,
+    )
+    # Recheck the marker after materialising and publishing the pipeline views.
+    # A different marker means another update replaced the views mid-copy, so
+    # the physical outputs must not be made available through a READY manifest.
+    validate_foundation_build_marker(
+        spark,
+        context=context,
+        marker_table=(
+            f"{source_namespace}.{SOURCE_TABLE_PREFIX}_build_marker"
+        ),
     )
     build = register_ready_foundation(
         spark,

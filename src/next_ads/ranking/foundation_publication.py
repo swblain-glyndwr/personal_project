@@ -38,6 +38,7 @@ class FoundationOutputSpec:
     logical_date_columns: tuple[str, ...] = ("reference_date", "rundate")
     required_non_null_columns: tuple[str, ...] = ()
     is_required: bool = True
+    source_kind: str = "delta"
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,34 @@ def validate_foundation_build_marker(
         raise ValueError(
             "Scoring foundation build marker does not match its context: "
             + ", ".join(mismatched)
+        )
+
+
+def validate_foundation_output_manifest_contract(
+    spark: Any,
+    *,
+    outputs_table: str,
+    pipeline_relations: bool,
+) -> None:
+    """Fail before publication when the manifest cannot represent its source."""
+    if not spark.catalog.tableExists(outputs_table):
+        raise ValueError(
+            "Scoring foundation output manifest table is missing: "
+            f"{outputs_table}"
+        )
+    fields = {
+        field.name: field for field in spark.table(outputs_table).schema
+    }
+    source_version = fields.get("SourceDeltaVersion")
+    if source_version is None:
+        raise ValueError(
+            "Scoring foundation output manifest is missing "
+            "SourceDeltaVersion"
+        )
+    if pipeline_relations and not source_version.nullable:
+        raise ValueError(
+            "Scoring foundation output manifest must allow a null "
+            "SourceDeltaVersion for pipeline-owned relations"
         )
 
 
@@ -247,12 +276,21 @@ def _publish_one_output(
     context: Any,
     spec: FoundationOutputSpec,
 ) -> ScoringFoundationOutput:
-    source_version = latest_delta_version(spark, spec.source_table)
-    frame = read_delta_version(
-        spark,
-        spec.source_table,
-        source_version,
-    ).persist(StorageLevel.MEMORY_AND_DISK)
+    if spec.source_kind == "delta":
+        source_version = latest_delta_version(spark, spec.source_table)
+        source_frame = read_delta_version(
+            spark,
+            spec.source_table,
+            source_version,
+        )
+    elif spec.source_kind == "pipeline_relation":
+        source_version = None
+        source_frame = spark.table(spec.source_table)
+    else:
+        raise ValueError(
+            f"Unsupported foundation source kind: {spec.source_kind!r}"
+        )
+    frame = source_frame.persist(StorageLevel.MEMORY_AND_DISK)
     try:
         if not spark.catalog.tableExists(spec.target_table):
             raise ValueError(
@@ -372,7 +410,10 @@ def register_ready_foundation(
         pipeline_update_type=pipeline_update_type,
     )
     output_rows = [_output_row(output) for output in outputs]
-    output_frame = spark.createDataFrame(output_rows)
+    output_frame = spark.createDataFrame(
+        output_rows,
+        schema=spark.table(outputs_table).schema,
+    )
     replace_scope_by_name(
         output_frame,
         outputs_table,

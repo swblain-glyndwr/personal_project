@@ -67,8 +67,12 @@ the removed transient prediction table.
 
 Foundation publication records the configured pipeline ID and exact upstream
 pipeline task run ID, and validates the pipeline build marker against the
-leased foundation context. It also records source and published Delta versions,
-schema checksums, content checksums and row-level validation evidence.
+leased foundation context both before and after copying the pipeline-owned
+relations. Lakeflow relations do not expose Delta history, so their source
+Delta version is deliberately null. The ordinary Delta publication table and
+its exact version are the stable data binding used downstream. Schema
+checksums, content checksums and row-level validation evidence are recorded for
+that accepted publication.
 
 `PipelineUpdateID` and `PipelineUpdateType` remain nullable reserved fields.
 The provider route must not query
