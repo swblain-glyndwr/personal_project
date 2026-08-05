@@ -200,3 +200,7 @@ assignment staging and events record the candidate build, candidate attempt,
 portfolio, portfolio attempt and candidate-foundation snapshot. Public v1/v2
 assignment schemas remain unchanged, and history still publishes before latest
 only after every expected scope has a valid completion event.
+
+The practical provider plug-in process and the evidence required before merge
+are maintained in
+[`nextads_modular_route_dev_acceptance.md`](../CICD/nextads_modular_route_dev_acceptance.md).

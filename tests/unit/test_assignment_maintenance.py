@@ -231,7 +231,7 @@ def test_allowlist_excludes_tables_without_a_migrated_maintenance_contract():
 
     # Fixed-cell history used direct append and PLP current had no old
     # housekeeping. Theme Affinity had no writer-side housekeeping to move and
-    # its independent 09:00 job can still be running at the noon schedule.
+    # its independent 09:00 job can overlap a later manual maintenance run.
     assert resolved_physical_tables.isdisjoint(excluded_physical_tables)
 
 

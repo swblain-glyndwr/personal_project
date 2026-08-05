@@ -117,6 +117,10 @@ candidate route depends on that contract, not on how the model produced its
 scores. The current default keeps Theme Affinity in both `best` and
 `best_challenger` and records Markov as non-blocking shadow evidence.
 
+The full model-to-serving plug-in process, repository gates and three-cycle DEV
+evidence checklist are documented in
+[`nextads_modular_route_dev_acceptance.md`](nextads_modular_route_dev_acceptance.md).
+
 When two serving entries bind the same provider build, candidate scoring is
 computed once and published under both entry identities. A different compatible
 provider uses the same canonical adapter without a provider-specific branch.

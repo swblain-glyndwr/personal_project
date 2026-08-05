@@ -6,6 +6,8 @@ from pyspark.sql import SparkSession
 
 import next_ads.decisioning.assignment as assignment
 from next_ads.decisioning.assignment import (
+    assign_candidate_ads,
+    assign_candidate_ads_v2,
     assign_nextgenads,
     assign_nextgenads_v2,
     assign_preranked_ads,
@@ -338,3 +340,62 @@ def test_assign_preranked_ads_breaks_exact_ties_stably(local_spark):
 
     assert one_partition_rows == _assignment_rows(four_partitions)
     assert len(one_partition_rows) == 2
+
+
+def test_accepted_candidate_assignments_replay_at_one_four_and_eight_partitions(
+    local_spark,
+):
+    ads = local_spark.createDataFrame(
+        [("ad-a",), ("ad-b",), ("ad-c",)],
+        ["UniqueAdID"],
+    )
+    customers = local_spark.createDataFrame(
+        [("account-1",), ("account-2",)],
+        ["AccountNumber"],
+    )
+    candidates = local_spark.createDataFrame(
+        [
+            ("account-1", "ad-a", 0.9, 0.7, 1),
+            ("account-1", "ad-b", 0.9, 0.6, 1),
+            ("account-1", "ad-c", 0.8, 0.5, 2),
+            ("account-2", "ad-b", 0.7, 0.4, 1),
+            ("account-2", "ad-c", 0.6, 0.3, 2),
+        ],
+        [
+            "AccountNumber",
+            "UniqueAdID",
+            "Score",
+            "TriggerScore",
+            "Rank",
+        ],
+    )
+
+    v1_variants = [
+        assign_candidate_ads(
+            df_ads=ads.repartition(partitions),
+            candidate_scores=candidates.repartition(partitions),
+            df_cust=customers.repartition(partitions),
+            return_ranks=[1, 2],
+        )
+        for partitions in (1, 4, 8)
+    ]
+    v2_variants = [
+        assign_candidate_ads_v2(
+            df_ads=ads.repartition(partitions),
+            candidate_scores=candidates.repartition(partitions),
+            df_cust=customers.repartition(partitions),
+            n_ads=2,
+        )
+        for partitions in (1, 4, 8)
+    ]
+
+    assert (
+        _assignment_rows(v1_variants[0])
+        == _assignment_rows(v1_variants[1])
+        == _assignment_rows(v1_variants[2])
+    )
+    assert (
+        _assignment_rows(v2_variants[0])
+        == _assignment_rows(v2_variants[1])
+        == _assignment_rows(v2_variants[2])
+    )
