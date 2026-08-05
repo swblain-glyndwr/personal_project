@@ -37,6 +37,12 @@ from next_ads.common import etl
 
 DEFAULT_COLUMN_VALUES = {
     "Audience": "'false'",
+    # Assignment rows written before provenance existed remain historical only.
+    "CandidateBuildID": "'legacy_untracked'",
+    "CandidateBuildAttemptID": "'legacy_untracked'",
+    "PortfolioID": "'legacy_untracked'",
+    "PortfolioAttemptID": "'legacy_untracked'",
+    "CandidateFoundationSnapshotID": "'legacy_untracked'",
 }
 
 

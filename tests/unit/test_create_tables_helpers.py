@@ -360,6 +360,43 @@ def test_missing_audience_uses_false_default_in_repair_insert():
     )
 
 
+@pytest.mark.parametrize(
+    "contract_path",
+    [
+        "sql/decisioning/create_table_assignments_build_staging.sql",
+        "sql/adsv2/create_table_assignments_v2_build_staging.sql",
+        "sql/decisioning/create_table_assignment_build_events.sql",
+    ],
+)
+def test_legacy_assignment_rows_receive_explicit_provenance_defaults(
+    contract_path,
+):
+    provenance_columns = {
+        "CandidateBuildID",
+        "CandidateBuildAttemptID",
+        "PortfolioID",
+        "PortfolioAttemptID",
+        "CandidateFoundationSnapshotID",
+    }
+    contract = (PROJECT_ROOT / contract_path).read_text()
+    expected = parse_column_specs(extract_create_table_columns(contract))
+    actual = [
+        column for column in expected if column.name not in provenance_columns
+    ]
+
+    drift = compare_table_schema(expected, actual)
+    query = build_repair_insert_query(
+        "catalog.schema.assignment_repair",
+        "catalog.schema.assignment_backup",
+        expected,
+        actual,
+    )
+
+    assert drift.unsupported_missing_columns == []
+    for column in provenance_columns:
+        assert f"CAST('legacy_untracked' AS string) AS `{column}`" in query
+
+
 def test_repair_create_table_suffixes_quoted_constraint_name():
     query = build_repair_create_table_query(
         """
