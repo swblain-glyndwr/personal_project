@@ -94,9 +94,12 @@ def test_v2_payload_export_routes_use_jobs_folder():
     assert payload_job["tasks"][0]["spark_python_task"]["python_file"] == (
         "../../../jobs/nextads_delivery/build_v2_payload.py"
     )
-    assert page_tasks["build_page_v2"]["for_each_task"]["task"][
-        "spark_python_task"
-    ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
+    assert page_tasks["build_page_v2"]["spark_python_task"][
+        "python_file"
+    ] == "../../../jobs/nextads_assignment/bulk_build.py"
+    assert 'project_root / "jobs/nextads_v2/build_page.py"' in _read(
+        "jobs/nextads_assignment/bulk_build.py"
+    )
     assert main_tasks["load_control_sheet_v2"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/load_control_sheet_v2.py"

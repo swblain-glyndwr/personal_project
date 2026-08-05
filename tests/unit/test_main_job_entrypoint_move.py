@@ -10,6 +10,10 @@ def _load_job(path, key):
     return load_job(path, key)
 
 
+def _read(path: str) -> str:
+    return (PROJECT_ROOT / path).read_text()
+
+
 def test_main_job_uses_moved_non_v2_entrypoints():
     job = _load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
@@ -136,12 +140,14 @@ def test_page_build_job_uses_moved_non_v2_entrypoints():
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
-    assert tasks_by_key["build_page_primary"]["for_each_task"]["task"][
-        "spark_python_task"
-    ]["python_file"] == "../../../jobs/nextads_assignment/build_page.py"
-    assert tasks_by_key["build_page_secondary"]["for_each_task"]["task"][
-        "spark_python_task"
-    ]["python_file"] == "../../../jobs/nextads_assignment/build_page.py"
+    for task_key in ("build_page_primary", "build_page_secondary"):
+        assert tasks_by_key[task_key]["spark_python_task"]["python_file"] == (
+            "../../../jobs/nextads_assignment/bulk_build.py"
+        )
+        assert "for_each_task" not in tasks_by_key[task_key]
+    assert 'project_root / "jobs/nextads_assignment/build_page.py"' in _read(
+        "jobs/nextads_assignment/bulk_build.py"
+    )
 
     expected_jobs = {
         "run_assignment_validation": (
@@ -181,9 +187,13 @@ def test_v2_page_build_entrypoint_uses_jobs_folder():
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
-    assert tasks_by_key["build_page_v2"]["for_each_task"]["task"][
-        "spark_python_task"
-    ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
+    assert tasks_by_key["build_page_v2"]["spark_python_task"][
+        "python_file"
+    ] == "../../../jobs/nextads_assignment/bulk_build.py"
+    assert "for_each_task" not in tasks_by_key["build_page_v2"]
+    assert 'project_root / "jobs/nextads_v2/build_page.py"' in _read(
+        "jobs/nextads_assignment/bulk_build.py"
+    )
 
 
 def test_route_oriented_entrypoint_files_exist_without_domain_wrappers():

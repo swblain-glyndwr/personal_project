@@ -46,9 +46,13 @@ def test_v2_build_page_route_uses_jobs_folder():
     )
     tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
 
-    assert tasks_by_key["build_page_v2"]["for_each_task"]["task"][
-        "spark_python_task"
-    ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
+    assert tasks_by_key["build_page_v2"]["spark_python_task"][
+        "python_file"
+    ] == "../../../jobs/nextads_assignment/bulk_build.py"
+    assert "for_each_task" not in tasks_by_key["build_page_v2"]
+    assert 'project_root / "jobs/nextads_v2/build_page.py"' in _read(
+        "jobs/nextads_assignment/bulk_build.py"
+    )
     assert "from next_ads.decisioning.assignment import" in _read(
         "jobs/nextads_v2/build_page.py"
     )

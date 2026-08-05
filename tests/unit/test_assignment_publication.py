@@ -37,6 +37,7 @@ PROVENANCE = AssignmentProvenance(
     candidate_foundation_snapshot_id="candidate-foundation",
 )
 PROVENANCE_COLUMNS = list(PROVENANCE.column_values(COLUMNS))
+PROVENANCE_VALUES = tuple(PROVENANCE.column_values(COLUMNS).values())
 SCOPE_CONTRACT = AssignmentScopeContract(
     route="v1",
     scope_column="Location",
@@ -1218,6 +1219,7 @@ def test_v1_publishes_one_identical_corrected_frame_to_history_and_latest(
                 BUILD_RUN_ID,
                 101,
                 1,
+                *PROVENANCE_VALUES,
                 "bad",
                 "PH3",
                 "PH3_A",
@@ -1227,6 +1229,7 @@ def test_v1_publishes_one_identical_corrected_frame_to_history_and_latest(
                 BUILD_RUN_ID,
                 102,
                 1,
+                *PROVENANCE_VALUES,
                 "bad",
                 "PH4",
                 "PH4_A",
@@ -1236,6 +1239,7 @@ def test_v1_publishes_one_identical_corrected_frame_to_history_and_latest(
                 BUILD_RUN_ID,
                 103,
                 1,
+                *PROVENANCE_VALUES,
                 "bad",
                 "SB1",
                 "SB1_C",
@@ -1245,6 +1249,7 @@ def test_v1_publishes_one_identical_corrected_frame_to_history_and_latest(
                 BUILD_RUN_ID,
                 101,
                 1,
+                *PROVENANCE_VALUES,
                 "good",
                 "PH3",
                 "PH3_A",
@@ -1254,6 +1259,7 @@ def test_v1_publishes_one_identical_corrected_frame_to_history_and_latest(
                 BUILD_RUN_ID,
                 102,
                 1,
+                *PROVENANCE_VALUES,
                 "good",
                 "PH4",
                 "PH4_B",
