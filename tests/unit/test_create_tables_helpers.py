@@ -361,14 +361,24 @@ def test_missing_audience_uses_false_default_in_repair_insert():
 
 
 @pytest.mark.parametrize(
-    "contract_path",
+    ("table", "contract_path"),
     [
-        "sql/decisioning/create_table_assignments_build_staging.sql",
-        "sql/adsv2/create_table_assignments_v2_build_staging.sql",
-        "sql/decisioning/create_table_assignment_build_events.sql",
+        (
+            "catalog.schema.next_uk_nextads_assignments_build_staging",
+            "sql/decisioning/create_table_assignments_build_staging.sql",
+        ),
+        (
+            "catalog.schema.next_uk_nextads_assignments_v2_build_staging",
+            "sql/adsv2/create_table_assignments_v2_build_staging.sql",
+        ),
+        (
+            "catalog.schema.next_uk_nextads_assignment_build_events",
+            "sql/decisioning/create_table_assignment_build_events.sql",
+        ),
     ],
 )
-def test_legacy_assignment_rows_receive_explicit_provenance_defaults(
+def test_assignment_provenance_migration_requires_targeted_recreation(
+    table,
     contract_path,
 ):
     provenance_columns = {
@@ -384,17 +394,21 @@ def test_legacy_assignment_rows_receive_explicit_provenance_defaults(
         column for column in expected if column.name not in provenance_columns
     ]
 
-    drift = compare_table_schema(expected, actual)
-    query = build_repair_insert_query(
-        "catalog.schema.assignment_repair",
-        "catalog.schema.assignment_backup",
-        expected,
-        actual,
-    )
+    spark = FakeSpark()
 
-    assert drift.unsupported_missing_columns == []
-    for column in provenance_columns:
-        assert f"CAST('legacy_untracked' AS string) AS `{column}`" in query
+    with pytest.raises(ValueError, match="explicit targeted recreation"):
+        repair_table_to_contract(
+            spark,
+            table=table,
+            create_table_sql=contract,
+            expected_columns=expected,
+            actual_columns=actual,
+            job_env="dev",
+            dry_run=False,
+            logger=FakeLogger(),
+        )
+
+    assert spark.sql_calls == []
 
 
 def test_repair_create_table_suffixes_quoted_constraint_name():

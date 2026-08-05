@@ -171,10 +171,16 @@ To copy PROD source tables into a personal DEV schema, run `mktg_next_uk_nextads
 
 To repair stale DEV table layouts before running candidate/page-build jobs, run the same job with `run_alter_tables=true`, `job_env=dev`, `client=next_uk`, `tables` blank, `confirm_mutating=true`, and `dry_run=false`. This checks all configured write tables against the repo SQL contracts. For the known control-sheet drift, it rebuilds the stale table from a backup using column names rather than positional writes, so `IsUnderperforming` sits before `rundate` as expected. For `customer_cells_latest`, missing `Audience` is repaired with the literal string value `"false"`.
 
-Before DEV testing of accepted-candidate assignment reads, alter
+Before DEV testing of accepted-candidate assignment reads, pre-existing
 `assignments_build_staging`, `assignments_v2_build_staging`, and
-`assignment_build_events` so their candidate, portfolio and foundation
-provenance columns match the repository contracts.
+`assignment_build_events` tables without candidate, portfolio and foundation
+provenance must be explicitly recreated as one tightly scoped operation. Run
+`run_recreate_tables=true` with `tables` set to those three logical names,
+`confirm_destructive=true`, and `dry_run=false`. These tables contain only
+short-lived internal build state; the recreation does not include public
+assignment history or latest tables. Broad `alter_tables` intentionally
+refuses to backup-copy this transient data because doing so can exceed the
+one-hour table-operations timeout.
 
 ### DEV Integration And PREPROD Table Setup Jobs
 

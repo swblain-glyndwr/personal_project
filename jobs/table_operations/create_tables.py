@@ -37,13 +37,24 @@ from next_ads.common import etl
 
 DEFAULT_COLUMN_VALUES = {
     "Audience": "'false'",
-    # Assignment rows written before provenance existed remain historical only.
-    "CandidateBuildID": "'legacy_untracked'",
-    "CandidateBuildAttemptID": "'legacy_untracked'",
-    "PortfolioID": "'legacy_untracked'",
-    "PortfolioAttemptID": "'legacy_untracked'",
-    "CandidateFoundationSnapshotID": "'legacy_untracked'",
 }
+
+ASSIGNMENT_BUILD_STATE_TABLE_SUFFIXES = frozenset(
+    {
+        "_nextads_assignments_build_staging",
+        "_nextads_assignments_v2_build_staging",
+        "_nextads_assignment_build_events",
+    }
+)
+ASSIGNMENT_PROVENANCE_COLUMNS = frozenset(
+    {
+        "CandidateBuildID",
+        "CandidateBuildAttemptID",
+        "PortfolioID",
+        "PortfolioAttemptID",
+        "CandidateFoundationSnapshotID",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -417,6 +428,21 @@ def build_repair_table_statements(
     ]
 
 
+def requires_assignment_build_state_recreation(
+    table: str,
+    actual_columns: list[ColumnSpec],
+) -> bool:
+    table_name = table.split(".")[-1]
+    is_assignment_build_state = any(
+        table_name.endswith(suffix)
+        for suffix in ASSIGNMENT_BUILD_STATE_TABLE_SUFFIXES
+    )
+    if not is_assignment_build_state:
+        return False
+    actual_names = {column.name for column in actual_columns}
+    return bool(ASSIGNMENT_PROVENANCE_COLUMNS - actual_names)
+
+
 def repair_table_to_contract(
     spark,
     *,
@@ -432,6 +458,14 @@ def repair_table_to_contract(
         raise ValueError(
             f"Table {table} requires rebuild repair, but PROD rebuild repair "
             "is blocked. Use an explicit release/migration route."
+        )
+
+    if requires_assignment_build_state_recreation(table, actual_columns):
+        raise ValueError(
+            f"Table {table} requires explicit targeted recreation to add "
+            "assignment provenance without backup-copying transient build "
+            "state. Run recreate_tables for assignments_build_staging, "
+            "assignments_v2_build_staging, and assignment_build_events only."
         )
 
     unsupported_missing = [
