@@ -105,6 +105,14 @@ def _entry(
     return ScoringPortfolioEntry(
         portfolio_entry_id=entry_id,
         provider_build_id=provider_build_id,
+        provider_build_attempt_id=f"{provider_build_id}:attempt:0",
+        provider_output_table="catalog.schema.score_provider_signals",
+        provider_output_delta_version=42,
+        provider_source_run_date=RUN_DATE,
+        input_snapshot_id="scoring_inputs_20260730",
+        provider_selection_status=READY_FOR_NEXTADS,
+        experiment_id="current_delivery",
+        variant_id=entry_id,
         policy_role=role,
         execution_mode=mode,
         priority=priority,
@@ -158,6 +166,9 @@ def _portfolio(
         route=route,
         policy_id=f"{route}_default",
         policy_priority=100,
+        policy_version=f"{route}_default/v1",
+        policy_checksum="policy-checksum",
+        selection_cutoff=COMPLETED_AT,
         location=location,
         page_type=page_type,
         audience=audience,
@@ -470,6 +481,28 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     ).read_text()
     assert "InputSnapshotAttemptID string not null" in foundation_contexts_sql
 
+    portfolios_sql = resolve_sql_contract_path(
+        "scoring_portfolios"
+    ).read_text()
+    assert "PolicyVersion string not null" in portfolios_sql
+    assert "PolicyChecksum string not null" in portfolios_sql
+    assert "SelectionCutoff timestamp not null" in portfolios_sql
+
+    entries_sql = resolve_sql_contract_path(
+        "scoring_portfolio_entries"
+    ).read_text()
+    for column in (
+        "ProviderBuildAttemptID string not null",
+        "ProviderOutputTable string not null",
+        "ProviderOutputDeltaVersion bigint not null",
+        "ProviderSourceRunDate date not null",
+        "InputSnapshotID string not null",
+        "ProviderSelectionStatus string not null",
+        "ExperimentID string not null",
+        "VariantID string not null",
+    ):
+        assert column in entries_sql
+
 
 @pytest.mark.parametrize(
     ("job_env", "namespace"),
@@ -512,7 +545,11 @@ def test_scoring_config_preserves_current_serving_and_shadow_policy(
     )
     routes = scoring["client_portfolios"]["next_uk"]["theme_ranking"]["routes"]
     for route in routes.values():
-        entries = route["policies"][0]["entries"]
+        policy = route["policies"][0]
+        assert policy["policy_version"].endswith("/v1")
+        entries = policy["entries"]
+        assert all(entry["experiment_id"] for entry in entries)
+        assert all(entry["variant_id"] for entry in entries)
         live = {
             entry["serving_slot"]: entry["provider_id"]
             for entry in entries
@@ -528,6 +565,20 @@ def test_scoring_config_preserves_current_serving_and_shadow_policy(
             "best_challenger": "theme_affinity",
         }
         assert evaluated == ["markov"]
+
+
+def test_config_rejects_duplicate_experiment_variant_pair(monkeypatch):
+    monkeypatch.setenv("DYNACONF_SKIP_ENV", "true")
+    monkeypatch.setenv("USER_SCHEMA", "test_user")
+    scoring = deepcopy(load_config("dev", client="next_uk").scoring.to_dict())
+    entries = scoring["client_portfolios"]["next_uk"]["theme_ranking"][
+        "routes"
+    ]["v1"]["policies"][0]["entries"]
+    entries[1]["experiment_id"] = entries[0]["experiment_id"]
+    entries[1]["variant_id"] = entries[0]["variant_id"]
+
+    with pytest.raises(ValueError, match="experiment and variant"):
+        validate_scoring_config(scoring)
 
 
 def test_config_accepts_native_provider_and_typed_scope_policy(monkeypatch):

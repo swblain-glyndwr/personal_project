@@ -26,10 +26,10 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
     parameters:
       - name: run_date
         default: "{{job.start_time.iso_date}}"
-      - name: v1_score_provider_id
-        default: theme_affinity
-      - name: v2_score_provider_id
-        default: theme_affinity
+      - name: v1_portfolio_policy_id
+        default: v1_default
+      - name: v2_portfolio_policy_id
+        default: v2_default
       - name: foundation_snapshot_id
         default: same_day
     tasks:
@@ -136,9 +136,9 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 1800
-      - task_key: select_score_provider_build_v1
+      - task_key: resolve_scoring_portfolio_v1
         spark_python_task:
-          python_file: ../../../jobs/orchestration/select_score_provider_build.py
+          python_file: ../../../jobs/orchestration/resolve_scoring_portfolio.py
           parameters:
             - --client
             - "next_uk"
@@ -146,8 +146,8 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --run_date
             - "{{job.parameters.run_date}}"
-            - --provider_id
-            - "{{job.parameters.v1_score_provider_id}}"
+            - --portfolio_policy_id
+            - "{{job.parameters.v1_portfolio_policy_id}}"
             - --capability
             - account_theme
             - --use_case
@@ -168,9 +168,9 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 1
         timeout_seconds: 2100
-      - task_key: select_score_provider_build_v2
+      - task_key: resolve_scoring_portfolio_v2
         spark_python_task:
-          python_file: ../../../jobs/orchestration/select_score_provider_build.py
+          python_file: ../../../jobs/orchestration/resolve_scoring_portfolio.py
           parameters:
             - --client
             - "next_uk"
@@ -178,8 +178,8 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --run_date
             - "{{job.parameters.run_date}}"
-            - --provider_id
-            - "{{job.parameters.v2_score_provider_id}}"
+            - --portfolio_policy_id
+            - "{{job.parameters.v2_portfolio_policy_id}}"
             - --capability
             - account_theme
             - --use_case
@@ -203,7 +203,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
       - task_key: validate_score_provider_theme_coverage_v1
         depends_on:
           - task_key: audit_control_sheet_v1
-          - task_key: select_score_provider_build_v1
+          - task_key: resolve_scoring_portfolio_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py
           parameters:
@@ -216,15 +216,19 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - --run_date
             - "{{job.parameters.run_date}}"
             - --provider_build_id
-            - "{{tasks.select_score_provider_build_v1.values.provider_build_id}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_build_id}}"
             - --provider_signals_table
-            - "{{tasks.select_score_provider_build_v1.values.provider_signals_table}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_table}}"
             - --provider_signals_delta_version
-            - "{{tasks.select_score_provider_build_v1.values.provider_signals_delta_version}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_delta_version}}"
             - --provider_selection_status
-            - "{{tasks.select_score_provider_build_v1.values.provider_selection_status}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_selection_status}}"
             - --provider_source_run_date
-            - "{{tasks.select_score_provider_build_v1.values.provider_source_run_date}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_source_run_date}}"
+            - --provider_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.input_snapshot_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.current_input_snapshot_id}}"
             - --warn-only
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
@@ -233,7 +237,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
       - task_key: validate_score_provider_theme_coverage_v2
         depends_on:
           - task_key: audit_control_sheet_v2
-          - task_key: select_score_provider_build_v2
+          - task_key: resolve_scoring_portfolio_v2
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py
           parameters:
@@ -246,15 +250,19 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - --run_date
             - "{{job.parameters.run_date}}"
             - --provider_build_id
-            - "{{tasks.select_score_provider_build_v2.values.provider_build_id}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_build_id}}"
             - --provider_signals_table
-            - "{{tasks.select_score_provider_build_v2.values.provider_signals_table}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_table}}"
             - --provider_signals_delta_version
-            - "{{tasks.select_score_provider_build_v2.values.provider_signals_delta_version}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_delta_version}}"
             - --provider_selection_status
-            - "{{tasks.select_score_provider_build_v2.values.provider_selection_status}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_selection_status}}"
             - --provider_source_run_date
-            - "{{tasks.select_score_provider_build_v2.values.provider_source_run_date}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_source_run_date}}"
+            - --provider_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.input_snapshot_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.current_input_snapshot_id}}"
             - --warn-only
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
@@ -277,13 +285,17 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - --run_date
             - "{{job.parameters.run_date}}"
             - --provider_build_id
-            - "{{tasks.select_score_provider_build_v1.values.provider_build_id}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_build_id}}"
             - --provider_signals_table
-            - "{{tasks.select_score_provider_build_v1.values.provider_signals_table}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_table}}"
             - --provider_signals_delta_version
-            - "{{tasks.select_score_provider_build_v1.values.provider_signals_delta_version}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_delta_version}}"
             - --provider_source_run_date
-            - "{{tasks.select_score_provider_build_v1.values.provider_source_run_date}}"
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_source_run_date}}"
+            - --provider_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.input_snapshot_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.current_input_snapshot_id}}"
             - --foundation_snapshot_id
             - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
             - --foundation_source_run_date
@@ -320,13 +332,17 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - --run_date
             - "{{job.parameters.run_date}}"
             - --provider_build_id
-            - "{{tasks.select_score_provider_build_v2.values.provider_build_id}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_build_id}}"
             - --provider_signals_table
-            - "{{tasks.select_score_provider_build_v2.values.provider_signals_table}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_table}}"
             - --provider_signals_delta_version
-            - "{{tasks.select_score_provider_build_v2.values.provider_signals_delta_version}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_delta_version}}"
             - --provider_source_run_date
-            - "{{tasks.select_score_provider_build_v2.values.provider_source_run_date}}"
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_source_run_date}}"
+            - --provider_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.input_snapshot_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.current_input_snapshot_id}}"
             - --foundation_snapshot_id
             - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
             - --foundation_source_run_date
@@ -355,13 +371,13 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           job_parameters:
             run_date: "{{job.parameters.run_date}}"
             build_run_id: "v1_{{job.run_id}}"
-            provider_build_id: "{{tasks.select_score_provider_build_v1.values.provider_build_id}}"
-            provider_signals_table: "{{tasks.select_score_provider_build_v1.values.provider_signals_table}}"
-            provider_signals_delta_version: "{{tasks.select_score_provider_build_v1.values.provider_signals_delta_version}}"
-            input_snapshot_id: "{{tasks.select_score_provider_build_v1.values.input_snapshot_id}}"
-            scoring_foundation_build_id: "{{tasks.select_score_provider_build_v1.values.scoring_foundation_build_id}}"
-            provider_selection_status: "{{tasks.select_score_provider_build_v1.values.provider_selection_status}}"
-            provider_source_run_date: "{{tasks.select_score_provider_build_v1.values.provider_source_run_date}}"
+            provider_build_id: "{{tasks.resolve_scoring_portfolio_v1.values.provider_build_id}}"
+            provider_signals_table: "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_table}}"
+            provider_signals_delta_version: "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_delta_version}}"
+            input_snapshot_id: "{{tasks.resolve_scoring_portfolio_v1.values.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{tasks.resolve_scoring_portfolio_v1.values.scoring_foundation_build_id}}"
+            provider_selection_status: "{{tasks.resolve_scoring_portfolio_v1.values.provider_selection_status}}"
+            provider_source_run_date: "{{tasks.resolve_scoring_portfolio_v1.values.provider_source_run_date}}"
             foundation_snapshot_id: "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
             foundation_selection_status: "{{tasks.select_candidate_foundation.values.foundation_selection_status}}"
             foundation_source_run_date: "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
@@ -375,13 +391,13 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
           job_parameters:
             run_date: "{{job.parameters.run_date}}"
             build_run_id: "v2_{{job.run_id}}"
-            provider_build_id: "{{tasks.select_score_provider_build_v2.values.provider_build_id}}"
-            provider_signals_table: "{{tasks.select_score_provider_build_v2.values.provider_signals_table}}"
-            provider_signals_delta_version: "{{tasks.select_score_provider_build_v2.values.provider_signals_delta_version}}"
-            input_snapshot_id: "{{tasks.select_score_provider_build_v2.values.input_snapshot_id}}"
-            scoring_foundation_build_id: "{{tasks.select_score_provider_build_v2.values.scoring_foundation_build_id}}"
-            provider_selection_status: "{{tasks.select_score_provider_build_v2.values.provider_selection_status}}"
-            provider_source_run_date: "{{tasks.select_score_provider_build_v2.values.provider_source_run_date}}"
+            provider_build_id: "{{tasks.resolve_scoring_portfolio_v2.values.provider_build_id}}"
+            provider_signals_table: "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_table}}"
+            provider_signals_delta_version: "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_delta_version}}"
+            input_snapshot_id: "{{tasks.resolve_scoring_portfolio_v2.values.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{tasks.resolve_scoring_portfolio_v2.values.scoring_foundation_build_id}}"
+            provider_selection_status: "{{tasks.resolve_scoring_portfolio_v2.values.provider_selection_status}}"
+            provider_source_run_date: "{{tasks.resolve_scoring_portfolio_v2.values.provider_source_run_date}}"
             foundation_snapshot_id: "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
             foundation_selection_status: "{{tasks.select_candidate_foundation.values.foundation_selection_status}}"
             foundation_source_run_date: "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"

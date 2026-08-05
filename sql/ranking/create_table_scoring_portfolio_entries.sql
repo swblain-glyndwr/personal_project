@@ -10,6 +10,14 @@ create table {catalog}.{schema}.{client}_nextads_scoring_portfolio_entries (
     Priority int not null,
     TaskRunID bigint not null,
     ExecutionCount int not null,
+    ProviderBuildAttemptID string not null,
+    ProviderOutputTable string not null,
+    ProviderOutputDeltaVersion bigint not null,
+    ProviderSourceRunDate date not null,
+    InputSnapshotID string not null,
+    ProviderSelectionStatus string not null,
+    ExperimentID string not null,
+    VariantID string not null,
   constraint pk_{client}_nextads_scoring_portfolio_entries primary key (
     PortfolioAttemptID,
     PortfolioEntryID

@@ -21,7 +21,7 @@ def test_main_job_uses_moved_non_v2_entrypoints():
         "select_candidate_foundation": "../../../jobs/orchestration/select_candidate_foundation.py",
         "load_control_sheet_v1": "../../../jobs/nextads_control/load_control_sheet.py",
         "audit_control_sheet_v1": "../../../jobs/nextads_control/audit_control_sheet.py",
-        "select_score_provider_build_v1": "../../../jobs/orchestration/select_score_provider_build.py",
+        "resolve_scoring_portfolio_v1": "../../../jobs/orchestration/resolve_scoring_portfolio.py",
         "validate_score_provider_theme_coverage_v1": "../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py",
         "map_theme_scores_to_ads_v1": "../../../jobs/nextads_candidates/build_theme_ad_candidates.py",
     }
@@ -109,10 +109,10 @@ def test_v2_main_job_entrypoints_use_jobs_folder():
     assert tasks_by_key["audit_control_sheet_v2"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/audit_control_sheet.py"
-    assert tasks_by_key["select_score_provider_build_v2"][
+    assert tasks_by_key["resolve_scoring_portfolio_v2"][
         "spark_python_task"
     ]["python_file"] == (
-        "../../../jobs/orchestration/select_score_provider_build.py"
+        "../../../jobs/orchestration/resolve_scoring_portfolio.py"
     )
     assert tasks_by_key["validate_score_provider_theme_coverage_v2"][
         "spark_python_task"

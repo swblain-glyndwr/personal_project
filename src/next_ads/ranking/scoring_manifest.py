@@ -552,6 +552,14 @@ class ScoreProviderSignal:
 class ScoringPortfolioEntry:
     portfolio_entry_id: str
     provider_build_id: str
+    provider_build_attempt_id: str
+    provider_output_table: str
+    provider_output_delta_version: int
+    provider_source_run_date: date
+    input_snapshot_id: str
+    provider_selection_status: str
+    experiment_id: str
+    variant_id: str
     policy_role: str
     execution_mode: str
     priority: int
@@ -559,8 +567,29 @@ class ScoringPortfolioEntry:
 
     def __post_init__(self) -> None:
         """Validate one provider selected by portfolio policy."""
-        _text(self.portfolio_entry_id, "portfolio_entry_id")
-        _text(self.provider_build_id, "provider_build_id")
+        for name in (
+            "portfolio_entry_id",
+            "provider_build_id",
+            "provider_build_attempt_id",
+            "provider_output_table",
+            "input_snapshot_id",
+            "experiment_id",
+            "variant_id",
+        ):
+            _text(getattr(self, name), name)
+        _count(
+            self.provider_output_delta_version,
+            "provider_output_delta_version",
+        )
+        _date(self.provider_source_run_date, "provider_source_run_date")
+        if self.provider_selection_status not in {
+            READY_FOR_NEXTADS,
+            FALLBACK_PREVIOUS,
+        }:
+            raise ValueError(
+                "Unsupported provider selection status: "
+                f"{self.provider_selection_status}"
+            )
         if self.policy_role not in VALID_POLICY_ROLES:
             raise ValueError(f"Unsupported policy role: {self.policy_role}")
         if self.execution_mode not in VALID_EXECUTION_MODES:
@@ -592,6 +621,9 @@ class ScoringPortfolio:
     route: str
     policy_id: str
     policy_priority: int
+    policy_version: str
+    policy_checksum: str
+    selection_cutoff: datetime
     location: str
     page_type: str
     audience: str
@@ -616,6 +648,8 @@ class ScoringPortfolio:
             "use_case",
             "route",
             "policy_id",
+            "policy_version",
+            "policy_checksum",
             "location",
             "page_type",
             "audience",
@@ -625,6 +659,7 @@ class ScoringPortfolio:
             _text(getattr(self, name), name)
         _date(self.run_date, "run_date")
         _timestamp(self.completed_at, "completed_at")
+        _timestamp(self.selection_cutoff, "selection_cutoff")
         if self.status not in VALID_PORTFOLIO_STATUSES:
             raise ValueError(f"Unsupported portfolio status: {self.status}")
         _count(self.warning_count, "warning_count")
@@ -649,6 +684,13 @@ class ScoringPortfolio:
         ]
         if len(role_priorities) != len(set(role_priorities)):
             raise ValueError("Portfolio role priorities must be unique")
+        test_identities = [
+            (entry.experiment_id, entry.variant_id) for entry in entries
+        ]
+        if len(test_identities) != len(set(test_identities)):
+            raise ValueError(
+                "Portfolio experiment and variant identities must be unique"
+            )
 
         if self.status != FAILED_BEFORE_PUBLISH:
             if not entries:
@@ -816,6 +858,7 @@ def _validate_policy_entries(
     roles = []
     priorities = []
     occupied_slots = []
+    experiment_variants = []
     for entry in entries:
         provider_id = _text(entry.get("provider_id"), "provider_id")
         if provider_id not in providers:
@@ -834,6 +877,12 @@ def _validate_policy_entries(
         roles.append(role)
         priority = _count(entry.get("priority"), "priority", 1)
         priorities.append((role, priority))
+        experiment_variants.append(
+            (
+                _text(entry.get("experiment_id"), "experiment_id"),
+                _text(entry.get("variant_id"), "variant_id"),
+            )
+        )
 
         slot = entry.get("serving_slot")
         if slot is not None:
@@ -859,6 +908,10 @@ def _validate_policy_entries(
         raise ValueError("Portfolio policy role priorities must be unique")
     if len(occupied_slots) != len(set(occupied_slots)):
         raise ValueError("Portfolio policy serving slots must be unique")
+    if len(experiment_variants) != len(set(experiment_variants)):
+        raise ValueError(
+            "Portfolio experiment and variant pairs must be unique"
+        )
 
 
 def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
@@ -1018,19 +1071,13 @@ def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
                     raise ValueError(
                         "Portfolio route policy IDs must be unique"
                     )
-                policy_priorities = [
+                for policy in policies:
                     _count(
                         policy.get("priority"),
                         "policy.priority",
                         1,
                     )
-                    for policy in policies
-                ]
-                if len(policy_priorities) != len(set(policy_priorities)):
-                    raise ValueError(
-                        "Portfolio route policy priorities must be unique"
-                    )
-                for policy in policies:
+                    _text(policy.get("policy_version"), "policy_version")
                     selector = policy.get("selector")
                     if not isinstance(selector, Mapping):
                         raise ValueError(

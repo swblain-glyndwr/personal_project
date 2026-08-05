@@ -23,8 +23,8 @@ For target availability and release-route rules, see
 ### `mktg_next_uk_nextads_candidate_build`
 
 Main NextAds candidate-generation graph. It builds shared customer cells, loads
-the independent v1/v2 control sheets, selects an accepted score-provider build
-for each route, maps that exact output version, and waits for the route-specific
+the independent v1/v2 control sheets, resolves an immutable scoring portfolio
+for each route, maps the serving output version, and waits for the route-specific
 page-build jobs. Legacy product Theme
 Mapping and Markov scoring run independently in
 `mktg_next_uk_nextads_markov_scoring`; candidate publication does not wait for
@@ -32,9 +32,10 @@ that job.
 
 The candidate job parameter `run_date` defaults to
 `{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. The
-`v1_score_provider_id` and `v2_score_provider_id` parameters default to
-`theme_affinity`, but can select different registered providers without changing
-the candidate mapper. A v1 control or provider failure cannot block the v2 route,
+`v1_portfolio_policy_id` and `v2_portfolio_policy_id` parameters default to the
+declared route policies. The parameters cannot name an undeclared policy or
+override a higher-precedence matching policy. A v1 control or required-provider
+failure cannot block the v2 route,
 and the reverse is also true. Business coverage findings remain warning-only;
 technical inability to run an audit or read the pinned provider output fails only
 that route.
@@ -48,10 +49,10 @@ that route.
 | `trigger_data_pull_for_CMS_pull` | Native child job with `run_date` | Waits for the CMS acquisition job used by the v2 snapshot. |
 | `load_control_sheet_v2` | `client`, `job_env`, `run_date` | Runs after CMS acquisition and writes `control_sheet_latest_v2`. |
 | `audit_control_sheet_v2` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Reports business findings as warnings. A technical audit failure stops v2 before mapping. |
-| `select_score_provider_build_v1/v2` | provider id, capability, use case, route, run date, task attempt | Waits until the fixed 18:30 Europe/London deadline, then selects same-day `READY_FOR_NEXTADS` or a valid accepted fallback no more than 24 hours old. Emits the exact build, table and Delta version. |
-| `validate_score_provider_theme_coverage_v1/v2` | route plus selected provider identity, `warn-only` | Compares that route's active ad themes with the exact selected provider output. Missing business coverage warns; an unreadable or invalid provider version fails the route. |
-| `map_theme_scores_to_ads_v1` | run date, selected provider build/table/version/source date, `apply-ad-feedback`, `top-ads-per-location` | Reads the immutable canonical score version, joins `EntityID` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. |
-| `map_theme_scores_to_ads_v2` | run date, selected provider build/table/version/source date, `top-ads-per-page-type` | Reads the same canonical contract at page-type grain and writes `preranked_ads_from_themes_v2_latest`. |
+| `resolve_scoring_portfolio_v1/v2` | policy id, capability, use case, route, run date, task attempt | Applies priority then stable policy-ID precedence. Required serving providers wait until the fixed 18:30 Europe/London deadline and select same-day readiness or an accepted fallback no more than 24 hours old. Shadow providers never block the route. Each entry pins the exact provider attempt, table, Delta version, input snapshot, experiment and variant; entries publish before the ready portfolio header. |
+| `validate_score_provider_theme_coverage_v1/v2` | route plus serving portfolio entry, provider/current input snapshots, `warn-only` | Compares active ad themes with the exact serving output. When fallback uses an older input snapshot, themes whose accepted definition changed are excluded. Missing business coverage warns; an unreadable or invalid provider version fails the route. |
+| `map_theme_scores_to_ads_v1` | run date, serving provider build/table/version/source date, provider/current input snapshots, `apply-ad-feedback`, `top-ads-per-location` | Reads the immutable canonical score version, quarantines changed fallback themes, joins `EntityID` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. |
+| `map_theme_scores_to_ads_v2` | run date, serving provider build/table/version/source date, provider/current input snapshots, `top-ads-per-page-type` | Applies the same immutable and fallback rules at page-type grain and writes `preranked_ads_from_themes_v2_latest`. |
 | `run_page_build_v1` | Native child job plus run/build/provider identities | Waits for the complete v1 page build, publication, validation and delivery result. |
 | `run_page_build_v2` | Native child job plus run/build/provider identities | Waits for the complete v2 page build, publication and payload result. |
 
@@ -81,8 +82,8 @@ is consumed only after publication succeeds.
 
 ### Adding another score provider
 
-A new challenger follows the same route whether its entities are themes, ads,
-or another registered account/entity capability:
+A new challenger follows the same route whether it is theme-based, ad-based,
+or uses another registered account/entity capability:
 
 1. Register the provider, capability, entity type and source-column mapping in
    `configs/scoring/scoring_settings.yaml`.
@@ -95,6 +96,12 @@ or another registered account/entity capability:
    versions the output, then records readiness last.
 5. Add the provider to a portfolio as `SHADOW`/`EVALUATE` first. Promotion to a
    serving challenger or champion is a separate reviewed configuration change.
+
+The portfolio entry is the plug-in point: it declares the capability and
+serving or evaluation slot, then binds the exact validated model build. The
+candidate route depends on that contract, not on how the model produced its
+scores. The current default keeps Theme Affinity in both `best` and
+`best_challenger` and records Markov as non-blocking shadow evidence.
 
 No model-specific code belongs in the shared adapter or publisher. A
 compatibility publisher is configured only where an existing consumer still

@@ -29,6 +29,7 @@ from pyspark.sql import functions as F
 
 from next_ads.common.paths import load_client_config
 from next_ads.ranking.scoring_inputs import read_delta_version
+from next_ads.ranking.portfolio_resolution import unchanged_provider_themes
 from next_ads.ranking.theme_coverage import (
     build_missing_theme_affinity_coverage,
 )
@@ -46,6 +47,8 @@ def main(
     PROVIDER_SIGNALS_DELTA_VERSION,
     PROVIDER_SOURCE_RUN_DATE,
     PROVIDER_SELECTION_STATUS,
+    PROVIDER_INPUT_SNAPSHOT_ID,
+    CURRENT_INPUT_SNAPSHOT_ID,
     WARN_ONLY=False,
 ):
     configure_logging(
@@ -87,6 +90,10 @@ def main(
         ) from exc
     if not PROVIDER_SELECTION_STATUS:
         raise ValueError("--provider_selection_status is required")
+    if not PROVIDER_INPUT_SNAPSHOT_ID or not CURRENT_INPUT_SNAPSHOT_ID:
+        raise ValueError(
+            "Provider and current input snapshot IDs are required"
+        )
     try:
         provider_signals_delta_version = int(
             PROVIDER_SIGNALS_DELTA_VERSION
@@ -139,6 +146,20 @@ def main(
         .where(F.col("RunDate") == F.lit(provider_source_run_date))
         .select(F.col("EntityID").alias("NextTheme"))
     )
+    if PROVIDER_INPUT_SNAPSHOT_ID != CURRENT_INPUT_SNAPSHOT_ID:
+        allowed_themes = unchanged_provider_themes(
+            spark,
+            item_themes_table=(
+                config.tables_write.scoring_input_item_themes
+            ),
+            provider_input_snapshot_id=PROVIDER_INPUT_SNAPSHOT_ID,
+            current_input_snapshot_id=CURRENT_INPUT_SNAPSHOT_ID,
+        )
+        provider_signals = provider_signals.join(
+            F.broadcast(allowed_themes),
+            "NextTheme",
+            "inner",
+        )
     if provider_signals.limit(1).count() == 0:
         raise ValueError(
             "Selected provider build contains no theme signals at its "
@@ -190,6 +211,12 @@ def parse_args():
         ),
         "PROVIDER_SELECTION_STATUS": jobparser.get_arg(
             "--provider_selection_status"
+        ),
+        "PROVIDER_INPUT_SNAPSHOT_ID": jobparser.get_arg(
+            "--provider_input_snapshot_id"
+        ),
+        "CURRENT_INPUT_SNAPSHOT_ID": jobparser.get_arg(
+            "--current_input_snapshot_id"
         ),
     }
 

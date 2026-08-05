@@ -150,6 +150,10 @@ def main(
         value=selection.provider_build_id,
     )
     task_values.set(
+        key="provider_build_attempt_id",
+        value=selection.provider_build_attempt_id,
+    )
+    task_values.set(
         key="provider_signals_table",
         value=selection.provider_signals_table,
     )

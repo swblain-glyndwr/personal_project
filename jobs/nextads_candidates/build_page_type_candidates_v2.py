@@ -26,6 +26,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from next_ads.common.paths import load_client_config
 from next_ads.ranking.theme_score_mapping import run_theme_score_mapping
+from next_ads.ranking.portfolio_resolution import unchanged_provider_themes
 from next_ads.candidates.foundation import load_candidate_foundation_inputs
 from next_ads.common import config_manager, etl
 
@@ -42,6 +43,8 @@ PROVIDER_SIGNALS_DELTA_VERSION = jobparser.get_arg(
     "--provider_signals_delta_version"
 )
 PROVIDER_SOURCE_RUN_DATE = jobparser.get_arg("--provider_source_run_date")
+PROVIDER_INPUT_SNAPSHOT_ID = jobparser.get_arg("--provider_input_snapshot_id")
+CURRENT_INPUT_SNAPSHOT_ID = jobparser.get_arg("--current_input_snapshot_id")
 FOUNDATION_SNAPSHOT_ID = jobparser.get_arg("--foundation_snapshot_id")
 FOUNDATION_SOURCE_RUN_DATE = jobparser.get_arg("--foundation_source_run_date")
 CUSTOMER_CELLS_TABLE = jobparser.get_arg("--customer_cells_table")
@@ -84,6 +87,10 @@ if not PROVIDER_SIGNALS_TABLE:
     raise ValueError("--provider_signals_table is required")
 if not PROVIDER_SOURCE_RUN_DATE:
     raise ValueError("--provider_source_run_date is required")
+if not PROVIDER_INPUT_SNAPSHOT_ID or not CURRENT_INPUT_SNAPSHOT_ID:
+    raise ValueError(
+        "Provider and current input snapshot IDs are required"
+    )
 try:
     PROVIDER_SIGNALS_DELTA_VERSION = int(PROVIDER_SIGNALS_DELTA_VERSION)
 except (TypeError, ValueError) as exc:
@@ -119,6 +126,17 @@ try:
 except (TypeError, ValueError) as exc:
     raise ValueError("Candidate foundation bindings are invalid") from exc
 
+allowed_provider_themes = (
+    None
+    if PROVIDER_INPUT_SNAPSHOT_ID == CURRENT_INPUT_SNAPSHOT_ID
+    else unchanged_provider_themes(
+        spark,
+        item_themes_table=config.tables_write.scoring_input_item_themes,
+        provider_input_snapshot_id=PROVIDER_INPUT_SNAPSHOT_ID,
+        current_input_snapshot_id=CURRENT_INPUT_SNAPSHOT_ID,
+    )
+)
+
 tbl_args = {
     "catalog": config.catalog_write,
     "schema": config.schema_write,
@@ -147,5 +165,6 @@ run_theme_score_mapping(
     top_ads_per_group=TOP_ADS_PER_PAGE_TYPE,
     write_score_components=False,
     foundation_inputs=foundation_inputs,
+    allowed_provider_themes=allowed_provider_themes,
     logger=logger,
 )

@@ -58,7 +58,7 @@ def _descendants(tasks_by_key, task_key):
 
 
 def _selector_values(route):
-    selector = f"select_score_provider_build_{route}"
+    selector = f"resolve_scoring_portfolio_{route}"
     return {
         "provider_build_id": (
             f"{{{{tasks.{selector}.values.provider_build_id}}}}"
@@ -234,8 +234,8 @@ def test_main_job_waits_for_native_page_build_results():
         assert "run_if" not in task
     assert _job_parameters(job) == {
         "run_date": "{{job.start_time.iso_date}}",
-        "v1_score_provider_id": "theme_affinity",
-        "v2_score_provider_id": "theme_affinity",
+        "v1_portfolio_policy_id": "v1_default",
+        "v2_portfolio_policy_id": "v2_default",
         "foundation_snapshot_id": "same_day",
     }
 
@@ -285,13 +285,13 @@ def test_route_specific_provider_checks_gate_only_their_mapper():
         "depends_on"
     ] == [
         {"task_key": "audit_control_sheet_v1"},
-        {"task_key": "select_score_provider_build_v1"},
+        {"task_key": "resolve_scoring_portfolio_v1"},
     ]
     assert tasks_by_key["validate_score_provider_theme_coverage_v2"][
         "depends_on"
     ] == [
         {"task_key": "audit_control_sheet_v2"},
-        {"task_key": "select_score_provider_build_v2"},
+        {"task_key": "resolve_scoring_portfolio_v2"},
     ]
     assert tasks_by_key["map_theme_scores_to_ads_v1"]["job_cluster_key"] == (
         "next_ads_job_cluster_D32ads_v5_1_4_v1_candidates"
@@ -543,7 +543,7 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
         max(
             candidate_tasks["load_control_sheet_v1"]["timeout_seconds"]
             + candidate_tasks["audit_control_sheet_v1"]["timeout_seconds"],
-            candidate_tasks["select_score_provider_build_v1"][
+                candidate_tasks["resolve_scoring_portfolio_v1"][
                 "timeout_seconds"
             ],
         )
@@ -556,7 +556,7 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
             data_pull["timeout_seconds"]
             + candidate_tasks["load_control_sheet_v2"]["timeout_seconds"]
             + candidate_tasks["audit_control_sheet_v2"]["timeout_seconds"],
-            candidate_tasks["select_score_provider_build_v2"][
+                candidate_tasks["resolve_scoring_portfolio_v2"][
                 "timeout_seconds"
             ],
         )
@@ -644,14 +644,14 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
     )
 
     for route in ("v1", "v2"):
-        selector = tasks_by_key[f"select_score_provider_build_{route}"]
+        selector = tasks_by_key[f"resolve_scoring_portfolio_{route}"]
         coverage = tasks_by_key[
             f"validate_score_provider_theme_coverage_{route}"
         ]
         mapper = tasks_by_key[f"map_theme_scores_to_ads_{route}"]
 
         assert selector["spark_python_task"]["python_file"] == (
-            "../../../jobs/orchestration/select_score_provider_build.py"
+            "../../../jobs/orchestration/resolve_scoring_portfolio.py"
         )
         _assert_cli_values(
             selector,
@@ -659,8 +659,8 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
                 "--client": "next_uk",
                 "--job_env": "${var.job_parameter_environment_name}",
                 "--run_date": "{{job.parameters.run_date}}",
-                "--provider_id": (
-                    f"{{{{job.parameters.{route}_score_provider_id}}}}"
+                "--portfolio_policy_id": (
+                    f"{{{{job.parameters.{route}_portfolio_policy_id}}}}"
                 ),
                 "--route": route,
                 "--capability": "account_theme",
@@ -692,6 +692,18 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
             },
         )
         _assert_cli_values(
+            coverage,
+            {
+                "--provider_input_snapshot_id": _selector_values(route)[
+                    "input_snapshot_id"
+                ],
+                "--current_input_snapshot_id": (
+                    f"{{{{tasks.resolve_scoring_portfolio_{route}.values."
+                    f"current_input_snapshot_id}}}}"
+                ),
+            },
+        )
+        _assert_cli_values(
             mapper,
             {
                 option: value
@@ -702,6 +714,18 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
                     "--scoring_foundation_build_id",
                     "--provider_selection_status",
                 }
+            },
+        )
+        _assert_cli_values(
+            mapper,
+            {
+                "--provider_input_snapshot_id": _selector_values(route)[
+                    "input_snapshot_id"
+                ],
+                "--current_input_snapshot_id": (
+                    f"{{{{tasks.resolve_scoring_portfolio_{route}.values."
+                    f"current_input_snapshot_id}}}}"
+                ),
             },
         )
         _assert_cli_values(
@@ -751,7 +775,7 @@ def test_control_sheet_audits_are_warning_only_but_order_route_coverage():
             f"validate_score_provider_theme_coverage_{route}"
         ]["depends_on"] == [
             {"task_key": f"audit_control_sheet_{route}"},
-            {"task_key": f"select_score_provider_build_{route}"},
+            {"task_key": f"resolve_scoring_portfolio_{route}"},
         ]
 
 
@@ -769,7 +793,7 @@ def test_v1_and_v2_candidate_routes_share_only_candidate_foundation():
     assert {
         "load_control_sheet_v1",
         "audit_control_sheet_v1",
-        "select_score_provider_build_v1",
+        "resolve_scoring_portfolio_v1",
         "validate_score_provider_theme_coverage_v1",
         "map_theme_scores_to_ads_v1",
     } <= v1_ancestors
@@ -777,7 +801,7 @@ def test_v1_and_v2_candidate_routes_share_only_candidate_foundation():
         "trigger_data_pull_for_CMS_pull",
         "load_control_sheet_v2",
         "audit_control_sheet_v2",
-        "select_score_provider_build_v2",
+        "resolve_scoring_portfolio_v2",
         "validate_score_provider_theme_coverage_v2",
         "map_theme_scores_to_ads_v2",
     } <= v2_ancestors
@@ -797,7 +821,7 @@ def test_control_or_provider_failure_blocks_only_its_own_route():
             "run_page_build_v2",
         ),
         (
-            "select_score_provider_build_v1",
+            "resolve_scoring_portfolio_v1",
             "run_page_build_v1",
             "run_page_build_v2",
         ),
@@ -807,7 +831,7 @@ def test_control_or_provider_failure_blocks_only_its_own_route():
             "run_page_build_v1",
         ),
         (
-            "select_score_provider_build_v2",
+            "resolve_scoring_portfolio_v2",
             "run_page_build_v2",
             "run_page_build_v1",
         ),
@@ -825,8 +849,8 @@ def test_critical_route_tasks_use_default_all_success_failure_propagation():
                 "mktg_next_uk_nextads_cicd",
             ),
             {
-                "select_score_provider_build_v1",
-                "select_score_provider_build_v2",
+                "resolve_scoring_portfolio_v1",
+                "resolve_scoring_portfolio_v2",
                 "validate_score_provider_theme_coverage_v1",
                 "validate_score_provider_theme_coverage_v2",
                 "map_theme_scores_to_ads_v1",

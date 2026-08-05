@@ -42,6 +42,7 @@ def load_provider_theme_scores(
     provider_build_id: str,
     provider_source_run_date,
     customer_base_df,
+    allowed_themes_df=None,
 ):
     """Read one immutable provider build through the canonical score contract."""
     source = read_delta_version(
@@ -77,6 +78,14 @@ def load_provider_theme_scores(
             F.col("Score").alias("ProbAggRebased"),
         )
     )
+    if allowed_themes_df is not None:
+        if "NextTheme" not in allowed_themes_df.columns:
+            raise ValueError("Allowed provider themes must contain NextTheme")
+        selected = selected.join(
+            F.broadcast(allowed_themes_df.select("NextTheme")),
+            "NextTheme",
+            "inner",
+        )
     if selected.limit(1).count() == 0:
         raise ValueError(
             "Selected provider build contains no theme signals at its "

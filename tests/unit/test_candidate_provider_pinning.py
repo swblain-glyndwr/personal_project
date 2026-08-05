@@ -134,6 +134,30 @@ def test_candidate_rejects_provider_build_outside_customer_base(
         )
 
 
+def test_candidate_quarantines_fallback_themes_changed_since_provider_input(
+    spark,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        theme_score_retrieval,
+        "read_delta_version",
+        lambda *_args: _provider_signals(spark),
+    )
+    customers = spark.createDataFrame([("1",)], ["AccountNumber"])
+    allowed_themes = spark.createDataFrame([("other",)], ["NextTheme"])
+
+    with pytest.raises(ValueError, match="contains no theme signals"):
+        theme_score_retrieval.load_provider_theme_scores(
+            spark,
+            provider_signals_table="catalog.schema.provider_signals",
+            provider_signals_delta_version=17,
+            provider_build_id="build-a",
+            provider_source_run_date=RUN_DATE,
+            customer_base_df=customers,
+            allowed_themes_df=allowed_themes,
+        )
+
+
 def test_constant_provider_scores_use_a_neutral_range(spark):
     scores = spark.createDataFrame(
         [(0.5,), (0.5,)],
@@ -173,3 +197,6 @@ def test_active_candidate_entrypoints_do_not_read_mutable_provider_latest():
         assert 'get_arg("--provider_build_id")' in entrypoint
         assert '"--provider_signals_delta_version"' in entrypoint
         assert 'get_arg("--provider_source_run_date")' in entrypoint
+        assert 'get_arg("--provider_input_snapshot_id")' in entrypoint
+        assert 'get_arg("--current_input_snapshot_id")' in entrypoint
+        assert "unchanged_provider_themes(" in entrypoint

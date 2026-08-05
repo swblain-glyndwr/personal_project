@@ -54,6 +54,7 @@ def run_theme_score_mapping(
     top_ads_per_group: int | None = None,
     write_score_components: bool = True,
     foundation_inputs: CandidateFoundationInputs | None = None,
+    allowed_provider_themes=None,
     logger=None,
 ):
     logger = logger or get_logger(__name__)
@@ -178,6 +179,7 @@ def run_theme_score_mapping(
         provider_build_id=provider_build_id,
         provider_source_run_date=provider_source_run_date,
         customer_base_df=df_cust,
+        allowed_themes_df=allowed_provider_themes,
     )
 
     logger.info("Normalising theme scores")

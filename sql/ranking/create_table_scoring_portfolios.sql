@@ -21,6 +21,9 @@ create table {catalog}.{schema}.{client}_nextads_scoring_portfolios (
     FallbackSourcePortfolioID string,
     FallbackSourceRunDate date,
     FallbackSourceCompletedAt timestamp,
+    PolicyVersion string not null,
+    PolicyChecksum string not null,
+    SelectionCutoff timestamp not null,
   constraint pk_{client}_nextads_scoring_portfolios primary key (
     PortfolioAttemptID
     )

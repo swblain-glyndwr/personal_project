@@ -73,6 +73,7 @@ default:
               policies:
                 - policy_id: v1_default
                   priority: 100
+                  policy_version: v1_default/v1
                   selector:
                     locations:
                       - "*"
@@ -89,21 +90,28 @@ default:
                       execution_mode: SERVING
                       serving_slot: best
                       priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best
                     - entry_id: v1_best_challenger
                       provider_id: theme_affinity
                       policy_role: CHALLENGER
                       execution_mode: SERVING
                       serving_slot: best_challenger
                       priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best_challenger
                     - entry_id: v1_markov_shadow
                       provider_id: markov
                       policy_role: SHADOW
                       execution_mode: EVALUATE
                       priority: 1
+                      experiment_id: markov_shadow
+                      variant_id: evaluate
             v2:
               policies:
                 - policy_id: v2_default
                   priority: 100
+                  policy_version: v2_default/v1
                   selector:
                     locations:
                       - "*"
@@ -120,14 +128,20 @@ default:
                       execution_mode: SERVING
                       serving_slot: best
                       priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best
                     - entry_id: v2_best_challenger
                       provider_id: theme_affinity
                       policy_role: CHALLENGER
                       execution_mode: SERVING
                       serving_slot: best_challenger
                       priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best_challenger
                     - entry_id: v2_markov_shadow
                       provider_id: markov
                       policy_role: SHADOW
                       execution_mode: EVALUATE
                       priority: 1
+                      experiment_id: markov_shadow
+                      variant_id: evaluate

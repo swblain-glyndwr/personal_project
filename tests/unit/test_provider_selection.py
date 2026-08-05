@@ -342,6 +342,7 @@ def test_other_provider_capability_and_use_case_are_not_candidates():
 def test_job_emits_the_exact_selected_provider_binding(monkeypatch):
     expected = ProviderBuildSelection(
         provider_build_id="build_123",
+        provider_build_attempt_id="build_123:attempt:0",
         provider_signals_table="catalog.schema.provider_signals",
         provider_signals_delta_version=91,
         input_snapshot_id="inputs_123",
@@ -399,6 +400,7 @@ def test_job_emits_the_exact_selected_provider_binding(monkeypatch):
     assert recorded["kwargs"]["selection_cutoff"] == CUTOFF
     assert task_values.values == {
         "provider_build_id": "build_123",
+        "provider_build_attempt_id": "build_123:attempt:0",
         "provider_signals_table": "catalog.schema.provider_signals",
         "provider_signals_delta_version": 91,
         "input_snapshot_id": "inputs_123",

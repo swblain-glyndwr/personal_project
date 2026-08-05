@@ -61,6 +61,7 @@ class ProviderBuildSelection:
     """The immutable provider output selected for one NextAds route."""
 
     provider_build_id: str
+    provider_build_attempt_id: str
     provider_signals_table: str
     provider_signals_delta_version: int
     input_snapshot_id: str
@@ -72,6 +73,7 @@ class ProviderBuildSelection:
         """Validate the exact immutable provider binding."""
         for field_name in (
             "provider_build_id",
+            "provider_build_attempt_id",
             "provider_signals_table",
             "input_snapshot_id",
         ):
@@ -300,6 +302,10 @@ def _selection_from_build(
         provider_build_id=_required_text(
             build.provider_build_id,
             "ProviderBuildID",
+        ),
+        provider_build_attempt_id=_required_text(
+            build.provider_build_attempt_id,
+            "ProviderBuildAttemptID",
         ),
         provider_signals_table=_required_text(
             build.output_table,

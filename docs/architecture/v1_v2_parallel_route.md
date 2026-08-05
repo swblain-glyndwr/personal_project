@@ -2,7 +2,7 @@
 
 Status: Active route on `feature/SWB/nextads-retry-stability`
 
-This route treats Theme Affinity as the current implementation of a generic account-theme score provider. V1 and v2 independently select an accepted immutable provider build, read its exact Delta version, join canonical theme signals to their own control sheet, and rank the resulting customer-ad candidates at the route grain.
+This route treats Theme Affinity as the current implementation of a generic account-theme score provider. V1 and v2 independently resolve an immutable portfolio, read the exact Delta version in its serving slot, join canonical signals to their own control sheet, and rank the resulting customer-ad candidates at the route grain. The portfolio is also the provider-neutral plug-in point for future themed or non-themed challengers: build the model, validate its canonical output, and assign that exact build to a compatible serving or evaluation slot.
 
 Product Theme Mapping and scoring input acceptance happen upstream. The independent Theme Affinity and Markov routes consume those accepted inputs. Markov starts at 13:00, waits up to 90 minutes for the accepted daily input, and publishes a canonical shadow build plus its legacy compatibility output. The evening candidate job captures route control sheets and does not rebuild provider models.
 
@@ -42,7 +42,7 @@ flowchart TD
 
   subgraph CAND_JOB["Job: candidate_build"]
     CAND_SHARED["shared customer cells"]:::sharedTask
-    CAND_GUARD["route control audits,<br/>provider selection and coverage"]:::guardrail
+    CAND_GUARD["route control audits,<br/>portfolio resolution and coverage"]:::guardrail
     CAND_V1["v1 candidates<br/>location grain"]:::v1
     CAND_V2["v2 candidates<br/>page-type grain"]:::v2
     TR1["run v1 page build<br/>and wait"]:::v1
@@ -107,8 +107,8 @@ flowchart TD
   AUDIT_V2["audit_control_sheet_v2"]:::guardrail
   CMS --> LOAD_V2 --> AUDIT_V2
 
-  SELECT_V1["select_score_provider_build_v1"]:::v1
-  SELECT_V2["select_score_provider_build_v2"]:::v2
+  SELECT_V1["resolve_scoring_portfolio_v1"]:::v1
+  SELECT_V2["resolve_scoring_portfolio_v2"]:::v2
   PROVIDER --> SELECT_V1
   PROVIDER --> SELECT_V2
 
@@ -139,8 +139,8 @@ The previous migration assumption was that v2 would fully replace v1 after a sho
 
 | Boundary | Recommendation | Reason |
 | --- | --- | --- |
-| Score providers | Keep provider builds independent of the candidate job. | The candidate route selects one accepted immutable provider build, so Theme Affinity or a future provider can change without embedding model logic in assignment. |
-| Product Theme Mapping and provider scoring | Keep in the independent input, Theme Affinity, and Markov routes. | Each model adapts its result to the canonical contract; candidate building selects an accepted serving provider and does not wait for the Markov shadow. |
+| Score providers | Keep provider builds independent of the candidate job. | The portfolio binds validated builds to capability-compatible serving or evaluation slots, so future challengers do not embed model logic in assignment. |
+| Product Theme Mapping and provider scoring | Keep in the independent input, Theme Affinity, and Markov routes. | Each model adapts its result to the canonical contract; candidate building resolves a declared portfolio and does not wait for an unavailable shadow entry. |
 | Control sheets | Keep separate tasks. | V1 is location-based and v2 is page-type based. Each loaded table carries its own ad `Themes` values. |
 | Theme coverage | Validate independently before each mapper. | A route may proceed only after its own control snapshot is technically readable and its active themes have been compared with the exact selected provider version. |
 | Candidate mapping | Split v1 and v2 tasks. | This is where customer-theme scores are joined to route-specific ad themes and ranked by `Location` or `PageType`. |
@@ -154,7 +154,7 @@ The current YAMLs do not create a separate Databricks job for every node in the 
 | --- | --- | --- | --- |
 | `mktg_next_uk_nextads_theme_affinity` | `pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml` | Yes | Scheduled upstream score-provider route; publishes an accepted canonical provider build and compatibility outputs. |
 | `mktg_next_uk_nextads_markov_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml` | Yes | Scheduled shadow-provider route; builds Markov scores from the accepted input, publishes through the shared canonical contract, and retains legacy compatibility outputs. |
-| `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Yes, as one multi-task job | Customer cells, isolated v1/v2 control routes, exact provider-build selection and coverage, v1/v2 candidate mapping, and synchronous page-build jobs. |
+| `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Yes, as one multi-task job | Customer cells, isolated v1/v2 control routes, immutable portfolio resolution and coverage, v1/v2 candidate mapping, and synchronous page-build jobs. |
 | `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Yes | V1 complete-build publication, then synchronous validation, MASID handoff, and PLP delivery jobs. |
 | `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Yes | V2 complete-build publication, then synchronous payload export. |
 | `mktg_next_uk_nextads_assignment_validation` | `pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml` | Yes | V1 assignment validation. |
@@ -173,10 +173,10 @@ Inside `mktg_next_uk_nextads_candidate_build`, these are tasks, not standalone D
 | `trigger_data_pull_for_CMS_pull` | Native `run_job_task` | None |
 | `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py` | `trigger_data_pull_for_CMS_pull` |
 | `audit_control_sheet_v2` | `jobs/nextads_control/audit_control_sheet.py` | `load_control_sheet_v2` |
-| `select_score_provider_build_v1` | `jobs/orchestration/select_score_provider_build.py` | None |
-| `select_score_provider_build_v2` | `jobs/orchestration/select_score_provider_build.py` | None |
-| `validate_score_provider_theme_coverage_v1` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v1`, `select_score_provider_build_v1` |
-| `validate_score_provider_theme_coverage_v2` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v2`, `select_score_provider_build_v2` |
+| `resolve_scoring_portfolio_v1` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
+| `resolve_scoring_portfolio_v2` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
+| `validate_score_provider_theme_coverage_v1` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |
+| `validate_score_provider_theme_coverage_v2` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v2`, `resolve_scoring_portfolio_v2` |
 | `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `combine_customer_cells`, `validate_score_provider_theme_coverage_v1` |
 | `map_theme_scores_to_ads_v2` | `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `combine_customer_cells`, `validate_score_provider_theme_coverage_v2` |
 | `run_page_build_v1` | Native `run_job_task` | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
