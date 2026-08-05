@@ -154,9 +154,21 @@ def build_advert_items_df(
 
     PRODUCT_CATALOG = spark.table(read_tables["product_catalog_latest"])
     CONTROL_SHEET = spark.table(
-        etl.map_tbl(write_tables["control_sheet_latest"], **tbl_configs)
+        etl.map_tbl(write_tables["control_sheet_latest_v2"], **tbl_configs)
     )
-    SORT_ORDER_LATEST = spark.table(read_tables["sort_order_latest"])
+
+    SORT_ORDER = spark.table(read_tables["sort_order_v2"])
+    latest_records_date = SORT_ORDER.select(F.max(F.col("rundate"))).collect()[
+        0
+    ][0]
+    SORT_ORDER_LATEST = SORT_ORDER.filter(
+        F.col("rundate") == latest_records_date
+    )
+    if not latest_records_date.strftime("%Y-%m-%d") == reference_date:
+        logger.warning(
+            "Last sort order update date does not match reference date"
+        )
+
     PRODUCT_CATIDS_LATEST = spark.table(
         etl.map_tbl(write_tables["nextads_items_catid"], **tbl_configs)
     )
@@ -167,7 +179,7 @@ def build_advert_items_df(
 
     ads = (
         CONTROL_SHEET.filter(F.col("AudienceOnly") == F.lit(0))
-        .select("UniqueAdID")
+        .select("UniqueAdID", "CMSPageID")
         .distinct()
     )
 
@@ -178,25 +190,28 @@ def build_advert_items_df(
             on="UniqueAdID",
             how="inner",
         )
-        .select(F.col("ad.UniqueAdID"), F.col("s_o.items"))
+        .select(
+            F.col("ad.UniqueAdID"), F.col("ad.CMSPageID"), F.col("s_o.item")
+        )
         .join(
             PRODUCT_CATALOG.alias("cat"),
-            on=(F.col("s_o.items") == F.col("cat.pid")),
+            on=(F.col("s_o.item") == F.col("cat.pid")),
             how="left",
         )
         .withColumnRenamed("pid", "pid_")
         .join(
             PRODUCT_CATALOG.alias("sku"),
-            on=(F.col("s_o.items") == F.col("sku.sku_id")),
+            on=(F.col("s_o.item") == F.col("sku.sku_id")),
             how="left",
         )
         .withColumn(
-            "itemno", F.coalesce(F.col("pid_"), F.col("pid"), F.col("items"))
+            "itemno", F.coalesce(F.col("pid_"), F.col("pid"), F.col("item"))
         )
-        .select(F.col("ad.UniqueAdID"), F.col("itemno"))
+        .select(F.col("ad.UniqueAdID"), F.col("ad.CMSPageID"), F.col("itemno"))
         .join(PRODUCT_CATIDS_LATEST, on="itemno", how="left")
         .select(
             F.col("UniqueAdID"),
+            F.col("CMSPageID"),
             F.col("itemno"),
             F.col("catid"),
             F.lit(reference_date).cast("date").alias("rundate"),
@@ -255,7 +270,6 @@ def build_advert_items_df(
 def determine_ad_profile_similiarity(
     spark, cfg, tbl_configs: dict, reference_date: str, output_table: str
 ):
-
     from pyspark.sql import functions as F
     from next_ads.common import etl
 
@@ -266,7 +280,7 @@ def determine_ad_profile_similiarity(
     )
     # Determine Ad profile similarity
     ad_items_array = ADVERT_ITEMS.groupBy(
-        F.col("UniqueAdID"), F.col("rundate")
+        F.col("UniqueAdID"), F.col("CMSPageID"), F.col("rundate")
     ).agg(
         F.sort_array(F.collect_set("itemno")).alias("items_list"),
         F.countDistinct("itemno").alias("itemcount"),
@@ -286,7 +300,9 @@ def determine_ad_profile_similiarity(
         )
         .select(
             F.col("a.UniqueAdID"),
+            F.col("a.CMSPageID"),
             F.col("b.UniqueAdID").alias("TargetUniqueAdID"),
+            F.col("b.CMSPAgeID").alias("TargetCMSPageID"),
             F.col("a.itemcount"),
             F.col("b.itemcount").alias("target_itemcount"),
             "intersection_count",
@@ -438,7 +454,6 @@ def build_advert_affinity(
     ad_percentage_coverage_threshold: float = 0.95,
     lift_threshold: float = 1.1,
 ):
-
     from pyspark.sql import functions as F
     from pyspark.sql import Window
     from next_ads.common import etl
@@ -453,12 +468,12 @@ def build_advert_affinity(
     advert_catids = ADVERT_ITEMS.drop("itemno").distinct()
 
     CONTROL_SHEET = spark.table(
-        etl.map_tbl(write_tables["control_sheet_latest"], **tbl_configs)
+        etl.map_tbl(write_tables["control_sheet_latest_v2"], **tbl_configs)
     )
     ad_page_types = (
         CONTROL_SHEET.filter(F.col("AudienceOnly") == F.lit(0))
-        .groupBy("rundate", "UniqueAdID")
-        .pivot("PageGroup")
+        .groupBy("rundate", "UniqueAdID", "CMSPageID")
+        .pivot("PageType")
         .agg(F.max(F.lit(True)))
         .na.fill(False)
     )
@@ -530,15 +545,26 @@ def build_advert_affinity(
             on=(F.col("vb.viewitem") == F.col("av.itemno")),
             how="inner",
         )
-        .select("date", "UniqueVisitID", "UniqueAdID", "atbitem")
-        .withColumnRenamed("UniqueAdID", "ViewUniqueAdID")
+        .select("date", "UniqueVisitID", "UniqueAdID", "CMSPageID", "atbitem")
+        .withColumnsRenamed(
+            {"UniqueAdID": "ViewUniqueAdID", "CMSPageID": "ViewCMSPageID"}
+        )
         .join(
             F.broadcast(ADVERT_ITEMS.alias("ab")),
             on=(F.col("vb.atbitem") == F.col("ab.itemno")),
             how="inner",
         )
-        .withColumnRenamed("UniqueAdID", "AtbUniqueAdID")
-        .select("date", "UniqueVisitID", "ViewUniqueAdID", "AtbUniqueAdID")
+        .withColumnsRenamed(
+            {"UniqueAdID": "AtbUniqueAdID", "CMSPageID": "AtbCMSPageID"}
+        )
+        .select(
+            "date",
+            "UniqueVisitID",
+            "ViewUniqueAdID",
+            "ViewCMSPageID",
+            "AtbUniqueAdID",
+            "AtbCMSPageID",
+        )
         .distinct()
     )
 
@@ -549,7 +575,7 @@ def build_advert_affinity(
         F.countDistinct("UniqueVisitID").alias("number_atbs")
     )
     item_number_views_atbs = advert_item_associations.groupBy(
-        "ViewUniqueAdID", "AtbUniqueAdID"
+        "ViewUniqueAdID", "AtbUniqueAdID", "ViewCMSPageID", "AtbCMSPageID"
     ).agg(F.countDistinct("UniqueVisitID").alias("number_views_atbs"))
 
     logger.info("Running validation checks on prior 30 days association data")
@@ -619,15 +645,26 @@ def build_advert_affinity(
             on=(F.col("vb.viewcatid") == F.col("cv.catid")),
             how="inner",
         )
-        .select("date", "UniqueVisitID", "UniqueAdID", "atbcatid")
-        .withColumnRenamed("UniqueAdID", "ViewUniqueAdID")
+        .select("date", "UniqueVisitID", "UniqueAdID", "CMSPageID", "atbcatid")
+        .withColumnsRenamed(
+            {"UniqueAdID": "ViewUniqueAdID", "CMSPageID": "ViewCMSPageID"}
+        )
         .join(
             F.broadcast(advert_catids.alias("cb")),
             on=(F.col("vb.atbcatid") == F.col("cb.catid")),
             how="inner",
         )
-        .withColumnRenamed("UniqueAdID", "AtbUniqueAdID")
-        .select("date", "UniqueVisitID", "ViewUniqueAdID", "AtbUniqueAdID")
+        .withColumnsRenamed(
+            {"UniqueAdID": "AtbUniqueAdID", "CMSPageID": "AtbCMSPageID"}
+        )
+        .select(
+            "date",
+            "UniqueVisitID",
+            "ViewUniqueAdID",
+            "ViewCMSPageID",
+            "AtbUniqueAdID",
+            "AtbCMSPageID",
+        )
         .distinct()
     )
     number_views_prior_year = prior_year_advert_item_associations.groupBy(
@@ -723,7 +760,9 @@ def build_advert_affinity(
         )
     ).select(
         F.col("vb.AtbUniqueAdID"),
-        F.col("pvb.ViewUniqueAdID"),
+        F.col("vb.AtbCMSPageID"),
+        F.col("vb.ViewUniqueAdID"),
+        F.col("vb.ViewCMSPageID"),
         F.col("number_views_atbs_"),
     )
 
@@ -764,7 +803,9 @@ def build_advert_affinity(
         )
         .select(
             F.col("base.ViewUniqueAdID"),
+            F.col("base.ViewCMSPageID"),
             F.col("base.AtbUniqueAdID"),
+            F.col("base.AtbCMSPageID"),
             F.col("base.number_views_atbs_").alias("number_views_atbs"),
             F.col("views.number_views_").alias("number_views"),
             F.col("atb.number_atbs_").alias("number_atbs"),
@@ -827,7 +868,9 @@ def build_advert_affinity(
         )
         .select(
             F.col("base.ViewUniqueAdID"),
+            F.col("base.ViewCMSPageID"),
             F.col("base.AtbUniqueAdID"),
+            F.col("base.AtbCMSPageID"),
             F.col("number_views_atbs"),
             F.col("number_views"),
             F.col("number_atbs"),
@@ -838,11 +881,13 @@ def build_advert_affinity(
             F.col("lift"),
             F.col("lift_adjusted"),
             F.col("lift_adjusted_ranking"),
+            F.col("overlap_proportion"),
+            F.col("intersection_count"),
             *(
                 [
                     F.col(i)
                     for i in ad_page_types.columns
-                    if i not in ["UniqueAdID", "rundate"]
+                    if i not in ["UniqueAdID", "rundate", "CMSPageID"]
                 ]
             ),
             F.lit(reference_date).cast("date").alias("rundate"),

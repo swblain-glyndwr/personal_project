@@ -481,3 +481,14 @@ def test_assignment_publication_tables_have_repo_owned_sql_contracts(
 
     assert contract_path.is_file()
     assert extract_create_table_columns(contract_path.read_text())
+
+
+def test_realtime_reranking_advert_features_requires_cms_page_id():
+    contract = (
+        PROJECT_ROOT
+        / "sql/realtime/create_table_nextads_realtime_reranking_advert_features.sql"
+    ).read_text()
+
+    assert ("CMSPageID", "STRING NOT NULL") in extract_create_table_columns(
+        contract
+    )

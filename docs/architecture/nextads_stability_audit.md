@@ -79,7 +79,7 @@ individually so a new experiment entrypoint cannot be added without review.
 | `jobs/nextads_control/parse_theme_mapping.py` | `deduplicate` | 1 | Active Markov route | Deterministic | The call projects exact distinct item-theme rows before validated publication. |
 | `jobs/nextads_control/parse_attributes.py` | `overwrite_mode` | 1 | Active Markov route | External full snapshot | This is the optional BigQuery dashboard export after atomic Delta publication; dashboard-delivery owner review is required before changing its snapshot contract. |
 | `jobs/nextads_delivery/build_v2_payload.py` | `collect_list` | 4 | Active delivery route | Deterministic | Fragment, trigger and page-type collections are canonically sorted before JSON and hash construction; dedicated payload tests enforce this. |
-| `jobs/nextads_delivery/build_v2_payload.py` | `deduplicate` | 2 | Active delivery route | Deterministic | Both calls retain exact distinct split values or account-to-profile rows; they do not choose between conflicting payload records. |
+| `jobs/nextads_delivery/build_v2_payload.py` | `deduplicate` | 5 | Active delivery route | Deterministic | Calls retain exact distinct split, control, advert/CMS or account-to-profile rows; they do not choose between conflicting payload records. |
 | `jobs/nextads_delivery/build_v2_payload.py` | `overwrite_mode` | 1 | Active delivery route | External full snapshot | The post-publication CSV feed is intentionally a complete path replacement and does not mutate a Delta serving table. |
 | `jobs/nextads_delivery/exclusions_export.py` | `collect_list` | 2 | Unbundled delivery | Out of scope | No deployed bundle resource references this Cosmos exclusions entrypoint; delivery-owner review is required before reuse. |
 | `jobs/nextads_reporting/assignment_validation.py` | `collect_set` | 1 | Deployed read-only validation | Out of scope reporting | The set is used only for diagnostic validation after publication and is never written; reporting-owner review is required for output changes. |
@@ -117,7 +117,7 @@ individually so a new experiment entrypoint cannot be added without review.
 | `src/next_ads/control/theme_mapping_sync.py` | `deduplicate` | 1 | Active warning-only validation | Deterministic | The normalised comparison uses exact distinct rows so duplicates do not alter warning-only set differences. |
 | `src/next_ads/data/sort_order/data_pull.py` | `deduplicate` | 2 | Active data-pull route | Deterministic | Calls project exact distinct CMS page IDs and ad delivery keys before external reads and validated archive publication. |
 | `src/next_ads/data/validation/custom_checks.py` | `deduplicate` | 1 | Active data validation | Deterministic | Exact distinct invalid values are displayed for diagnostics only and cannot select or mutate output rows. |
-| `src/next_ads/decisioning/assignment.py` | `deduplicate` | 8 | Active assignment dependency | Deterministic | Calls retain exact distinct customer, advert and allocation projections; total-order ranking and final key validation govern selection. |
+| `src/next_ads/decisioning/assignment.py` | `deduplicate` | 6 | Active assignment dependency | Deterministic | Calls retain exact distinct customer, advert and allocation projections; multi-ad creative rows are deduplicated before total-order slotting and final key validation. |
 | `src/next_ads/decisioning/assignment_publication.py` | `collect_set` | 1 | Active assignment publisher | Deterministic | `sort_array` canonicalises teaser tokens before the correction predicate. |
 | `src/next_ads/decisioning/table_maintenance.py` | `OPTIMIZE` | 2 | Deployed maintenance | Maintenance only | This allowlisted noon job is outside the build failure domain and runs optimisation only on its weekly branch. |
 | `src/next_ads/decisioning/table_maintenance.py` | `VACUUM` | 3 | Deployed maintenance | Maintenance only | This allowlisted noon job retains 168 hours and runs vacuum only on its weekly branch. |
@@ -147,6 +147,10 @@ individually so a new experiment entrypoint cannot be added without review.
 | `src/next_ads/realtime/decisioning/advert_affinity_data_build.py` | `deduplicate` | 16 | Active realtime dependency | Deterministic | Calls use exact distinct products, visits, adverts or validation keys; total-order windows govern persisted single-row selections. |
 | `src/next_ads/realtime/decisioning/advert_affinity_data_build.py` | `saveAsTable` | 4 | Active realtime dependency | Atomic Delta snapshot | Each whole-table overwrite is one Delta transaction after deterministic selection and quality checks; changing schemas or adding validation actions would increase this separate job's runtime. |
 | `src/next_ads/realtime/decisioning/advert_affinity_data_build.py` | `overwrite_mode` | 4 | Active realtime dependency | Atomic Delta snapshot | Each whole-table overwrite is one Delta transaction after deterministic selection and quality checks; changing schemas or adding validation actions would increase this separate job's runtime. |
+| `src/next_ads/realtime/decisioning/realtime_known_reranking_model.py` | `deduplicate` | 2 | Active realtime consumer | Deterministic | Exact customer-cell and item/action rows are retained after constrained projections and joins; no arbitrary winner is selected. |
+| `src/next_ads/realtime/decisioning/reranking_data_build.py` | `deduplicate` | 3 | Active realtime dependency | Deterministic | Exact product and advert/CMS identifiers define validated feature spines; ordered windows govern feature selection. |
+| `src/next_ads/realtime/decisioning/reranking_data_build.py` | `saveAsTable` | 5 | Active realtime dependency | Atomic Delta snapshot | Each validated realtime feature artifact is replaced as one complete Delta-table transaction by its independently scheduled data job. |
+| `src/next_ads/realtime/decisioning/reranking_data_build.py` | `overwrite_mode` | 5 | Active realtime dependency | Atomic Delta snapshot | Each validated realtime feature artifact is replaced as one complete Delta-table transaction by its independently scheduled data job. |
 | `src/next_ads/realtime/unknown.py` | `collect_list` | 1 | Active realtime consumer | Deterministic | `sort_array` canonicalises location and MASID structs before `map_from_entries`. |
 | `src/next_ads/realtime/unknown.py` | `deduplicate` | 1 | Active realtime consumer | Deterministic | Exact distinct locations define a membership loop; canonical map construction makes the delivered lookup order stable. |
 | `src/next_ads/reporting/autotrading.py` | `deduplicate` | 3 | Deployed reporting | Out of scope reporting | Exact distinct campaign and advert projections cannot affect candidate or assignment publication; reporting-owner review is required. |
@@ -174,7 +178,7 @@ updated, even when the per-file pattern count is unchanged.
 | `jobs/nextads_control/load_control_sheet_v2.py` | `b1f449c3ef9bddb1` |
 | `jobs/nextads_control/parse_attributes.py` | `b4bc8088f77e8504` |
 | `jobs/nextads_control/parse_theme_mapping.py` | `5334b45a2f79bdf5` |
-| `jobs/nextads_delivery/build_v2_payload.py` | `b1791f7d919529a3` |
+| `jobs/nextads_delivery/build_v2_payload.py` | `c791a5fdae72dd0d` |
 | `jobs/nextads_delivery/exclusions_export.py` | `d44e9807ec8d1818` |
 | `jobs/nextads_reporting/assignment_validation.py` | `056cab90367c7e4e` |
 | `jobs/nextads_reporting/realtime_results.py` | `a9b649c5327f6422` |
@@ -198,7 +202,7 @@ updated, even when the per-file pattern count is unchanged.
 | `src/next_ads/control/theme_mapping_sync.py` | `f3de2421f3365b69` |
 | `src/next_ads/data/sort_order/data_pull.py` | `94a56daae56851ca` |
 | `src/next_ads/data/validation/custom_checks.py` | `d29043e49e31db92` |
-| `src/next_ads/decisioning/assignment.py` | `d258bdb77fc54dc3` |
+| `src/next_ads/decisioning/assignment.py` | `79cb23eb899ab472` |
 | `src/next_ads/decisioning/assignment_publication.py` | `bee35828dd6d7c61` |
 | `src/next_ads/decisioning/table_maintenance.py` | `295aed008767ece0` |
 | `src/next_ads/delivery/google_sheets.py` | `3b8f3f9bd142852a` |
@@ -218,7 +222,9 @@ updated, even when the per-file pattern count is unchanged.
 | `src/next_ads/ranking/theme_score_eligibility.py` | `0b602bd2413b78bb` |
 | `src/next_ads/ranking/theme_score_generation.py` | `d98d95ac568f999a` |
 | `src/next_ads/ranking/theme_score_retrieval.py` | `1047e3c155495bd3` |
-| `src/next_ads/realtime/decisioning/advert_affinity_data_build.py` | `b480d63a3d27364a` |
+| `src/next_ads/realtime/decisioning/advert_affinity_data_build.py` | `bb59db3409285424` |
+| `src/next_ads/realtime/decisioning/realtime_known_reranking_model.py` | `7b159f24f38003da` |
+| `src/next_ads/realtime/decisioning/reranking_data_build.py` | `a93c68ecfb34918f` |
 | `src/next_ads/realtime/unknown.py` | `561ac1a518a6d385` |
 | `src/next_ads/reporting/autotrading.py` | `39a4095c9eab3cd5` |
 | `src/next_ads/reporting/results.py` | `47421bb65775c1e8` |
@@ -243,7 +249,7 @@ covered by the focused determinism tests.
 | `jobs/realtime/viewed_bought.py` | 2 | Active realtime input | Total order | Revenue and association ranks finish with item identifiers. |
 | `src/next_ads/control/control_sheet_audit.py` | 1 | Active warning-only control audit | Total order | Capped diagnostic examples are ordered by their unique rendered example key before aggregation. |
 | `src/next_ads/control/theme_mapping.py` | 2 | Active Markov dependency | Tie preserving | Both use `dense_rank`; equal scoring inputs intentionally share a rank and no arbitrary single row is selected. |
-| `src/next_ads/decisioning/assignment.py` | 12 | Active assignment dependency | Total order | Exact assignment selections finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
+| `src/next_ads/decisioning/assignment.py` | 14 | Active assignment dependency | Total order | Exact assignment selections and multi-ad creative slots finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
 | `src/next_ads/features/nextads_core.py` | 2 | Deployed feature foundation | Out of scope | Feature-foundation ranking is outside this incident route; feature-platform owner review is required. |
 | `src/next_ads/features/theme_affinity.py` | 2 | Deployed feature foundation | Total order | Feature ranks finish with the theme key, but feature-foundation output validation remains separately owned. |
 | `src/next_ads/ranking/provider_signals.py` | 1 | Active scoring-provider route | Total order | Provider ranking finishes with the entity identifier, giving identical scores a stable and replay-safe order. |
@@ -255,6 +261,7 @@ covered by the focused determinism tests.
 | `src/next_ads/ranking/theme_score_generation.py` | 2 | Active Markov dependency | Total order | Latest and top-theme ranks finish with theme identifiers. |
 | `src/next_ads/ranking/theme_score_ranking.py` | 3 | Active candidate dependency | Total order | FM and per-ad selections finish with stable business keys and `UniqueAdID`. |
 | `src/next_ads/realtime/decisioning/advert_affinity_data_build.py` | 3 | Active realtime dependency | Total order | Product and advert-affinity selections finish with product or advert identifiers. |
+| `src/next_ads/realtime/decisioning/reranking_data_build.py` | 2 | Active realtime dependency | Total order | Product and advert feature winners finish with stable feature values after their coverage or frequency ordering. |
 <!-- window-findings:end -->
 
 ## SQL-window review

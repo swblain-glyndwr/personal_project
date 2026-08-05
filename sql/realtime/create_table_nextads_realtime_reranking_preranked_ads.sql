@@ -1,0 +1,50 @@
+CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_realtime_reranking_preranked_ads (
+ UniqueAdID STRING NOT NULL ,
+ CMSPageID STRING NOT NULL,
+ AccountNumber STRING NOT NULL ,
+ roamingprofileid LONG NOT NULL ,
+ PageType STRING NOT NULL ,
+ Score DOUBLE NOT NULL ,
+ TriggerScore DOUBLE NOT NULL ,
+ Rank INT ,
+ FallowControl STRING NOT NULL ,
+ HomePageTest1 STRING NOT NULL ,
+ ShoppingBagTest1 STRING NOT NULL ,
+ OrderCompleteTest1 STRING NOT NULL ,
+ LandingPageTest1 STRING NOT NULL ,
+ AdHocABTest1 STRING ,
+ AdHocABTest2 STRING ,
+ AdHocABTest3 STRING ,
+ AdHocABTest4 STRING ,
+ AdHocABTest5 STRING ,
+ AdHocABTest6 STRING ,
+ AdHocABTest7 STRING ,
+ AdHocABTest8 STRING ,
+ AdHocABTest9 STRING  ,
+ ChampionChallenger STRING ,
+ PageTypeIsolation STRING ,
+ specialaccountindicator STRING,
+ AlgoDivision STRING NOT NULL ,
+ IsPremium INT,
+ Audience STRING,
+ brand STRING,
+ brand_perc_coverage DOUBLE,
+ department STRING,
+ department_perc_coverage DOUBLE,
+ next_category STRING,
+ next_category_perc_coverage DOUBLE,
+ prem_level_brand BOOLEAN ,
+ prem_level_brand_perc_coverage DOUBLE ,
+ rundate date not null,
+    constraint pk_{client}_nextads_realtime_reranking_preranked_ads primary key (
+        UniqueAdID,
+        roamingprofileid,
+         PageType,
+        rundate)
+)
+USING DELTA
+CLUSTER BY (PageType)
+TBLPROPERTIES('delta.enableChangeDataFeed'= 'true',
+'delta.targetFileSize' = '536870912' -- Sets target file size to 512 MB for more optimised syncing to online table
+)
+;

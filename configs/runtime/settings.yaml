@@ -50,6 +50,11 @@ preprod:
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
   search_volume_path: "/Volumes/marketingdata_preprod/search_sandbox/search_volume/PF/next_ads"
+  cosmos_url: "https://adscosmos-ecm-preprod-eun.documents.azure.com:443/"
+  cosmos_resource_group: "ADS-RG-ECM-PREPROD-EUN"
+  cosmos_database: "ecmadsconfigcdbpreprod"
+  cosmos_container: "adverts-exclusions"
+  cosmos_subscriptionId: "78d011e3-c82d-4800-bbc0-c0bf0ae045ce"
 
 prod:
   job_env: prod
@@ -60,6 +65,11 @@ prod:
   dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
   search_volume_path: "/Volumes/marketingdata_prod/search_sandbox/search_volume/PF/next_ads"
+  cosmos_url: "https://adscosmos-ecm-prod-eun.documents.azure.com:443/"
+  cosmos_resource_group: "ADS-RG-ECM-PROD-EUN"
+  cosmos_database: "ecmadsconfigcdbprod"
+  cosmos_container: "adverts-exclusions"
+  cosmos_subscriptionId: "2b4ad78c-2d32-4884-aea7-3c39d8c338b0"
   bloomreach_import:
     enabled: true
     url: https://api.e.nextdirect.com

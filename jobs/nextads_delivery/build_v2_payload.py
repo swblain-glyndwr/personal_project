@@ -58,7 +58,12 @@ def get_input_dataframes(config, spark):
     control_sheet_latest_v2 = spark.table(
         config.tables_write.control_sheet_latest_v2
     )
-    rpid_with_accounts = spark.table(config.tables_read.rpid_with_accounts)
+    rpid_with_accounts = (
+        spark.table(config.tables_read.rpid_with_accounts)
+        .filter("latestflag = 1")
+        .select("roamingprofileid", "account_number")
+        .distinct()
+    )
 
     return (
         assignments_v2_latest,
@@ -321,10 +326,15 @@ def combine_tables(
     payload_experiment_settings: dict | None = None,
 ):
     assn = assignments_v2_latest
-    csfl_ctrl = customer_cells_fixed_latest.withColumn(
-        "control",
-        F.when(F.col("FallowControl") == "NoAds", True).otherwise(False),
-    ).select("AccountNumber", "control")
+
+    csfl_ctrl = (
+        customer_cells_fixed_latest.withColumn(
+            "control",
+            F.when(F.col("FallowControl") == "NoAds", True).otherwise(False),
+        )
+        .select("AccountNumber", "control")
+        .distinct()
+    )
 
     csfl_exp = assign_experiments(
         customer_cells_fixed_latest=customer_cells_fixed_latest,
@@ -334,8 +344,16 @@ def combine_tables(
     )
     csfl = csfl_exp.join(csfl_ctrl, ["AccountNumber"])
 
-    cs = control_sheet_latest_v2.select(
-        "UniqueAdID", "PotNumber", "CampaignNumber", "TemplateName"
+    cs = (
+        control_sheet_latest_v2.select(
+            "UniqueAdID",
+            "PotNumber",
+            "CampaignNumber",
+            "TemplateName",
+            "CMSPageID",
+        )
+        .filter("CMSPageID is not null and CMSPageID <> ''")
+        .distinct()
     )
 
     fr = get_fatigue_rotation_settings(spark)
@@ -347,18 +365,10 @@ def combine_tables(
         .join(csfl, ["AccountNumber"])
         .join(fr, ["pageType"])
         .withColumn(
-            "type",
-            F.when(F.col("TemplateName").like("%Standard%"), "s").otherwise(
-                "d"
-            ),
-        )  # standard or dynamic (video) content
-        .withColumn(
             "fragmentId",
-            F.concat_ws(
-                "_", F.col("PotNumber"), F.col("CampaignNumber"), F.col("type")
-            ),
+            F.lower("CMSPageID"),
         )
-        .withColumn("adFatigueImpressionThreshold", F.lit(2))
+        .withColumn("adFatigueImpressionThreshold", F.lit(-1))
         # Hard-coded to false for now as we haven't determined when this will go live and where etc.
         # TODO: ad rotation deployment plan
         .withColumn("enableAdFatigueRotation", F.lit(False))
@@ -410,11 +420,14 @@ def make_payload(df_combined):
             "fulltriggers",
             F.sort_array(  # sort by the struct with Max_TriggerScore first, sort descending so the most important triggers are at the front of the list
                 F.collect_list(  # list the max TriggerScore, for each fragmentId, for that customer
-                    F.struct(
-                        F.coalesce(F.col("Max_TriggerScore"), F.lit(0)).alias(
-                            "t"
+                    F.when(
+                        F.col("fragmentId").isNotNull(),
+                        F.struct(
+                            F.coalesce(
+                                F.col("Max_TriggerScore"), F.lit(0)
+                            ).alias("t"),
+                            F.col("fragmentId").alias("id"),
                         ),
-                        F.col("fragmentId").alias("id"),
                     )
                 ).over(triggers_window),
                 asc=False,
@@ -439,7 +452,10 @@ def make_payload(df_combined):
             F.sort_array(
                 F.array_sort(
                     F.collect_list(
-                        F.struct(F.col("rank_int"), F.col("fragmentId"))
+                        F.when(
+                            F.col("fragmentId").isNotNull(),
+                            F.struct(F.col("rank_int"), F.col("fragmentId")),
+                        )
                     )
                 ),
                 asc=True,
@@ -451,7 +467,8 @@ def make_payload(df_combined):
     # and rotation settings in common
     agg_comb3 = (
         agg_comb2.withColumn(
-            "fragmentIds", F.expr("transform(fragments, x -> x.fragmentId)")
+            "fragmentIds",
+            F.expr("array_distinct(transform(fragments, x -> x.fragmentId))"),
         )
         .select(
             "AccountNumber",

@@ -1,3 +1,4 @@
+import inspect
 from pathlib import Path
 
 import pytest
@@ -5,6 +6,8 @@ from pyspark.sql import SparkSession
 
 import next_ads.decisioning.assignment as assignment
 from next_ads.decisioning.assignment import (
+    assign_nextgenads,
+    assign_nextgenads_v2,
     assign_preranked_ads,
     assign_random_ads,
     assign_random_ads_v2,
@@ -78,6 +81,20 @@ def test_assignment_and_customer_cell_sources_use_stable_namespaces():
     )
 
 
+def test_nextgen_multi_ad_slotting_deduplicates_before_window_and_filters_before_projection():
+    v1_source = inspect.getsource(assign_nextgenads)
+    v2_source = inspect.getsource(assign_nextgenads_v2)
+
+    assert v1_source.index(".distinct()") < v1_source.index('"creative_slot"')
+    assert v2_source.index(".distinct()") < v2_source.index("'creative_slot'")
+    assert v1_source.index("F.pmod") < v1_source.index(
+        '.select("AccountNumber", "UniqueAdID")'
+    )
+    assert v2_source.index("F.pmod") < v2_source.index(
+        ".select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')"
+    )
+
+
 def test_assign_random_ads_v2_is_stable_across_repartitioning(local_spark):
     ads = local_spark.createDataFrame(
         [
@@ -120,6 +137,79 @@ def test_assign_random_ads_v2_is_stable_across_repartitioning(local_spark):
         ranks == {1, 2}
         for ranks in ranks_by_account.values()
     )
+
+
+def test_nextgen_multi_ad_assignment_is_unique_and_partition_stable(
+    local_spark,
+):
+    accounts = [f"account-{index}" for index in range(12)]
+    assignment_rows = [
+        (account, 213, rank, float(10 - rank))
+        for account in accounts
+        for rank in (1, 2)
+    ]
+    local_spark.createDataFrame(
+        assignment_rows,
+        [
+            "AccountNumber",
+            "assigned_cluster_id",
+            "assignment_rank",
+            "target_score",
+        ],
+    ).createOrReplaceTempView("nextgen_multi_ad_assignments_test")
+
+    ads = local_spark.createDataFrame(
+        [
+            ("ad-a", "213"),
+            ("ad-a", "213"),
+            ("ad-b", "213"),
+        ],
+        ["UniqueAdID", "ClusterID"],
+    )
+    customers = local_spark.createDataFrame(
+        [(account,) for account in accounts],
+        ["AccountNumber"],
+    )
+
+    v1_one_partition = assign_nextgenads(
+        ads.repartition(1),
+        "nextgen_multi_ad_assignments_test",
+        customers.repartition(1),
+        return_ranks=[1],
+    )
+    v1_four_partitions = assign_nextgenads(
+        ads.repartition(4),
+        "nextgen_multi_ad_assignments_test",
+        customers.repartition(4),
+        return_ranks=[1],
+    )
+    v1_rows = _assignment_rows(v1_one_partition)
+    assert v1_rows == _assignment_rows(v1_four_partitions)
+    assert len(v1_rows) == len(accounts)
+    assert {row[0] for row in v1_rows} == set(accounts)
+    assert {row[1] for row in v1_rows} == {"ad-a", "ad-b"}
+
+    v2_one_partition = assign_nextgenads_v2(
+        ads.repartition(1),
+        "nextgen_multi_ad_assignments_test",
+        customers.repartition(1),
+        n_ads=2,
+    )
+    v2_four_partitions = assign_nextgenads_v2(
+        ads.repartition(4),
+        "nextgen_multi_ad_assignments_test",
+        customers.repartition(4),
+        n_ads=2,
+    )
+    v2_rows = _assignment_rows(v2_one_partition)
+    assert v2_rows == _assignment_rows(v2_four_partitions)
+    assert len(v2_rows) == len(accounts) * 2
+    assert {
+        (row[0], row[2]) for row in v2_rows
+    } == {
+        (account, rank) for account in accounts for rank in (1, 2)
+    }
+    assert {row[1] for row in v2_rows} == {"ad-a", "ad-b"}
 
 
 def test_assign_random_ads_is_stable_and_balanced(local_spark):
