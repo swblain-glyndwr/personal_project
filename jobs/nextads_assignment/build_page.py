@@ -25,8 +25,8 @@ finally:
 
 from pyspark.sql import functions as F
 from next_ads.decisioning.assignment import (
+    assign_candidate_ads,
     assign_nextgenads,
-    assign_preranked_ads,
     assign_random_ads,
     assign_random_ads_with_exclusions,
 )
@@ -98,6 +98,9 @@ BUILD_RUN_ID = _get_required_job_arg(jobparser, "--build_run_id")
 CANDIDATE_BUILD_ATTEMPT_ID = _get_required_job_arg(
     jobparser,
     "--candidate_build_attempt_id",
+)
+from next_ads.decisioning.candidate_inputs import (
+    load_accepted_candidate_inputs,
 )
 if not BUILD_RUN_ID.startswith("v1_") or BUILD_RUN_ID == "v1_":
     raise ValueError(
@@ -259,8 +262,13 @@ ASSIGNMENT_INPUT_COLUMNS = tuple(
     for column in ASSIGNMENT_SCOPE_CONTRACT.public_columns
     if column != ASSIGNMENT_SCOPE_CONTRACT.publication_date_column
 )
-PRERANKED_THEMES_TABLE = etl.map_tbl(
-    tbls["preranked_ads_from_themes_latest"], **tbl_args
+CANDIDATE_INPUTS = load_accepted_candidate_inputs(
+    spark,
+    builds_table=config.tables_write.candidate_builds,
+    scores_table=config.tables_write.candidate_scores,
+    ad_sets_table=config.tables_write.candidate_ad_sets,
+    candidate_build_attempt_id=CANDIDATE_BUILD_ATTEMPT_ID,
+    route="v1",
 )
 NEXTGENADS_ASSIGNMENTS_TABLE = cfg["tables"]["read"][
     "nextgenads_assignments_latest"
@@ -473,7 +481,9 @@ else:
         df_assigned_best = spark.createDataFrame(
             [], schema="AccountNumber STRING, UniqueAdID STRING"
         )
-        df_assigned_best_challenger = df_assigned_best
+        df_assigned_best_challenger = spark.createDataFrame(
+            [], schema="AccountNumber STRING, UniqueAdID STRING"
+        )
         basic_within = LOCATIONS[LOCATION]["basic_within"]
         best_kwargs = {"return_ranks": [1]}
     else:
@@ -565,16 +575,33 @@ else:
         else:
             best_kwargs = {"return_ranks": [1]}
 
-        df_assigned_best = assign_preranked_ads(
+        candidate_scope = best_kwargs.get(
+            "inherit_rank_from_location",
+            LOCATION,
+        )
+        df_assigned_best = assign_candidate_ads(
             df_ads=df_ads_tgt_best,
-            preranked_ads_table=PRERANKED_THEMES_TABLE,
-            location=LOCATION,
+            candidate_scores=CANDIDATE_INPUTS.candidates_for_scope(
+                "best",
+                candidate_scope,
+            ),
             df_cust=df_cells.select("AccountNumber"),
-            **best_kwargs,
+            return_ranks=best_kwargs["return_ranks"],
         )
         df_assigned_best = _cache_assignment_frame(df_assigned_best)
 
-        df_assigned_best_challenger = df_assigned_best
+        df_assigned_best_challenger = assign_candidate_ads(
+            df_ads=df_ads_tgt_best,
+            candidate_scores=CANDIDATE_INPUTS.candidates_for_scope(
+                "best_challenger",
+                candidate_scope,
+            ),
+            df_cust=df_cells.select("AccountNumber"),
+            return_ranks=best_kwargs["return_ranks"],
+        )
+        df_assigned_best_challenger = _cache_assignment_frame(
+            df_assigned_best_challenger
+        )
 
     USE_NEXTGENADS = any(
         step.get("then", {}).get("col") == "UniqueAdIDNextGenAds"
@@ -889,6 +916,8 @@ try:
         scope=LOCATION,
         task_run_id=TASK_RUN_ID,
         execution_count=EXECUTION_COUNT,
+        provenance=CANDIDATE_INPUTS.provenance,
+        allow_no_ads=NO_ASSIGNABLE_ADS,
     )
     logger.info(
         f"Staged {stage_result.row_count:,} assignments for {LOCATION}; "
@@ -896,6 +925,9 @@ try:
     )
 finally:
     _release_cached_assignment_frames()
-    atexit.unregister(_release_cached_assignment_frames)
+    try:
+        atexit.unregister(_release_cached_assignment_frames)
+    except ValueError:
+        pass
 
 logger.info("Run complete")

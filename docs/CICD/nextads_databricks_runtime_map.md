@@ -144,17 +144,20 @@ and `run_page_build_v2` now remain active until their child jobs finish. Capture
 new three-run DEV baseline before using this table for end-to-end timing targets.
 
 The candidate tasks retain the current preranked tables as compatibility
-outputs. Page-build child jobs also receive `candidate_build_attempt_id`; the
-next assignment checkpoint switches their reads from compatibility tables to
-that accepted attempt.
+outputs, but page-build consumers no longer read them. Each page-build child
+loads its exact ready `candidate_build_attempt_id`, resolves separate `best` and
+`best_challenger` portfolio entries, and carries the accepted portfolio and
+foundation provenance into internal staging and completion events.
 
-## Page Build And Delivery Fan-Out
+## Bulk Page Build And Delivery Fan-Out
 
 The v1 and v2 page-build jobs are not normally scheduled by themselves in PROD.
 They are run as synchronous child jobs after their respective mapping tables and
-shared customer cells are ready. The v1 page-build job remains
-location-based and continues to fan out to QA, MASID handoff, and PLP delivery.
-The v2 page-build job is page-type based and fans out to payload export.
+shared customer cells are ready. V1 builds its 77 primary locations in one task
+and its two inherited secondary locations in one following task. V2 builds all
+five page types in one task. This removes per-scope cluster starts while keeping
+the public assignment grain unchanged. After publication, v1 still fans out to
+QA, MASID handoff and PLP delivery, while v2 fans out to payload export.
 
 ```mermaid
 flowchart TD
@@ -187,7 +190,8 @@ flowchart TD
   run_plp_gs_delivery --> plp["plp_gs_delivery"]:::v1
 ```
 
-Observed latest successful page-build task timing, from run `724497366216494`:
+The following timings are the pre-bulk baseline from successful run
+`724497366216494`; capture new DEV evidence before treating them as current:
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |

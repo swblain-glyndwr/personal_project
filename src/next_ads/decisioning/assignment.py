@@ -923,6 +923,38 @@ def assign_preranked_ads_v2(
         'TriggerScore')
 
 
+def assign_candidate_ads_v2(
+        df_ads: DataFrame,
+        candidate_scores: DataFrame,
+        df_cust: DataFrame = None,
+        n_ads: int = 20,
+) -> DataFrame:
+    """Assign one accepted v2 portfolio entry from its exact candidate rows."""
+    df_adscores = (
+        candidate_scores.select(
+            'AccountNumber',
+            'UniqueAdID',
+            'Rank',
+            'TriggerScore',
+        )
+        .join(df_ads.select('UniqueAdID'), on='UniqueAdID', how='inner')
+        .where(F.col('Rank') <= n_ads)
+    )
+    if df_cust is not None:
+        df_adscores = df_adscores.join(
+            df_cust,
+            on='AccountNumber',
+            how='inner',
+        )
+    assert_pk(df_adscores, ['AccountNumber', 'UniqueAdID'])
+    return df_adscores.select(
+        'AccountNumber',
+        'UniqueAdID',
+        'Rank',
+        'TriggerScore',
+    )
+
+
 def assign_nextgenads_v2(
         df_ads: DataFrame,
         customer_to_cluster_table: str,
@@ -1103,6 +1135,44 @@ def assign_preranked_ads(
     )
 
     return df_return
+
+
+def assign_candidate_ads(
+        df_ads: DataFrame,
+        candidate_scores: DataFrame,
+        df_cust: DataFrame = None,
+        return_ranks: list = [1],
+) -> DataFrame:
+    """Assign one accepted v1 portfolio entry from its exact candidate rows."""
+    df_adscores = candidate_scores.select(
+        'AccountNumber',
+        'UniqueAdID',
+        'Score',
+        'Rank',
+    ).join(df_ads, on='UniqueAdID', how='inner')
+    if df_cust is not None:
+        df_adscores = df_adscores.join(
+            df_cust,
+            on='AccountNumber',
+            how='inner',
+        )
+    assert_pk(df_adscores, ['AccountNumber', 'UniqueAdID'])
+    w_ad_tb = Window.partitionBy(
+        [F.col('AccountNumber'), F.col('Rank')]
+    ).orderBy(
+        *stable_order(
+            ['AccountNumber', 'Rank', 'UniqueAdID'],
+            seed=99,
+            namespace='assignment-v1-preranked-tie',
+            hash_descending=True,
+        )
+    )
+    return (
+        df_adscores.withColumn('RankTB', F.row_number().over(w_ad_tb))
+        .where(F.col('RankTB') == 1)
+        .where(F.col('Rank').isin(return_ranks))
+        .select('AccountNumber', 'Score', 'Rank', 'UniqueAdID')
+    )
 
 
 def assign_predetermined_audience(

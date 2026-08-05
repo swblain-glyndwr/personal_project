@@ -194,6 +194,8 @@ def test_v1_builder_stages_one_exact_location_and_never_writes_public_tables():
         "scope": "LOCATION",
         "task_run_id": "TASK_RUN_ID",
         "execution_count": "EXECUTION_COUNT",
+        "provenance": "CANDIDATE_INPUTS.provenance",
+        "allow_no_ads": "NO_ASSIGNABLE_ADS",
     }
 
     selected_column_sets = {
@@ -341,7 +343,7 @@ def test_v1_empty_primary_scope_cascades_without_fresh_allocation():
     allocation_names = {
         "assign_random_ads",
         "assign_random_ads_with_exclusions",
-        "assign_preranked_ads",
+        "assign_candidate_ads",
         "assign_nextgenads",
     }
     allocations_in_no_ads_path = {
@@ -370,6 +372,20 @@ def test_v1_empty_primary_scope_cascades_without_fresh_allocation():
     assert allocations_in_no_ads_path == set()
     assert allocations_in_build_path == all_allocations
     assert inherited_empty_calls[0].lineno < no_ads_branch.lineno
+
+
+def test_v1_builder_resolves_best_and_challenger_separately():
+    source, tree = _v1_builder_source_and_tree()
+
+    candidate_calls = _calls_named(tree, "assign_candidate_ads")
+    assert len(candidate_calls) == 2
+    slots = {
+        ast.literal_eval(call.args[0])
+        for call in _attribute_calls(tree, "candidates_for_scope")
+    }
+    assert {"best", "best_challenger"}.issubset(slots)
+    assert "df_assigned_best_challenger = df_assigned_best" not in source
+    assert "preranked_ads_from_themes_latest" not in source
 
 
 def test_v1_builder_releases_caches_after_staging_or_task_failure():

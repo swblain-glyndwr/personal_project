@@ -169,6 +169,35 @@ def _forwarded_page_identity_parameters():
     return {name: f"{{{{job.parameters.{name}}}}}" for name in names}
 
 
+def _bulk_assignment_parameters(route, phase):
+    return [
+        "--client",
+        "next_uk",
+        "--job_env",
+        "${var.job_parameter_environment_name}",
+        "--route",
+        route,
+        "--phase",
+        phase,
+        "--scope_manifest_json",
+        "{{job.parameters.scope_manifest_json}}",
+        "--run_date",
+        "{{job.parameters.run_date}}",
+        "--build_run_id",
+        "{{job.parameters.build_run_id}}",
+        "--candidate_build_attempt_id",
+        "{{job.parameters.candidate_build_attempt_id}}",
+        "--task_run_id",
+        "{{task.run_id}}",
+        "--execution_count",
+        "{{task.execution_count}}",
+        "--customer_cells_table",
+        "{{job.parameters.customer_cells_table}}",
+        "--customer_cells_delta_version",
+        "{{job.parameters.customer_cells_delta_version}}",
+    ]
+
+
 def _assert_delivery_boundary_parameters(job):
     parameters = _job_parameters(job)
     expected = set(_forwarded_page_identity_parameters())
@@ -515,24 +544,15 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
 
     v1_page_critical_path = sum(
         (
-            page_v1_tasks["prepare_assignment_scope_manifest"][
-                "timeout_seconds"
-            ],
-            page_v1_tasks["build_page_primary"]["for_each_task"]["task"][
-                "timeout_seconds"
-            ],
-            page_v1_tasks["build_page_secondary"]["for_each_task"]["task"][
-                "timeout_seconds"
-            ],
+            page_v1_tasks["build_page_primary"]["timeout_seconds"],
+            page_v1_tasks["build_page_secondary"]["timeout_seconds"],
             page_v1_tasks["publish_assignment_build_v1"]["timeout_seconds"],
             validation["timeout_seconds"],
         )
     )
     v2_page_critical_path = sum(
         (
-            page_v2_tasks["build_page_v2"]["for_each_task"]["task"][
-                "timeout_seconds"
-            ],
+            page_v2_tasks["build_page_v2"]["timeout_seconds"],
             page_v2_tasks["publish_assignment_build_v2"]["timeout_seconds"],
             payload["timeout_seconds"],
         )
@@ -966,91 +986,27 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
     )
     assert scope_manifest == [*primary_manifest, *secondary_manifest]
 
-    prepare = tasks_by_key["prepare_assignment_scope_manifest"]
-    assert prepare["notebook_task"] == {
-        "notebook_path": (
-            "../../../jobs/nextads_assignment/prepare_scope_manifest.py"
-        ),
-        "base_parameters": {
-            "scope_manifest_json": (
-                "{{job.parameters.scope_manifest_json}}"
-            )
-        },
-        "source": "WORKSPACE",
-    }
-    assert prepare["timeout_seconds"] == 1800
-
     primary = tasks_by_key["build_page_primary"]
-    assert primary["depends_on"] == [
-        {"task_key": "prepare_assignment_scope_manifest"}
-    ]
-    assert primary["for_each_task"]["inputs"] == (
-        "{{tasks.prepare_assignment_scope_manifest.values."
-        "primary_scope_manifest}}"
+    assert "depends_on" not in primary
+    assert "for_each_task" not in primary
+    assert primary["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_assignment/bulk_build.py"
     )
-    assert primary["for_each_task"]["task"]["spark_python_task"][
-        "parameters"
-    ] == [
-        "--client",
-        "next_uk",
-        "--job_env",
-        "${var.job_parameter_environment_name}",
-        "--location",
-        "{{input.scope}}",
-        "--scope_manifest_json",
-        "{{job.parameters.scope_manifest_json}}",
-        "--run_date",
-        "{{job.parameters.run_date}}",
-        "--build_run_id",
-        "{{job.parameters.build_run_id}}",
-        "--candidate_build_attempt_id",
-        "{{job.parameters.candidate_build_attempt_id}}",
-        "--task_run_id",
-        "{{task.run_id}}",
-        "--execution_count",
-        "{{task.execution_count}}",
-        "--customer_cells_table",
-        "{{job.parameters.customer_cells_table}}",
-        "--customer_cells_delta_version",
-        "{{job.parameters.customer_cells_delta_version}}",
-    ]
+    assert primary["spark_python_task"]["parameters"] == (
+        _bulk_assignment_parameters("v1", "primary")
+    )
 
     secondary = tasks_by_key["build_page_secondary"]
     assert secondary["depends_on"] == [
         {"task_key": "build_page_primary"}
     ]
-    assert secondary["for_each_task"]["inputs"] == (
-        "{{tasks.prepare_assignment_scope_manifest.values."
-        "secondary_scope_manifest}}"
+    assert "for_each_task" not in secondary
+    assert secondary["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_assignment/bulk_build.py"
     )
-    assert secondary["for_each_task"]["task"]["spark_python_task"][
-        "parameters"
-    ] == [
-        "--client",
-        "next_uk",
-        "--job_env",
-        "${var.job_parameter_environment_name}",
-        "--location",
-        "{{input.scope}}",
-        "--inherit_basic_from",
-        "{{input.inherit_basic_from}}",
-        "--scope_manifest_json",
-        "{{job.parameters.scope_manifest_json}}",
-        "--run_date",
-        "{{job.parameters.run_date}}",
-        "--build_run_id",
-        "{{job.parameters.build_run_id}}",
-        "--candidate_build_attempt_id",
-        "{{job.parameters.candidate_build_attempt_id}}",
-        "--task_run_id",
-        "{{task.run_id}}",
-        "--execution_count",
-        "{{task.execution_count}}",
-        "--customer_cells_table",
-        "{{job.parameters.customer_cells_table}}",
-        "--customer_cells_delta_version",
-        "{{job.parameters.customer_cells_delta_version}}",
-    ]
+    assert secondary["spark_python_task"]["parameters"] == (
+        _bulk_assignment_parameters("v1", "secondary")
+    )
 
     publisher = tasks_by_key["publish_assignment_build_v1"]
     assert publisher["depends_on"] == [
@@ -1154,34 +1110,14 @@ def test_page_build_v2_publishes_complete_build_before_payload_submission():
     ]
     assert len({entry["scope"] for entry in scope_manifest}) == 5
 
-    build_for_each = tasks_by_key["build_page_v2"]["for_each_task"]
-    assert build_for_each["inputs"] == (
-        "{{job.parameters.scope_manifest_json}}"
+    build_task = tasks_by_key["build_page_v2"]
+    assert "for_each_task" not in build_task
+    assert build_task["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_assignment/bulk_build.py"
     )
-    assert build_for_each["task"]["spark_python_task"]["parameters"] == [
-        "--client",
-        "next_uk",
-        "--job_env",
-        "${var.job_parameter_environment_name}",
-        "--page_type",
-        "{{input.scope}}",
-        "--scope_manifest_json",
-        "{{job.parameters.scope_manifest_json}}",
-        "--run_date",
-        "{{job.parameters.run_date}}",
-        "--build_run_id",
-        "{{job.parameters.build_run_id}}",
-        "--candidate_build_attempt_id",
-        "{{job.parameters.candidate_build_attempt_id}}",
-        "--task_run_id",
-        "{{task.run_id}}",
-        "--execution_count",
-        "{{task.execution_count}}",
-        "--customer_cells_table",
-        "{{job.parameters.customer_cells_table}}",
-        "--customer_cells_delta_version",
-        "{{job.parameters.customer_cells_delta_version}}",
-    ]
+    assert build_task["spark_python_task"]["parameters"] == (
+        _bulk_assignment_parameters("v2", "all")
+    )
 
     publisher = tasks_by_key["publish_assignment_build_v2"]
     assert publisher["depends_on"] == [{"task_key": "build_page_v2"}]

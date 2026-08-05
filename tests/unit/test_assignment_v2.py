@@ -277,6 +277,8 @@ def test_v2_builder_stages_one_exact_page_scope_and_no_public_tables():
         "scope": "PAGE_TYPE",
         "task_run_id": "TASK_RUN_ID",
         "execution_count": "EXECUTION_COUNT",
+        "provenance": "CANDIDATE_INPUTS.provenance",
+        "allow_no_ads": "NO_ASSIGNABLE_ADS",
     }
 
     selected_column_sets = {
@@ -300,6 +302,20 @@ def test_v2_builder_stages_one_exact_page_scope_and_no_public_tables():
         }
     )
     assert ".write" not in source
+
+
+def test_v2_builder_resolves_best_and_challenger_separately():
+    source, tree = _v2_builder_source_and_tree()
+
+    candidate_calls = _calls_named(tree, "assign_candidate_ads_v2")
+    assert len(candidate_calls) == 2
+    slots = {
+        ast.literal_eval(call.args[0])
+        for call in _attribute_calls(tree, "candidates_for_scope")
+    }
+    assert {"best", "best_challenger"}.issubset(slots)
+    assert "df_assigned_best_challenger = df_assigned_best" not in source
+    assert "preranked_ads_from_themes_v2_latest" not in source
 
 
 def test_v2_builder_retains_cached_lineage_until_staging_finishes():

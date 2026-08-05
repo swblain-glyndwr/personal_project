@@ -144,7 +144,7 @@ The previous migration assumption was that v2 would fully replace v1 after a sho
 | Control sheets | Keep separate tasks. | V1 is location-based and v2 is page-type based. Each loaded table carries its own ad `Themes` values. |
 | Theme coverage | Validate independently before each mapper. | A route may proceed only after its own control snapshot is technically readable and its active themes have been compared with the exact selected provider version. |
 | Candidate mapping | Split v1 and v2 tasks, but use the same internal publication contract. | Each task pins its control version, reuses identical provider computation, stores content-stable ad sets and top-20 candidates, and writes readiness last. |
-| Page build | Keep separate synchronous child jobs. | V1 builds by `Location`; v2 builds by `PageType`. Each child receives the exact accepted candidate attempt before the assignment consumer changes in the next checkpoint. |
+| Page build | Keep separate synchronous child jobs and bulk within each route. | V1 builds 77 primary locations then SB2/OC2 on shared clusters; v2 builds all five page types together. Both read the exact accepted candidate attempt and resolve champion/challenger as separate portfolio entries. |
 
 ## Databricks Job Granularity
 
@@ -155,8 +155,8 @@ The current YAMLs do not create a separate Databricks job for every node in the 
 | `mktg_next_uk_nextads_theme_affinity` | `pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml` | Yes | Scheduled upstream score-provider route; publishes an accepted canonical provider build and compatibility outputs. |
 | `mktg_next_uk_nextads_markov_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml` | Yes | Scheduled shadow-provider route; builds Markov scores from the accepted input, publishes through the shared canonical contract, and retains legacy compatibility outputs. |
 | `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Yes, as one multi-task job | Customer cells, isolated v1/v2 control routes, immutable portfolio resolution, accepted candidate publication, compatibility output and synchronous page-build jobs. |
-| `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Yes | V1 complete-build publication, then synchronous validation, MASID handoff, and PLP delivery jobs. |
-| `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Yes | V2 complete-build publication, then synchronous payload export. |
+| `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Yes | V1 primary/secondary bulk assignment, complete-build publication, then synchronous validation, MASID handoff, and PLP delivery jobs. |
+| `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Yes | V2 all-page-type bulk assignment, complete-build publication, then synchronous payload export. |
 | `mktg_next_uk_nextads_assignment_validation` | `pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml` | Yes | V1 assignment validation. |
 | `mktg_next_uk_nextads_masid_handoff` | `pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml` | Yes | V1 MASID handoff check. |
 | `mktg_next_uk_nextads_plp_gs_delivery` | `pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml` | Yes | V1 PLP Google Sheets delivery. |
@@ -190,3 +190,13 @@ are hashes of canonically sorted ad membership rather than run-local sequence
 numbers. Only portfolio entries marked `SERVING` are materialised; Markov remains
 visible in the portfolio but absent from assignment candidates while it is
 `SHADOW`/`EVALUATE`.
+
+Assignment consumers require one ready candidate header and exactly one
+`best` and `best_challenger` binding. They filter `candidate_scores` and
+`candidate_ad_sets` by the accepted attempt rather than consulting a mutable
+latest table. Both bindings can point to Theme Affinity without aliasing the
+dataframes; changing a portfolio entry later changes only that slot. Internal
+assignment staging and events record the candidate build, candidate attempt,
+portfolio, portfolio attempt and candidate-foundation snapshot. Public v1/v2
+assignment schemas remain unchanged, and history still publishes before latest
+only after every expected scope has a valid completion event.

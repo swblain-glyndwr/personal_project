@@ -10,6 +10,7 @@ from next_ads.decisioning.assignment_publication import (
     NO_ADS,
     READY,
     AssignmentColumnContract,
+    AssignmentProvenance,
     AssignmentScopeContract,
     AssignmentScopeEvent,
     AssignmentTableContract,
@@ -28,6 +29,14 @@ TABLES = AssignmentTableContract(
     latest_table="catalog.schema.assignments_latest",
 )
 COLUMNS = AssignmentColumnContract()
+PROVENANCE = AssignmentProvenance(
+    candidate_build_id="candidate-build",
+    candidate_build_attempt_id="candidate-build:attempt:0",
+    portfolio_id="portfolio",
+    portfolio_attempt_id="portfolio:attempt:0",
+    candidate_foundation_snapshot_id="candidate-foundation",
+)
+PROVENANCE_COLUMNS = list(PROVENANCE.column_values(COLUMNS))
 SCOPE_CONTRACT = AssignmentScopeContract(
     route="v1",
     scope_column="Location",
@@ -123,6 +132,7 @@ def _event(
     build_run_id=BUILD_RUN_ID,
     route="v1",
     build_date=BUILD_DATE,
+    provenance=PROVENANCE,
 ):
     return {
         "BuildRunID": build_run_id,
@@ -134,6 +144,7 @@ def _event(
         "TaskRunID": task_run_id,
         "ExecutionCount": execution_count,
         "CompletedAt": completed_at,
+        **provenance.column_values(COLUMNS),
     }
 
 
@@ -153,6 +164,7 @@ def _selected_event(
         task_run_id=task_run_id,
         execution_count=execution_count,
         completed_at=COMPLETED_AT,
+        provenance=PROVENANCE,
     )
 
 
@@ -238,6 +250,7 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
         scope="A",
         task_run_id=321,
         execution_count=2,
+        provenance=PROVENANCE,
         completed_at=COMPLETED_AT,
     )
 
@@ -255,6 +268,7 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
         "BuildRunID",
         "TaskRunID",
         "ExecutionCount",
+        *PROVENANCE_COLUMNS,
         *SCOPE_CONTRACT.public_columns,
     ]
     assert stage_call[2].columns == stage_call[6]
@@ -274,6 +288,7 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
         "TaskRunID",
         "ExecutionCount",
         "CompletedAt",
+        *PROVENANCE_COLUMNS,
     ]
     assert spark.created_rows == [
         {
@@ -286,6 +301,7 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
             "TaskRunID": 321,
             "ExecutionCount": 2,
             "CompletedAt": COMPLETED_AT,
+            **PROVENANCE.column_values(COLUMNS),
         }
     ]
     assert result.status == expected_status
@@ -315,6 +331,7 @@ def test_stage_rejects_an_unexpected_scope_before_staging(monkeypatch):
             scope="C",
             task_run_id=321,
             execution_count=2,
+            provenance=PROVENANCE,
         )
 
 
@@ -357,6 +374,49 @@ def test_stage_failure_never_appends_a_completion_event(monkeypatch):
             scope="A",
             task_run_id=321,
             execution_count=2,
+            provenance=PROVENANCE,
+        )
+
+
+def test_unexpected_empty_scope_fails_without_a_completion_event(monkeypatch):
+    monkeypatch.setattr(
+        publication,
+        "F",
+        SimpleNamespace(
+            lit=lambda _value: FakeLiteral(),
+            col=lambda _value: FakeLiteral(),
+        ),
+    )
+    monkeypatch.setattr(
+        publication,
+        "with_run_date",
+        lambda df, value, column: FakeFrame(SCOPE_CONTRACT.public_columns),
+    )
+    monkeypatch.setattr(
+        publication,
+        "replace_validated_scope",
+        lambda *args, **kwargs: KeyValidationSummary(0, 0, 0),
+    )
+    monkeypatch.setattr(
+        publication,
+        "atomic_append_by_name",
+        lambda *args, **kwargs: pytest.fail("event append was reached"),
+    )
+
+    with pytest.raises(ValueError, match="unexpectedly produced no rows"):
+        stage_assignment_scope(
+            FakeSpark(),
+            FakeFrame(["AccountNumber", "Location", "UniqueAdIDAssigned"]),
+            tables=TABLES,
+            columns=COLUMNS,
+            scope_contract=SCOPE_CONTRACT,
+            build_run_id=BUILD_RUN_ID,
+            build_date=BUILD_DATE,
+            scope="A",
+            task_run_id=321,
+            execution_count=2,
+            provenance=PROVENANCE,
+            allow_no_ads=False,
         )
 
 
@@ -371,6 +431,7 @@ def test_event_reader_uses_the_exact_repair_event_schema():
         "TaskRunID",
         "ExecutionCount",
         "CompletedAt",
+        *PROVENANCE_COLUMNS,
     ]
     row = FakeEventRow(_event("A", READY, 2))
     frame = FakeEventFrame(event_columns, [row])
@@ -388,6 +449,7 @@ def test_repaired_event_selection_uses_all_three_descending_tiebreakers():
             READY,
             1,
             execution_count=1,
+            provenance=PROVENANCE,
             completed_at=COMPLETED_AT + timedelta(hours=2),
             task_run_id=999,
         ),
@@ -445,6 +507,28 @@ def test_contradictory_latest_events_are_rejected():
     with pytest.raises(ValueError, match="Contradictory latest"):
         publication._select_latest_scope_events(
             rows,
+            columns=COLUMNS,
+            scope_contract=SCOPE_CONTRACT,
+            build_run_id=BUILD_RUN_ID,
+            build_date=BUILD_DATE,
+        )
+
+
+def test_assignment_events_must_share_one_candidate_provenance():
+    other = AssignmentProvenance(
+        candidate_build_id="other-build",
+        candidate_build_attempt_id="other-attempt",
+        portfolio_id="other-portfolio",
+        portfolio_attempt_id="other-portfolio-attempt",
+        candidate_foundation_snapshot_id="other-foundation",
+    )
+
+    with pytest.raises(ValueError, match="one accepted candidate provenance"):
+        publication._select_latest_scope_events(
+            [
+                _event("A", READY, 1),
+                _event("B", NO_ADS, 0, provenance=other),
+            ],
             columns=COLUMNS,
             scope_contract=SCOPE_CONTRACT,
             build_run_id=BUILD_RUN_ID,
@@ -663,6 +747,7 @@ def test_staging_must_match_selected_event_count_and_attempt():
             task_run_id=101,
             execution_count=2,
             row_count=2,
+            provenance=PROVENANCE,
         ),
     )
     assert (
@@ -682,6 +767,7 @@ def test_staging_must_match_selected_event_count_and_attempt():
             task_run_id=102,
             execution_count=3,
             row_count=2,
+            provenance=PROVENANCE,
         ),
     )
     with pytest.raises(ValueError, match="attempt does not match"):
@@ -699,6 +785,7 @@ def test_staging_must_match_selected_event_count_and_attempt():
             task_run_id=101,
             execution_count=2,
             row_count=1,
+            provenance=PROVENANCE,
         ),
     )
     with pytest.raises(ValueError, match="count mismatch"):
@@ -722,6 +809,7 @@ def test_staging_rejects_unexpected_scope_and_build_date():
             task_run_id=100,
             execution_count=1,
             row_count=1,
+            provenance=PROVENANCE,
         ),
     )
     with pytest.raises(ValueError, match="Unexpected staged"):
@@ -739,6 +827,7 @@ def test_staging_rejects_unexpected_scope_and_build_date():
             task_run_id=100,
             execution_count=1,
             row_count=1,
+            provenance=PROVENANCE,
         ),
     )
     with pytest.raises(ValueError, match="does not match BuildDate"):
@@ -758,6 +847,7 @@ def _configure_successful_build(monkeypatch, *, key_error=None):
             "BuildRunID",
             "TaskRunID",
             "ExecutionCount",
+            *PROVENANCE_COLUMNS,
         ]
     )
     event_rows = [
@@ -790,6 +880,7 @@ def _configure_successful_build(monkeypatch, *, key_error=None):
             task_run_id=101,
             execution_count=2,
             row_count=2,
+            provenance=PROVENANCE,
         ),
     )
     calls = []
@@ -1004,6 +1095,7 @@ def test_staging_attempt_mismatch_aborts_before_live_writes(monkeypatch):
                 task_run_id=102,
                 execution_count=3,
                 row_count=2,
+                provenance=PROVENANCE,
             ),
         ),
     )
@@ -1023,7 +1115,7 @@ def test_staging_attempt_mismatch_aborts_before_live_writes(monkeypatch):
     assert staged.unpersisted
 
 
-def test_v1_no_ads_scope_uses_latest_content_with_the_new_run_date(
+def test_v1_no_ads_scope_is_absent_from_the_new_accepted_snapshot(
     local_spark,
 ):
     contract = AssignmentScopeContract(
@@ -1042,16 +1134,9 @@ def test_v1_no_ads_scope_uses_latest_content_with_the_new_run_date(
         [("new", "A", "A_NEW", BUILD_DATE)],
         contract.public_columns,
     )
-    latest = local_spark.createDataFrame(
-        [
-            ("old-a", "A", "A_OLD", BUILD_DATE - timedelta(days=1)),
-            ("old-b", "B", "B_OLD", BUILD_DATE - timedelta(days=1)),
-        ],
-        contract.public_columns,
-    )
     table_reads = []
     spark_stub = SimpleNamespace(
-        table=lambda table: table_reads.append(table) or latest
+        table=lambda table: table_reads.append(table)
     )
     selected_events = (
         _selected_event("A", READY, 1),
@@ -1067,13 +1152,12 @@ def test_v1_no_ads_scope_uses_latest_content_with_the_new_run_date(
         build_date=BUILD_DATE,
     )
 
-    assert table_reads == [TABLES.latest_table]
+    assert table_reads == []
     assert sorted(
         tuple(row[column] for column in contract.public_columns)
         for row in result.collect()
     ) == [
         ("new", "A", "A_NEW", BUILD_DATE),
-        ("old-b", "B", "B_OLD", BUILD_DATE),
     ]
 
 
@@ -1180,6 +1264,7 @@ def test_v1_publishes_one_identical_corrected_frame_to_history_and_latest(
             "BuildRunID",
             "TaskRunID",
             "ExecutionCount",
+            *PROVENANCE_COLUMNS,
             *contract.public_columns,
         ],
     )
@@ -1329,6 +1414,7 @@ def test_v2_complete_scope_set_accepts_one_no_ads_event():
             task_run_id=event.task_run_id,
             execution_count=event.execution_count,
             row_count=event.row_count,
+            provenance=event.provenance,
         )
         for event in selected_events
         if event.status == READY
@@ -1393,4 +1479,5 @@ def test_stage_rejects_invalid_build_and_task_run_identity(
             scope="A",
             task_run_id=task_run_id,
             execution_count=1,
+            provenance=PROVENANCE,
         )

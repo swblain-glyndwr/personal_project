@@ -68,6 +68,11 @@ class AssignmentColumnContract:
     task_run_id: str = "TaskRunID"
     execution_count: str = "ExecutionCount"
     completed_at: str = "CompletedAt"
+    candidate_build_id: str = "CandidateBuildID"
+    candidate_build_attempt_id: str = "CandidateBuildAttemptID"
+    portfolio_id: str = "PortfolioID"
+    portfolio_attempt_id: str = "PortfolioAttemptID"
+    candidate_foundation_snapshot_id: str = "CandidateFoundationSnapshotID"
 
     def __post_init__(self) -> None:
         """Validate the injected staging and event metadata names."""
@@ -81,11 +86,82 @@ class AssignmentColumnContract:
             self.task_run_id,
             self.execution_count,
             self.completed_at,
+            self.candidate_build_id,
+            self.candidate_build_attempt_id,
+            self.portfolio_id,
+            self.portfolio_attempt_id,
+            self.candidate_foundation_snapshot_id,
         ]
         if any(not column.strip() for column in columns):
             raise ValueError("Assignment metadata columns must not be empty")
         if len(set(columns)) != len(columns):
             raise ValueError("Assignment metadata columns must be distinct")
+
+
+@dataclass(frozen=True)
+class AssignmentProvenance:
+    candidate_build_id: str
+    candidate_build_attempt_id: str
+    portfolio_id: str
+    portfolio_attempt_id: str
+    candidate_foundation_snapshot_id: str
+
+    def __post_init__(self) -> None:
+        """Require complete immutable candidate and portfolio identifiers."""
+        for label, value in (
+            ("CandidateBuildID", self.candidate_build_id),
+            ("CandidateBuildAttemptID", self.candidate_build_attempt_id),
+            ("PortfolioID", self.portfolio_id),
+            ("PortfolioAttemptID", self.portfolio_attempt_id),
+            (
+                "CandidateFoundationSnapshotID",
+                self.candidate_foundation_snapshot_id,
+            ),
+        ):
+            _require_non_empty(value, label=label)
+
+    def column_values(
+        self,
+        columns: AssignmentColumnContract,
+    ) -> dict[str, str]:
+        return {
+            columns.candidate_build_id: self.candidate_build_id,
+            columns.candidate_build_attempt_id: (
+                self.candidate_build_attempt_id
+            ),
+            columns.portfolio_id: self.portfolio_id,
+            columns.portfolio_attempt_id: self.portfolio_attempt_id,
+            columns.candidate_foundation_snapshot_id: (
+                self.candidate_foundation_snapshot_id
+            ),
+        }
+
+
+def _provenance_columns(columns: AssignmentColumnContract) -> tuple[str, ...]:
+    return (
+        columns.candidate_build_id,
+        columns.candidate_build_attempt_id,
+        columns.portfolio_id,
+        columns.portfolio_attempt_id,
+        columns.candidate_foundation_snapshot_id,
+    )
+
+
+def _provenance_from_mapping(
+    value: Mapping[str, Any],
+    columns: AssignmentColumnContract,
+) -> AssignmentProvenance:
+    return AssignmentProvenance(
+        candidate_build_id=value.get(columns.candidate_build_id),
+        candidate_build_attempt_id=value.get(
+            columns.candidate_build_attempt_id
+        ),
+        portfolio_id=value.get(columns.portfolio_id),
+        portfolio_attempt_id=value.get(columns.portfolio_attempt_id),
+        candidate_foundation_snapshot_id=value.get(
+            columns.candidate_foundation_snapshot_id
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -158,6 +234,7 @@ class AssignmentScopeEvent:
     task_run_id: int
     execution_count: int
     completed_at: datetime
+    provenance: AssignmentProvenance
 
 
 @dataclass(frozen=True)
@@ -173,6 +250,7 @@ class AssignmentStageResult:
     row_count: int
     validation: KeyValidationSummary
     event_write: DeltaWriteResult
+    provenance: AssignmentProvenance
 
 
 @dataclass(frozen=True)
@@ -185,6 +263,7 @@ class AssignmentPublicationResult:
     validation: KeyValidationSummary
     history_write: DeltaWriteResult
     latest_write: DeltaWriteResult
+    provenance: AssignmentProvenance
 
 
 @dataclass(frozen=True)
@@ -194,6 +273,7 @@ class _StagingSummary:
     task_run_id: int
     execution_count: int
     row_count: int
+    provenance: AssignmentProvenance
 
 
 def _normalise_build_date(value: date | datetime | str, *, label: str) -> date:
@@ -249,6 +329,7 @@ def _validate_contract_compatibility(
         columns.build_run_id,
         columns.task_run_id,
         columns.execution_count,
+        *_provenance_columns(columns),
     }
     collisions = sorted(
         staging_metadata.intersection(scope_contract.public_columns)
@@ -272,6 +353,8 @@ def stage_assignment_scope(
     scope: str,
     task_run_id: int,
     execution_count: int,
+    provenance: AssignmentProvenance,
+    allow_no_ads: bool = True,
     completed_at: datetime | None = None,
 ) -> AssignmentStageResult:
     """Atomically replace one build scope in the assignment staging table."""
@@ -296,6 +379,8 @@ def stage_assignment_scope(
     )
     if completed_at is not None and not isinstance(completed_at, datetime):
         raise ValueError(f"{columns.completed_at} must be a timestamp")
+    if not isinstance(allow_no_ads, bool):
+        raise ValueError("allow_no_ads must be a boolean")
     if scope not in set(scope_contract.expected_scopes):
         raise ValueError(
             f"Unexpected assignment scope for {scope_contract.route}: {scope}"
@@ -327,10 +412,13 @@ def stage_assignment_scope(
             F.lit(resolved_execution_count).cast("int"),
         )
     )
+    for column, value in provenance.column_values(columns).items():
+        staged_assignments = staged_assignments.withColumn(column, F.lit(value))
     staging_columns = [
         columns.build_run_id,
         columns.task_run_id,
         columns.execution_count,
+        *_provenance_columns(columns),
         *scope_contract.public_columns,
     ]
     staged_assignments = staged_assignments.select(*staging_columns)
@@ -346,6 +434,10 @@ def stage_assignment_scope(
         key_columns=scope_contract.key_columns,
         columns=staging_columns,
     )
+    if validation.row_count == 0 and not allow_no_ads:
+        raise ValueError(
+            f"Assignment scope {scope} unexpectedly produced no rows"
+        )
     status = READY if validation.row_count else NO_ADS
     resolved_completed_at = completed_at or datetime.now(timezone.utc)
     event_columns = [
@@ -358,6 +450,7 @@ def stage_assignment_scope(
         columns.task_run_id,
         columns.execution_count,
         columns.completed_at,
+        *_provenance_columns(columns),
     ]
     event_values = {
         columns.build_run_id: build_run_id,
@@ -369,6 +462,7 @@ def stage_assignment_scope(
         columns.task_run_id: resolved_task_run_id,
         columns.execution_count: resolved_execution_count,
         columns.completed_at: resolved_completed_at,
+        **provenance.column_values(columns),
     }
     event = (
         spark.createDataFrame([event_values])
@@ -404,6 +498,7 @@ def stage_assignment_scope(
         row_count=validation.row_count,
         validation=validation,
         event_write=event_write,
+        provenance=provenance,
     )
 
 
@@ -439,6 +534,7 @@ def _collect_event_rows(
         columns.task_run_id,
         columns.execution_count,
         columns.completed_at,
+        *_provenance_columns(columns),
     ]
     _require_columns(events, event_columns, label="Assignment event table")
     return [
@@ -545,6 +641,7 @@ def _select_latest_scope_events(
             (
                 event.get(columns.status),
                 event.get(columns.row_count),
+                _provenance_from_mapping(event, columns),
             )
             for event in latest_rows
         }
@@ -582,7 +679,14 @@ def _select_latest_scope_events(
                 task_run_id=task_run_id,
                 execution_count=execution_count,
                 completed_at=completed_at,
+                provenance=_provenance_from_mapping(latest, columns),
             )
+        )
+
+    provenances = {event.provenance for event in selected_events}
+    if len(provenances) != 1:
+        raise ValueError(
+            "Assignment events do not share one accepted candidate provenance"
         )
 
     return tuple(selected_events)
@@ -598,6 +702,7 @@ def _collect_staging_summaries(
         columns.build_run_id,
         columns.task_run_id,
         columns.execution_count,
+        *_provenance_columns(columns),
         scope_contract.scope_column,
         scope_contract.publication_date_column,
         *scope_contract.public_columns,
@@ -613,12 +718,20 @@ def _collect_staging_summaries(
             ),
             F.col(columns.task_run_id).alias("_task_run_id"),
             F.col(columns.execution_count).alias("_execution_count"),
+            *[
+                F.col(column).alias(f"_provenance_{index}")
+                for index, column in enumerate(_provenance_columns(columns))
+            ],
         )
         .groupBy(
             "_scope",
             "_publication_date",
             "_task_run_id",
             "_execution_count",
+            *[
+                f"_provenance_{index}"
+                for index, _ in enumerate(_provenance_columns(columns))
+            ],
         )
         .count()
         .collect()
@@ -640,6 +753,13 @@ def _collect_staging_summaries(
                 label=f"Staged {columns.execution_count}",
             ),
             row_count=int(row["count"]),
+            provenance=AssignmentProvenance(
+                candidate_build_id=row["_provenance_0"],
+                candidate_build_attempt_id=row["_provenance_1"],
+                portfolio_id=row["_provenance_2"],
+                portfolio_attempt_id=row["_provenance_3"],
+                candidate_foundation_snapshot_id=row["_provenance_4"],
+            ),
         )
         for row in summaries
     )
@@ -668,6 +788,7 @@ def _validate_staging_against_events(
         if (
             summary.task_run_id != selected_event.task_run_id
             or summary.execution_count != selected_event.execution_count
+            or summary.provenance != selected_event.provenance
         ):
             raise ValueError(
                 "Staged assignment attempt does not match the latest "
@@ -768,35 +889,14 @@ def _prepare_v1_public_assignments(
     selected_events: Sequence[AssignmentScopeEvent],
     build_date: date,
 ) -> DataFrame:
-    """Combine READY staging with preserved NO_ADS scopes, then correct teasers."""
-    no_ads_scopes = tuple(
-        event.scope for event in selected_events if event.status == NO_ADS
-    )
-    complete_assignments = staged_assignments
-    if no_ads_scopes:
-        latest = spark.table(tables.latest_table)
-        _require_columns(
-            latest,
-            scope_contract.public_columns,
-            label=f"Table {tables.latest_table}",
-        )
-        fallback = latest.where(
-            F.col(scope_contract.scope_column).isin(*no_ads_scopes)
-        ).select(*scope_contract.public_columns)
-        fallback = with_run_date(
-            fallback,
-            build_date,
-            column=scope_contract.publication_date_column,
-        ).select(*scope_contract.public_columns)
-        complete_assignments = staged_assignments.unionByName(fallback)
-
+    """Remove intentional NO_ADS scopes and apply the v1 teaser correction."""
     if set(V1_TEASER_LOCATIONS).issubset(
         set(scope_contract.expected_scopes)
     ):
         return _remove_invalid_v1_teaser_assignments(
-            complete_assignments
+            staged_assignments
         )
-    return complete_assignments
+    return staged_assignments
 
 
 def validate_and_publish_assignment_build(
@@ -910,6 +1010,7 @@ def validate_and_publish_assignment_build(
             validation=publication.validation,
             history_write=publication.history_write,
             latest_write=publication.latest_write,
+            provenance=selected_events[0].provenance,
         )
     finally:
         staged.unpersist()
@@ -919,6 +1020,7 @@ __all__ = [
     "NO_ADS",
     "READY",
     "AssignmentColumnContract",
+    "AssignmentProvenance",
     "AssignmentPublicationResult",
     "AssignmentScopeContract",
     "AssignmentScopeEvent",

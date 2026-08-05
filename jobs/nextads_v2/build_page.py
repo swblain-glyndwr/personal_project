@@ -24,9 +24,9 @@ finally:
 
 from pyspark.sql import functions as F
 from next_ads.decisioning.assignment import (
-    assign_random_ads_v2,
-    assign_preranked_ads_v2,
+    assign_candidate_ads_v2,
     assign_nextgenads_v2,
+    assign_random_ads_v2,
 )
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
@@ -83,6 +83,9 @@ BUILD_RUN_ID = _get_required_job_arg(jobparser, "--build_run_id")
 CANDIDATE_BUILD_ATTEMPT_ID = _get_required_job_arg(
     jobparser,
     "--candidate_build_attempt_id",
+)
+from next_ads.decisioning.candidate_inputs import (
+    load_accepted_candidate_inputs,
 )
 if not BUILD_RUN_ID.startswith("v2_") or BUILD_RUN_ID == "v2_":
     raise ValueError(
@@ -157,12 +160,6 @@ tbls = cfg["tables"]["write"]
 SCHEMA = config.schema_write
 logger.info(f"Write schema set to {SCHEMA}")
 
-# Map write schema to parameterised write table names
-tbl_args = {
-    "catalog": config.catalog_write,
-    "schema": SCHEMA,
-    "client": CLIENT,
-}
 CONTROL_SHEET_LATEST = config.tables_write.control_sheet_latest_v2
 ASSIGNMENT_TABLES = resolve_assignment_tables(config, "v2")
 ASSIGNMENT_COLUMNS = AssignmentColumnContract()
@@ -175,8 +172,13 @@ ASSIGNMENT_INPUT_COLUMNS = tuple(
     for column in ASSIGNMENT_SCOPE_CONTRACT.public_columns
     if column != ASSIGNMENT_SCOPE_CONTRACT.publication_date_column
 )
-PRERANKED_THEMES_TABLE = etl.map_tbl(
-    tbls["preranked_ads_from_themes_v2_latest"], **tbl_args
+CANDIDATE_INPUTS = load_accepted_candidate_inputs(
+    spark,
+    builds_table=config.tables_write.candidate_builds,
+    scores_table=config.tables_write.candidate_scores,
+    ad_sets_table=config.tables_write.candidate_ad_sets,
+    candidate_build_attempt_id=CANDIDATE_BUILD_ATTEMPT_ID,
+    route="v2",
 )
 NEXTGENADS_ASSIGNMENTS_TABLE = cfg["tables"]["read"][
     "nextgenads_assignments_latest"
@@ -262,7 +264,8 @@ df_ads_tgt = df_ads_tgt.select(ads_required_cols)
 df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
 
 cached_assignment_frames = []
-if df_ads_tgt.count() == 0:
+NO_ASSIGNABLE_ADS = df_ads_tgt.count() == 0
+if NO_ASSIGNABLE_ADS:
     no_ads_msg = f"No ads found for Page Type: {PAGE_TYPE}"
     logger.warning(no_ads_msg)
     if JOB_ENV == "prod":
@@ -298,8 +301,7 @@ else:
     # Basic/random selection does not use the model score, but V2 config can carry
     # the score the assigned customer x ad pair has in the model-ranked table.
     df_trigger_scores = (
-        spark.table(PRERANKED_THEMES_TABLE)
-        .where(F.col("PageType") == PAGE_TYPE)
+        CANDIDATE_INPUTS.candidates_for_scope("best", PAGE_TYPE)
         .select(
             "AccountNumber",
             "UniqueAdID",
@@ -320,15 +322,25 @@ else:
 
     logger.info("Assigning Ads with Best Targeting")
 
-    df_assigned_best = assign_preranked_ads_v2(
+    df_assigned_best = assign_candidate_ads_v2(
         df_ads=df_ads_tgt_best,
-        preranked_ads_table=PRERANKED_THEMES_TABLE,
-        page_type=PAGE_TYPE,
+        candidate_scores=CANDIDATE_INPUTS.candidates_for_scope(
+            "best",
+            PAGE_TYPE,
+        ),
         df_cust=df_cells,
     ).cache()
     cached_assignment_frames.append(df_assigned_best)
 
-    df_assigned_best_challenger = df_assigned_best
+    df_assigned_best_challenger = assign_candidate_ads_v2(
+        df_ads=df_ads_tgt_best,
+        candidate_scores=CANDIDATE_INPUTS.candidates_for_scope(
+            "best_challenger",
+            PAGE_TYPE,
+        ),
+        df_cust=df_cells,
+    ).cache()
+    cached_assignment_frames.append(df_assigned_best_challenger)
 
     USE_NEXTGENADS = any(
         step.get("then", {}).get("col") == "UniqueAdIDNextGenAds"
@@ -599,6 +611,8 @@ try:
         scope=PAGE_TYPE,
         task_run_id=TASK_RUN_ID,
         execution_count=EXECUTION_COUNT,
+        provenance=CANDIDATE_INPUTS.provenance,
+        allow_no_ads=NO_ASSIGNABLE_ADS,
     )
     logger.info(
         f"Staged {stage_result.row_count:,} assignments for {PAGE_TYPE}; "

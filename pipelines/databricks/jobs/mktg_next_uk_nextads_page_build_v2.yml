@@ -56,41 +56,38 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
           [{"scope":"HomePage"},{"scope":"ShoppingBagPage"},{"scope":"CheckoutPage"},{"scope":"ProductListingPage"},{"scope":"ForYouPage"}]
     tasks:
       - task_key: build_page_v2
-        for_each_task:
-          inputs: "{{job.parameters.scope_manifest_json}}"
-          concurrency: 10
-          task:
-            task_key: build_page_v2_iteration
-            spark_python_task:
-              python_file: ../../../jobs/nextads_v2/build_page.py
-              parameters:
-                - --client
-                - "next_uk"
-                - --job_env
-                - ${var.job_parameter_environment_name}
-                - --page_type
-                - "{{input.scope}}"
-                - --scope_manifest_json
-                - "{{job.parameters.scope_manifest_json}}"
-                - --run_date
-                - "{{job.parameters.run_date}}"
-                - --build_run_id
-                - "{{job.parameters.build_run_id}}"
-                - --candidate_build_attempt_id
-                - "{{job.parameters.candidate_build_attempt_id}}"
-                - --task_run_id
-                - "{{task.run_id}}"
-                - --execution_count
-                - "{{task.execution_count}}"
-                - --customer_cells_table
-                - "{{job.parameters.customer_cells_table}}"
-                - --customer_cells_delta_version
-                - "{{job.parameters.customer_cells_delta_version}}"
-            job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
-            libraries: ${var.shared_libraries}
-            max_retries: 2
-            min_retry_interval_millis: 5000
-            timeout_seconds: 10800
+        spark_python_task:
+          python_file: ../../../jobs/nextads_assignment/bulk_build.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --route
+            - "v2"
+            - --phase
+            - "all"
+            - --scope_manifest_json
+            - "{{job.parameters.scope_manifest_json}}"
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --build_run_id
+            - "{{job.parameters.build_run_id}}"
+            - --candidate_build_attempt_id
+            - "{{job.parameters.candidate_build_attempt_id}}"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --customer_cells_table
+            - "{{job.parameters.customer_cells_table}}"
+            - --customer_cells_delta_version
+            - "{{job.parameters.customer_cells_delta_version}}"
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        min_retry_interval_millis: 5000
+        timeout_seconds: 10800
       - task_key: publish_assignment_build_v2
         depends_on:
           - task_key: build_page_v2

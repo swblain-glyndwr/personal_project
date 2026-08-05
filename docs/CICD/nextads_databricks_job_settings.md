@@ -64,6 +64,12 @@ compact top-20 account/ad-set rows for every serving portfolio entry.
 failed or interrupted attempt are therefore not selectable. Shadow entries are
 not materialised on the nightly candidate path.
 
+The page-build jobs read only that accepted attempt. They resolve `best` and
+`best_challenger` from separate portfolio entries, even when both entries bind
+to the same provider today. Candidate, portfolio and candidate-foundation IDs
+are copied into assignment staging and completion events; the public assignment
+tables retain their existing columns.
+
 ### `mktg_next_uk_nextads_markov_scoring`
 
 Independent Markov score-provider graph. It starts at 13:00 Europe/London and
@@ -161,6 +167,11 @@ To copy PROD source tables into a personal DEV schema, run `mktg_next_uk_nextads
 
 To repair stale DEV table layouts before running candidate/page-build jobs, run the same job with `run_alter_tables=true`, `job_env=dev`, `client=next_uk`, `tables` blank, `confirm_mutating=true`, and `dry_run=false`. This checks all configured write tables against the repo SQL contracts. For the known control-sheet drift, it rebuilds the stale table from a backup using column names rather than positional writes, so `IsUnderperforming` sits before `rundate` as expected. For `customer_cells_latest`, missing `Audience` is repaired with the literal string value `"false"`.
 
+Before DEV testing of accepted-candidate assignment reads, alter
+`assignments_build_staging`, `assignments_v2_build_staging`, and
+`assignment_build_events` so their candidate, portfolio and foundation
+provenance columns match the repository contracts.
+
 ### DEV Integration And PREPROD Table Setup Jobs
 
 These are fixed-parameter wrappers around `table_operations.py`.
@@ -238,8 +249,8 @@ Databricks quality monitor configuration for Theme Affinity ranked outputs.
 
 | Job | Settings | Notes / options |
 | --- | --- | --- |
-| `mktg_next_uk_nextads_page_build` | `run_date`, `build_run_id`, `location`, `inherit_basic_from`, downstream trigger job ids/names | V1 uses `build_run_id=v1_{{job.run_id}}` by default and passes both build values to every location iteration. |
-| `mktg_next_uk_nextads_page_build_v2` | `run_date`, `build_run_id`, `page_type`, downstream trigger job ids/names | V2 uses `build_run_id=v2_{{job.run_id}}` by default and passes both build values to every page-type iteration. |
+| `mktg_next_uk_nextads_page_build` | `run_date`, `build_run_id`, accepted candidate attempt, scope manifest and pinned customer cells | One primary task builds 77 scopes on one shared cluster, then one secondary task builds SB2/OC2 from the current staged SB1/OC1 rows. The complete-build publisher validates all 79 events before history/latest publication and synchronous validation, MASID and PLP handoffs. |
+| `mktg_next_uk_nextads_page_build_v2` | `run_date`, `build_run_id`, accepted candidate attempt, scope manifest and pinned customer cells | One task builds all five page types on one shared cluster. The publisher runs only after the complete staging task, and payload export waits for publication. |
 | `mktg_next_uk_nextads_qa` | `client`, `job_env` | Runs operational QA in the target environment. |
 | `mktg_next_uk_nextads_masid_handoff` | `client`, `job_env` | Runs MASID handoff checks. |
 | `mktg_next_uk_nextads_payload_export` | `client`, `job_env`, `do_export` | `do_export=1` enables export. |

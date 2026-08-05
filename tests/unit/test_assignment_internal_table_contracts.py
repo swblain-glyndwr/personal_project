@@ -29,14 +29,21 @@ def test_v1_staging_adds_build_identity_to_public_assignment_shape():
         _contract("sql/decisioning/create_table_assignments_build_staging.sql")
     )
 
-    assert [
-        (name, data_type.upper()) for name, data_type in staging_columns[:3]
-    ] == [
+    metadata_columns = [
         ("BuildRunID", "STRING NOT NULL"),
         ("TaskRunID", "BIGINT NOT NULL"),
         ("ExecutionCount", "INT NOT NULL"),
+        ("CandidateBuildID", "STRING NOT NULL"),
+        ("CandidateBuildAttemptID", "STRING NOT NULL"),
+        ("PortfolioID", "STRING NOT NULL"),
+        ("PortfolioAttemptID", "STRING NOT NULL"),
+        ("CandidateFoundationSnapshotID", "STRING NOT NULL"),
     ]
-    assert staging_columns[3:] == public_columns
+    assert [
+        (name, data_type.upper())
+        for name, data_type in staging_columns[: len(metadata_columns)]
+    ] == metadata_columns
+    assert staging_columns[len(metadata_columns) :] == public_columns
     assert "partitioned by (buildrunid, location)" in _normalised_sql(
         "sql/decisioning/create_table_assignments_build_staging.sql"
     )
@@ -56,14 +63,21 @@ def test_v2_staging_adds_build_identity_to_public_assignment_shape():
         _contract("sql/adsv2/create_table_assignments_v2_build_staging.sql")
     )
 
-    assert [
-        (name, data_type.upper()) for name, data_type in staging_columns[:3]
-    ] == [
+    metadata_columns = [
         ("BuildRunID", "STRING NOT NULL"),
         ("TaskRunID", "BIGINT NOT NULL"),
         ("ExecutionCount", "INT NOT NULL"),
+        ("CandidateBuildID", "STRING NOT NULL"),
+        ("CandidateBuildAttemptID", "STRING NOT NULL"),
+        ("PortfolioID", "STRING NOT NULL"),
+        ("PortfolioAttemptID", "STRING NOT NULL"),
+        ("CandidateFoundationSnapshotID", "STRING NOT NULL"),
     ]
-    assert staging_columns[3:] == public_columns
+    assert [
+        (name, data_type.upper())
+        for name, data_type in staging_columns[: len(metadata_columns)]
+    ] == metadata_columns
+    assert staging_columns[len(metadata_columns) :] == public_columns
     assert "partitioned by (buildrunid, pagetype)" in _normalised_sql(
         "sql/adsv2/create_table_assignments_v2_build_staging.sql"
     )
@@ -95,6 +109,11 @@ def test_assignment_build_events_has_validated_retention_compatible_contract():
         ("TaskRunID", "BIGINT NOT NULL"),
         ("ExecutionCount", "INT NOT NULL"),
         ("CompletedAt", "TIMESTAMP NOT NULL"),
+        ("CandidateBuildID", "STRING NOT NULL"),
+        ("CandidateBuildAttemptID", "STRING NOT NULL"),
+        ("PortfolioID", "STRING NOT NULL"),
+        ("PortfolioAttemptID", "STRING NOT NULL"),
+        ("CandidateFoundationSnapshotID", "STRING NOT NULL"),
     ]
     # Databricks CREATE TABLE only accepts key constraints inline. The
     # publisher validates route, status, counts and run identity in code.

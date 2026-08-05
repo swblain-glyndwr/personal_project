@@ -249,7 +249,7 @@ covered by the focused determinism tests.
 | `jobs/realtime/viewed_bought.py` | 2 | Active realtime input | Total order | Revenue and association ranks finish with item identifiers. |
 | `src/next_ads/control/control_sheet_audit.py` | 1 | Active warning-only control audit | Total order | Capped diagnostic examples are ordered by their unique rendered example key before aggregation. |
 | `src/next_ads/control/theme_mapping.py` | 2 | Active Markov dependency | Tie preserving | Both use `dense_rank`; equal scoring inputs intentionally share a rank and no arbitrary single row is selected. |
-| `src/next_ads/decisioning/assignment.py` | 14 | Active assignment dependency | Total order | Exact assignment selections and multi-ad creative slots finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
+| `src/next_ads/decisioning/assignment.py` | 15 | Active assignment dependency | Total order | Exact assignment selections, accepted-candidate tie splits and multi-ad creative slots finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
 | `src/next_ads/features/nextads_core.py` | 2 | Deployed feature foundation | Out of scope | Feature-foundation ranking is outside this incident route; feature-platform owner review is required. |
 | `src/next_ads/features/theme_affinity.py` | 2 | Deployed feature foundation | Total order | Feature ranks finish with the theme key, but feature-foundation output validation remains separately owned. |
 | `src/next_ads/ranking/provider_signals.py` | 1 | Active scoring-provider route | Total order | Provider ranking finishes with the entity identifier, giving identical scores a stable and replay-safe order. |

@@ -7,6 +7,11 @@ create table {catalog}.{schema}.{client}_nextads_assignment_build_events (
     BuildDate date not null,
     TaskRunID bigint not null,
     ExecutionCount int not null,
-    CompletedAt timestamp not null
+    CompletedAt timestamp not null,
+    CandidateBuildID string not null,
+    CandidateBuildAttemptID string not null,
+    PortfolioID string not null,
+    PortfolioAttemptID string not null,
+    CandidateFoundationSnapshotID string not null
 )
 partitioned by (BuildDate)
