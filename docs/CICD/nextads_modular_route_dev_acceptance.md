@@ -40,7 +40,10 @@ The broader stability audit records any remaining exact-distinct operations and 
 
 ## DEV evidence to collect before merge
 
-Run this only in DEV after the internal candidate and assignment tables match the repository SQL contracts.
+Run this only in DEV after completing the clean personal-schema table setup in
+`nextads_databricks_job_settings.md`. That setup recreates every feature-owned
+modular table, then creates any other missing configured table without running
+a broad alter or copying large tables into backups.
 
 1. Run three complete cycles with identical pinned inputs and retain the job run IDs, task attempts and table Delta versions.
 2. Compare provider signals, candidate scores/ad sets, v1 assignments, v2 assignments and payload output between the three cycles with bidirectional `EXCEPT ALL`. Every comparison must return zero rows.

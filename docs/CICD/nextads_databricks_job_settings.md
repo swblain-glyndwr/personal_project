@@ -171,16 +171,37 @@ To copy PROD source tables into a personal DEV schema, run `mktg_next_uk_nextads
 
 To repair stale DEV table layouts before running candidate/page-build jobs, run the same job with `run_alter_tables=true`, `job_env=dev`, `client=next_uk`, `tables` blank, `confirm_mutating=true`, and `dry_run=false`. This checks all configured write tables against the repo SQL contracts. For the known control-sheet drift, it rebuilds the stale table from a backup using column names rather than positional writes, so `IsUnderperforming` sits before `rundate` as expected. For `customer_cells_latest`, missing `Audience` is repaired with the literal string value `"false"`.
 
-Before DEV testing of accepted-candidate assignment reads, pre-existing
+For a clean modular-route acceptance run in a disposable personal DEV schema,
+recreate all feature-owned derived tables in one operation. Set
+`run_recreate_tables=true`, `confirm_destructive=true`, `dry_run=false`, and set
+`tables` to this comma-separated list:
+
+```text
+scoring_input_theme_mapping_raw,scoring_input_snapshots,scoring_input_snapshot_sources,scoring_input_item_themes,scoring_foundation_builds,scoring_foundation_outputs,scoring_foundation_run_contexts,account_theme_foundation_complete,account_theme_foundation_ranked,score_provider_builds,score_provider_signals,score_provider_run_contexts,scoring_portfolios,scoring_portfolio_entries,candidate_foundation_builds,candidate_foundation_sources,candidate_repeat_ad_exposure,candidate_ad_feedback,candidate_builds,candidate_scores,candidate_ad_sets,assignments_build_staging,assignments_v2_build_staging,assignment_build_events
+```
+
+This deliberately starts the modular input, foundation, provider, portfolio,
+candidate and internal assignment state empty. The acceptance job sequence
+fills them in dependency order. The operation drops and recreates only these
+named tables and does not make backup copies. Follow it with
+`run_create_missing_tables=true`, `tables` blank, `confirm_mutating=true`, and
+`dry_run=false` to create any other configured table that is absent without
+changing an existing table.
+
+Do not run a blank `run_alter_tables` pass as part of this clean personal-schema
+bootstrap. None of the preserved public assignment, delivery, control-sheet or
+customer-cell tables requires alteration for the modular migration. Those
+tables retain useful history and input context and are updated by their normal
+jobs. Diagnose and target any unrelated legacy drift separately rather than
+allowing a broad repair to backup-copy large tables during this acceptance run.
+
+In a non-disposable environment where the wider modular state must be retained,
+the minimum mandatory migration is still to recreate
 `assignments_build_staging`, `assignments_v2_build_staging`, and
-`assignment_build_events` tables without candidate, portfolio and foundation
-provenance must be explicitly recreated as one tightly scoped operation. Run
-`run_recreate_tables=true` with `tables` set to those three logical names,
-`confirm_destructive=true`, and `dry_run=false`. These tables contain only
-short-lived internal build state; the recreation does not include public
-assignment history or latest tables. Broad `alter_tables` intentionally
-refuses to backup-copy this transient data because doing so can exceed the
-one-hour table-operations timeout.
+`assignment_build_events` when they lack candidate, portfolio and foundation
+provenance. Broad `alter_tables` intentionally refuses to backup-copy this
+transient data because doing so can exceed the one-hour table-operations
+timeout.
 
 ### DEV Integration And PREPROD Table Setup Jobs
 
