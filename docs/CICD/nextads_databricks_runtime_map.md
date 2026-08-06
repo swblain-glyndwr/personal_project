@@ -2,7 +2,8 @@
 
 Status: Working note
 
-Last refreshed from Databricks: 2026-07-03
+Architecture view refreshed: 2026-08-06. Observed runtime evidence last
+refreshed from Databricks: 2026-07-03.
 
 This page describes the NextAds Databricks bundle shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs wait for child jobs, and where reusable model-building routes sit alongside the operational delivery routes.
 
@@ -13,6 +14,158 @@ This is a runtime map, not a deployment policy. For target availability rules, s
 The diagrams below show the Databricks Asset Bundle job structure currently defined under `pipelines/databricks/jobs`. Schedules and recent runtimes were pulled from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Child jobs do not have their own fixed schedule; the parent waits for their result.
 
 Durations are recent observed successful run durations, not SLAs. They should be treated as a guide for debugging, planning model refreshes, and understanding where a new model, feature-store table, or challenger route would attach.
+
+## Modular, Deterministic And Atomic Route Introduced By This Change
+
+This is the single-page view of the operational changes. The coloured
+backgrounds are system responsibilities; each box names the job or boundary
+that owns the work. Solid arrows are required dependencies. Dotted arrows are
+optional provider participation or independent maintenance, not blocking
+dependencies.
+
+```mermaid
+flowchart LR
+  classDef input fill:#ecfeff,stroke:#0891b2,color:#111827
+  classDef scoring fill:#dbeafe,stroke:#2563eb,color:#111827
+  classDef ranking fill:#f3e8ff,stroke:#9333ea,color:#111827
+  classDef decision fill:#dcfce7,stroke:#16a34a,color:#111827
+  classDef delivery fill:#fff7ed,stroke:#ea580c,color:#111827
+  classDef state fill:#f8fafc,stroke:#475569,color:#111827
+  classDef failure fill:#fef2f2,stroke:#dc2626,color:#111827
+  classDef guarantee fill:#111827,stroke:#111827,color:#ffffff
+  classDef operations fill:#f1f5f9,stroke:#64748b,color:#111827
+
+  subgraph INPUTS["INPUTS AND ACCEPTED FOUNDATIONS"]
+    direction TB
+    theme_sources["Theme mapping<br/>and item attributes"]:::input
+    theme_inputs["Job: theme_inputs<br/>land, build and validate inputs"]:::input
+    input_snapshot[("Accepted scoring-input snapshot<br/>RunDate, source versions and checksum<br/>ready manifest written last")]:::state
+    foundation_sources["Customer cells, sessions/actions<br/>and advert results"]:::input
+    candidate_foundation["Job: candidate_foundation<br/>cells + repeat exposure + raw feedback"]:::input
+    foundation_snapshot[("Accepted candidate foundation<br/>exact source Delta versions<br/>ready manifest written last")]:::state
+    control_v1["Candidate Build input branch<br/>load and audit v1 control sheet"]:::input
+    control_v2["Candidate Build input branch<br/>data pull, then load and audit v2 control sheet"]:::input
+    other_model_inputs["Any model-owned<br/>input or foundation"]:::input
+
+    theme_sources --> theme_inputs --> input_snapshot
+    foundation_sources --> candidate_foundation --> foundation_snapshot
+  end
+
+  subgraph SCORING["SCORING PROVIDERS"]
+    direction TB
+    theme_affinity["Job: theme_affinity<br/>build foundation, predict and validate"]:::scoring
+    theme_provider[("Theme Affinity canonical provider<br/>model URI, exact input and output version<br/>ready manifest written last")]:::state
+    markov["Job: markov_scoring<br/>independent shadow calculation"]:::scoring
+    markov_provider[("Markov canonical provider<br/>optional EVALUATE entry<br/>ready manifest written last")]:::state
+    challenger["Any themed or non-themed challenger<br/>model output adapted to the<br/>canonical provider contract"]:::scoring
+    challenger_provider[("Canonical challenger provider<br/>validated output and ready manifest")]:::state
+
+    theme_affinity --> theme_provider
+    markov --> markov_provider
+    challenger --> challenger_provider
+  end
+
+  subgraph RANKING["PORTFOLIO AND CANDIDATE RANKING"]
+    direction TB
+    portfolio["Candidate Build: resolve v1/v2 portfolios<br/>bind exact provider attempts and versions<br/>required serving slots must be present"]:::ranking
+    candidate_v1["Candidate Build: one bulk v1 candidate task<br/>all serving entries and advert sets<br/>validate rows, then write ready manifest"]:::ranking
+    candidate_v2["Candidate Build: one bulk v2 candidate task<br/>all serving entries and page types<br/>validate rows, then write ready manifest"]:::ranking
+    candidate_attempt_v1[("Accepted v1 candidate attempt<br/>top 20 retained for assignment")]:::state
+    candidate_attempt_v2[("Accepted v2 candidate attempt<br/>top 20 retained for assignment")]:::state
+
+    portfolio --> candidate_v1 --> candidate_attempt_v1
+    portfolio --> candidate_v2 --> candidate_attempt_v2
+  end
+
+  subgraph DECISIONING["DECISIONING AND COMPLETE-SNAPSHOT PUBLICATION"]
+    direction TB
+    build_v1["Job: page_build_v1<br/>bulk-stage 77 primary scopes, then<br/>SB2 and OC2 as one isolated attempt"]:::decision
+    gate_v1{"All 79 v1 scopes<br/>complete and valid?"}:::decision
+    publish_v1["Idempotently publish the complete v1 date slice<br/>then atomically replace the live latest snapshot"]:::decision
+    keep_v1["No public v1 update<br/>previous accepted snapshot stays active"]:::failure
+    build_v2["Job: page_build_v2<br/>bulk-stage all five page types<br/>as one isolated attempt"]:::decision
+    gate_v2{"All five v2 page types<br/>complete and valid?"}:::decision
+    publish_v2["Idempotently publish the complete v2 date slice<br/>then atomically replace the live latest snapshot"]:::decision
+    keep_v2["No public v2 update<br/>previous accepted snapshot stays active"]:::failure
+    retry_rule["Retry stability<br/>each repair keeps its attempt identity;<br/>rows from different attempts cannot mix"]:::state
+
+    build_v1 --> gate_v1
+    gate_v1 -- Yes --> publish_v1
+    gate_v1 -- No --> keep_v1
+    publish_v1 -. latest replacement fails .-> keep_v1
+    build_v2 --> gate_v2
+    gate_v2 -- Yes --> publish_v2
+    gate_v2 -- No --> keep_v2
+    publish_v2 -. latest replacement fails .-> keep_v2
+    retry_rule --> build_v1
+    retry_rule --> build_v2
+  end
+
+  subgraph DELIVERY["DELIVERY"]
+    direction TB
+    v1_delivery["V1 fan-out after publication<br/>assignment validation + MASID + PLP"]:::delivery
+    v2_delivery["V2 fan-out after publication<br/>payload export"]:::delivery
+  end
+
+  subgraph GUARANTEES["SYSTEM GUARANTEES ADDED BY THIS CHANGE"]
+    direction TB
+    deterministic["DETERMINISM<br/>Pinned dates, snapshots and Delta versions<br/>stable ordering, checksums and attempt IDs"]:::guarantee
+    atomic["ATOMICITY<br/>Rows before ready manifests<br/>all scopes before public publication<br/>failure leaves the previous snapshot active"]:::guarantee
+    modular["MODULARITY<br/>Any canonical provider can join a portfolio<br/>and reuse candidate, decisioning and delivery"]:::guarantee
+  end
+
+  subgraph OPERATIONS["INDEPENDENT OPERATIONS"]
+    maintenance["Job: table_maintenance at 05:00<br/>remove expired attempts and staging<br/>never blocks the nightly route"]:::operations
+  end
+
+  style INPUTS fill:#f0fdff,stroke:#0891b2,stroke-width:2px
+  style SCORING fill:#eff6ff,stroke:#2563eb,stroke-width:2px
+  style RANKING fill:#faf5ff,stroke:#9333ea,stroke-width:2px
+  style DECISIONING fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
+  style DELIVERY fill:#fffaf5,stroke:#ea580c,stroke-width:2px
+  style GUARANTEES fill:#f8fafc,stroke:#111827,stroke-width:2px
+  style OPERATIONS fill:#f8fafc,stroke:#64748b,stroke-width:2px
+
+  input_snapshot --> theme_affinity
+  input_snapshot --> markov
+  other_model_inputs --> challenger
+  theme_provider --> portfolio
+  markov_provider -. optional shadow .-> portfolio
+  challenger_provider -. configured challenger .-> portfolio
+  foundation_snapshot --> candidate_v1
+  foundation_snapshot --> candidate_v2
+  control_v1 --> candidate_v1
+  control_v2 --> candidate_v2
+  candidate_attempt_v1 --> build_v1
+  candidate_attempt_v2 --> build_v2
+  publish_v1 --> v1_delivery
+  publish_v2 --> v2_delivery
+  deterministic -. governs .-> input_snapshot
+  deterministic -. governs .-> portfolio
+  atomic -. governs .-> candidate_attempt_v1
+  atomic -. governs .-> gate_v1
+  atomic -. governs .-> gate_v2
+  modular -. enables .-> challenger_provider
+  modular -. enables .-> portfolio
+  maintenance -. retention only .-> retry_rule
+```
+
+The important live-state rule is shown by the two decision gates. Candidate
+rows and assignment scopes are private to one attempt until their ready or
+complete marker is published. A failed task or repair therefore cannot combine
+part of one attempt with part of another. If any required v1 scope or v2 page
+type is missing, the public latest table is not advanced and the previous
+accepted assignment snapshot remains active. V1 and v2 make that decision
+independently, so one route can succeed without publishing partial state from
+the other. This is the protection against the partial-retry failure mode behind
+duplicate live Shopping Bag assignments: a repaired scope cannot be combined
+with rows from another attempt in the public latest snapshot.
+
+Theme Affinity is the required provider in the current default portfolios.
+Markov is an independently runnable, optional evaluation entry and cannot block
+candidate publication. A new challenger follows the same model-output,
+canonical-provider, portfolio, candidate and assignment path; it does not need
+a separate assignment or delivery implementation.
 
 ## Daily Runtime Shape
 
@@ -28,6 +181,8 @@ flowchart TD
   realtime_results["07:30 realtime results"]:::reporting
   theme_inputs["12:15 theme inputs"]:::sharedModel
   theme_affinity["13:00 theme_affinity"]:::sharedModel
+  markov["13:00 markov_scoring<br/>optional shadow"]:::sharedModel
+  candidate_foundation["16:00 candidate_foundation"]:::sharedTask
   candidate["18:00 candidate_build"]:::sharedTask
   realtime_inputs["18:00 realtime inputs"]:::reporting
   page_build["synchronous page_build_v1"]:::v1
@@ -39,6 +194,10 @@ flowchart TD
   feature_store["21:00 feature_store"]:::sharedModel
 
   theme_inputs --> theme_affinity
+  theme_inputs --> markov
+  theme_affinity --> candidate
+  candidate_foundation --> candidate
+  markov -. optional evaluation .-> candidate
   candidate --> page_build
   candidate --> page_build_v2
   page_build --> qa
@@ -65,7 +224,12 @@ flowchart TD
 
 ## Candidate Build Task Graph
 
-This is the main evening operational route. It keeps accepted customer cells shared, while v1 and v2 independently capture their control inputs, resolve a declared scoring portfolio and publish an accepted candidate attempt from its serving entries. Product Theme Mapping, Theme Affinity and Markov scoring are upstream jobs rather than candidate-task dependencies.
+This is the main evening operational route. It selects one accepted candidate
+foundation shared by v1 and v2, while each route independently captures its
+control input, resolves a declared scoring portfolio and publishes an accepted
+candidate attempt from its serving entries. Theme Inputs, Candidate Foundation,
+Theme Affinity and Markov scoring are upstream jobs rather than candidate-task
+implementations.
 
 Each route audit and coverage task reports business findings without hiding technical failures. Missing themes are surfaced for follow-up and naturally cannot produce theme-matched candidates; an unreadable control or pinned provider snapshot stops only the affected route before mapping.
 
@@ -81,11 +245,11 @@ flowchart TD
   classDef external fill:#fef9c3,stroke:#ca8a04,color:#111827
 
   provider_build["accepted canonical<br/>score-provider build"]:::sharedModel
+  foundation_build["accepted candidate<br/>foundation snapshot"]:::sharedTask
   cms_pull["CMS data pull"]:::external
 
   subgraph CANDIDATE_JOB["Job: candidate_build"]
-    assign_customer_cells["assign_customer_cells"]:::sharedTask
-    combine_customer_cells["combine_customer_cells"]:::sharedTask
+    select_candidate_foundation["select_candidate_foundation"]:::sharedTask
     load_control_sheet_v1["load_control_sheet_v1<br/>control_sheet_latest"]:::v1
     audit_control_sheet_v1["audit_control_sheet_v1"]:::guardrail
     load_control_sheet_v2["load_control_sheet_v2<br/>control_sheet_latest_v2"]:::v2
@@ -100,7 +264,7 @@ flowchart TD
     run_page_build_v2["run_page_build_v2<br/>waits"]:::v2
   end
 
-  assign_customer_cells --> combine_customer_cells
+  foundation_build --> select_candidate_foundation
   load_control_sheet_v1 --> audit_control_sheet_v1
   cms_pull --> load_control_sheet_v2 --> audit_control_sheet_v2
   provider_build --> select_provider_v1
@@ -109,11 +273,11 @@ flowchart TD
   select_provider_v1 --> validate_provider_coverage_v1
   audit_control_sheet_v2 --> validate_provider_coverage_v2
   select_provider_v2 --> validate_provider_coverage_v2
+  select_candidate_foundation --> map_theme_scores_to_ads_v1
+  select_candidate_foundation --> map_theme_scores_to_ads_v2
   validate_provider_coverage_v1 --> map_theme_scores_to_ads_v1
   validate_provider_coverage_v2 --> map_theme_scores_to_ads_v2
-  combine_customer_cells --> run_page_build_v1
   map_theme_scores_to_ads_v1 --> run_page_build_v1
-  combine_customer_cells --> run_page_build_v2
   map_theme_scores_to_ads_v2 --> run_page_build_v2
   run_page_build_v1 --> page_build["child job<br/>page_build_v1"]:::v1
   run_page_build_v2 --> page_build_v2["child job<br/>page_build_v2"]:::v2
@@ -123,8 +287,7 @@ Observed latest successful candidate-build task timing, from run `10142128211234
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |
-| `assign_customer_cells` | 0m | 38m 52s historical baseline | None |
-| `combine_customer_cells` | After cell assignment | 2m 43s historical baseline | `assign_customer_cells` |
+| `select_candidate_foundation` | 0m | Ready immediately or waits up to 30 minutes for the accepted same-day foundation | None |
 | `load_control_sheet_v1` | 0m | 12m 43s historical baseline | None |
 | `audit_control_sheet_v1` | After v1 control | New route guard | `load_control_sheet_v1` |
 | `trigger_data_pull_for_CMS_pull` | 0m | Child-job runtime | None |
@@ -134,10 +297,10 @@ Observed latest successful candidate-build task timing, from run `10142128211234
 | `resolve_scoring_portfolio_v2` | 0m | Ready immediately or required serving entry waits to 18:30 | None |
 | `validate_score_provider_theme_coverage_v1` | After v1 audit and portfolio resolution | New route guard | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |
 | `validate_score_provider_theme_coverage_v2` | After v2 audit and portfolio resolution | New route guard | `audit_control_sheet_v2`, `resolve_scoring_portfolio_v2` |
-| `map_theme_scores_to_ads_v1` | After cells and v1 checks | 1h 22m 55s historical mapping baseline | Builds every serving entry, writes ad sets and top-20 candidate rows, then publishes the accepted attempt. |
-| `map_theme_scores_to_ads_v2` | After cells and v2 checks | 43m 36s historical mapping baseline | Applies the same manifest-last candidate publication at page-type grain. |
-| `run_page_build_v1` | After v1 mapping | Full child-job runtime | `combine_customer_cells`, `map_theme_scores_to_ads_v1` |
-| `run_page_build_v2` | After v2 mapping | Full child-job runtime | `combine_customer_cells`, `map_theme_scores_to_ads_v2` |
+| `map_theme_scores_to_ads_v1` | After the accepted foundation and v1 checks | 1h 22m 55s historical mapping baseline | Builds every serving entry, writes ad sets and top-20 candidate rows, then publishes the accepted attempt. |
+| `map_theme_scores_to_ads_v2` | After the accepted foundation and v2 checks | 43m 36s historical mapping baseline | Applies the same manifest-last candidate publication at page-type grain. |
+| `run_page_build_v1` | After v1 mapping | Full child-job runtime | `map_theme_scores_to_ads_v1` |
+| `run_page_build_v2` | After v2 mapping | Full child-job runtime | `map_theme_scores_to_ads_v2` |
 
 The prior trigger-task durations are no longer comparable: `run_page_build_v1`
 and `run_page_build_v2` now remain active until their child jobs finish. Capture a
