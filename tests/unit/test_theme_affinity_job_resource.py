@@ -208,6 +208,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert foundation_publish_parameters[
         foundation_publish_parameters.index("--context_slot") + 1
     ] == "account_theme_features_v2"
+    assert foundation_publish["timeout_seconds"] == 10800
 
     assert tasks["model_predict"]["depends_on"] == [
         {"task_key": "prepare_provider_context"}

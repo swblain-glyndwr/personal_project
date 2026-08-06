@@ -24,11 +24,15 @@ def test_account_theme_spine_builds_only_the_complete_required_universe():
 
 def test_complete_ranking_has_one_total_order_without_global_sort_or_dedup():
     sql = build_ranked_sql("catalog.schema.complete")
+    normalised_sql = " ".join(sql.upper().split())
 
     assert sql.count("ROW_NUMBER() OVER") == 1
     assert "theme_clean\n  ) AS simple_rules_rank" in sql
-    assert "GROUP BY ALL" not in sql.upper()
-    assert "SELECT DISTINCT" not in sql.upper()
+    assert "GROUP BY" not in normalised_sql
+    assert "SELECT DISTINCT" not in normalised_sql
+    assert " WHERE " not in f" {normalised_sql} "
+    assert " JOIN " not in f" {normalised_sql} "
+    assert " UNION " not in f" {normalised_sql} "
     assert "ORDER BY account_number, simple_rules_rank" not in sql
 
 

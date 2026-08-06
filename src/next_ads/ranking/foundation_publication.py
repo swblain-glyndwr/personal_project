@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from time import monotonic
 from typing import Any
 
-from pyspark import StorageLevel
 from pyspark.sql import functions as F
 
 from next_ads.common.delta_writes import (
@@ -26,6 +26,9 @@ from next_ads.ranking.scoring_manifest import (
 )
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 @dataclass(frozen=True)
 class FoundationOutputSpec:
     output_name: str
@@ -39,6 +42,15 @@ class FoundationOutputSpec:
     required_non_null_columns: tuple[str, ...] = ()
     is_required: bool = True
     source_kind: str = "delta"
+    row_preserving_from: str | None = None
+
+
+@dataclass(frozen=True)
+class FoundationKeySummary:
+    row_count: int
+    distinct_key_count: int
+    account_count: int
+    entity_count: int
 
 
 @dataclass(frozen=True)
@@ -148,8 +160,9 @@ def summarise_foundation_output(
     *,
     spec: FoundationOutputSpec,
     run_date: date,
+    key_summary: FoundationKeySummary | None = None,
 ) -> FoundationOutputSummary:
-    """Validate keys, date, dimensions and content in one aggregation."""
+    """Validate content without carrying wide rows through distinct work."""
     required_columns = set(spec.key_columns) | {
         spec.account_column,
         spec.entity_column,
@@ -166,6 +179,26 @@ def summarise_foundation_output(
         set(spec.key_columns)
     ):
         raise ValueError("Foundation output keys must be non-empty and unique")
+
+    if key_summary is None:
+        key_started = monotonic()
+        LOGGER.info(
+            "Validating %s key cardinality using %s columns",
+            spec.output_name,
+            len(spec.key_columns),
+        )
+        key_summary = summarise_foundation_keys(frame, spec=spec)
+        LOGGER.info(
+            "Validated %s key cardinality in %.1f seconds",
+            spec.output_name,
+            monotonic() - key_started,
+        )
+    else:
+        LOGGER.info(
+            "Reusing %s row-preserving key cardinality for %s",
+            spec.row_preserving_from,
+            spec.output_name,
+        )
 
     null_key = F.exists(
         F.array(*[F.col(column).isNull() for column in spec.key_columns]),
@@ -185,13 +218,10 @@ def summarise_foundation_output(
         options={"ignoreNullFields": "false"},
     )
     row_hash = F.xxhash64(canonical_row)
+    content_started = monotonic()
+    LOGGER.info("Validating %s content and checksum", spec.output_name)
     result = frame.agg(
         F.count(F.lit(1)).alias("row_count"),
-        F.countDistinct(
-            F.struct(*[F.col(column) for column in spec.key_columns])
-        ).alias("distinct_key_count"),
-        F.countDistinct(F.col(spec.account_column)).alias("account_count"),
-        F.countDistinct(F.col(spec.entity_column)).alias("entity_count"),
         F.coalesce(
             F.sum(F.when(null_key, 1).otherwise(0)),
             F.lit(0),
@@ -208,7 +238,18 @@ def summarise_foundation_output(
         F.coalesce(F.max(row_hash), F.lit(0)).alias("hash_max"),
     ).first()
     row_count = int(result["row_count"])
-    distinct_key_count = int(result["distinct_key_count"])
+    LOGGER.info(
+        "Validated %s content and checksum in %.1f seconds",
+        spec.output_name,
+        monotonic() - content_started,
+    )
+    if row_count != key_summary.row_count:
+        source_name = spec.row_preserving_from or spec.output_name
+        raise ValueError(
+            f"Foundation output {spec.output_name} is not row-preserving "
+            f"from {source_name}: expected {key_summary.row_count} rows, "
+            f"found {row_count}"
+        )
     checksum_payload = "|".join(
         (
             str(row_count),
@@ -219,14 +260,53 @@ def summarise_foundation_output(
     )
     return FoundationOutputSummary(
         row_count=row_count,
-        account_count=int(result["account_count"]),
-        entity_count=int(result["entity_count"]),
+        account_count=key_summary.account_count,
+        entity_count=key_summary.entity_count,
         null_key_count=int(result["null_key_count"]),
-        duplicate_key_count=row_count - distinct_key_count,
+        duplicate_key_count=(
+            key_summary.row_count - key_summary.distinct_key_count
+        ),
         invalid_value_count=int(result["invalid_value_count"]),
         output_checksum=hashlib.sha256(
             checksum_payload.encode("utf-8")
         ).hexdigest(),
+    )
+
+
+def summarise_foundation_keys(
+    frame,
+    *,
+    spec: FoundationOutputSpec,
+) -> FoundationKeySummary:
+    """Calculate exact cardinalities in one narrow, key-only aggregation."""
+    key_columns = tuple(
+        dict.fromkeys(
+            (
+                *spec.key_columns,
+                spec.account_column,
+                spec.entity_column,
+            )
+        )
+    )
+    missing = sorted(set(key_columns).difference(frame.columns))
+    if missing:
+        raise ValueError(
+            f"Foundation output {spec.output_name} is missing columns: "
+            + ", ".join(missing)
+        )
+    result = frame.select(*key_columns).agg(
+        F.count(F.lit(1)).alias("row_count"),
+        F.countDistinct(
+            F.struct(*[F.col(column) for column in spec.key_columns])
+        ).alias("distinct_key_count"),
+        F.countDistinct(F.col(spec.account_column)).alias("account_count"),
+        F.countDistinct(F.col(spec.entity_column)).alias("entity_count"),
+    ).first()
+    return FoundationKeySummary(
+        row_count=int(result["row_count"]),
+        distinct_key_count=int(result["distinct_key_count"]),
+        account_count=int(result["account_count"]),
+        entity_count=int(result["entity_count"]),
     )
 
 
@@ -235,39 +315,90 @@ def publish_required_foundation_outputs(
     *,
     context: Any,
     output_specs: tuple[FoundationOutputSpec, ...],
-    max_workers: int = 2,
 ) -> tuple[ScoringFoundationOutput, ...]:
-    """Copy and bind required outputs; no manifest is committed here."""
+    """Validate and publish outputs without concurrent full-frame caching."""
     if not output_specs:
         raise ValueError("At least one foundation output is required")
     names = [spec.output_name for spec in output_specs]
     if len(names) != len(set(names)):
         raise ValueError("Foundation output names must be unique")
-    worker_count = min(max_workers, len(output_specs))
-    if worker_count < 1:
-        raise ValueError("max_workers must be at least one")
+    specs_by_name = {spec.output_name: spec for spec in output_specs}
+    for spec in output_specs:
+        parent_name = spec.row_preserving_from
+        if parent_name is not None and parent_name not in specs_by_name:
+            raise ValueError(
+                f"Foundation output {spec.output_name} references unknown "
+                f"row-preserving source {parent_name}"
+            )
+    LOGGER.info(
+        "Publishing %s foundation outputs without full-frame caching",
+        len(output_specs),
+    )
+    results_by_name: dict[str, ScoringFoundationOutput] = {}
+    pending = list(output_specs)
+    while pending:
+        progressed = False
+        for spec in tuple(pending):
+            parent_name = spec.row_preserving_from
+            if parent_name is not None and parent_name not in results_by_name:
+                continue
+            inherited_key_summary = None
+            if parent_name is not None:
+                parent_spec = specs_by_name[parent_name]
+                _validate_row_preserving_contract(spec, parent_spec)
+                inherited_key_summary = _key_summary_from_output(
+                    results_by_name[parent_name]
+                )
+            if inherited_key_summary is None:
+                result = _publish_one_output(
+                    spark,
+                    context=context,
+                    spec=spec,
+                )
+            else:
+                result = _publish_one_output(
+                    spark,
+                    context=context,
+                    spec=spec,
+                    inherited_key_summary=inherited_key_summary,
+                )
+            results_by_name[spec.output_name] = result
+            pending.remove(spec)
+            progressed = True
+        if not progressed:
+            blocked = ", ".join(spec.output_name for spec in pending)
+            raise ValueError(
+                "Foundation output row-preserving dependencies are cyclic: "
+                + blocked
+            )
+    LOGGER.info("Published all required foundation outputs")
+    return tuple(results_by_name[name] for name in names)
 
-    results: list[ScoringFoundationOutput | None] = [None] * len(output_specs)
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = {
-            executor.submit(
-                _publish_one_output,
-                spark,
-                context=context,
-                spec=spec,
-            ): index
-            for index, spec in enumerate(output_specs)
-        }
-        try:
-            for future in as_completed(futures):
-                results[futures[future]] = future.result()
-        except Exception:
-            for future in futures:
-                future.cancel()
-            raise
-    if any(result is None for result in results):
-        raise RuntimeError("Foundation output publication did not complete")
-    return tuple(result for result in results if result is not None)
+
+def _validate_row_preserving_contract(
+    spec: FoundationOutputSpec,
+    parent_spec: FoundationOutputSpec,
+) -> None:
+    if (
+        spec.key_columns != parent_spec.key_columns
+        or spec.account_column != parent_spec.account_column
+        or spec.entity_column != parent_spec.entity_column
+    ):
+        raise ValueError(
+            f"Foundation output {spec.output_name} cannot reuse the key "
+            f"contract from {parent_spec.output_name}"
+        )
+
+
+def _key_summary_from_output(
+    output: ScoringFoundationOutput,
+) -> FoundationKeySummary:
+    return FoundationKeySummary(
+        row_count=output.row_count,
+        distinct_key_count=output.row_count - output.duplicate_key_count,
+        account_count=output.account_count,
+        entity_count=output.entity_count,
+    )
 
 
 def _publish_one_output(
@@ -275,7 +406,10 @@ def _publish_one_output(
     *,
     context: Any,
     spec: FoundationOutputSpec,
+    inherited_key_summary: FoundationKeySummary | None = None,
 ) -> ScoringFoundationOutput:
+    output_started = monotonic()
+    LOGGER.info("Preparing foundation output %s", spec.output_name)
     if spec.source_kind == "delta":
         source_version = latest_delta_version(spark, spec.source_table)
         source_frame = read_delta_version(
@@ -290,55 +424,64 @@ def _publish_one_output(
         raise ValueError(
             f"Unsupported foundation source kind: {spec.source_kind!r}"
         )
-    frame = source_frame.persist(StorageLevel.MEMORY_AND_DISK)
-    try:
-        if not spark.catalog.tableExists(spec.target_table):
-            raise ValueError(
-                "Foundation output target has no repo-owned schema contract: "
-                f"{spec.target_table}"
-            )
-        source_schema_checksum = schema_checksum(frame)
-        target_contract_checksum = schema_checksum(spark.table(spec.target_table))
-        if source_schema_checksum != target_contract_checksum:
-            raise ValueError(
-                f"Foundation output {spec.output_name} does not match its "
-                "repo-owned table schema"
-            )
-        summary = summarise_foundation_output(
-            frame,
-            spec=spec,
-            run_date=context.run_date,
+    frame = source_frame
+    if not spark.catalog.tableExists(spec.target_table):
+        raise ValueError(
+            "Foundation output target has no repo-owned schema contract: "
+            f"{spec.target_table}"
         )
-        summary.require_valid(spec.output_name)
-        previous_output_version = latest_delta_version(
-            spark,
-            spec.target_table,
+    source_schema_checksum = schema_checksum(frame)
+    target_contract_checksum = schema_checksum(spark.table(spec.target_table))
+    if source_schema_checksum != target_contract_checksum:
+        raise ValueError(
+            f"Foundation output {spec.output_name} does not match its "
+            "repo-owned table schema"
         )
-        replace_table_by_name(
-            frame,
-            spec.target_table,
-            frame.columns,
-            spark=spark,
+    LOGGER.info("Validated %s source and target schemas", spec.output_name)
+    summary = summarise_foundation_output(
+        frame,
+        spec=spec,
+        run_date=context.run_date,
+        key_summary=inherited_key_summary,
+    )
+    summary.require_valid(spec.output_name)
+    previous_output_version = latest_delta_version(
+        spark,
+        spec.target_table,
+    )
+    write_started = monotonic()
+    LOGGER.info("Atomically replacing foundation output %s", spec.output_name)
+    replace_table_by_name(
+        frame,
+        spec.target_table,
+        frame.columns,
+        spark=spark,
+    )
+    output_version = latest_delta_version(spark, spec.target_table)
+    if output_version != previous_output_version + 1:
+        raise ValueError(
+            f"Foundation output {spec.output_name} was published amid "
+            "another table transaction"
         )
-        output_version = latest_delta_version(spark, spec.target_table)
-        if output_version != previous_output_version + 1:
-            raise ValueError(
-                f"Foundation output {spec.output_name} was published amid "
-                "another table transaction"
-            )
-        output_frame = read_delta_version(
-            spark,
-            spec.target_table,
-            output_version,
+    output_frame = read_delta_version(
+        spark,
+        spec.target_table,
+        output_version,
+    )
+    output_schema_checksum = schema_checksum(output_frame)
+    if output_schema_checksum != source_schema_checksum:
+        raise ValueError(
+            f"Foundation output {spec.output_name} changed schema while "
+            "being published"
         )
-        output_schema_checksum = schema_checksum(output_frame)
-        if output_schema_checksum != source_schema_checksum:
-            raise ValueError(
-                f"Foundation output {spec.output_name} changed schema while "
-                "being published"
-            )
-    finally:
-        frame.unpersist()
+    LOGGER.info(
+        "Published foundation output %s at Delta version %s in %.1f seconds "
+        "(total %.1f seconds)",
+        spec.output_name,
+        output_version,
+        monotonic() - write_started,
+        monotonic() - output_started,
+    )
     return ScoringFoundationOutput(
         scoring_foundation_build_id=context.scoring_foundation_build_id,
         scoring_foundation_build_attempt_id=(
@@ -533,6 +676,7 @@ def _build_row(build: ScoringFoundationBuild) -> dict[str, Any]:
 
 
 __all__ = [
+    "FoundationKeySummary",
     "FoundationOutputSpec",
     "FoundationOutputSummary",
     "foundation_output_bindings_json",
@@ -540,5 +684,6 @@ __all__ = [
     "register_ready_foundation",
     "schema_checksum",
     "summarise_foundation_output",
+    "summarise_foundation_keys",
     "validate_foundation_build_marker",
 ]

@@ -119,7 +119,7 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
         libraries: ${var.theme_affinity_libraries}
         max_retries: 1
         min_retry_interval_millis: 60000
-        timeout_seconds: 5400
+        timeout_seconds: 10800
       - task_key: prepare_provider_context
         depends_on:
           - task_key: publish_foundation

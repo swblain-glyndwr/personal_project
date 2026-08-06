@@ -85,7 +85,7 @@ class _Frame:
     )
 
     def persist(self, _level):
-        return self
+        pytest.fail("Foundation publication must not cache the full frame")
 
     def unpersist(self):
         return self
@@ -365,6 +365,117 @@ def test_output_failure_is_propagated_before_any_ready_manifest(monkeypatch):
             _Spark(),
             context=_context(),
             output_specs=specs,
+        )
+
+
+def test_ranked_output_reuses_complete_key_cardinality(monkeypatch):
+    calls = []
+
+    def publish_one(
+        _spark,
+        *,
+        context,
+        spec,
+        inherited_key_summary=None,
+    ):
+        calls.append((spec.output_name, inherited_key_summary))
+        return _output(spec.output_name, len(calls))
+
+    monkeypatch.setattr(publication, "_publish_one_output", publish_one)
+    specs = (
+        FoundationOutputSpec(
+            "complete",
+            "catalog.source.complete",
+            "catalog.target.complete",
+            "complete/v1",
+            ("reference_date", "account_number", "theme_clean"),
+            "account_number",
+            "theme_clean",
+        ),
+        FoundationOutputSpec(
+            "ranked",
+            "catalog.source.ranked",
+            "catalog.target.ranked",
+            "ranked/v1",
+            ("reference_date", "account_number", "theme_clean"),
+            "account_number",
+            "theme_clean",
+            row_preserving_from="complete",
+        ),
+    )
+
+    outputs = publish_required_foundation_outputs(
+        _Spark(),
+        context=_context(),
+        output_specs=specs,
+    )
+
+    assert [name for name, _summary in calls] == ["complete", "ranked"]
+    assert calls[0][1] is None
+    inherited = calls[1][1]
+    assert inherited.row_count == 10
+    assert inherited.distinct_key_count == 10
+    assert inherited.account_count == 2
+    assert inherited.entity_count == 5
+    assert [output.output_name for output in outputs] == [
+        "complete",
+        "ranked",
+    ]
+
+
+def test_row_preserving_output_requires_matching_key_contract(monkeypatch):
+    monkeypatch.setattr(
+        publication,
+        "_publish_one_output",
+        lambda _spark, *, context, spec: _output(spec.output_name, 1),
+    )
+    specs = (
+        FoundationOutputSpec(
+            "complete",
+            "catalog.source.complete",
+            "catalog.target.complete",
+            "complete/v1",
+            ("reference_date", "account_number", "theme_clean"),
+            "account_number",
+            "theme_clean",
+        ),
+        FoundationOutputSpec(
+            "ranked",
+            "catalog.source.ranked",
+            "catalog.target.ranked",
+            "ranked/v1",
+            ("reference_date", "account_number", "other_theme"),
+            "account_number",
+            "other_theme",
+            row_preserving_from="complete",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="cannot reuse the key contract"):
+        publish_required_foundation_outputs(
+            _Spark(),
+            context=_context(),
+            output_specs=specs,
+        )
+
+
+def test_row_preserving_output_requires_a_known_source():
+    spec = FoundationOutputSpec(
+        "ranked",
+        "catalog.source.ranked",
+        "catalog.target.ranked",
+        "ranked/v1",
+        ("reference_date", "account_number", "theme_clean"),
+        "account_number",
+        "theme_clean",
+        row_preserving_from="missing",
+    )
+
+    with pytest.raises(ValueError, match="unknown row-preserving source"):
+        publish_required_foundation_outputs(
+            _Spark(),
+            context=_context(),
+            output_specs=(spec,),
         )
 
 

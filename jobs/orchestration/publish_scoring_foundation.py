@@ -118,6 +118,9 @@ def main(
                 ("simple_rules_rank",) if output_name == "ranked" else ()
             ),
             source_kind="pipeline_relation",
+            row_preserving_from=(
+                "complete" if output_name == "ranked" else None
+            ),
         )
         for output_name, schema_version in sorted(required_outputs.items())
     )
