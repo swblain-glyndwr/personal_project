@@ -27,6 +27,7 @@ from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager, etl
+from next_ads.common.delta_writes import validate_target_columns
 from next_ads.common.paths import load_client_config
 from next_ads.common.snapshot_writes import (
     replace_validated_snapshot,
@@ -156,7 +157,13 @@ publish_new_snapshot = df_cells is not None and not df_cells.isEmpty()
 try:
     if publish_new_snapshot:
         df_cells = ensure_audience_column(df_cells)
-        df_selected = with_run_date(df_cells, RUN_DATE).persist()
+        df_selected = with_run_date(df_cells, RUN_DATE)
+        target_columns = validate_target_columns(
+            spark,
+            CELLS_TABLE_LATEST,
+            df_selected.columns,
+        )
+        df_selected = df_selected.select(*target_columns).persist()
         summary = summarise_content(
             df_selected,
             key_columns=("AccountNumber",),

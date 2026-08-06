@@ -165,3 +165,26 @@ def test_combined_cells_latest_is_atomic_and_preserves_safe_fallback():
     assert "summary.require_valid(\"accepted combined customer cells\")" in source
     assert "Accepted combined customer cells are more than one day old" in source
     assert "customer_cells_delta_version" in source
+
+
+def test_combined_cells_checksum_uses_target_table_column_order():
+    source, tree = _source_and_tree(COMBINE_PATH)
+
+    target_order_calls = _calls_named(tree, "validate_target_columns")
+    assert len(target_order_calls) == 1
+    assert [ast.unparse(arg) for arg in target_order_calls[0].args] == [
+        "spark",
+        "CELLS_TABLE_LATEST",
+        "df_selected.columns",
+    ]
+    assert (
+        "df_selected = df_selected.select(*target_columns).persist()"
+        in source
+    )
+
+    target_order_position = source.index(
+        "df_selected = df_selected.select(*target_columns).persist()"
+    )
+    checksum_position = source.index("summary = summarise_content(")
+    write_position = source.index("replace_validated_snapshot(")
+    assert target_order_position < checksum_position < write_position
