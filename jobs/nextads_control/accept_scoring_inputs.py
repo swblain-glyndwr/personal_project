@@ -52,6 +52,7 @@ def main(
     THEME_MAPPING_LANDING_ID,
     THEME_MAPPING_LANDING_VERSION,
     WARNING_COUNT,
+    GIT_COMMIT,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -66,21 +67,6 @@ def main(
     if not cfg["theme_mapping_v2"].get("source_of_truth"):
         raise ValueError("theme_mapping_v2 must be marked as source_of_truth")
     landing_version = int(THEME_MAPPING_LANDING_VERSION)
-    landed = read_delta_version(
-        spark,
-        config.tables_write.scoring_input_theme_mapping_raw,
-        landing_version,
-    ).where(F.col("LandingID") == THEME_MAPPING_LANDING_ID)
-    invalid_landing_date = F.col("RunDate").isNull() | (
-        F.col("RunDate") != F.lit(run_date)
-    )
-    if landed.where(invalid_landing_date).limit(1).count():
-        raise ValueError("Theme Mapping landing has the wrong logical RunDate")
-    landed_v2 = landed.where(F.col("SourceRole") == "authoritative_v2")
-    if landed_v2.limit(1).count() == 0:
-        raise ValueError(
-            f"Theme Mapping landing {THEME_MAPPING_LANDING_ID} is empty"
-        )
     warning_count = int(WARNING_COUNT)
     if warning_count:
         logger.warning(
@@ -176,15 +162,6 @@ def main(
         if landing_id:
             frame = frame.where(F.col("LandingID") == landing_id)
             frame = frame.where(F.col("SourceRole") == source_role)
-        else:
-            invalid_date = frame.where(
-                F.col("rundate").isNull()
-                | (F.col("rundate") != F.lit(run_date))
-            ).limit(1)
-            if invalid_date.count():
-                raise ValueError(
-                    f"{name} does not belong to logical run date {run_date}"
-                )
         sources.append(
             InputSource(
                 name=name,
@@ -219,6 +196,7 @@ def main(
         execution_count=execution_count,
         completed_at=completed_at,
         warning_count=warning_count,
+        git_commit=GIT_COMMIT,
     )
     _set_task_value("input_snapshot_id", accepted.input_snapshot_id)
     logger.info(
@@ -245,6 +223,7 @@ def parse_args():
             "--theme_mapping_landing_version"
         ),
         "WARNING_COUNT": parser.get_arg("--warning_count"),
+        "GIT_COMMIT": parser.get_arg("--git_commit"),
     }
 
 

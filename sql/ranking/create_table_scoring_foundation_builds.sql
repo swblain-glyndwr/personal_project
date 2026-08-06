@@ -9,6 +9,7 @@ create table {catalog}.{schema}.{client}_nextads_scoring_foundation_builds (
     Capability string not null,
     ContractVersion string not null,
     InvocationChecksum string not null,
+    GitCommit string not null,
     RequiredOutputsJSON string not null,
     InputBindingsJSON string not null,
     PipelineID string,

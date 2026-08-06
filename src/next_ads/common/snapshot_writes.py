@@ -10,7 +10,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 from next_ads.common.delta_writes import (
-    DeltaWriteResult,
+    DeltaWriteReceipt,
     KeyValidationSummary,
     replace_scope_by_name,
     replace_table_by_name,
@@ -20,6 +20,7 @@ from next_ads.common.delta_writes import (
 
 __all__ = [
     "SnapshotPublicationResult",
+    "ValidatedSnapshotResult",
     "capture_run_date",
     "publish_history_and_latest",
     "replace_validated_scope",
@@ -32,8 +33,14 @@ __all__ = [
 class SnapshotPublicationResult:
     run_date: date
     validation: KeyValidationSummary
-    history_write: DeltaWriteResult
-    latest_write: DeltaWriteResult
+    history_write: DeltaWriteReceipt
+    latest_write: DeltaWriteReceipt
+
+
+@dataclass(frozen=True)
+class ValidatedSnapshotResult:
+    validation: KeyValidationSummary
+    write: DeltaWriteReceipt
 
 
 def capture_run_date(spark: Any) -> date:
@@ -78,19 +85,27 @@ def replace_validated_snapshot(
     table: str,
     key_columns: Sequence[str],
     columns: Sequence[str] | None = None,
-) -> KeyValidationSummary:
+    build_id: str | None = None,
+    attempt_id: str | None = None,
+    git_commit: str | None = None,
+) -> ValidatedSnapshotResult:
     """Validate, materialise and atomically replace a complete snapshot."""
     selected_columns = list(columns or df.columns)
-    prepared = df.select(*selected_columns).persist(StorageLevel.MEMORY_AND_DISK)
+    prepared = df.select(*selected_columns).persist(
+        StorageLevel.MEMORY_AND_DISK
+    )
     try:
         validation = validate_unique_non_null_keys(prepared, key_columns)
-        replace_table_by_name(
+        write = replace_table_by_name(
             prepared,
             table,
             selected_columns,
             spark=spark,
+            build_id=build_id,
+            attempt_id=attempt_id,
+            git_commit=git_commit,
         )
-        return validation
+        return ValidatedSnapshotResult(validation=validation, write=write)
     finally:
         prepared.unpersist()
 
@@ -106,7 +121,9 @@ def replace_validated_scope(
 ) -> KeyValidationSummary:
     """Validate, materialise and atomically replace one structured scope."""
     selected_columns = list(columns or df.columns)
-    prepared = df.select(*selected_columns).persist(StorageLevel.MEMORY_AND_DISK)
+    prepared = df.select(*selected_columns).persist(
+        StorageLevel.MEMORY_AND_DISK
+    )
     try:
         validation = validate_unique_non_null_keys(
             prepared,

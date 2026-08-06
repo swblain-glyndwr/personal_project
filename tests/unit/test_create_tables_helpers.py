@@ -477,6 +477,30 @@ def test_repair_table_to_contract_blocks_prod_rebuild():
         )
 
 
+def test_repair_table_to_contract_never_backup_rebuilds_canonical_outputs():
+    with pytest.raises(ValueError, match="will not create a backup copy"):
+        repair_table_to_contract(
+            FakeSpark(),
+            table="catalog.schema.next_uk_nextads_candidate_scores",
+            create_table_sql=(
+                "create table catalog.schema.next_uk_nextads_candidate_scores "
+                "(CandidateBuildID string not null)"
+            ),
+            expected_columns=[
+                ColumnSpec(
+                    "CandidateBuildID",
+                    "string",
+                    False,
+                    "string not null",
+                )
+            ],
+            actual_columns=[],
+            job_env="dev",
+            dry_run=False,
+            logger=FakeLogger(),
+        )
+
+
 def test_table_selection_accepts_ref_full_name_or_table_name():
     table = (
         "marketingdata_dev.stephen_blain.next_uk_nextads_control_sheet_latest"

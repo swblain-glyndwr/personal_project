@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from collections.abc import Callable
 from typing import Any
 
 from next_ads.candidates.publication import (
@@ -36,11 +37,13 @@ def run_portfolio_candidate_build(
     output_preranked_table: str,
     task_run_id: int,
     execution_count: int,
+    git_commit: str,
     compatibility_top_count: int,
     apply_ad_feedback: bool,
     ad_feedback_weight: float,
     write_score_components: bool,
     logger: Any,
+    before_ready: Callable[[CandidateBuild], None] | None = None,
 ) -> CandidateBuild:
     """Build every serving entry and publish one accepted candidate attempt."""
     logical_date = (
@@ -68,7 +71,9 @@ def run_portfolio_candidate_build(
     )
     best_entries = [entry for entry in entries if entry.serving_slot == "best"]
     if len(best_entries) != 1:
-        raise ValueError("Portfolio must contain exactly one best serving entry")
+        raise ValueError(
+            "Portfolio must contain exactly one best serving entry"
+        )
 
     control_delta_version = latest_delta_version(spark, control_table)
     policy_checksum = candidate_policy_checksum(
@@ -88,6 +93,7 @@ def run_portfolio_candidate_build(
         candidate_policy_checksum_value=policy_checksum,
         task_run_id=task_run_id,
         execution_count=execution_count,
+        git_commit=git_commit,
     )
     publisher = CandidateBuildPublisher(
         spark,
@@ -144,17 +150,15 @@ def run_portfolio_candidate_build(
             output_preranked_table=output_preranked_table,
             output_grain=output_grain,
             top_ads_per_group=compatibility_top_count,
-            write_score_components=(
-                write_score_components and publishes_best
-            ),
+            write_score_components=(write_score_components and publishes_best),
             foundation_inputs=foundation_inputs,
             allowed_provider_themes=allowed_provider_themes,
             candidate_publisher=publish_frames,
-            publish_compatibility=publishes_best,
+            publish_compatibility=False,
             logger=logger,
         )
 
-    return publisher.finalize(entries)
+    return publisher.finalize(entries, before_ready=before_ready)
 
 
 __all__ = ["run_portfolio_candidate_build"]

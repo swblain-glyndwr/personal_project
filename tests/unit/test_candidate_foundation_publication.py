@@ -26,7 +26,8 @@ def _outputs():
             "delta_version": index,
             "schema_version": "v1",
             "row_count": 1,
-            "content_checksum": f"checksum-{name}",
+            "schema_checksum": f"schema-{name}",
+            "write_receipt_id": f"receipt-{name}",
         }
         for index, name in enumerate(
             ("customer_cells", "repeat_ad_exposure", "ad_feedback"),
@@ -88,16 +89,25 @@ def test_customer_cell_status_accepts_only_same_day_or_previous_day_fallback():
 def test_manifest_writes_sources_before_ready_build(monkeypatch):
     writes = []
 
-    class _Spark:
-        def createDataFrame(self, rows, schema):  # noqa: N802
-            return SimpleNamespace(rows=rows, schema=schema)
-
-    def _replace(frame, table, scope, columns, *, spark):
+    def _replace(frame, table, scope, columns, **_kwargs):
         writes.append((table, scope, tuple(columns), frame.rows))
 
     monkeypatch.setattr(manifest_module, "replace_scope_by_name", _replace)
+    monkeypatch.setattr(
+        manifest_module,
+        "validate_typed_table_schema",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        manifest_module,
+        "typed_table_frame",
+        lambda _spark, _table, rows: SimpleNamespace(
+            rows=rows,
+            columns=list(rows[0]),
+        ),
+    )
     build = publish_candidate_foundation_manifest(
-        _Spark(),
+        SimpleNamespace(),
         snapshot_id="foundation",
         run_date=RUN_DATE,
         source_bindings=(
@@ -116,6 +126,7 @@ def test_manifest_writes_sources_before_ready_build(monkeypatch):
         status=READY_FOR_NEXTADS,
         task_run_id=123,
         execution_count=0,
+        git_commit="abc123",
         builds_table="catalog.schema.builds",
         sources_table="catalog.schema.sources",
         completed_at=datetime(2026, 8, 3, 16, 30, tzinfo=timezone.utc),
@@ -131,6 +142,11 @@ def test_manifest_writes_sources_before_ready_build(monkeypatch):
 
 def test_duplicate_source_names_fail_before_any_write(monkeypatch):
     writes = []
+    monkeypatch.setattr(
+        manifest_module,
+        "validate_typed_table_schema",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         manifest_module,
         "replace_scope_by_name",
@@ -157,6 +173,7 @@ def test_duplicate_source_names_fail_before_any_write(monkeypatch):
             status=READY_FOR_NEXTADS,
             task_run_id=123,
             execution_count=0,
+            git_commit="abc123",
             builds_table="catalog.schema.builds",
             sources_table="catalog.schema.sources",
         )

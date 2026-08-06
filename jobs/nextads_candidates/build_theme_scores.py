@@ -3,7 +3,6 @@
 # this script directly on a Databricks cluster.
 
 import sys
-import uuid
 from pathlib import Path
 
 try:
@@ -28,13 +27,14 @@ finally:
 
 from pyspark.sql import functions as F
 from pyspark.sql import Window
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
-from dsutils.dbc import configure_spark, get_dbutils
+from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from next_ads.common import config_manager
-from next_ads.common.delta_writes import quote_qualified_identifier
+from next_ads.common.delta_writes import find_delta_write_receipt
+from next_ads.common.spark_runtime import configure_lean_spark
 from next_ads.common.paths import load_client_config
 from next_ads.common.snapshot_writes import (
     capture_run_date,
@@ -51,16 +51,24 @@ from next_ads.ranking.theme_score_generation import (
 from next_ads.ranking.provider_context import (
     load_active_provider_context,
     pinned_item_themes,
+    transition_provider_context,
 )
-from next_ads.ranking.provider_publication import stage_provider_signals
+from next_ads.ranking.provider_publication import (
+    publish_provider_build,
+    stage_provider_signals,
+    validate_provider_publication_contract,
+)
 from next_ads.ranking.provider_signals import (
     adapt_configured_provider_scores,
+)
+from jobs.orchestration.prepare_score_provider_context import (
+    main as prepare_provider_context,
 )
 
 from next_ads.reporting.plotting import DirectedGraphPlotter
 
 
-def main(
+def _run_markov(
     JOB_ENV,
     CLIENT,
     LOG_LEVEL,
@@ -76,18 +84,19 @@ def main(
     PROVIDER_BUILD_ATTEMPT_ID=None,
     CONTEXT_SLOT=None,
     ORCHESTRATION_RUN_ID=None,
+    GIT_COMMIT=None,
+    TASK_RUN_ID=None,
+    EXECUTION_COUNT=None,
+    CONTEXT_STATE=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
-    spark.conf.set("spark.sql.shuffle.partitions", "auto")
-    spark.conf.set("spark.sql.adaptive.enabled", "true")
+    configure_lean_spark(spark)
     run_date = (
-        date.fromisoformat(RUN_DATE)
-        if RUN_DATE
-        else capture_run_date(spark)
+        date.fromisoformat(RUN_DATE) if RUN_DATE else capture_run_date(spark)
     )
     logger.info(f"Running in job environment: {JOB_ENV}")
 
@@ -100,22 +109,31 @@ def main(
 
     # load configuration
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
+    if not TEST_ACCOUNT:
+        validate_provider_publication_contract(
+            spark,
+            signals_table=config.tables_write.score_provider_signals,
+            builds_table=config.tables_write.score_provider_builds,
+        )
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
-    provider_context_values = (
-        INPUT_SNAPSHOT_ID,
+    existing_context_values = (
         PROVIDER_BUILD_ID,
         PROVIDER_BUILD_ATTEMPT_ID,
         CONTEXT_SLOT,
         ORCHESTRATION_RUN_ID,
     )
-    if any(provider_context_values) and not all(provider_context_values):
+    if any(existing_context_values) and not all(existing_context_values):
         raise ValueError(
             "Pinned Markov scoring requires the complete provider context"
         )
     provider_context = None
-    if all(provider_context_values):
+    if all(existing_context_values):
+        if not INPUT_SNAPSHOT_ID:
+            raise ValueError(
+                "Pinned Markov scoring requires an input snapshot"
+            )
         provider_context = load_active_provider_context(
             spark,
             context_table=config.tables_write.score_provider_run_contexts,
@@ -146,6 +164,85 @@ def main(
             PROVIDER_BUILD_ID,
             INPUT_SNAPSHOT_ID,
         )
+    elif not TEST_ACCOUNT:
+        required_runtime_values = {
+            "INPUT_SNAPSHOT_ID": INPUT_SNAPSHOT_ID,
+            "CONTEXT_SLOT": CONTEXT_SLOT,
+            "ORCHESTRATION_RUN_ID": ORCHESTRATION_RUN_ID,
+            "GIT_COMMIT": GIT_COMMIT,
+            "TASK_RUN_ID": TASK_RUN_ID,
+            "EXECUTION_COUNT": EXECUTION_COUNT,
+        }
+        missing = [
+            name
+            for name, value in required_runtime_values.items()
+            if value is None
+        ]
+        if missing:
+            raise ValueError(
+                "Markov build-and-publish is missing: " + ", ".join(missing)
+            )
+        provider_context = prepare_provider_context(
+            JOB_ENV,
+            CLIENT,
+            LOG_LEVEL,
+            run_date.isoformat(),
+            INPUT_SNAPSHOT_ID,
+            "code:/markov/v1",
+            CONTEXT_SLOT,
+            TASK_RUN_ID,
+            EXECUTION_COUNT,
+            "5400",
+            "30",
+            "markov",
+            "theme_ranking",
+            ORCHESTRATION_RUN_ID,
+            None,
+            None,
+            ALLOW_SERIAL_RUN_TAKEOVER=True,
+            ACTIVATE_CONTEXT=True,
+            EMIT_TASK_VALUES=False,
+            REUSE_INCOMPLETE_ATTEMPT=True,
+        )
+        INPUT_SNAPSHOT_ID = provider_context.input_snapshot_id
+        PROVIDER_BUILD_ID = provider_context.provider_build_id
+        PROVIDER_BUILD_ATTEMPT_ID = provider_context.provider_build_attempt_id
+
+    if provider_context is not None and CONTEXT_STATE is not None:
+        CONTEXT_STATE.update(
+            spark=spark,
+            config=config,
+            context=provider_context,
+            logger=logger,
+        )
+
+    if provider_context is not None and not TEST_ACCOUNT:
+        existing_receipt = find_delta_write_receipt(
+            spark,
+            target_table=config.tables_write.score_provider_signals,
+            build_id=provider_context.provider_build_id,
+            attempt_id=provider_context.provider_build_attempt_id,
+        )
+        if existing_receipt is not None:
+            logger.info(
+                "Reusing Markov signals receipt %s at Delta version %s",
+                existing_receipt.receipt_id,
+                existing_receipt.delta_version,
+            )
+            provider = config.scoring.providers[provider_context.provider_id]
+            publish_provider_build(
+                spark,
+                context=provider_context,
+                signals_table=config.tables_write.score_provider_signals,
+                signals_delta_version=existing_receipt.delta_version,
+                builds_table=config.tables_write.score_provider_builds,
+                provider_config=provider,
+                contract_version=config.scoring.contract_version,
+                git_commit=GIT_COMMIT,
+                task_run_id=int(TASK_RUN_ID),
+                execution_count=int(EXECUTION_COUNT),
+            )
+            return
 
     PRODUCT_CATALOG = cfg["tables"]["read"]["product_catalog"]
     BASKETS = cfg["tables"]["read"]["baskets"]
@@ -213,8 +310,7 @@ def main(
         else spark.table(ITEM_THEMES)
     )
     item_themes = (
-        item_themes_source
-        .where(F.col("theme_rank") == 1)
+        item_themes_source.where(F.col("theme_rank") == 1)
         .select("pid", "theme")
         .distinct()
     )
@@ -572,46 +668,21 @@ def main(
             }
         )
 
-        logger.info("Materialising customer next-theme scores to temp table")
-        temp_table_name = (
-            f"{config.catalog_write}.{SCHEMA}."
-            f"temp_next_theme_probs_{uuid.uuid4().hex}"
+        provider = config.scoring.providers[provider_context.provider_id]
+        signals = adapt_configured_provider_scores(
+            next_theme_probs,
+            context=provider_context,
+            provider_config=provider,
         )
-        # Keep this managed materialisation until runtime 18.1 checkpointing is
-        # available. A run-unique table prevents concurrent executions from
-        # overwriting each other's lineage cut.
-        try:
-            (
-                next_theme_probs.write.mode("errorifexists").saveAsTable(
-                    temp_table_name
-                )
-            )
-            temp_next_theme_probs = spark.table(temp_table_name)
-            provider = config.scoring.providers[provider_context.provider_id]
-            signals = adapt_configured_provider_scores(
-                temp_next_theme_probs,
-                context=provider_context,
-                provider_config=provider,
-            )
-            provider_signals_delta_version = stage_provider_signals(
-                spark,
-                signals,
-                context=provider_context,
-                table=config.tables_write.score_provider_signals,
-            )
-            get_dbutils().jobs.taskValues.set(
-                key="provider_signals_delta_version",
-                value=provider_signals_delta_version,
-            )
-            logger.info(
-                "Staged canonical Markov signals at Delta version %s",
-                provider_signals_delta_version,
-            )
-        finally:
-            spark.sql(
-                "DROP TABLE IF EXISTS "
-                + quote_qualified_identifier(temp_table_name)
-            )
+        if not GIT_COMMIT:
+            raise ValueError("Markov publication requires a Git commit")
+        receipt = stage_provider_signals(
+            spark,
+            signals,
+            context=provider_context,
+            table=config.tables_write.score_provider_signals,
+            git_commit=GIT_COMMIT,
+        )
 
     if PLOT_GRAPH:
         logger.info("Creating theme transition graph")
@@ -631,7 +702,52 @@ def main(
         logger.info(f"Writing graph to {graph_filename}")
         graph.fig.write_html(graph_filename)
 
-    logger.info("Run complete")
+    if provider_context is not None:
+        provider = config.scoring.providers[provider_context.provider_id]
+        publish_provider_build(
+            spark,
+            context=provider_context,
+            signals_table=config.tables_write.score_provider_signals,
+            signals_delta_version=receipt.delta_version,
+            builds_table=config.tables_write.score_provider_builds,
+            provider_config=provider,
+            contract_version=config.scoring.contract_version,
+            git_commit=GIT_COMMIT,
+            task_run_id=int(TASK_RUN_ID),
+            execution_count=int(EXECUTION_COUNT),
+        )
+    else:
+        logger.info("Run complete")
+
+
+def _transition_markov_context(state, status):
+    context = state.get("context")
+    if context is None:
+        return
+    config = state["config"]
+    transition_provider_context(
+        state["spark"],
+        context_table=config.tables_write.score_provider_run_contexts,
+        context=context,
+        status=status,
+        completed_at=datetime.now(timezone.utc),
+    )
+
+
+def main(*args, **kwargs):
+    context_state = {}
+    try:
+        result = _run_markov(*args, CONTEXT_STATE=context_state, **kwargs)
+    except Exception:
+        try:
+            _transition_markov_context(context_state, "FAILED")
+        except Exception:
+            logger = context_state.get("logger")
+            if logger is not None:
+                logger.exception("Unable to release failed provider context")
+        raise
+    _transition_markov_context(context_state, "CONSUMED")
+    return result
 
 
 if __name__ == "__main__":
@@ -657,7 +773,8 @@ if __name__ == "__main__":
             "--provider_build_attempt_id"
         ),
         CONTEXT_SLOT=jobparser.get_arg("--context_slot"),
-        ORCHESTRATION_RUN_ID=jobparser.get_arg(
-            "--orchestration_run_id"
-        ),
+        ORCHESTRATION_RUN_ID=jobparser.get_arg("--orchestration_run_id"),
+        GIT_COMMIT=jobparser.get_arg("--git_commit"),
+        TASK_RUN_ID=jobparser.get_arg("--task_run_id"),
+        EXECUTION_COUNT=jobparser.get_arg("--execution_count"),
     )

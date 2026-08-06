@@ -3,12 +3,8 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ASSIGN_PATH = (
-    PROJECT_ROOT / "jobs/nextads_cells/assign_customer_cells.py"
-)
-COMBINE_PATH = (
-    PROJECT_ROOT / "jobs/nextads_cells/combine_customer_cells.py"
-)
+ASSIGN_PATH = PROJECT_ROOT / "jobs/nextads_cells/assign_customer_cells.py"
+COMBINE_PATH = PROJECT_ROOT / "jobs/nextads_cells/combine_customer_cells.py"
 
 
 def _source_and_tree(path):
@@ -81,29 +77,18 @@ def test_fixed_cells_archive_scope_and_latest_snapshot_are_atomic():
     assert len(snapshot_call) == 1
     snapshot_keywords = _keywords(snapshot_call[0])
     assert _name(snapshot_keywords["table"]) == "FIXED_CELLS_TABLE"
-    assert _string_list(snapshot_keywords["key_columns"]) == [
-        "AccountNumber"
-    ]
+    assert _string_list(snapshot_keywords["key_columns"]) == ["AccountNumber"]
 
     assert 'column="RunDateEnd"' in source
-    assert (
-        "spark.createDataFrame([], schema=fixed_cells_schema)"
-        in source
-    )
+    assert "spark.createDataFrame([], schema=fixed_cells_schema)" in source
     assert (
         'df_cells_existing = df_fixed_latest_existing.drop("rundate")'
         in source
     )
-    assert (
-        '.where(F.col("RunDateEnd") < F.lit(RUN_DATE))'
-        in source
-    )
+    assert '.where(F.col("RunDateEnd") < F.lit(RUN_DATE))' in source
     assert "FULL_REFRESH_REQUIRED = False" in source
     assert "if archive_date == RUN_DATE:" in source
-    assert (
-        "preserving the published assignment on retry"
-        in source
-    )
+    assert "preserving the published assignment on retry" in source
     assert "else:\n        FULL_REFRESH_REQUIRED = True" in source
     assert "if FULL_REFRESH_REQUIRED:" in source
 
@@ -127,10 +112,7 @@ def test_transient_cells_publish_history_then_latest_even_when_empty():
     assert _name(publish_keywords["run_date"]) == "RUN_DATE"
 
     assert "if df_cells_transient is None:" in source
-    assert (
-        "spark.createDataFrame([], schema=transient_schema)"
-        in source
-    )
+    assert "spark.createDataFrame([], schema=transient_schema)" in source
 
 
 def test_combined_cells_latest_is_atomic_and_preserves_safe_fallback():
@@ -146,9 +128,7 @@ def test_combined_cells_latest_is_atomic_and_preserves_safe_fallback():
     assert len(snapshot_calls) == 1
     snapshot_keywords = _keywords(snapshot_calls[0])
     assert _name(snapshot_keywords["table"]) == "CELLS_TABLE_LATEST"
-    assert _string_list(snapshot_keywords["key_columns"]) == [
-        "AccountNumber"
-    ]
+    assert _string_list(snapshot_keywords["key_columns"]) == ["AccountNumber"]
 
     for legacy_write in (
         "create_table_from_df",
@@ -162,12 +142,14 @@ def test_combined_cells_latest_is_atomic_and_preserves_safe_fallback():
     assert "spark.createDataFrame([], schema=combined_schema)" not in source
     assert "publish_new_snapshot" in source
     assert "read_delta_version(" in source
-    assert "summary.require_valid(\"accepted combined customer cells\")" in source
-    assert "Accepted combined customer cells are more than one day old" in source
+    assert "replace_validated_snapshot(" in source
+    assert (
+        "Accepted combined customer cells are more than one day old" in source
+    )
     assert "customer_cells_delta_version" in source
 
 
-def test_combined_cells_checksum_uses_target_table_column_order():
+def test_combined_cells_validates_target_order_before_atomic_write():
     source, tree = _source_and_tree(COMBINE_PATH)
 
     target_order_calls = _calls_named(tree, "validate_target_columns")
@@ -177,14 +159,12 @@ def test_combined_cells_checksum_uses_target_table_column_order():
         "CELLS_TABLE_LATEST",
         "df_selected.columns",
     ]
-    assert (
-        "df_selected = df_selected.select(*target_columns).persist()"
-        in source
-    )
+    assert "df_selected = df_selected.select(*target_columns)" in source
+    assert "summarise_content(" not in source
+    assert "countDistinct(" not in source
 
     target_order_position = source.index(
-        "df_selected = df_selected.select(*target_columns).persist()"
+        "df_selected = df_selected.select(*target_columns)"
     )
-    checksum_position = source.index("summary = summarise_content(")
     write_position = source.index("replace_validated_snapshot(")
-    assert target_order_position < checksum_position < write_position
+    assert target_order_position < write_position

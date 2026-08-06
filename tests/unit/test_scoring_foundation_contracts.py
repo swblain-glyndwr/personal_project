@@ -39,12 +39,10 @@ def _output(name, *, required=True, attempt=0):
         output_schema_checksum=f"schema-{name}",
         is_required=required,
         row_count=100,
-        account_count=10,
-        entity_count=20,
-        null_key_count=0,
-        duplicate_key_count=0,
-        invalid_value_count=0,
-        output_checksum=f"checksum-{name}",
+        write_receipt_id=f"receipt-{name}",
+        git_commit="abc123",
+        write_duration_ms=1000,
+        retry_count=0,
         published_at=COMPLETED_AT,
     )
 
@@ -61,16 +59,14 @@ def _foundation(*, attempt=0):
         capability="account_theme",
         contract_version="account_theme_foundation/v1",
         invocation_checksum="checksum",
-        required_output_names=("ranked", "complete"),
+        git_commit="abc123",
+        required_output_names=("ranked",),
         status=READY_FOR_PROVIDERS,
         warning_count=0,
         task_run_id=100 + attempt,
         execution_count=attempt,
         completed_at=COMPLETED_AT + timedelta(minutes=attempt),
-        outputs=(
-            _output("ranked", attempt=attempt),
-            _output("complete", attempt=attempt),
-        ),
+        outputs=(_output("ranked", attempt=attempt),),
         input_bindings_json='{"item_themes":{"delta_version":42}}',
         pipeline_id="pipeline-123",
         pipeline_update_id="pipeline-update",
@@ -95,12 +91,11 @@ def _markov_build(**overrides):
         "model_uri": "legacy://markov/1",
         "pipeline_update_id": None,
         "row_count": 100,
-        "account_count": 10,
-        "entity_count": 20,
-        "null_key_count": 0,
-        "duplicate_key_count": 0,
-        "invalid_score_count": 0,
-        "output_checksum": "checksum",
+        "output_schema_checksum": "schema-checksum",
+        "write_receipt_id": "receipt-markov",
+        "git_commit": "abc123",
+        "write_duration_ms": 1000,
+        "retry_count": 0,
         "warning_count": 0,
         "status": READY_FOR_NEXTADS,
         "task_run_id": 123,
@@ -120,7 +115,7 @@ def test_foundation_identity_is_reusable_across_providers_and_environments():
         "foundation_version": "account_theme_features/v2",
         "capability": "account_theme",
         "contract_version": "account_theme_foundation/v1",
-        "required_outputs": {"ranked": "ranked/v1", "complete": "complete/v1"},
+        "required_outputs": {"ranked": "ranked/v1"},
         "input_bindings": {
             "item_themes": {
                 "table": "marketingdata_dev.user.item_themes",
@@ -155,7 +150,7 @@ def test_ready_foundation_requires_its_complete_valid_output_contract():
     assert build.pipeline_task_run_id == 200
     assert "item_themes" in build.input_bindings_json
     with pytest.raises(ValueError, match="required contract"):
-        replace(build, outputs=build.outputs[:1])
+        replace(build, outputs=())
     with pytest.raises(ValueError, match="match the build attempt"):
         replace(
             build,
@@ -164,7 +159,6 @@ def test_ready_foundation_requires_its_complete_valid_output_contract():
                     build.outputs[0],
                     scoring_foundation_build_id="another-build",
                 ),
-                build.outputs[1],
             ),
         )
     with pytest.raises(ValueError, match="input_bindings_json"):

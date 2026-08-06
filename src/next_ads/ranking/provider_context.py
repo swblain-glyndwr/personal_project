@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -15,6 +15,7 @@ from next_ads.common.delta_writes import (
 
 
 ACTIVE = "ACTIVE"
+FAILED = "FAILED"
 
 _PROVIDER_INFERENCE_FIELDS = (
     "adapter",
@@ -69,9 +70,10 @@ class ProviderContext:
             "use_case",
             "invocation_checksum",
         ):
-            if not isinstance(getattr(self, field), str) or not getattr(
-                self, field
-            ).strip():
+            if (
+                not isinstance(getattr(self, field), str)
+                or not getattr(self, field).strip()
+            ):
                 raise ValueError(f"{field} must not be empty")
         if isinstance(self.run_date, datetime) or not isinstance(
             self.run_date, date
@@ -109,7 +111,9 @@ class ProviderContext:
                 )
         else:
             if not isinstance(foundation_binding, dict):
-                raise ValueError("Provider context is missing its foundation binding")
+                raise ValueError(
+                    "Provider context is missing its foundation binding"
+                )
             expected = {
                 "scoring_foundation_build_id": (
                     self.scoring_foundation_build_id
@@ -129,7 +133,9 @@ class ProviderContext:
                     + ", ".join(mismatched)
                 )
             if not isinstance(foundation_binding.get("outputs"), dict):
-                raise ValueError("Provider foundation outputs must be a mapping")
+                raise ValueError(
+                    "Provider foundation outputs must be a mapping"
+                )
 
 
 @dataclass(frozen=True)
@@ -142,9 +148,10 @@ class FoundationOutputBinding:
     def __post_init__(self) -> None:
         """Validate one exact foundation output binding."""
         for field in ("output_name", "table", "schema_version"):
-            if not isinstance(getattr(self, field), str) or not getattr(
-                self, field
-            ).strip():
+            if (
+                not isinstance(getattr(self, field), str)
+                or not getattr(self, field).strip()
+            ):
                 raise ValueError(f"{field} must not be empty")
         if (
             isinstance(self.delta_version, bool)
@@ -210,7 +217,9 @@ def build_provider_build_id(
     if any(not value for value in values):
         raise ValueError("Provider build identity values must not be empty")
     if "@" in model_uri:
-        raise ValueError("Provider build identity requires an immutable model URI")
+        raise ValueError(
+            "Provider build identity requires an immutable model URI"
+        )
     if model_uri.startswith("models:/"):
         model_version = model_uri.rstrip("/").rsplit("/", 1)[-1]
         if not model_version.isdigit():
@@ -318,8 +327,7 @@ WHEN NOT MATCHED THEN INSERT ({insert_columns}) VALUES ({insert_values})
     if (
         owner.orchestration_run_id != context.orchestration_run_id
         or owner.provider_build_id != context.provider_build_id
-        or owner.provider_build_attempt_id
-        != context.provider_build_attempt_id
+        or owner.provider_build_attempt_id != context.provider_build_attempt_id
     ):
         raise ValueError(
             f"Context slot {context.context_slot} already has an active lease"
@@ -376,6 +384,71 @@ WHERE ContextSlot = '{escaped_slot}'
         raise ValueError("Provider context release ownership check failed")
 
 
+def load_reusable_provider_context(
+    spark: Any,
+    *,
+    context_table: str,
+    expected_context: ProviderContext,
+    execution_count: int,
+) -> ProviderContext | None:
+    """Return the exact incomplete attempt that a task repair may reclaim.
+
+    A repair within the same orchestration run keeps the original physical
+    attempt identity. The caller can therefore find an existing Delta receipt
+    and publish READY without rebuilding the distributed dataframe. ACTIVE is
+    reusable as well as FAILED because cluster loss can bypass finalisation;
+    the higher Databricks task execution count proves the old execution ended.
+    """
+    if (
+        isinstance(execution_count, bool)
+        or not isinstance(execution_count, int)
+        or execution_count < 1
+    ):
+        return None
+    rows = (
+        spark.table(context_table)
+        .where(F.col("ContextSlot") == expected_context.context_slot)
+        .collect()
+    )
+    if not rows:
+        return None
+    if len(rows) != 1:
+        raise ValueError(
+            f"Expected one {expected_context.context_slot} context, "
+            f"found {len(rows)}"
+        )
+    row = rows[0]
+    if row["Status"] not in {ACTIVE, FAILED}:
+        return None
+    if int(row["ExecutionCount"]) >= execution_count:
+        return None
+    existing = _context_from_row(row)
+    comparable_fields = (
+        "context_slot",
+        "orchestration_run_id",
+        "provider_id",
+        "provider_build_id",
+        "input_snapshot_id",
+        "run_date",
+        "model_uri",
+        "bindings_json",
+        "capability",
+        "use_case",
+        "invocation_checksum",
+        "scoring_foundation_build_id",
+        "scoring_foundation_build_attempt_id",
+    )
+    if any(
+        getattr(existing, field) != getattr(expected_context, field)
+        for field in comparable_fields
+    ):
+        return None
+    return replace(
+        expected_context,
+        provider_build_attempt_id=existing.provider_build_attempt_id,
+    )
+
+
 def load_active_provider_context(
     spark: Any,
     *,
@@ -398,11 +471,16 @@ def load_active_provider_context(
     row = rows[0]
     if row["Status"] != ACTIVE:
         raise ValueError(f"{context_slot} provider context is not ACTIVE")
+    context = _context_from_row(row)
+    if context.expires_at <= current_time:
+        raise ValueError(f"{context_slot} provider context has expired")
+    return context
+
+
+def _context_from_row(row: Any) -> ProviderContext:
     expires_at = row["ExpiresAt"]
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at <= current_time:
-        raise ValueError(f"{context_slot} provider context has expired")
     return ProviderContext(
         context_slot=row["ContextSlot"],
         orchestration_run_id=int(row["OrchestrationRunID"]),
@@ -446,7 +524,9 @@ def foundation_output_binding(
     if not isinstance(foundation, dict):
         raise ValueError("Provider context has no foundation binding")
     outputs = foundation.get("outputs")
-    definition = outputs.get(output_name) if isinstance(outputs, dict) else None
+    definition = (
+        outputs.get(output_name) if isinstance(outputs, dict) else None
+    )
     if not isinstance(definition, dict):
         raise ValueError(f"Foundation output {output_name} is not bound")
     return FoundationOutputBinding(
@@ -474,8 +554,6 @@ def pinned_item_themes(
     *,
     input_table: str,
 ):
-    from next_ads.common.delta_writes import validate_unique_non_null_keys
-
     binding = json.loads(context.bindings_json).get("item_themes")
     expected_binding = {
         "table": input_table,
@@ -494,12 +572,11 @@ def pinned_item_themes(
         (F.col("InputSnapshotID") == context.input_snapshot_id)
         & (F.col("RunDate") == F.lit(context.run_date))
     )
-    summary = validate_unique_non_null_keys(
-        frame,
-        ["InputSnapshotID", "RunDate", "pid", "theme"],
-    )
-    if summary.row_count == 0:
-        raise ValueError("Pinned item-theme snapshot is empty")
-    if frame.where(F.col("theme_rank").isNull()).limit(1).count():
-        raise ValueError("Pinned item-theme snapshot contains null ranks")
+    required = {"InputSnapshotID", "RunDate", "pid", "theme", "theme_rank"}
+    missing = sorted(required.difference(frame.columns))
+    if missing:
+        raise ValueError(
+            "Pinned item-theme snapshot is missing columns: "
+            + ", ".join(missing)
+        )
     return frame

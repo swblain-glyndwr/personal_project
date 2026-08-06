@@ -36,12 +36,11 @@ PROVIDER_BUILD_COLUMNS = (
     "OutputTable",
     "OutputDeltaVersion",
     "RowCount",
-    "AccountCount",
-    "EntityCount",
-    "NullKeyCount",
-    "DuplicateKeyCount",
-    "InvalidScoreCount",
-    "OutputChecksum",
+    "OutputSchemaChecksum",
+    "WriteReceiptID",
+    "GitCommit",
+    "WriteDurationMs",
+    "RetryCount",
     "WarningCount",
     "Status",
     "TaskRunID",
@@ -118,7 +117,11 @@ def _optional_text(value: Any, label: str) -> str | None:
 
 
 def _integer(value: Any, label: str, *, minimum: int = 0) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+    ):
         raise ValueError(f"{label} must be an integer of at least {minimum}")
     return value
 
@@ -170,7 +173,9 @@ def _value(values: Mapping[str, Any], column: str) -> Any:
 def parse_score_provider_build(row: Any) -> ScoreProviderBuild:
     """Parse and validate one physical provider-build manifest row."""
     values = _row_mapping(row)
-    missing = [column for column in PROVIDER_BUILD_COLUMNS if column not in values]
+    missing = [
+        column for column in PROVIDER_BUILD_COLUMNS if column not in values
+    ]
     if missing:
         raise ValueError(
             "Provider build manifest is missing columns: " + ", ".join(missing)
@@ -234,30 +239,19 @@ def parse_score_provider_build(row: Any) -> ScoreProviderBuild:
             )
         ),
         row_count=_integer(_value(values, "RowCount"), "RowCount"),
-        account_count=_integer(
-            _value(values, "AccountCount"),
-            "AccountCount",
+        output_schema_checksum=_optional_text(
+            _value(values, "OutputSchemaChecksum"),
+            "OutputSchemaChecksum",
         ),
-        entity_count=_integer(
-            _value(values, "EntityCount"),
-            "EntityCount",
+        write_receipt_id=_optional_text(
+            _value(values, "WriteReceiptID"),
+            "WriteReceiptID",
         ),
-        null_key_count=_integer(
-            _value(values, "NullKeyCount"),
-            "NullKeyCount",
+        git_commit=_required_text(_value(values, "GitCommit"), "GitCommit"),
+        write_duration_ms=_integer(
+            _value(values, "WriteDurationMs"), "WriteDurationMs"
         ),
-        duplicate_key_count=_integer(
-            _value(values, "DuplicateKeyCount"),
-            "DuplicateKeyCount",
-        ),
-        invalid_score_count=_integer(
-            _value(values, "InvalidScoreCount"),
-            "InvalidScoreCount",
-        ),
-        output_checksum=_optional_text(
-            _value(values, "OutputChecksum"),
-            "OutputChecksum",
-        ),
+        retry_count=_integer(_value(values, "RetryCount"), "RetryCount"),
         warning_count=_integer(
             _value(values, "WarningCount"),
             "WarningCount",
@@ -288,7 +282,9 @@ def parse_score_provider_build(row: Any) -> ScoreProviderBuild:
 
 
 def _normalise_build(build: ScoreProviderBuild) -> ScoreProviderBuild:
-    return replace(build, completed_at=_as_utc(build.completed_at, "completed_at"))
+    return replace(
+        build, completed_at=_as_utc(build.completed_at, "completed_at")
+    )
 
 
 def _selection_from_build(
@@ -406,7 +402,11 @@ def load_score_provider_builds(
 ) -> tuple[ScoreProviderBuild, ...]:
     """Load provider attempts visible at the fixed selection cutoff."""
     frame = spark.table(_required_text(table, "table"))
-    missing = [column for column in PROVIDER_BUILD_COLUMNS if column not in frame.columns]
+    missing = [
+        column
+        for column in PROVIDER_BUILD_COLUMNS
+        if column not in frame.columns
+    ]
     if missing:
         raise ValueError(
             "Provider build manifest is missing columns: " + ", ".join(missing)
@@ -414,9 +414,7 @@ def load_score_provider_builds(
 
     cutoff_utc = _as_utc(selection_cutoff, "selection_cutoff")
     cutoff = cutoff_utc.replace(tzinfo=None)
-    oldest_completion = (cutoff_utc - MAX_FALLBACK_AGE).replace(
-        tzinfo=None
-    )
+    oldest_completion = (cutoff_utc - MAX_FALLBACK_AGE).replace(tzinfo=None)
     minimum_run_date = run_date - timedelta(days=1)
     filtered: DataFrame = frame.where(
         (F.col("ProviderID") == F.lit(provider_id))

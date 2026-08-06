@@ -2,8 +2,7 @@
 
 Status: Working note
 
-Architecture view refreshed: 2026-08-06. Observed runtime evidence last
-refreshed from Databricks: 2026-07-03.
+Architecture view refreshed: 2026-08-06. Observed runtime evidence last refreshed from Databricks: 2026-07-03.
 
 This page describes the NextAds Databricks bundle shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs wait for child jobs, and where reusable model-building routes sit alongside the operational delivery routes.
 
@@ -17,10 +16,7 @@ Durations are recent observed successful run durations, not SLAs. They should be
 
 ## End-To-End Route Added By This Change
 
-This is the single-page view of the operational change. The coloured
-backgrounds show which system responsibility owns each job or boundary. Solid
-arrows are required dependencies; dotted arrows show optional provider
-participation or independent retention work.
+This is the single-page view of the operational change. The coloured backgrounds show which system responsibility owns each job or boundary. Solid arrows are required dependencies; dotted arrows show optional provider participation or independent retention work.
 
 ```mermaid
 flowchart LR
@@ -30,41 +26,40 @@ flowchart LR
   classDef decision fill:#dcfce7,stroke:#16a34a,color:#111827
   classDef delivery fill:#fff7ed,stroke:#ea580c,color:#111827
   classDef state fill:#ffffff,stroke:#334155,stroke-width:3px,color:#111827
-  classDef failure fill:#fef2f2,stroke:#dc2626,color:#111827
+  classDef retained fill:#fef2f2,stroke:#dc2626,color:#111827
   classDef operations fill:#f1f5f9,stroke:#64748b,color:#111827
 
   subgraph INPUTS["INPUTS AND FOUNDATIONS"]
     direction TB
-    theme_inputs["Job: theme_inputs<br/>land mapping, refresh attributes<br/>and validate item themes"]:::input
-    input_snapshot[("Accepted scoring-input snapshot<br/>fixed RunDate, source Delta versions<br/>and content checksum")]:::state
-    candidate_foundation["Job: candidate_foundation<br/>customer cells + repeat exposure<br/>+ raw advert feedback"]:::input
-    foundation_snapshot[("Accepted candidate foundation<br/>fixed source Delta versions<br/>and content checksums")]:::state
-    control_v1["Candidate Build / v1 input branch<br/>load and audit one control-sheet version"]:::input
-    control_v2["Candidate Build / v2 input branch<br/>data pull, then load and audit<br/>one control-sheet version"]:::input
+    theme_inputs["theme_inputs<br/>mapping + attributes"]:::input
+    input_snapshot[("READY scoring input<br/>exact source Delta versions<br/>schema receipts + Git identity")]:::state
+    candidate_foundation["candidate_foundation<br/>cells + exposure + feedback"]:::input
+    foundation_snapshot[("READY candidate foundation<br/>exact source and output versions")]:::state
+    control["audited v1 and v2 control versions"]:::input
 
-    theme_inputs -->|ready manifest last| input_snapshot
-    candidate_foundation -->|ready manifest last| foundation_snapshot
+    theme_inputs -->|write once; READY last| input_snapshot
+    candidate_foundation -->|write once; READY last| foundation_snapshot
   end
 
   subgraph SCORING["SCORING PROVIDERS"]
     direction TB
-    theme_affinity["Job: theme_affinity<br/>accepted input → foundation<br/>→ model prediction"]:::scoring
-    markov["Job: markov_scoring<br/>accepted input → Markov scores"]:::scoring
-    challenger["Any themed or non-themed model<br/>build output and adapt it to<br/>the canonical provider columns"]:::scoring
-    provider_boundary[("Canonical provider boundary<br/>each model publishes its own build using<br/>the same entity keys, scores and ranks<br/>rows first; ready manifest last<br/>model-specific code ends here")]:::state
+    ranked["Theme Affinity shared compute<br/>publish ranked foundation once<br/>predict from that exact version"]:::scoring
+    markov["Markov single build-and-publish task<br/>shadow; independently runnable"]:::scoring
+    challenger["Any themed or non-themed model<br/>calculate output, then use<br/>the same provider adapter"]:::scoring
+    provider_boundary[("Canonical provider signals<br/>one distributed Delta write per build<br/>exact commit receipt; READY last")]:::state
 
-    theme_affinity -->|required provider build| provider_boundary
-    markov -. optional evaluation build .-> provider_boundary
-    challenger -. when configured .-> provider_boundary
+    ranked --> provider_boundary
+    markov -. optional shadow .-> provider_boundary
+    challenger -. configured provider .-> provider_boundary
   end
 
   subgraph RANKING["PORTFOLIO AND CANDIDATE RANKING"]
     direction TB
-    portfolio["Candidate Build / portfolio branch<br/>bind ProviderBuildAttemptID<br/>and provider-output Delta version<br/>Theme Affinity fills both serving slots;<br/>missing Markov does not block"]:::ranking
-    candidate_v1["Candidate Build / one bulk v1 task<br/>all serving entries and advert sets<br/>stable ordering + validation"]:::ranking
-    candidate_v2["Candidate Build / one bulk v2 task<br/>all serving entries and page types<br/>stable ordering + validation"]:::ranking
-    candidate_attempt_v1[("Accepted v1 CandidateBuildAttemptID<br/>rows and advert sets written first<br/>checksum validated; ready manifest last")]:::state
-    candidate_attempt_v2[("Accepted v2 CandidateBuildAttemptID<br/>rows and advert sets written first<br/>checksum validated; ready manifest last")]:::state
+    portfolio["Resolve configured portfolio<br/>bind exact provider build + Delta version<br/>same provider calculated once when reused"]:::ranking
+    candidate_v1["v1 candidate graph<br/>all serving entries and locations"]:::ranking
+    candidate_v2["v2 candidate graph<br/>all serving entries and page types"]:::ranking
+    candidate_attempt_v1[("READY v1 candidate attempt<br/>one ad-set write + one score write<br/>exact receipts; manifest last")]:::state
+    candidate_attempt_v2[("READY v2 candidate attempt<br/>one ad-set write + one score write<br/>exact receipts; manifest last")]:::state
 
     portfolio -->|exact PortfolioAttemptID| candidate_v1
     candidate_v1 --> candidate_attempt_v1
@@ -74,33 +69,33 @@ flowchart LR
 
   subgraph DECISIONING["DECISIONING AND PUBLICATION"]
     direction TB
-    build_v1["Job: page_build_v1<br/>exact CandidateBuildAttemptID +<br/>customer-cell Delta version<br/>77 primary scopes, then SB2 and OC2<br/>staged under one BuildRunID"]:::decision
-    gate_v1{"For each scope, select one latest successful<br/>TaskRunID + ExecutionCount.<br/>Do all 79 events match their staged<br/>row counts and checksums?"}:::decision
-    publish_v1["Publish complete v1 date slice<br/>then one Delta transaction replaces<br/>the live latest snapshot"]:::decision
-    keep_v1["No live v1 replacement<br/>previous accepted snapshot remains active"]:::failure
-    build_v2["Job: page_build_v2<br/>exact CandidateBuildAttemptID +<br/>customer-cell Delta version<br/>all five page types staged<br/>under one BuildRunID"]:::decision
-    gate_v2{"For each page type, select one latest successful<br/>TaskRunID + ExecutionCount.<br/>Do all five events match their staged<br/>row counts and checksums?"}:::decision
-    publish_v2["Publish complete v2 date slice<br/>then one Delta transaction replaces<br/>the live latest snapshot"]:::decision
-    keep_v2["No live v2 replacement<br/>previous accepted snapshot remains active"]:::failure
+    build_v1["v1 bulk Spark graph<br/>load cells, candidates and control once<br/>shared customer ordering twice<br/>all 79 locations calculated together"]:::decision
+    gate_v1{"one grouped key and scope check<br/>for the complete v1 frame"}:::decision
+    publish_v1["distributed history transaction<br/>then distributed live-latest transaction<br/>live latest is the final operation"]:::decision
+    keep_v1["failure before live latest<br/>keeps yesterday's complete v1 snapshot"]:::retained
+    build_v2["v2 bulk Spark graph<br/>load shared inputs once<br/>all five page types calculated together"]:::decision
+    gate_v2{"one grouped key and scope check<br/>for the complete v2 frame"}:::decision
+    publish_v2["distributed history transaction<br/>then distributed live-latest transaction<br/>live latest is the final operation"]:::decision
+    keep_v2["failure before live latest<br/>keeps yesterday's complete v2 snapshot"]:::retained
 
-    build_v1 --> gate_v1
-    gate_v1 -- Yes --> publish_v1
-    gate_v1 -- No --> keep_v1
-    publish_v1 -. replacement fails .-> keep_v1
-    build_v2 --> gate_v2
-    gate_v2 -- Yes --> publish_v2
-    gate_v2 -- No --> keep_v2
-    publish_v2 -. replacement fails .-> keep_v2
+    build_v1 --> gate_v1 --> publish_v1
+    gate_v1 -- invalid --> keep_v1
+    publish_v1 -. live commit fails .-> keep_v1
+    build_v2 --> gate_v2 --> publish_v2
+    gate_v2 -- invalid --> keep_v2
+    publish_v2 -. live commit fails .-> keep_v2
   end
 
   subgraph DELIVERY["DELIVERY"]
     direction TB
-    v1_delivery["V1 after successful publication<br/>assignment validation + MASID + PLP"]:::delivery
+    v1_delivery["V1 after successful publication<br/>MASID + PLP"]:::delivery
     v2_delivery["V2 after successful publication<br/>payload export"]:::delivery
   end
 
-  subgraph OPERATIONS["INDEPENDENT RETENTION"]
-    maintenance["Job: table_maintenance at 05:00<br/>remove expired attempts and staging<br/>not a nightly dependency"]:::operations
+  subgraph OPERATIONS["ASYNCHRONOUS COMPATIBILITY AND MONITORING"]
+    provider_compat["17:00 provider compatibility<br/>and Theme Affinity sense checks<br/>read exact READY provider"]:::operations
+    candidate_compat["21:00 candidate compatibility<br/>and assignment quality monitoring<br/>read exact READY candidates"]:::operations
+    maintenance["05:00 retention<br/>not a build dependency"]:::operations
   end
 
   style INPUTS fill:#f0fdff,stroke:#0891b2,stroke-width:2px
@@ -110,39 +105,31 @@ flowchart LR
   style DELIVERY fill:#fffaf5,stroke:#ea580c,stroke-width:2px
   style OPERATIONS fill:#f8fafc,stroke:#64748b,stroke-width:2px
 
-  input_snapshot -->|exact InputSnapshotID| theme_affinity
+  input_snapshot -->|exact InputSnapshotID| ranked
   input_snapshot -->|same exact InputSnapshotID| markov
   provider_boundary -->|exact provider attempts| portfolio
   foundation_snapshot -->|exact FoundationSnapshotID| candidate_v1
   foundation_snapshot -->|same exact FoundationSnapshotID| candidate_v2
-  control_v1 --> candidate_v1
-  control_v2 --> candidate_v2
+  control --> candidate_v1
+  control --> candidate_v2
   candidate_attempt_v1 -->|exact accepted attempt only| build_v1
   candidate_attempt_v2 -->|exact accepted attempt only| build_v2
   candidate_v1 -. no ready manifest .-> keep_v1
   candidate_v2 -. no ready manifest .-> keep_v2
   publish_v1 --> v1_delivery
   publish_v2 --> v2_delivery
+  provider_boundary -. exact READY version .-> provider_compat
+  candidate_attempt_v1 -. exact READY version .-> candidate_compat
+  candidate_attempt_v2 -. exact READY version .-> candidate_compat
   maintenance -. retention only .-> candidate_attempt_v1
   maintenance -. retention only .-> candidate_attempt_v2
 ```
 
-The thick-bordered cylinders are acceptance boundaries: downstream work reads
-the exact identifier and Delta version shown on the connecting arrow, rather
-than asking for whichever data is latest at execution time. Stable ordering and
-checksums then make a repeat of those accepted inputs select the same rows.
+The thick-bordered cylinders are acceptance boundaries: downstream work reads the exact identifier and Delta version shown on the connecting arrow, rather than asking for whichever data is latest at execution time. Canonical JSON identities, stable ordering and exact Delta versions make a repeat of those accepted inputs select the same rows without nightly whole-table hashing.
 
-All model-specific code ends at the canonical provider boundary. Theme
-Affinity, optional Markov and any later themed or non-themed challenger publish
-the same keys, scores, ranks and ready manifest. From that point onward there is
-one shared portfolio, candidate, decisioning and delivery route.
+All model-specific code ends at the canonical provider boundary. Theme Affinity, optional Markov and any later themed or non-themed challenger publish the same keys, scores, ranks and ready manifest. From that point onward there is one shared portfolio, candidate, decisioning and delivery route.
 
-Rows are written before their ready manifest, and assignment scopes remain
-private to one BuildRunID until the publisher selects one successful attempt per
-scope and validates every staged row count and checksum. A failed or repaired
-attempt therefore cannot mix with another attempt in the public Shopping Bag
-snapshot; the previous accepted live snapshot remains unchanged instead. V1
-and v2 make that publication decision independently.
+Data is written before its READY manifest. Assignment is calculated as one distributed Spark graph per route, checked once at the final public key, and written as one history transaction followed by one live-latest transaction. There is no scope-by-scope public chain to leave a mixed Shopping Bag snapshot. If the live transaction does not complete, the previous accepted snapshot remains active; a repair can publish it from the exact history version without recalculating assignments. V1 and v2 make that decision independently.
 
 ## Daily Runtime Shape
 
@@ -159,12 +146,14 @@ flowchart TD
   theme_inputs["12:15 theme inputs"]:::sharedModel
   theme_affinity["13:00 theme_affinity"]:::sharedModel
   markov["13:00 markov_scoring<br/>optional shadow"]:::sharedModel
+  provider_compat["17:00 provider compatibility<br/>and sense checks"]:::reporting
   candidate_foundation["16:00 candidate_foundation"]:::sharedTask
   candidate["18:00 candidate_build"]:::sharedTask
+  candidate_compat["21:00 candidate compatibility"]:::reporting
   realtime_inputs["18:00 realtime inputs"]:::reporting
   page_build["synchronous page_build_v1"]:::v1
   page_build_v2["synchronous page_build_v2"]:::v2
-  qa["assignment_validation"]:::v1
+  qa["assignment quality monitoring"]:::reporting
   masid["masid_handoff"]:::v1
   payload["payload_export"]:::v2
   plp["plp_gs_delivery"]:::v1
@@ -172,12 +161,14 @@ flowchart TD
 
   theme_inputs --> theme_affinity
   theme_inputs --> markov
+  theme_affinity -. exact READY provider .-> provider_compat
   theme_affinity --> candidate
   candidate_foundation --> candidate
   markov -. optional evaluation .-> candidate
   candidate --> page_build
   candidate --> page_build_v2
-  page_build --> qa
+  candidate -. exact READY candidates .-> candidate_compat
+  candidate_compat --> qa
   page_build --> masid
   page_build --> plp
   page_build_v2 --> payload
@@ -201,12 +192,7 @@ flowchart TD
 
 ## Candidate Build Task Graph
 
-This is the main evening operational route. It selects one accepted candidate
-foundation shared by v1 and v2, while each route independently captures its
-control input, resolves a declared scoring portfolio and publishes an accepted
-candidate attempt from its serving entries. Theme Inputs, Candidate Foundation,
-Theme Affinity and Markov scoring are upstream jobs rather than candidate-task
-implementations.
+This is the main evening operational route. It selects one accepted candidate foundation shared by v1 and v2, while each route independently captures its control input, resolves a declared scoring portfolio and publishes an accepted candidate attempt from its serving entries. Theme Inputs, Candidate Foundation, Theme Affinity and Markov scoring are upstream jobs rather than candidate-task implementations.
 
 Each route audit and coverage task reports business findings without hiding technical failures. Missing themes are surfaced for follow-up and naturally cannot produce theme-matched candidates; an unreadable control or pinned provider snapshot stops only the affected route before mapping.
 
@@ -279,25 +265,13 @@ Observed latest successful candidate-build task timing, from run `10142128211234
 | `run_page_build_v1` | After v1 mapping | Full child-job runtime | `map_theme_scores_to_ads_v1` |
 | `run_page_build_v2` | After v2 mapping | Full child-job runtime | `map_theme_scores_to_ads_v2` |
 
-The prior trigger-task durations are no longer comparable: `run_page_build_v1`
-and `run_page_build_v2` now remain active until their child jobs finish. Capture a
-new three-run DEV baseline before using this table for end-to-end timing targets.
+The prior trigger-task durations are no longer comparable: `run_page_build_v1` and `run_page_build_v2` now remain active until their child jobs finish. Capture a new three-run DEV baseline before using this table for end-to-end timing targets.
 
-The candidate tasks retain the current preranked tables as compatibility
-outputs, but page-build consumers no longer read them. Each page-build child
-loads its exact ready `candidate_build_attempt_id`, resolves separate `best` and
-`best_challenger` portfolio entries, and carries the accepted portfolio and
-foundation provenance into internal staging and completion events.
+The critical candidate tasks publish only the canonical ad-set and score tables. The 21:00 compatibility job derives the legacy preranked tables from an exact READY candidate attempt. Each page-build child loads its exact `candidate_build_attempt_id`, resolves separate `best` and `best_challenger` portfolio entries, and carries the accepted portfolio and foundation provenance into the Delta commit metadata.
 
 ## Bulk Page Build And Delivery Fan-Out
 
-The v1 and v2 page-build jobs are not normally scheduled by themselves in PROD.
-They are run as synchronous child jobs after their respective mapping tables and
-shared customer cells are ready. V1 builds its 77 primary locations in one task
-and its two inherited secondary locations in one following task. V2 builds all
-five page types in one task. This removes per-scope cluster starts while keeping
-the public assignment grain unchanged. After publication, v1 still fans out to
-QA, MASID handoff and PLP delivery, while v2 fans out to payload export.
+The v1 and v2 page-build jobs are not normally scheduled by themselves in PROD. They are run as synchronous child jobs after their respective mapping tables and shared customer cells are ready. V1 builds its 77 primary locations in one task with its two inherited secondary locations in the same Spark graph. V2 builds all five page types in one graph. Each graph validates and publishes its route before returning. This removes per-scope cluster starts and intermediate write tasks while keeping the public assignment grain unchanged. After publication, v1 fans out to MASID handoff and PLP delivery, while v2 fans out to payload export. Assignment quality monitoring runs independently at 21:00.
 
 ```mermaid
 flowchart TD
@@ -306,48 +280,39 @@ flowchart TD
   classDef trigger fill:#f8fafc,stroke:#64748b,color:#111827
 
   subgraph V1_PAGE_BUILD["Job: page_build_v1"]
-    build_page_primary["build_page_primary"]:::v1
-    build_page_secondary["build_page_secondary"]:::v1
-    publish_assignment_build_v1["publish_assignment_build_v1"]:::v1
-    run_assignment_validation["run_assignment_validation"]:::trigger
+    build_and_publish_v1["build_and_publish_v1<br/>79 scopes; one Spark graph<br/>history then live latest"]:::v1
     run_masid_handoff["run_masid_handoff"]:::trigger
     run_plp_gs_delivery["run_plp_gs_delivery"]:::trigger
-    build_page_primary --> build_page_secondary
-    build_page_secondary --> publish_assignment_build_v1
-    publish_assignment_build_v1 --> run_assignment_validation
-    publish_assignment_build_v1 --> run_masid_handoff
-    publish_assignment_build_v1 --> run_plp_gs_delivery
+    build_and_publish_v1 --> run_masid_handoff
+    build_and_publish_v1 --> run_plp_gs_delivery
   end
   subgraph V2_PAGE_BUILD["Job: page_build_v2"]
-    build_page_v2["build_page_v2"]:::v2
-    publish_assignment_build_v2["publish_assignment_build_v2"]:::v2
+    build_and_publish_v2["build_and_publish_v2<br/>five page types; one Spark graph<br/>history then live latest"]:::v2
     run_payload_export["run_payload_export"]:::trigger
-    build_page_v2 --> publish_assignment_build_v2 --> run_payload_export
+    build_and_publish_v2 --> run_payload_export
   end
-  run_assignment_validation --> qa["assignment_validation"]:::v1
   run_masid_handoff --> masid["masid_handoff"]:::v1
   run_payload_export --> payload["payload_export"]:::v2
   run_plp_gs_delivery --> plp["plp_gs_delivery"]:::v1
+  quality["21:00 assignment quality monitoring<br/>reads exact READY candidate and live versions"]:::trigger
+  build_and_publish_v1 -.-> quality
+  build_and_publish_v2 -.-> quality
 ```
 
-The following timings are the pre-bulk baseline from successful run
-`724497366216494`; capture new DEV evidence before treating them as current:
+The following timings are the pre-bulk baseline from successful run `724497366216494`; capture new DEV evidence before treating them as current:
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |
-| `build_page_primary` | 0m | 31m 50s | None |
-| `build_page_v2` | 0m | 22m 30s | None |
-| `build_page_secondary` | 31m | 14m 58s | `build_page_primary` |
-| `publish_assignment_build_v1` | After secondary scopes | New complete-build publisher | `build_page_secondary` |
-| `publish_assignment_build_v2` | After v2 scopes | New complete-build publisher | `build_page_v2` |
-| `run_plp_gs_delivery` | After v1 publication | Full child-job runtime | `publish_assignment_build_v1` |
-| `run_assignment_validation` | After v1 publication | Full child-job runtime | `publish_assignment_build_v1` |
-| `run_masid_handoff` | After v1 publication | Full child-job runtime | `publish_assignment_build_v1` |
-| `run_payload_export` | After v2 publication | Full child-job runtime | `publish_assignment_build_v2` |
+| Prior v1 primary scopes | 0m | 31m 50s | Pre-rewrite baseline |
+| Prior v2 page types | 0m | 22m 30s | Pre-rewrite baseline |
+| Prior v1 secondary scopes | 31m | 14m 58s | Pre-rewrite baseline |
+| `build_and_publish_v1` | 0m | Capture three-run DEV median | None |
+| `build_and_publish_v2` | 0m | Capture three-run DEV median | None |
+| `run_plp_gs_delivery` | After v1 live commit | Full child-job runtime | `build_and_publish_v1` |
+| `run_masid_handoff` | After v1 live commit | Full child-job runtime | `build_and_publish_v1` |
+| `run_payload_export` | After v2 live commit | Full child-job runtime | `build_and_publish_v2` |
 
-The delivery jobs remain single-purpose and independently runnable, but the
-nightly page route waits for their result: `assignment_validation`,
-`masid_handoff_check`, `Export_for_Bloomreach`, and `nextads_plp_gs`.
+The delivery jobs remain single-purpose and independently runnable, but the nightly page route waits for `masid_handoff_check`, `Export_for_Bloomreach`, and `nextads_plp_gs`. Compatibility and quality alerts no longer delay or revoke a canonical READY build.
 
 ## Theme Affinity Route
 
@@ -355,23 +320,21 @@ Theme Affinity is its own scheduled production model route. It is not part of th
 
 ```mermaid
 flowchart TD
-  predict_data_prep --> publish_foundation
-  predict_data_prep --> sense_check_dlt_data
-  publish_foundation --> model_predict
-  model_predict --> publish_provider_build
-  publish_provider_build --> sense_check_model_outputs
+  prepare_foundation_context --> predict_data_prep
+  predict_data_prep --> publish_and_score["publish_and_score<br/>ranked once; predict in memory<br/>provider signals once; READY last"]
+  publish_and_score -. exact_READY_version .-> provider_compatibility["17:00 compatibility + sense checks"]
 ```
 
-Observed latest successful Theme Affinity task timing, from run `11890698402594`:
+The following is the pre-rewrite timing from run `11890698402594`; it is a baseline, not the current task graph:
 
 | Task | Starts after run start | Duration | Depends on |
 | --- | ---: | ---: | --- |
 | `predict_data_prep` | 0m | 2h 16m 28s | None |
 | `sense_check_dlt_data` | 2h 16m | 34m 24s | `predict_data_prep` |
-| `publish_foundation` | 2h 16m | 36m 12s | `predict_data_prep` |
-| `model_predict` | 2h 53m | 9m 17s | `publish_foundation` |
-| `publish_provider_build` | Not yet measured | Not yet measured | `model_predict` |
-| `sense_check_model_outputs` | 3h 9m | 6m 38s | `publish_provider_build` |
+| Prior foundation copy | 2h 16m | 36m 12s | `predict_data_prep` |
+| Prior model prediction | 2h 53m | 9m 17s | Prior foundation copy |
+| `publish_and_score` | After Lakeflow | Capture three-run DEV median | `predict_data_prep` |
+| Async compatibility and sense checks | 17:00 | Independently monitored | Exact READY provider |
 
 ## Results Route
 
@@ -426,4 +389,3 @@ New NextAds model work should decide which layer it belongs to before adding a j
 | Model scoring/challenger output | Model-specific scores, probabilities, candidate rankings, and challenger evidence. | General reusable features unless they are promoted into a feature-store contract. |
 | Decisioning/assignment adapter | Selection between champion/challenger outputs and conversion into the current delivery shape. | Feature engineering or training-set assembly. |
 | Delivery/reporting | Page build, exports, QA, handoff checks, results, and external/reporting outputs. | Model-training features or hidden scoring logic. |
-

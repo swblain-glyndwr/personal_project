@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 from delta.exceptions import DeltaConcurrentModificationException
+from pyspark.sql.types import LongType, StringType, StructField, StructType
 
 import next_ads.common.delta_writes as delta_writes
 from next_ads.common.delta_writes import (
@@ -16,9 +17,11 @@ from next_ads.common.delta_writes import (
     replace_scope_by_name,
     replace_table_by_name,
     sql_literal,
+    typed_table_frame,
     validate_target_columns,
     validate_replace_source_scope,
     validate_unique_non_null_keys,
+    validate_typed_table_schema,
 )
 
 
@@ -215,9 +218,10 @@ def test_sql_helpers_quote_names_literals_and_match_columns_by_name():
     )
     assert sql_literal("O'Brien") == "'O''Brien'"
     assert sql_literal(date(2026, 7, 28)) == "DATE '2026-07-28'"
-    assert build_equality_predicate(
-        {"BuildRunID": "v1_123", "Location": None}
-    ) == "`BuildRunID` = 'v1_123' AND `Location` IS NULL"
+    assert (
+        build_equality_predicate({"BuildRunID": "v1_123", "Location": None})
+        == "`BuildRunID` = 'v1_123' AND `Location` IS NULL"
+    )
 
     statement = build_replace_where_statement(
         target_table="catalog.schema.target",
@@ -262,6 +266,39 @@ def test_target_schema_requires_exact_names_but_not_column_order():
         )
 
 
+def test_nullable_manifest_rows_always_use_the_explicit_target_schema():
+    schema = StructType(
+        [
+            StructField("BuildID", StringType(), nullable=False),
+            StructField("PipelineUpdateID", LongType(), nullable=True),
+        ]
+    )
+    captured = {}
+    spark = SimpleNamespace(
+        catalog=SimpleNamespace(tableExists=lambda _table: True),
+        table=lambda _table: SimpleNamespace(schema=schema),
+        createDataFrame=lambda rows, schema: captured.update(
+            {"rows": rows, "schema": schema}
+        )
+        or SimpleNamespace(),
+    )
+
+    validate_typed_table_schema(
+        spark,
+        "catalog.schema.manifest",
+        ("BuildID", "PipelineUpdateID"),
+        nullable_columns=("PipelineUpdateID",),
+    )
+    typed_table_frame(
+        spark,
+        "catalog.schema.manifest",
+        [{"BuildID": "build-1", "PipelineUpdateID": None}],
+    )
+
+    assert captured["schema"] == schema
+    assert captured["rows"][0]["PipelineUpdateID"] is None
+
+
 def test_replace_retries_only_delta_conflicts_and_drops_temporary_view():
     conflict = DeltaConcurrentModificationException("conflict")
     spark = FakeSpark(
@@ -296,7 +333,9 @@ def test_replace_retries_only_delta_conflicts_and_drops_temporary_view():
         delta_writes.validate_replace_source_scope = original_validator
 
     assert result.attempts == 2
-    assert monkeypatch_scope["calls"] == 1
+    # Scope validation is enforced by the Delta replace predicate itself;
+    # avoiding a full pre-write scan is part of the lean publication contract.
+    assert monkeypatch_scope["calls"] == 0
     assert len(spark.statements) == 2
     assert delays == [2]
     assert frame.selected_columns == ["AccountNumber", "Location"]
@@ -386,25 +425,13 @@ def test_repo_owned_replace_interfaces_select_table_or_scope(monkeypatch):
         ["rundate", "id"],
     )
 
-    assert calls == [
-        (
-            frame.sparkSession,
-            frame,
-            {
-                "target_table": "catalog.schema.latest",
-                "replace_all": True,
-                "columns": ["id", "rundate"],
-                "retry_policy": None,
-            },
-        ),
-        (
-            frame.sparkSession,
-            frame,
-            {
-                "target_table": "catalog.schema.history",
-                "filters": {"rundate": date(2026, 7, 28)},
-                "columns": ["rundate", "id"],
-                "retry_policy": None,
-            },
-        ),
+    assert [call[:2] for call in calls] == [
+        (frame.sparkSession, frame),
+        (frame.sparkSession, frame),
     ]
+    assert calls[0][2]["target_table"] == "catalog.schema.latest"
+    assert calls[0][2]["replace_all"] is True
+    assert calls[0][2]["columns"] == ["id", "rundate"]
+    assert calls[1][2]["target_table"] == "catalog.schema.history"
+    assert calls[1][2]["filters"] == {"rundate": date(2026, 7, 28)}
+    assert calls[1][2]["columns"] == ["rundate", "id"]

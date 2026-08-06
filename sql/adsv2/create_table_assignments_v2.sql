@@ -16,5 +16,9 @@ CREATE TABLE  {catalog}.{schema}.{client}_nextads_assignments_v2 (
     PageType,
     Rank,
     rundate)
+  ,constraint nextads_assignment_v2_rank_valid check (Rank >= 1)
+  ,constraint nextads_assignment_v2_trigger_finite check (
+    TriggerScore is null or TriggerScore between -3.4028235E38 and 3.4028235E38
+    )
 )
 partitioned by (PageType)

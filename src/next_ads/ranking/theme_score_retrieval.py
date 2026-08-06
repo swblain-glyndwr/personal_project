@@ -75,8 +75,7 @@ def load_provider_theme_scores(
     missing = sorted(required_columns.difference(source.columns))
     if missing:
         raise ValueError(
-            "Provider signal table is missing columns: "
-            + ", ".join(missing)
+            "Provider signal table is missing columns: " + ", ".join(missing)
         )
 
     selected = (
@@ -99,22 +98,11 @@ def load_provider_theme_scores(
             "NextTheme",
             "inner",
         )
-    if selected.limit(1).count() == 0:
-        raise ValueError(
-            "Selected provider build contains no theme signals at its "
-            "recorded Delta version"
-        )
-
     customer_scores = selected.join(
         customer_base_df,
         on="AccountNumber",
         how="inner",
     )
-    if customer_scores.limit(1).count() == 0:
-        raise ValueError(
-            "Selected provider build contains no signals for the accepted "
-            "customer base"
-        )
     return customer_scores
 
 

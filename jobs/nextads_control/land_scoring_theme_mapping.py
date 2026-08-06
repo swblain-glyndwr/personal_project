@@ -1,4 +1,6 @@
 import sys
+import hashlib
+import json
 from datetime import date
 from pathlib import Path
 
@@ -35,12 +37,6 @@ from next_ads.control.theme_mapping import (
     valid_theme_rank_condition,
 )
 from next_ads.control.theme_mapping_sync import build_theme_mapping_differences
-from next_ads.ranking.scoring_inputs import (
-    build_input_snapshot_id,
-    latest_delta_version,
-    summarise_content,
-)
-
 
 MAPPING_COLUMNS = (
     "Theme",
@@ -60,7 +56,39 @@ def _with_source_row_key(df):
     return df.withColumn("SourceRowKey", F.sha2(canonical, 256))
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE):
+def _build_landing_id(run_date, git_commit, mapping, legacy_mapping):
+    payload = {
+        "contract_version": "nextads_theme_mapping_landing/v2",
+        "run_date": run_date.isoformat(),
+        "git_commit": git_commit,
+        "sources": {
+            "authoritative_v2": {
+                "url": mapping["url"],
+                "sheet": mapping["sheet"],
+            },
+            "copied_v1": {
+                "url": legacy_mapping["url"],
+                "sheet": legacy_mapping["sheet"],
+            },
+        },
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    return f"theme_mapping_{run_date:%Y%m%d}_{digest[:20]}"
+
+
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    RUN_DATE,
+    GIT_COMMIT,
+    TASK_RUN_ID,
+    EXECUTION_COUNT,
+):
     configure_logging(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
@@ -70,8 +98,15 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE):
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
     cfg = load_client_config(CLIENT)
     mapping = cfg["theme_mapping_v2"]
+    legacy_mapping = cfg["theme_mapping"]
     if not mapping.get("source_of_truth"):
         raise ValueError("theme_mapping_v2 must be marked as source_of_truth")
+    if not GIT_COMMIT or not GIT_COMMIT.strip():
+        raise ValueError("GIT_COMMIT must not be empty")
+    task_run_id = int(TASK_RUN_ID)
+    execution_count = int(EXECUTION_COUNT)
+    if task_run_id < 1 or execution_count < 0:
+        raise ValueError("Invalid task run identity")
 
     landed = normalise_theme_mapping(
         gcp.spark_df_from_sheets(
@@ -83,8 +118,8 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE):
         )
     ).select(*MAPPING_COLUMNS)
     legacy = gcp.spark_df_from_sheets(
-        url=cfg["theme_mapping"]["url"],
-        worksheet_name=cfg["theme_mapping"]["sheet"],
+        url=legacy_mapping["url"],
+        worksheet_name=legacy_mapping["sheet"],
         gcp_scope=cfg["gcp"]["scope"],
         gcp_key=cfg["gcp"]["key"],
         schema=cfg["theme_mapping"]["read_schema"],
@@ -108,39 +143,31 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE):
             "Authoritative v2 Theme Mapping contains empty required values "
             "or non-positive ranks"
         )
-    summary = summarise_content(
-        landed,
-        key_columns=("Theme",),
-        content_columns=MAPPING_COLUMNS,
+    legacy_normalised = normalise_theme_mapping(legacy).select(
+        *MAPPING_COLUMNS
     )
-    summary.require_valid("authoritative_v2_theme_mapping")
-    legacy_normalised = normalise_theme_mapping(legacy).select(*MAPPING_COLUMNS)
-    legacy_summary = summarise_content(
-        legacy_normalised,
-        key_columns=("Theme",),
-        content_columns=MAPPING_COLUMNS,
-    )
-    legacy_invalid_count = legacy_normalised.where(
+    legacy_invalid = (
         F.col("Theme").isNull()
         | (F.trim(F.col("Theme")) == "")
         | F.col("TargetingAttributes").isNull()
         | (F.trim(F.col("TargetingAttributes")) == "")
         | ~valid_theme_rank_condition()
-    ).count()
-    warning_count += (
-        legacy_summary.null_key_count
-        + legacy_summary.duplicate_key_count
-        + legacy_invalid_count
-        + int(legacy_summary.row_count == 0)
     )
-    landing_id = build_input_snapshot_id(
+    legacy_status = legacy_normalised.agg(
+        F.count(F.lit(1)).alias("row_count"),
+        F.sum(F.when(legacy_invalid, F.lit(1)).otherwise(F.lit(0))).alias(
+            "invalid_count"
+        ),
+    ).first()
+    warning_count += int(legacy_status["invalid_count"] or 0) + int(
+        legacy_status["row_count"] == 0
+    )
+    landing_id = _build_landing_id(
         run_date,
-        {
-            "authoritative_v2_theme_mapping": summary,
-            "copied_v1_theme_mapping": legacy_summary,
-        },
-        contract_version="nextads_theme_mapping_landing/v1",
-    ).replace("scoring_inputs_", "theme_mapping_")
+        GIT_COMMIT.strip(),
+        mapping,
+        legacy_mapping,
+    )
     authoritative_output = _with_source_row_key(landed).select(
         F.lit(landing_id).alias("LandingID"),
         F.lit(run_date).cast("date").alias("RunDate"),
@@ -156,17 +183,19 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE):
         *MAPPING_COLUMNS,
     )
     output = authoritative_output.unionByName(legacy_output)
-    replace_scope_by_name(
+    receipt = replace_scope_by_name(
         output,
         config.tables_write.scoring_input_theme_mapping_raw,
         {"LandingID": landing_id},
         output.columns,
         spark=spark,
+        build_id=landing_id,
+        attempt_id=f"{landing_id}:{task_run_id}:{execution_count}",
+        git_commit=GIT_COMMIT.strip(),
     )
-    landing_version = latest_delta_version(
-        spark,
-        config.tables_write.scoring_input_theme_mapping_raw,
-    )
+    if receipt.delta_version is None:
+        raise RuntimeError("Theme Mapping write has no Delta receipt")
+    landing_version = receipt.delta_version
     task_values = get_dbutils().jobs.taskValues
     task_values.set(key="landing_id", value=landing_id)
     task_values.set(key="landing_version", value=landing_version)
@@ -186,4 +215,7 @@ if __name__ == "__main__":
         parser.get_arg("--client") or "next_uk",
         parser.get_arg("--log_level"),
         parser.get_arg("--run_date"),
+        parser.get_arg("--git_commit"),
+        parser.get_arg("--task_run_id"),
+        parser.get_arg("--execution_count"),
     )

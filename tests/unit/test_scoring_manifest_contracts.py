@@ -83,12 +83,11 @@ def _build(
         ),
         output_delta_version=42 if ready else None,
         row_count=100 if ready else 0,
-        account_count=10 if ready else 0,
-        entity_count=20 if ready else 0,
-        null_key_count=0,
-        duplicate_key_count=0,
-        invalid_score_count=0,
-        output_checksum="abc123" if ready else None,
+        output_schema_checksum="schema-checksum" if ready else None,
+        write_receipt_id="receipt-42" if ready else None,
+        git_commit="abc123",
+        write_duration_ms=1250 if ready else 0,
+        retry_count=0,
         warning_count=0,
         status=status,
         task_run_id=123 + attempt,
@@ -190,9 +189,6 @@ def _source(
     *,
     attempt: int = 0,
     required: bool = True,
-    row_count: int = 10,
-    null_key_count: int = 0,
-    duplicate_key_count: int = 0,
 ) -> ScoringInputSource:
     return ScoringInputSource(
         input_snapshot_id="scoring_inputs_20260730",
@@ -203,15 +199,8 @@ def _source(
         source_table="catalog.schema.item_themes",
         delta_version=12,
         schema_version="item_themes/v1",
+        schema_checksum="source-schema",
         is_required=required,
-        row_count=row_count,
-        distinct_key_count=max(
-            0,
-            row_count - duplicate_key_count,
-        ),
-        null_key_count=null_key_count,
-        duplicate_key_count=duplicate_key_count,
-        content_checksum="checksum",
         task_run_id=200 + attempt,
         execution_count=attempt,
         captured_at=COMPLETED_AT,
@@ -229,6 +218,7 @@ def _snapshot(
         input_snapshot_attempt_id=source.input_snapshot_attempt_id,
         run_date=RUN_DATE,
         input_schema_version="scoring_inputs/v1",
+        git_commit="abc123",
         status=READY,
         warning_count=0,
         task_run_id=300 + attempt,
@@ -264,23 +254,14 @@ def test_canonical_provider_signal_rejects_non_finite_scores(value):
         )
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("row_count", 0),
-        ("account_count", 0),
-        ("entity_count", 0),
-        ("null_key_count", 1),
-        ("duplicate_key_count", 1),
-        ("invalid_score_count", 1),
-    ],
-)
-def test_ready_provider_build_requires_safe_non_empty_output(field, value):
+def test_ready_provider_build_requires_non_empty_receipted_output():
     with pytest.raises(ValueError):
-        replace(_build(), **{field: value})
+        replace(_build(), row_count=0)
+    with pytest.raises(ValueError, match="identify its output"):
+        replace(_build(), write_receipt_id=None)
 
     failed = _build(status=FAILED_BEFORE_PUBLISH)
-    assert failed.output_checksum is None
+    assert failed.write_receipt_id is None
     assert failed.row_count == 0
 
 
@@ -391,20 +372,14 @@ def test_input_attempt_accepts_parallel_source_task_provenance():
     )
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        _source(row_count=0),
-        _source(null_key_count=1),
-        _source(duplicate_key_count=1),
-    ],
-)
-def test_ready_input_rejects_invalid_required_sources(source):
-    with pytest.raises(ValueError, match="structurally invalid"):
-        _snapshot(source=source)
+def test_ready_input_binds_exact_version_and_schema_without_content_scan():
+    source = _source()
+    snapshot = _snapshot(source=source)
 
-    optional = replace(source, is_required=False)
-    assert _snapshot(source=optional).sources == (optional,)
+    assert snapshot.git_commit == "abc123"
+    assert source.delta_version == 12
+    assert source.schema_checksum == "source-schema"
+    assert not hasattr(source, "content_checksum")
 
 
 def test_scoring_tables_have_repo_owned_table_operation_contracts(
@@ -427,7 +402,6 @@ def test_scoring_tables_have_repo_owned_table_operation_contracts(
 def test_scoring_table_constraints_are_dbr_15_4_compatible():
     for table_ref in TABLE_REFS:
         sql = resolve_sql_contract_path(table_ref).read_text().upper()
-        assert "CHECK (" not in sql
         assert "UNIQUE (" not in sql
         if "CONSTRAINT " in sql:
             assert "PRIMARY KEY (" in sql
@@ -436,15 +410,16 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
         "score_provider_signals"
     ).read_text()
     assert "partitioned by (RunDate, ProviderID)" in signals_sql
+    assert "nextads_provider_score_finite check" in signals_sql
+    assert "nextads_provider_rank_valid check" in signals_sql
     builds_sql = resolve_sql_contract_path("score_provider_builds").read_text()
     assert "ThemeAffinityBuildID" not in builds_sql
     assert "ProviderBuildAttemptID string not null" in builds_sql
     assert "ScoringFoundationBuildID string" in builds_sql
     assert "ScoringFoundationBuildAttemptID string" in builds_sql
-    assert [
-        column
-        for column, _ in extract_create_table_columns(builds_sql)
-    ][-2:] == [
+    assert [column for column, _ in extract_create_table_columns(builds_sql)][
+        -2:
+    ] == [
         "ScoringFoundationBuildID",
         "ScoringFoundationBuildAttemptID",
     ]
@@ -453,8 +428,7 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
         "score_provider_run_contexts"
     ).read_text()
     assert [
-        column
-        for column, _ in extract_create_table_columns(contexts_sql)
+        column for column, _ in extract_create_table_columns(contexts_sql)
     ][-2:] == [
         "ScoringFoundationBuildID",
         "ScoringFoundationBuildAttemptID",
@@ -477,7 +451,8 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     assert "SourceDeltaVersion bigint," in foundation_outputs_sql
     assert "SourceSchemaChecksum string not null" in foundation_outputs_sql
     assert "OutputSchemaChecksum string not null" in foundation_outputs_sql
-    assert "InvalidValueCount bigint not null" in foundation_outputs_sql
+    assert "WriteReceiptID string not null" in foundation_outputs_sql
+    assert "GitCommit string not null" in foundation_outputs_sql
 
     foundation_contexts_sql = resolve_sql_contract_path(
         "scoring_foundation_run_contexts"
@@ -513,7 +488,8 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     assert "ControlDeltaVersion bigint not null" in candidate_builds_sql
     assert "CandidatePolicyChecksum string not null" in candidate_builds_sql
     assert "ProviderBindingsJSON string not null" in candidate_builds_sql
-    assert "CandidateChecksum string not null" in candidate_builds_sql
+    assert "OutputBindingsJSON string not null" in candidate_builds_sql
+    assert "GitCommit string not null" in candidate_builds_sql
 
     candidate_scores_sql = resolve_sql_contract_path(
         "candidate_scores"
@@ -522,6 +498,8 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     assert "AdSetID string not null" in candidate_scores_sql
     assert "PortfolioEntryID string not null" in candidate_scores_sql
     assert "ProviderBuildAttemptID string not null" in candidate_scores_sql
+    assert "nextads_candidate_score_finite check" in candidate_scores_sql
+    assert "nextads_candidate_rank_valid check" in candidate_scores_sql
 
     candidate_ad_sets_sql = resolve_sql_contract_path(
         "candidate_ad_sets"

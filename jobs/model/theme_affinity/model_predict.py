@@ -26,9 +26,6 @@ finally:
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
-from pyspark import StorageLevel
-
-from next_ads.common.delta_writes import validate_unique_non_null_keys
 from next_ads.ranking.theme_affinity.clean_output import stage_model_output
 from next_ads.ranking.theme_affinity.config import resolve_context_runtime
 from next_ads.ranking.theme_affinity.predict import build_predictions
@@ -45,6 +42,7 @@ INPUT_SNAPSHOT_ID = jobparser.get_arg("--input_snapshot_id")
 PROVIDER_BUILD_ID = jobparser.get_arg("--provider_build_id")
 PROVIDER_BUILD_ATTEMPT_ID = jobparser.get_arg("--provider_build_attempt_id")
 CONTEXT_SLOT = jobparser.get_arg("--context_slot")
+GIT_COMMIT = jobparser.get_arg("--git_commit")
 
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
@@ -58,33 +56,19 @@ runtime, _context = resolve_context_runtime(
     expected_input_snapshot_id=INPUT_SNAPSHOT_ID,
     expected_provider_build_id=PROVIDER_BUILD_ID,
     expected_provider_build_attempt_id=PROVIDER_BUILD_ATTEMPT_ID,
+    git_commit=GIT_COMMIT,
 )
 if runtime.model_uri != MODEL_URI:
     raise ValueError("Model URI does not match the active provider context")
 
 logger.info("Running Theme Affinity prediction into %s", runtime.namespace)
-predictions = build_predictions(spark, runtime).persist(
-    StorageLevel.MEMORY_AND_DISK
-)
-try:
-    validation = validate_unique_non_null_keys(
-        predictions,
-        ["account_number", "theme"],
-    )
-    if validation.row_count == 0:
-        raise ValueError("Theme Affinity prediction output is empty")
-    provider_signals_delta_version = stage_model_output(
-        spark,
-        runtime,
-        predictions,
-    )
-finally:
-    predictions.unpersist()
+predictions = build_predictions(spark, runtime)
+receipt = stage_model_output(spark, runtime, predictions)
 get_dbutils().jobs.taskValues.set(
     key="provider_signals_delta_version",
-    value=provider_signals_delta_version,
+    value=receipt.delta_version,
 )
 logger.info(
     "Staged canonical provider signals at Delta version %s",
-    provider_signals_delta_version,
+    receipt.delta_version,
 )

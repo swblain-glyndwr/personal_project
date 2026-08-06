@@ -1,21 +1,27 @@
+import inspect
 import json
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 from pyspark.sql.types import (
+    BooleanType,
     DateType,
+    IntegerType,
     LongType,
     StringType,
     StructField,
     StructType,
+    TimestampType,
 )
 
 import next_ads.ranking.foundation_publication as publication
+from next_ads.common.delta_writes import DeltaWriteReceipt
 from next_ads.ranking.foundation_context import ScoringFoundationContext
 from next_ads.ranking.foundation_publication import (
+    FOUNDATION_BUILD_COLUMNS,
+    FOUNDATION_OUTPUT_COLUMNS,
     FoundationOutputSpec,
-    FoundationOutputSummary,
     foundation_output_bindings_json,
     publish_required_foundation_outputs,
     register_ready_foundation,
@@ -48,77 +54,60 @@ def _context():
     )
 
 
-def _output(name, version):
+def _output(version=42):
     return ScoringFoundationOutput(
         scoring_foundation_build_id="foundation-build",
         scoring_foundation_build_attempt_id="foundation-build:456:0",
         run_date=RUN_DATE,
-        output_name=name,
-        source_table=f"catalog.pipeline.{name}",
-        source_delta_version=40,
-        source_schema_checksum=f"schema-{name}",
-        output_table=f"catalog.schema.{name}",
+        output_name="ranked",
+        source_table="catalog.pipeline.ranked",
+        source_delta_version=None,
+        source_schema_checksum="schema-ranked",
+        output_table="catalog.schema.ranked",
         output_delta_version=version,
-        output_schema_version=f"account_theme_{name}/v1",
-        output_schema_checksum=f"schema-{name}",
+        output_schema_version="account_theme_ranked/v1",
+        output_schema_checksum="schema-ranked",
         is_required=True,
         row_count=10,
-        account_count=2,
-        entity_count=5,
-        null_key_count=0,
-        duplicate_key_count=0,
-        invalid_value_count=0,
-        output_checksum=f"checksum-{name}",
+        write_receipt_id="receipt-ranked",
+        git_commit="abc123",
+        write_duration_ms=1200,
+        retry_count=0,
         published_at=NOW,
     )
 
 
-class _Frame:
-    columns = ["reference_date", "account_number", "theme_clean", "rundate"]
-    schema = StructType(
+def _manifest_schema(columns, *, nullable=()):
+    types = {
+        "RunDate": DateType(),
+        "SourceDeltaVersion": LongType(),
+        "OutputDeltaVersion": LongType(),
+        "IsRequired": BooleanType(),
+        "RowCount": LongType(),
+        "WriteDurationMs": LongType(),
+        "RetryCount": IntegerType(),
+        "PublishedAt": TimestampType(),
+        "PipelineTaskRunID": LongType(),
+        "WarningCount": LongType(),
+        "TaskRunID": LongType(),
+        "ExecutionCount": IntegerType(),
+        "CompletedAt": TimestampType(),
+    }
+    return StructType(
         [
-            StructField("reference_date", DateType()),
-            StructField("account_number", StringType()),
-            StructField("theme_clean", StringType()),
-            StructField("rundate", DateType()),
+            StructField(
+                column,
+                types.get(column, StringType()),
+                nullable=column in nullable,
+            )
+            for column in columns
         ]
     )
 
-    def persist(self, _level):
-        pytest.fail("Foundation publication must not cache the full frame")
 
-    def unpersist(self):
-        return self
-
-
-class _Spark:
-    def __init__(self):
-        self.catalog = SimpleNamespace(tableExists=lambda _table: True)
-        self.created = []
-        self.created_schemas = []
-
-    def table(self, _table):
-        return _Frame()
-
-    def createDataFrame(self, rows, schema=None):  # noqa: N802
-        frame = SimpleNamespace(columns=list(rows[0]), rows=rows)
-        self.created.append(frame)
-        self.created_schemas.append(schema)
-        return frame
-
-
-class _MarkerSpark:
-    def __init__(self, rows):
-        self.rows = rows
-
-    def table(self, table):
-        assert table == "catalog.schema.build_marker"
-        return SimpleNamespace(collect=lambda: self.rows)
-
-
-def _marker_row(**overrides):
+def test_foundation_marker_must_match_the_exact_pipeline_attempt():
     context = _context()
-    values = {
+    marker = {
         "ContextSlot": context.context_slot,
         "OrchestrationRunID": context.orchestration_run_id,
         "FoundationID": context.foundation_id,
@@ -132,391 +121,168 @@ def _marker_row(**overrides):
         "RunDate": context.run_date,
         "InvocationChecksum": context.invocation_checksum,
     }
-    values.update(overrides)
-    return values
-
-
-def test_foundation_marker_must_match_the_exact_pipeline_attempt():
-    validate_foundation_build_marker(
-        _MarkerSpark([_marker_row()]),
-        context=_context(),
-        marker_table="catalog.schema.build_marker",
+    spark = SimpleNamespace(
+        table=lambda _table: SimpleNamespace(collect=lambda: [marker])
     )
+    validate_foundation_build_marker(
+        spark,
+        context=context,
+        marker_table="catalog.schema.marker",
+    )
+    marker["FoundationVersion"] = "other"
     with pytest.raises(ValueError, match="FoundationVersion"):
         validate_foundation_build_marker(
-            _MarkerSpark([_marker_row(FoundationVersion="other")]),
-            context=_context(),
-            marker_table="catalog.schema.build_marker",
+            spark,
+            context=context,
+            marker_table="catalog.schema.marker",
         )
 
 
-@pytest.mark.parametrize("nullable", [True, False])
-def test_pipeline_manifest_contract_requires_nullable_source_version(nullable):
+def test_foundation_manifest_nullable_fields_are_checked_before_data_copy():
+    schemas = {
+        "outputs": _manifest_schema(
+            FOUNDATION_OUTPUT_COLUMNS,
+            nullable=("SourceDeltaVersion",),
+        ),
+        "builds": _manifest_schema(
+            FOUNDATION_BUILD_COLUMNS,
+            nullable=("PipelineUpdateID", "PipelineUpdateType"),
+        ),
+    }
+    spark = SimpleNamespace(
+        catalog=SimpleNamespace(tableExists=lambda table: table in schemas),
+        table=lambda table: SimpleNamespace(schema=schemas[table]),
+    )
+    validate_foundation_output_manifest_contract(
+        spark,
+        outputs_table="outputs",
+        builds_table="builds",
+        pipeline_relations=True,
+    )
+
+    schemas["outputs"] = _manifest_schema(FOUNDATION_OUTPUT_COLUMNS)
+    with pytest.raises(ValueError, match="must allow null"):
+        validate_foundation_output_manifest_contract(
+            spark,
+            outputs_table="outputs",
+            builds_table="builds",
+            pipeline_relations=True,
+        )
+
+
+def test_ranked_foundation_is_written_once_and_repair_reuses_its_receipt(
+    monkeypatch,
+):
     schema = StructType(
-        [StructField("SourceDeltaVersion", LongType(), nullable=nullable)]
+        [
+            StructField("reference_date", DateType()),
+            StructField("account_number", StringType()),
+            StructField("theme_clean", StringType()),
+        ]
+    )
+    frame = SimpleNamespace(
+        columns=[field.name for field in schema], schema=schema
     )
     spark = SimpleNamespace(
         catalog=SimpleNamespace(tableExists=lambda _table: True),
-        table=lambda _table: SimpleNamespace(schema=schema),
+        table=lambda _table: frame,
     )
-
-    if nullable:
-        validate_foundation_output_manifest_contract(
-            spark,
-            outputs_table="catalog.schema.foundation_outputs",
-            pipeline_relations=True,
-        )
-    else:
-        with pytest.raises(ValueError, match="must allow a null"):
-            validate_foundation_output_manifest_contract(
-                spark,
-                outputs_table="catalog.schema.foundation_outputs",
-                pipeline_relations=True,
-            )
-
-
-def test_required_outputs_publish_to_exact_deterministic_delta_versions(
-    monkeypatch,
-):
     writes = []
+    receipt = DeltaWriteReceipt(
+        statement="replace ranked",
+        attempts=1,
+        receipt_id="receipt-ranked",
+        target_table="catalog.target.ranked",
+        delta_version=42,
+        row_count=10,
+        schema_checksum=publication.schema_checksum(frame),
+        build_id="foundation-build",
+        attempt_id="foundation-build:456:0",
+        git_commit="abc123",
+    )
     monkeypatch.setattr(
-        publication,
-        "summarise_foundation_output",
-        lambda *_args, **_kwargs: FoundationOutputSummary(
-            row_count=10,
-            account_count=2,
-            entity_count=5,
-            null_key_count=0,
-            duplicate_key_count=0,
-            invalid_value_count=0,
-            output_checksum="checksum",
-        ),
+        publication, "find_delta_write_receipt", lambda *_a, **_k: None
     )
     monkeypatch.setattr(
         publication,
         "replace_table_by_name",
-        lambda _frame, table, _columns, *, spark: writes.append(table),
+        lambda *_a, **_k: writes.append("ranked") or receipt,
     )
-    source_versions = {
-        "catalog.source.complete": 31,
-        "catalog.source.ranked": 32,
-    }
-    target_versions = {
-        "catalog.target.complete": iter((40, 41)),
-        "catalog.target.ranked": iter((41, 42)),
-    }
-
-    def latest_version(_spark, table):
-        if table in source_versions:
-            return source_versions[table]
-        return next(target_versions[table])
-
-    monkeypatch.setattr(
-        publication,
-        "latest_delta_version",
-        latest_version,
-    )
-    monkeypatch.setattr(
-        publication,
-        "read_delta_version",
-        lambda _spark, _table, _version: _Frame(),
-    )
-    specs = (
-        FoundationOutputSpec(
-            "complete",
-            "catalog.source.complete",
-            "catalog.target.complete",
-            "account_theme_complete/v1",
-            ("reference_date", "account_number", "theme_clean"),
-            "account_number",
-            "theme_clean",
-        ),
-        FoundationOutputSpec(
-            "ranked",
-            "catalog.source.ranked",
-            "catalog.target.ranked",
-            "account_theme_ranked/v1",
-            ("reference_date", "account_number", "theme_clean"),
-            "account_number",
-            "theme_clean",
-        ),
-    )
-
-    outputs = publish_required_foundation_outputs(
-        _Spark(),
-        context=_context(),
-        output_specs=specs,
-    )
-
-    assert [output.output_name for output in outputs] == ["complete", "ranked"]
-    assert [output.output_delta_version for output in outputs] == [41, 42]
-    assert [output.source_delta_version for output in outputs] == [31, 32]
-    assert set(writes) == {"catalog.target.complete", "catalog.target.ranked"}
-
-
-def test_pipeline_relations_publish_without_requesting_delta_history(
-    monkeypatch,
-):
-    writes = []
-    target_versions = {
-        "catalog.target.complete": iter((40, 41)),
-        "catalog.target.ranked": iter((41, 42)),
-    }
-    monkeypatch.setattr(
-        publication,
-        "summarise_foundation_output",
-        lambda *_args, **_kwargs: FoundationOutputSummary(
-            row_count=10,
-            account_count=2,
-            entity_count=5,
-            null_key_count=0,
-            duplicate_key_count=0,
-            invalid_value_count=0,
-            output_checksum="checksum",
-        ),
-    )
-    monkeypatch.setattr(
-        publication,
-        "replace_table_by_name",
-        lambda _frame, table, _columns, *, spark: writes.append(table),
-    )
-
-    def latest_version(_spark, table):
-        assert table in target_versions
-        return next(target_versions[table])
-
-    monkeypatch.setattr(publication, "latest_delta_version", latest_version)
-    monkeypatch.setattr(
-        publication,
-        "read_delta_version",
-        lambda _spark, table, _version: (
-            _Frame()
-            if table in target_versions
-            else pytest.fail("Pipeline views must not use versionAsOf")
-        ),
-    )
-    specs = tuple(
-        FoundationOutputSpec(
-            name,
-            f"catalog.pipeline.{name}",
-            f"catalog.target.{name}",
-            f"account_theme_{name}/v1",
-            ("reference_date", "account_number", "theme_clean"),
-            "account_number",
-            "theme_clean",
-            source_kind="pipeline_relation",
-        )
-        for name in ("complete", "ranked")
-    )
-
-    outputs = publish_required_foundation_outputs(
-        _Spark(),
-        context=_context(),
-        output_specs=specs,
-    )
-
-    assert [output.source_delta_version for output in outputs] == [None, None]
-    assert [output.output_delta_version for output in outputs] == [41, 42]
-    assert set(writes) == {"catalog.target.complete", "catalog.target.ranked"}
-
-
-def test_unknown_foundation_source_kind_fails_before_publication():
     spec = FoundationOutputSpec(
-        "complete",
-        "catalog.pipeline.complete",
-        "catalog.target.complete",
-        "account_theme_complete/v1",
-        ("reference_date", "account_number", "theme_clean"),
-        "account_number",
-        "theme_clean",
-        source_kind="unknown",
-    )
-
-    with pytest.raises(ValueError, match="Unsupported foundation source kind"):
-        publication._publish_one_output(
-            _Spark(),
-            context=_context(),
-            spec=spec,
-        )
-
-
-def test_output_failure_is_propagated_before_any_ready_manifest(monkeypatch):
-    def fail_one(_spark, *, context, spec):
-        if spec.output_name == "ranked":
-            raise RuntimeError("ranked failed")
-        return _output(spec.output_name, 1)
-
-    monkeypatch.setattr(publication, "_publish_one_output", fail_one)
-    specs = tuple(
-        FoundationOutputSpec(
-            name,
-            f"catalog.source.{name}",
-            f"catalog.target.{name}",
-            f"{name}/v1",
-            ("reference_date", "account_number", "theme_clean"),
-            "account_number",
-            "theme_clean",
-        )
-        for name in ("complete", "ranked")
-    )
-
-    with pytest.raises(RuntimeError, match="ranked failed"):
-        publish_required_foundation_outputs(
-            _Spark(),
-            context=_context(),
-            output_specs=specs,
-        )
-
-
-def test_ranked_output_reuses_complete_key_cardinality(monkeypatch):
-    calls = []
-
-    def publish_one(
-        _spark,
-        *,
-        context,
-        spec,
-        inherited_key_summary=None,
-    ):
-        calls.append((spec.output_name, inherited_key_summary))
-        return _output(spec.output_name, len(calls))
-
-    monkeypatch.setattr(publication, "_publish_one_output", publish_one)
-    specs = (
-        FoundationOutputSpec(
-            "complete",
-            "catalog.source.complete",
-            "catalog.target.complete",
-            "complete/v1",
-            ("reference_date", "account_number", "theme_clean"),
-            "account_number",
-            "theme_clean",
-        ),
-        FoundationOutputSpec(
-            "ranked",
-            "catalog.source.ranked",
-            "catalog.target.ranked",
-            "ranked/v1",
-            ("reference_date", "account_number", "theme_clean"),
-            "account_number",
-            "theme_clean",
-            row_preserving_from="complete",
-        ),
+        output_name="ranked",
+        source_table="catalog.pipeline.ranked",
+        target_table="catalog.target.ranked",
+        output_schema_version="account_theme_ranked/v1",
+        key_columns=("reference_date", "account_number", "theme_clean"),
+        account_column="account_number",
+        entity_column="theme_clean",
+        source_kind="pipeline_relation",
     )
 
     outputs = publish_required_foundation_outputs(
-        _Spark(),
-        context=_context(),
-        output_specs=specs,
-    )
-
-    assert [name for name, _summary in calls] == ["complete", "ranked"]
-    assert calls[0][1] is None
-    inherited = calls[1][1]
-    assert inherited.row_count == 10
-    assert inherited.distinct_key_count == 10
-    assert inherited.account_count == 2
-    assert inherited.entity_count == 5
-    assert [output.output_name for output in outputs] == [
-        "complete",
-        "ranked",
-    ]
-
-
-def test_row_preserving_output_requires_matching_key_contract(monkeypatch):
-    monkeypatch.setattr(
-        publication,
-        "_publish_one_output",
-        lambda _spark, *, context, spec: _output(spec.output_name, 1),
-    )
-    specs = (
-        FoundationOutputSpec(
-            "complete",
-            "catalog.source.complete",
-            "catalog.target.complete",
-            "complete/v1",
-            ("reference_date", "account_number", "theme_clean"),
-            "account_number",
-            "theme_clean",
-        ),
-        FoundationOutputSpec(
-            "ranked",
-            "catalog.source.ranked",
-            "catalog.target.ranked",
-            "ranked/v1",
-            ("reference_date", "account_number", "other_theme"),
-            "account_number",
-            "other_theme",
-            row_preserving_from="complete",
-        ),
-    )
-
-    with pytest.raises(ValueError, match="cannot reuse the key contract"):
-        publish_required_foundation_outputs(
-            _Spark(),
-            context=_context(),
-            output_specs=specs,
-        )
-
-
-def test_row_preserving_output_requires_a_known_source():
-    spec = FoundationOutputSpec(
-        "ranked",
-        "catalog.source.ranked",
-        "catalog.target.ranked",
-        "ranked/v1",
-        ("reference_date", "account_number", "theme_clean"),
-        "account_number",
-        "theme_clean",
-        row_preserving_from="missing",
-    )
-
-    with pytest.raises(ValueError, match="unknown row-preserving source"):
-        publish_required_foundation_outputs(
-            _Spark(),
-            context=_context(),
-            output_specs=(spec,),
-        )
-
-
-def test_ready_manifest_is_written_after_its_exact_output_bindings(monkeypatch):
-    operations = []
-
-    def replace(frame, table, scope, columns, *, spark):
-        operations.append((table, scope, tuple(columns), frame.rows))
-
-    monkeypatch.setattr(publication, "replace_scope_by_name", replace)
-    spark = _Spark()
-    outputs = (_output("complete", 41), _output("ranked", 42))
-
-    build = register_ready_foundation(
         spark,
         context=_context(),
-        outputs=outputs,
-        required_output_names=("complete", "ranked"),
-        pipeline_id="pipeline-123",
+        output_specs=(spec,),
+        git_commit="abc123",
+    )
+    assert writes == ["ranked"]
+    assert outputs[0].output_delta_version == 42
+
+    monkeypatch.setattr(
+        publication,
+        "find_delta_write_receipt",
+        lambda *_a, **_k: receipt,
+    )
+    publish_required_foundation_outputs(
+        spark,
+        context=_context(),
+        output_specs=(spec,),
+        git_commit="abc123",
+    )
+    assert writes == ["ranked"]
+
+
+def test_ready_foundation_manifest_is_typed_and_written_last(monkeypatch):
+    operations = []
+    captured_rows = {}
+
+    def typed(_spark, table, rows):
+        captured_rows[table] = rows
+        return SimpleNamespace(columns=list(rows[0]))
+
+    monkeypatch.setattr(publication, "typed_table_frame", typed)
+    monkeypatch.setattr(
+        publication,
+        "replace_scope_by_name",
+        lambda _frame, table, *_a, **_k: operations.append(table),
+    )
+    build = register_ready_foundation(
+        "spark",
+        context=_context(),
+        outputs=(_output(),),
+        required_output_names=("ranked",),
         pipeline_update_id=None,
+        pipeline_id="pipeline-1",
         pipeline_update_type=None,
-        builds_table="catalog.schema.foundation_builds",
-        outputs_table="catalog.schema.foundation_outputs",
+        builds_table="builds",
+        outputs_table="outputs",
         task_run_id=456,
         execution_count=0,
-        pipeline_task_run_id=321,
+        pipeline_task_run_id=789,
+        git_commit="abc123",
         completed_at=NOW,
     )
 
-    assert [operation[0] for operation in operations] == [
-        "catalog.schema.foundation_outputs",
-        "catalog.schema.foundation_builds",
-    ]
-    assert spark.created_schemas[0] == spark.table(
-        "catalog.schema.foundation_outputs"
-    ).schema
-    assert build.pipeline_update_id is None
-    assert build.pipeline_id == "pipeline-123"
-    assert build.pipeline_update_type is None
-    assert build.pipeline_task_run_id == 321
-    bindings = json.loads(foundation_output_bindings_json(build))["foundation"]
-    assert bindings["scoring_foundation_build_id"] == "foundation-build"
-    assert bindings["outputs"]["complete"]["delta_version"] == 41
-    assert bindings["outputs"]["ranked"]["delta_version"] == 42
+    assert operations == ["outputs", "builds"]
+    assert captured_rows["builds"][0]["PipelineUpdateID"] is None
+    assert captured_rows["builds"][0]["GitCommit"] == "abc123"
+    assert build.status == "READY_FOR_PROVIDERS"
+    bindings = json.loads(foundation_output_bindings_json(build))
+    assert bindings["foundation"]["outputs"]["ranked"]["delta_version"] == 42
+
+
+def test_critical_foundation_publisher_has_no_whole_table_content_scans():
+    source = inspect.getsource(publication)
+    assert "countDistinct" not in source
+    assert "to_json" not in source
+    assert ".cache(" not in source

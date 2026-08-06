@@ -64,9 +64,7 @@ def run_theme_score_mapping(
     if isinstance(run_date, str):
         run_date = date.fromisoformat(run_date)
     if isinstance(provider_source_run_date, str):
-        provider_source_run_date = date.fromisoformat(
-            provider_source_run_date
-        )
+        provider_source_run_date = date.fromisoformat(provider_source_run_date)
     if not provider_build_id:
         raise ValueError("provider_build_id is required")
     if not provider_signals_table:
@@ -176,9 +174,7 @@ def run_theme_score_mapping(
             foundation_inputs.snapshot_id,
             foundation_inputs.source_run_date,
         )
-        df_cust = customer_base_from_cells(
-            foundation_inputs.customer_cells
-        )
+        df_cust = customer_base_from_cells(foundation_inputs.customer_cells)
 
     logger.info(
         "Getting theme scores from provider build %s in %s at Delta "
@@ -222,9 +218,7 @@ def run_theme_score_mapping(
             else foundation_inputs.ad_feedback_metrics
         ),
         active_ads_df=(
-            None
-            if foundation_inputs is None
-            else df_feedback_scaling_ads
+            None if foundation_inputs is None else df_feedback_scaling_ads
         ),
     )
 
@@ -252,9 +246,6 @@ def run_theme_score_mapping(
             df_score_components,
             repeat_ad_exposure_df=foundation_inputs.repeat_ad_exposure,
         )
-    df_score_components.cache()
-    df_score_components.count()
-
     df_score_components_for_write = df_score_components.drop(
         "AdVariant",
         "TriggerScore",
@@ -299,26 +290,12 @@ def run_theme_score_mapping(
         age_order_map,
         top_ads,
     )
-    df_adset_scores.cache()
-
     logger.info(f"Mapping ranked ads back to {output_group_col}")
     df_ad_scores = map_ranked_ads_to_groups(
         df_adset_scores,
         df_adset2group,
         group_col=output_group_col,
     )
-
-    logger.info(f"Checking for ads assigned to ineligible {output_group_col}")
-    assert_eligible_groups(
-        df_ad_scores,
-        df_ad2group,
-        group_col=output_group_col,
-    )
-
-    logger.info("Caching deterministic final results for downstream reuse")
-    df_ad_scores = df_ad_scores.persist()
-    row_count = df_ad_scores.count()
-    logger.info(f"Materialized {row_count} rows in final result set")
 
     if candidate_publisher is not None:
         candidate_publisher(
@@ -328,6 +305,14 @@ def run_theme_score_mapping(
         )
 
     if publish_compatibility:
+        logger.info(
+            f"Checking for ads assigned to ineligible {output_group_col}"
+        )
+        assert_eligible_groups(
+            df_ad_scores,
+            df_ad2group,
+            group_col=output_group_col,
+        )
         logger.info(
             "Loading preranked theme ads to "
             f"{preranked_ads_from_themes_latest}"
@@ -341,10 +326,4 @@ def run_theme_score_mapping(
     else:
         logger.info("Skipping preranked compatibility publication")
 
-    df_ad_scores.show()
-
-    logger.info("Unpersisting cached dataframes")
-    df_score_components.unpersist()
-    df_adset_scores.unpersist()
-    df_ad_scores.unpersist()
     logger.info("Run complete")

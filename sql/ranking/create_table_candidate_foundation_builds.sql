@@ -11,6 +11,7 @@ create table {catalog}.{schema}.{client}_nextads_candidate_foundation_builds (
     FallbackSourceRunDate date,
     TaskRunID bigint not null,
     ExecutionCount int not null,
+    GitCommit string not null,
     CompletedAt timestamp not null,
   constraint pk_{client}_nextads_candidate_foundation_builds primary key (
     CandidateFoundationAttemptID

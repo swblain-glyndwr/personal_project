@@ -36,6 +36,12 @@ mktg_next_uk_nextads_theme_inputs_config: &mktg_next_uk_nextads_theme_inputs_con
             - ${var.job_parameter_environment_name}
             - --run_date
             - "{{job.parameters.run_date}}"
+            - --git_commit
+            - ${var.git_commit_sha}
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
@@ -109,6 +115,8 @@ mktg_next_uk_nextads_theme_inputs_config: &mktg_next_uk_nextads_theme_inputs_con
             - "{{tasks.land_authoritative_theme_mapping.values.landing_version}}"
             - --warning_count
             - "{{tasks.land_authoritative_theme_mapping.values.warning_count}}"
+            - --git_commit
+            - ${var.git_commit_sha}
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4

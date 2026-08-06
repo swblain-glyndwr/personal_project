@@ -42,9 +42,13 @@ from next_ads.ranking.foundation_context import (
     load_reusable_failed_foundation_context,
 )
 from next_ads.ranking.foundation_publication import (
+    schema_checksum,
     validate_foundation_build_marker,
+    validate_foundation_output_manifest_contract,
 )
-from next_ads.ranking.scoring_inputs import latest_delta_version
+from next_ads.ranking.provider_publication import (
+    validate_provider_publication_contract,
+)
 
 
 EXPECTED_SOURCES = {
@@ -117,8 +121,7 @@ def _select_snapshot_id(
     source_rows = (
         spark.table(sources_table)
         .where(
-            F.col("InputSnapshotAttemptID")
-            == winner["InputSnapshotAttemptID"]
+            F.col("InputSnapshotAttemptID") == winner["InputSnapshotAttemptID"]
         )
         .select(
             "SourceName",
@@ -126,12 +129,12 @@ def _select_snapshot_id(
             "SourceTable",
             "DeltaVersion",
             "SchemaVersion",
+            "SchemaChecksum",
             "IsRequired",
-            "RowCount",
-            "DistinctKeyCount",
-            "NullKeyCount",
-            "DuplicateKeyCount",
-            "ContentChecksum",
+            "AcceptedTable",
+            "AcceptedDeltaVersion",
+            "AcceptedSchemaChecksum",
+            "WriteReceiptID",
         )
         .collect()
     )
@@ -140,23 +143,16 @@ def _select_snapshot_id(
         for row in source_rows
     }
     if len(source_rows) != len(observed) or observed != EXPECTED_SOURCES:
-        raise ValueError("Accepted scoring input source contract is incomplete")
+        raise ValueError(
+            "Accepted scoring input source contract is incomplete"
+        )
     invalid_sources = [
         row["SourceName"]
         for row in source_rows
         if (
             int(row["DeltaVersion"]) < 0
             or not row["SchemaVersion"]
-            or not row["ContentChecksum"]
-            or (
-                bool(row["IsRequired"])
-                and (
-                    int(row["RowCount"]) < 1
-                    or int(row["NullKeyCount"]) != 0
-                    or int(row["DuplicateKeyCount"]) != 0
-                    or int(row["DistinctKeyCount"]) != int(row["RowCount"])
-                )
-            )
+            or not row["SchemaChecksum"]
         )
     ]
     if invalid_sources:
@@ -170,12 +166,12 @@ def _select_snapshot_id(
             "source_table": row["SourceTable"],
             "delta_version": int(row["DeltaVersion"]),
             "schema_version": row["SchemaVersion"],
+            "schema_checksum": row["SchemaChecksum"],
             "is_required": bool(row["IsRequired"]),
-            "row_count": int(row["RowCount"]),
-            "distinct_key_count": int(row["DistinctKeyCount"]),
-            "null_key_count": int(row["NullKeyCount"]),
-            "duplicate_key_count": int(row["DuplicateKeyCount"]),
-            "content_checksum": row["ContentChecksum"],
+            "accepted_table": row["AcceptedTable"],
+            "accepted_delta_version": row["AcceptedDeltaVersion"],
+            "accepted_schema_checksum": row["AcceptedSchemaChecksum"],
+            "write_receipt_id": row["WriteReceiptID"],
         }
         for row in source_rows
     }
@@ -221,7 +217,6 @@ def _build_bindings(
     input_snapshot_attempt_id,
     run_date,
     snapshot_sources,
-    input_delta_versions,
 ):
     bindings = {}
     for name, definition_value in sorted(
@@ -230,20 +225,32 @@ def _build_bindings(
         definition = _as_dict(definition_value)
         accepted_source = snapshot_sources.get(name)
         if not isinstance(accepted_source, dict) or (
-            accepted_source["schema_version"]
-            != definition["schema_version"]
+            accepted_source["schema_version"] != definition["schema_version"]
         ):
             raise ValueError(
                 f"Accepted source {name} does not match its foundation schema"
             )
         bindings[name] = {
-            "table": definition["table"],
+            "table": accepted_source["accepted_table"],
             "schema_version": definition["schema_version"],
             "input_snapshot_id": input_snapshot_id,
             "input_snapshot_attempt_id": input_snapshot_attempt_id,
             "run_date": run_date.isoformat(),
-            "delta_version": input_delta_versions[name],
+            "delta_version": accepted_source["accepted_delta_version"],
+            "schema_checksum": accepted_source["accepted_schema_checksum"],
+            "write_receipt_id": accepted_source["write_receipt_id"],
         }
+        if not all(
+            (
+                bindings[name]["table"],
+                bindings[name]["delta_version"] is not None,
+                bindings[name]["schema_checksum"],
+                bindings[name]["write_receipt_id"],
+            )
+        ):
+            raise ValueError(
+                f"Accepted source {name} has no materialised receipt"
+            )
     bindings["accepted_sources"] = snapshot_sources
     return json.dumps(bindings, sort_keys=True, separators=(",", ":"))
 
@@ -310,6 +317,8 @@ def main(
     REUSE_COMPLETED_OUTPUT=False,
     SOURCE_NAMESPACE=None,
     SOURCE_TABLE_PREFIX=None,
+    TARGET_NAMESPACE=None,
+    TARGET_TABLE_PREFIX=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -323,6 +332,54 @@ def main(
     foundation = config.scoring.foundations[FOUNDATION_ID]
     if foundation.foundation_id != FOUNDATION_ID:
         raise ValueError("Foundation key must match foundation_id")
+    target_namespace = (TARGET_NAMESPACE or "").strip().strip(".")
+    target_prefix = (TARGET_TABLE_PREFIX or "").strip().strip(".")
+    source_namespace = (SOURCE_NAMESPACE or "").strip().strip(".")
+    source_prefix = (SOURCE_TABLE_PREFIX or "").strip().strip(".")
+    if target_namespace.count(".") != 1 or not target_prefix:
+        raise ValueError(
+            "Foundation target namespace and table prefix are required"
+        )
+    if source_namespace.count(".") != 1 or not source_prefix:
+        raise ValueError(
+            "Foundation source namespace and table prefix are required"
+        )
+    validate_foundation_output_manifest_contract(
+        spark,
+        outputs_table=config.tables_write.scoring_foundation_outputs,
+        builds_table=config.tables_write.scoring_foundation_builds,
+        pipeline_relations=True,
+    )
+    validate_provider_publication_contract(
+        spark,
+        signals_table=config.tables_write.score_provider_signals,
+        builds_table=config.tables_write.score_provider_builds,
+    )
+    missing_targets = sorted(
+        f"{target_namespace}.{target_prefix}_{name}"
+        for name in _as_dict(foundation.required_outputs)
+        if not spark.catalog.tableExists(
+            f"{target_namespace}.{target_prefix}_{name}"
+        )
+    )
+    if missing_targets:
+        raise ValueError(
+            "Required foundation target tables are missing: "
+            + ", ".join(missing_targets)
+        )
+    incompatible_existing_outputs = []
+    for name in _as_dict(foundation.required_outputs):
+        source_table = f"{source_namespace}.{source_prefix}_{name}"
+        target_table = f"{target_namespace}.{target_prefix}_{name}"
+        if spark.catalog.tableExists(source_table) and schema_checksum(
+            spark.table(source_table)
+        ) != schema_checksum(spark.table(target_table)):
+            incompatible_existing_outputs.append(name)
+    if incompatible_existing_outputs:
+        raise ValueError(
+            "Existing Lakeflow output schemas do not match their canonical "
+            "targets: " + ", ".join(sorted(incompatible_existing_outputs))
+        )
     invocation_checksum = build_foundation_invocation_checksum(foundation)
     (
         input_snapshot_id,
@@ -362,15 +419,6 @@ def main(
             input_snapshot_attempt_id,
             run_date,
             snapshot_sources,
-            {
-                name: latest_delta_version(
-                    spark,
-                    _as_dict(definition)["table"],
-                )
-                for name, definition in _as_dict(
-                    foundation.input_bindings
-                ).items()
-            },
         ),
         capability=foundation.capability,
         contract_version=foundation.contract_version,
@@ -434,4 +482,6 @@ if __name__ == "__main__":
         parser.has_arg("--reuse-completed-output"),
         parser.get_arg("--source_namespace"),
         parser.get_arg("--source_table_prefix"),
+        parser.get_arg("--target_namespace"),
+        parser.get_arg("--target_table_prefix"),
     )

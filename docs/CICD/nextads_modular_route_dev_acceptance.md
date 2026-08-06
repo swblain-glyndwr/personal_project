@@ -1,58 +1,108 @@
-# NextAds modular route acceptance
+# Lean, fast and atomic NextAds DEV acceptance
 
-## What this foundation enables
+## Runtime contract
 
-The nightly route now has interchangeable provider, portfolio, candidate and assignment boundaries. A new challenger does not need its own assignment process. The practical integration path is:
+The critical route follows one rule:
 
-1. Build the model output and adapt it to the canonical score-provider columns.
-2. Validate the output keys, values, ranks and checksum, then publish the exact provider attempt and Delta version with the ready manifest written last.
-3. Declare the provider in a portfolio policy as a serving, challenger or evaluation entry. The portfolio binds an exact provider attempt; undeclared runtime overrides are rejected.
-4. Build the standard top-20 candidates for that portfolio entry and validate the candidate and ad-set outputs. The candidate ready manifest is written last.
-5. Pass the accepted candidate attempt into the ordinary v1 or v2 assignment route. The page jobs resolve each public serving slot independently, validate every required scope and publish the complete assignment snapshot before delivery starts.
+> Validate cheap metadata first, calculate once in Spark, commit once to Delta, record the exact commit, then publish READY last.
 
-The default policy still maps both `best` and `best_challenger` to Theme Affinity, so the new boundaries do not themselves change customer traffic. Markov remains a shadow provider. Multiple simultaneous challenger traffic allocation is not active; enabling that needs a separately reviewed allocation policy and experiment design.
+Large outputs are not single-partition writes. Foundation, provider, candidate and assignment frames remain distributed across the Databricks workers. “One write” means one atomic Delta transaction for a logical output, with no `coalesce(1)`, driver collection or repeated full-table checksum scan.
 
-## Runtime and transaction contract
+Theme Affinity physically publishes the ranked foundation once. Prediction reads that exact Delta version and publishes provider signals once. Candidate generation computes a distinct provider once, writes one ad-set slice and one score slice, then publishes its READY row. V1 and v2 assignment each use one bulk Spark graph, one grouped final-key check, one dated-history transaction and one live-latest transaction. The live-latest transaction is the final mandatory operation.
 
-Provider, portfolio and candidate data rows are written before their accepted manifest. Assignment scopes are staged before the complete build is published. A partial or failed attempt therefore remains unselectable and cannot advance a live assignment or delivery table.
+The public assignment and payload schemas and all existing eligibility, suppression, feedback, exposure, allocation and delivery behaviour remain unchanged. Markov remains shadow-only. Compatibility tables and heavyweight sense checks run asynchronously from exact READY versions.
 
-Atomicity means one Delta transaction per table, followed by a manifest-last logical commit across related tables. It does not mean `BEGIN ATOMIC`. On DBR 15.4, the write helper orders source columns to the target schema before issuing target-ordered `REPLACE WHERE`; it does not use unsupported combined `BY NAME` syntax.
+## Existing cluster envelope
 
-The independent maintenance job runs at 05:00 Europe/London and is not on the nightly build dependency path. No public-preview Lakeflow metadata is required: supported job and pipeline identifiers are recorded, while the accepted physical Delta publication and version form the downstream data binding. Feature compatibility remains separate from the nightly route.
+No larger clusters are required by this change.
 
-## Repository acceptance gates
+- Theme Affinity publication and prediction use the existing D32 autoscaling cluster with one to four workers. Prediction is spread by account across 128 partitions so work can occupy all 128 worker vCPUs at maximum scale, while Arrow batches are capped at 10,000 rows to bound Python-worker memory. The ranked frame feeds prediction directly; there is no second complete-table copy or reread.
+- Markov uses the existing D32 one-to-four-worker cluster in one task. The scorer lineage is passed directly to the provider writer without a temporary Delta table.
+- V1 and v2 assignment use the existing fixed four-worker D32 Photon cluster. Shared cells, control and candidate inputs are persisted with spill support. The final v1 frame is spread across 2,048 scope/account partitions and v2 across 512. Adaptive execution may coalesce small shuffle partitions, while `maxRecordsPerFile=1000000` prevents oversized output files.
+- Only grouped scope/key summaries and one-row typed manifests return to the driver. The full customer, score, candidate and assignment frames never do.
 
-The unit suite protects the following behaviours:
+DEV acceptance must capture peak executor memory, spill, skewed tasks, output file sizes and autoscaling events. A run fails this acceptance if it succeeds only after increasing any cluster beyond this envelope.
 
-- deterministic provider, candidate and assignment output at one, four and eight Spark partitions;
-- provider, portfolio and candidate ready manifests are written last;
-- a missing Markov shadow build does not block serving;
-- a missing required Theme Affinity build prevents the affected route from reaching candidate or assignment publication;
-- provider attempts, table versions, input snapshots, portfolio attempts, candidate attempts, customer-cell versions and assignment build IDs cross job boundaries explicitly;
-- repaired attempts resolve deterministically and cannot mix their staging rows with another attempt;
-- v1 and v2 failures block only the affected route;
-- business control-sheet findings remain warning-only, while malformed inputs or audit execution failures stop the affected route;
-- assignment configuration cannot request a candidate rank above 20;
-- page and delivery code cannot reintroduce mutable latest-model or latest-candidate reads;
-- the active candidate-to-delivery route cannot reintroduce random sampling, arbitrary `dropDuplicates`, or delete/truncate publication writers.
+## Personal-schema table operations
 
-The broader stability audit records any remaining exact-distinct operations and other sensitive constructs with their reachability and rationale. Adding or moving one changes the guarded audit and requires an explicit review.
+Use the deployed `mktg_next_uk_nextads_table_operations` job against the named DEV schema. Do not create or alter the schema itself, copy PROD tables, or ask `table_operations` to rebuild a large canonical table.
 
-## DEV evidence to collect before merge
+First run `recreate_tables` only for these small PR-owned manifest tables:
 
-Run this only in DEV after completing the clean personal-schema table setup in
-`nextads_databricks_job_settings.md`. That setup recreates every feature-owned
-modular table, then creates any other missing configured table without running
-a broad alter or copying large tables into backups.
+- `scoring_input_snapshots`
+- `scoring_input_snapshot_sources`
+- `scoring_foundation_outputs`
+- `scoring_foundation_builds`
+- `score_provider_builds`
+- `candidate_foundation_builds`
+- `candidate_builds`
+- `assignments_build_staging`
+- `assignments_v2_build_staging`
+- `assignment_build_events`
 
-1. Run three complete cycles with identical pinned inputs and retain the job run IDs, task attempts and table Delta versions.
-2. Compare provider signals, candidate scores/ad sets, v1 assignments, v2 assignments and payload output between the three cycles with bidirectional `EXCEPT ALL`. Every comparison must return zero rows.
-3. Compare the default Theme Affinity compatibility outputs with the accepted modular outputs. Record any deliberately excluded metadata columns; all customer-facing rows must match.
-4. Confirm all 79 v1 scopes and all five v2 page types completed, and confirm the public assignment schemas did not gain internal provenance columns.
-5. Confirm stable customer-cell rows and versions are identical across the cycles.
-6. Confirm the selected portfolio names Theme Affinity for `best` and `best_challenger`, while Markov is present only as an evaluation entry and has no serving allocation.
-7. Inject one failure at each provider, portfolio, candidate and assignment-scope boundary. After each failure, verify that no downstream ready manifest or live table advanced. Repeat one failed task as a repair and verify that only the repaired attempt is selected.
-8. Fail v1 and v2 independently and prove the healthy sibling route still completes.
-9. Record candidate and page-task durations and DBU consumption. Compare the median with the pre-bulk baseline: no major stage may regress by more than 5%, total DBU use may not regress by more than 10%, and the run must show that the former 77+2+5 per-scope cluster-start pattern is absent.
+Set `client=next_uk`, `job_env=dev`, the repository-configured DEV catalog and named schema, `tables` to the comma-separated list above, `confirm_destructive=true`, and `dry_run=false`. These tables are deliberately recreated without backup copies because they are small internal manifests that the acceptance run repopulates.
 
-DEV acceptance is complete only when the three-cycle comparisons, injected-failure checks and runtime/DBU evidence have been attached to the change review. PREPROD and PROD validation are outside this feature checkpoint.
+Then run `alter_tables` for the existing large canonical tables below:
+
+- `score_provider_signals`
+- `candidate_scores`
+- `assignments_v2`
+- `assignments_v2_latest`
+
+Set `confirm_mutating=true` and `dry_run=false`. This adds only the repo-owned finite-score/rank checks in place. It must not create a backup or copy the table. Use `create_missing_tables` with the same narrow `tables` list only when one of these PR-owned tables does not yet exist.
+
+Review the planned SQL in the task log before allowing each mutating run. The log must contain no `__backup_` table and no `CREATE SCHEMA`, and large tables must not be recreated.
+
+## Repository gates
+
+The local suite guards:
+
+- typed schemas for every nullable manifest/context row, including the `CANNOT_DETERMINE_TYPE` regression;
+- exact Delta receipt lookup by build and repair-attempt identity;
+- repair after a data commit without another data action or data write;
+- one ranked-foundation write, one provider-signal write, and one write per canonical candidate table;
+- one provider calculation when champion and challenger bind the same build;
+- the absence of scope scripts, per-scope replacement writes and intermediate Markov `saveAsTable` materialisation;
+- stable identities, tie-breaking and partition/retry determinism;
+- no critical-path whole-row JSON hash, `countDistinct`, post-write full scan, `coalesce(1)` or driver-side materialisation.
+
+Spark-backed parity tests run in Databricks. They compare the bulk output with the previous route for all 79 v1 locations and all five v2 page types using bidirectional `EXCEPT ALL`.
+
+## Three clean DEV cycles
+
+Run three complete DEV cycles with the same pinned input Delta versions, configuration, model version and Git commit. Retain job/run/task IDs, repair attempts, Delta versions, receipt IDs, cluster metrics and DBU.
+
+For every cycle:
+
+1. Run Theme Inputs and Candidate Foundation in parallel.
+2. After Theme Inputs is READY, run Theme Affinity. Markov may run in parallel or later; it is shadow-only and does not block candidates.
+3. After Candidate Foundation, the accepted provider and the audited route control version are ready, run v1 and v2 candidate generation in parallel.
+4. Run the v1 and v2 bulk page jobs in parallel from their exact accepted candidate attempts.
+5. Let v1 continue to MASID and PLP delivery and v2 continue to payload export.
+6. Run provider compatibility at 17:00 and candidate compatibility/quality at 21:00, or trigger those independent jobs manually against the exact READY versions when testing the route earlier in the day.
+
+Compare provider signals, candidate scores/ad sets, v1 assignments, v2 assignments and payloads across all three cycles with bidirectional `EXCEPT ALL`. Every comparison must return zero rows. Confirm all 79 v1 scopes and all five v2 page types are present and public schemas contain no internal receipt or provenance fields.
+
+## Performance acceptance
+
+All of the following must hold:
+
+- Theme Affinity critical-path median is at most 120 minutes and no run exceeds 135 minutes.
+- Ranked foundation publication is at most 15 minutes.
+- Receipt and manifest overhead is below two minutes per build.
+- Repair from an already committed physical output to READY is below five minutes and performs no second data write.
+- Candidate plus assignment median is at least 50% below the verified pre-PR per-scope baseline.
+- Total DBU is no higher than the verified pre-PR median.
+- No stage has one output partition, a driver-side full-frame action, sustained executor OOM, pathological spill, or a single skewed task dominating runtime.
+
+## Failure and repair acceptance
+
+Inject failures after foundation, provider and candidate data commits but before their READY manifest. Repair must reuse the exact receipt/version and write only the typed READY metadata.
+
+For a Theme Affinity repair, select `prepare_foundation_context` and `publish_and_score`, and leave `predict_data_prep` unselected. Preparation reactivates the same failed foundation attempt after checking the Lakeflow build marker. Publication then reuses the ranked-foundation receipt. If the provider signals transaction had also committed, the stable provider attempt finds that receipt before model loading, prediction, penalty calculation or any large input-table action, and writes only the typed READY manifest. Markov uses the same receipt-first repair rule inside its single task.
+
+Inject assignment failures before history and before live latest. A failure must not advance live latest; yesterday’s complete snapshot remains active. If history committed, repair must publish live latest from that exact history version without rebuilding assignments. No mandatory validation, metadata write or logging transaction may occur after live latest advances.
+
+Compatibility and monitoring failures must alert independently without revoking a canonical READY build. V1 and v2 failure injection must also prove that the healthy sibling route can complete.
+
+DEV acceptance is complete only when the three-cycle equality, runtime, DBU, cluster-envelope and injected-failure evidence is attached for review.

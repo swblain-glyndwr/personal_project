@@ -49,13 +49,12 @@ def _build(
         contract_version="account_entity_scores/v1",
         status=status,
         row_count=100 if ready else 0,
-        account_count=10 if ready else 0,
-        entity_count=20 if ready else 0,
-        null_key_count=0,
-        duplicate_key_count=0,
-        invalid_score_count=0,
+        output_schema_checksum="schema-checksum" if ready else None,
+        write_receipt_id=f"receipt-{build_id}" if ready else None,
+        git_commit="abc123",
+        write_duration_ms=1200 if ready else 0,
+        retry_count=0,
         warning_count=0,
-        output_checksum="checksum" if ready else None,
         task_run_id=100 + attempt,
         execution_count=attempt,
         completed_at=completed_at,
@@ -87,12 +86,11 @@ def _manifest_row(**overrides):
         "OutputTable": build.output_table,
         "OutputDeltaVersion": build.output_delta_version,
         "RowCount": build.row_count,
-        "AccountCount": build.account_count,
-        "EntityCount": build.entity_count,
-        "NullKeyCount": build.null_key_count,
-        "DuplicateKeyCount": build.duplicate_key_count,
-        "InvalidScoreCount": build.invalid_score_count,
-        "OutputChecksum": build.output_checksum,
+        "OutputSchemaChecksum": build.output_schema_checksum,
+        "WriteReceiptID": build.write_receipt_id,
+        "GitCommit": build.git_commit,
+        "WriteDurationMs": build.write_duration_ms,
+        "RetryCount": build.retry_count,
         "WarningCount": build.warning_count,
         "Status": build.status,
         "TaskRunID": build.task_run_id,
@@ -352,7 +350,9 @@ def test_job_emits_the_exact_selected_provider_binding(monkeypatch):
     )
     recorded = {}
     task_values = _TaskValues()
-    monkeypatch.setattr(selection_job, "configure_logging", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        selection_job, "configure_logging", lambda **_kwargs: None
+    )
     monkeypatch.setattr(selection_job, "configure_spark", lambda: "spark")
     monkeypatch.setattr(
         selection_job.config_manager,

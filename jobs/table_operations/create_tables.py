@@ -56,6 +56,69 @@ ASSIGNMENT_PROVENANCE_COLUMNS = frozenset(
     }
 )
 
+RECREATE_ONLY_MANIFEST_TABLE_SUFFIXES = frozenset(
+    {
+        "_nextads_scoring_input_snapshots",
+        "_nextads_scoring_input_snapshot_sources",
+        "_nextads_scoring_foundation_outputs",
+        "_nextads_scoring_foundation_builds",
+        "_nextads_score_provider_builds",
+        "_nextads_candidate_foundation_builds",
+        "_nextads_candidate_builds",
+    }
+)
+
+IN_PLACE_ONLY_CANONICAL_TABLE_SUFFIXES = frozenset(
+    {
+        "_nextads_scoring_input_item_themes",
+        "_nextads_account_theme_foundation_ranked",
+        "_nextads_score_provider_signals",
+        "_nextads_candidate_ad_sets",
+        "_nextads_candidate_scores",
+        "_nextads_assignments",
+        "_nextads_assignments_latest",
+        "_nextads_assignments_v2",
+        "_nextads_assignments_v2_latest",
+    }
+)
+
+CANONICAL_CHECK_CONSTRAINTS = {
+    "_nextads_score_provider_signals": {
+        "nextads_provider_raw_score_finite": (
+            "RawScore between -1.7976931348623157E308 "
+            "and 1.7976931348623157E308"
+        ),
+        "nextads_provider_score_finite": (
+            "Score between -1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_provider_rank_valid": "ProviderRank >= 1",
+    },
+    "_nextads_candidate_scores": {
+        "nextads_candidate_score_finite": (
+            "Score between -1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_candidate_trigger_finite": (
+            "TriggerScore is null or TriggerScore between "
+            "-1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_candidate_rank_valid": "Rank between 1 and 20",
+    },
+    "_nextads_assignments_v2": {
+        "nextads_assignment_v2_rank_valid": "Rank >= 1",
+        "nextads_assignment_v2_trigger_finite": (
+            "TriggerScore is null or TriggerScore between "
+            "-3.4028235E38 and 3.4028235E38"
+        ),
+    },
+    "_nextads_assignments_v2_latest": {
+        "nextads_assignment_v2_latest_rank_valid": "Rank >= 1",
+        "nextads_assignment_v2_latest_trigger_finite": (
+            "TriggerScore is null or TriggerScore between "
+            "-3.4028235E38 and 3.4028235E38"
+        ),
+    },
+}
+
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -428,6 +491,44 @@ def build_repair_table_statements(
     ]
 
 
+def ensure_canonical_check_constraints(
+    spark,
+    *,
+    table: str,
+    dry_run: bool,
+    logger,
+) -> list[str]:
+    """Add cheap row-level guards to large canonical tables in place."""
+    table_name = table.split(".")[-1]
+    required = next(
+        (
+            constraints
+            for suffix, constraints in CANONICAL_CHECK_CONSTRAINTS.items()
+            if table_name.endswith(suffix)
+        ),
+        None,
+    )
+    if not required:
+        return []
+    properties = {
+        str(row["key"]).lower(): str(row["value"])
+        for row in spark.sql(f"SHOW TBLPROPERTIES {table}").collect()
+    }
+    statements = []
+    for name, expression in required.items():
+        if f"delta.constraints.{name}" in properties:
+            continue
+        statement = (
+            f"ALTER TABLE {table} ADD CONSTRAINT `{name}` CHECK ({expression})"
+        )
+        statements.append(statement)
+        logger.info("Adding canonical constraint to %s: %s", table, name)
+        logger.info("Running: %s", statement)
+        if not dry_run:
+            spark.sql(statement)
+    return statements
+
+
 def requires_assignment_build_state_recreation(
     table: str,
     actual_columns: list[ColumnSpec],
@@ -466,6 +567,26 @@ def repair_table_to_contract(
             "assignment provenance without backup-copying transient build "
             "state. Run recreate_tables for assignments_build_staging, "
             "assignments_v2_build_staging, and assignment_build_events only."
+        )
+
+    if any(
+        table.split(".")[-1].endswith(suffix)
+        for suffix in RECREATE_ONLY_MANIFEST_TABLE_SUFFIXES
+    ):
+        raise ValueError(
+            f"Small manifest table {table} requires targeted recreation; "
+            "backup-copy repair is intentionally disabled. Run "
+            "recreate_tables for this table only."
+        )
+
+    if any(
+        table.split(".")[-1].endswith(suffix)
+        for suffix in IN_PLACE_ONLY_CANONICAL_TABLE_SUFFIXES
+    ):
+        raise ValueError(
+            f"Large canonical table {table} requires an explicit migration; "
+            "table_operations will not create a backup copy or rebuild it. "
+            "Apply additive columns and constraints in place only."
         )
 
     unsupported_missing = [
@@ -729,6 +850,12 @@ def main(
             drift = compare_table_schema(expected_columns, actual_columns)
             if not drift.has_drift:
                 logger.info(f"Table {table} matches SQL contract")
+                ensure_canonical_check_constraints(
+                    spark,
+                    table=table,
+                    dry_run=DRY_RUN,
+                    logger=logger,
+                )
                 continue
 
             logger.warning(
@@ -776,6 +903,12 @@ def main(
                                 dry_run=DRY_RUN,
                                 logger=logger,
                             )
+                ensure_canonical_check_constraints(
+                    spark,
+                    table=table,
+                    dry_run=DRY_RUN,
+                    logger=logger,
+                )
                 continue
 
             repair_table_to_contract(
@@ -785,6 +918,12 @@ def main(
                 expected_columns=expected_columns,
                 actual_columns=actual_columns,
                 job_env=JOB_ENV,
+                dry_run=DRY_RUN,
+                logger=logger,
+            )
+            ensure_canonical_check_constraints(
+                spark,
+                table=table,
                 dry_run=DRY_RUN,
                 logger=logger,
             )

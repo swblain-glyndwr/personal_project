@@ -1,20 +1,10 @@
 # NextAds retry-stability source audit
 
-This audit covers every Python and SQL file under `jobs/` and `src/`, including
-all repository entrypoints referenced by the deployed bundle. It records the
-remaining occurrences of partition-sensitive operations, unordered
-aggregations, deduplication, destructive writers, direct table overwrites and
-per-write housekeeping.
+This audit covers every Python and SQL file under `jobs/` and `src/`, including all repository entrypoints referenced by the deployed bundle. It records the remaining occurrences of partition-sensitive operations, unordered aggregations, deduplication, destructive writers, direct table overwrites and per-write housekeeping.
 
-This is source-review evidence. It is not production runtime proof and it does
-not claim that an owner has approved an exclusion. `Out of scope` means the
-code is outside the incident-bearing candidate-to-delivery route and must be
-reviewed with the named owner before a later migration changes its behaviour.
+This is source-review evidence. It is not production runtime proof and it does not claim that an owner has approved an exclusion. `Out of scope` means the code is outside the incident-bearing candidate-to-delivery route and must be reviewed with the named owner before a later migration changes its behaviour.
 
-The machine guard reads the marked tables below. A new occurrence, a removed
-occurrence without an audit update, or an unrecorded window definition fails
-the unit gate. The lexical `max_bytes` matches from the broad command are not
-`max_by(...)` calls and are therefore not findings.
+The machine guard reads the marked tables below. A new occurrence, a removed occurrence without an audit update, or an unrecorded window definition fails the unit gate. The lexical `max_bytes` matches from the broad command are not `max_by(...)` calls and are therefore not findings.
 
 ## Resolved active-route findings
 
@@ -32,10 +22,7 @@ No `F.rand(...)` or `sampleBy(...)` calls remain under `jobs/` or `src/`.
 
 ## Bundle entrypoints outside the source audit roots
 
-All job and pipeline entrypoints under `jobs/` and `src/` are covered by the
-source scan. The deployed analytics PCTR experiment is outside those roots and
-outside the incident-bearing route; its direct bundle references are recorded
-individually so a new experiment entrypoint cannot be added without review.
+All job and pipeline entrypoints under `jobs/` and `src/` are covered by the source scan. The deployed analytics PCTR experiment is outside those roots and outside the incident-bearing route; its direct bundle references are recorded individually so a new experiment entrypoint cannot be added without review.
 
 <!-- bundle-exclusions:start -->
 | Path | Reachability | Disposition | Rationale and review boundary |
@@ -64,7 +51,6 @@ individually so a new experiment entrypoint cannot be added without review.
 | `jobs/nextads_candidates/build_targeting_scores.py` | `truncate_and_load` | 1 | Unbundled legacy | Out of scope | No deployed bundle resource references this older scorer; candidate-route owner review is required before reuse. |
 | `jobs/nextads_candidates/build_theme_scores.py` | `collect_set` | 1 | Active Markov route | Deterministic | Used only to display a test account and never contributes to a persisted scoring result. |
 | `jobs/nextads_candidates/build_theme_scores.py` | `deduplicate` | 5 | Active Markov route | Deterministic | Calls retain exact distinct event or business-key projections; total-order windows handle later single-row selection. |
-| `jobs/nextads_candidates/build_theme_scores.py` | `saveAsTable` | 1 | Active Markov route | Deterministic | Run-unique temporary scorer materialisation uses `errorifexists` and is removed in `finally`; it is not a serving-table overwrite. |
 | `jobs/nextads_candidates/conditional_probability_recs.py` | `collect_list` | 3 | Unbundled legacy | Out of scope | The legacy conditional-probability entrypoint is not referenced by a deployed bundle resource; candidate-route owner review is required before reuse. |
 | `jobs/nextads_candidates/conditional_probability_recs.py` | `collect_set` | 3 | Unbundled legacy | Out of scope | The legacy conditional-probability entrypoint is not referenced by a deployed bundle resource; candidate-route owner review is required before reuse. |
 | `jobs/nextads_candidates/conditional_probability_recs.py` | `deduplicate` | 7 | Unbundled legacy | Out of scope | The legacy conditional-probability entrypoint is not referenced by a deployed bundle resource; candidate-route owner review is required before reuse. |
@@ -118,6 +104,7 @@ individually so a new experiment entrypoint cannot be added without review.
 | `src/next_ads/data/sort_order/data_pull.py` | `deduplicate` | 2 | Active data-pull route | Deterministic | Calls project exact distinct CMS page IDs and ad delivery keys before external reads and validated archive publication. |
 | `src/next_ads/data/validation/custom_checks.py` | `deduplicate` | 1 | Active data validation | Deterministic | Exact distinct invalid values are displayed for diagnostics only and cannot select or mutate output rows. |
 | `src/next_ads/decisioning/assignment.py` | `deduplicate` | 6 | Active assignment dependency | Deterministic | Calls retain exact distinct customer, advert and allocation projections; multi-ad creative rows are deduplicated before total-order slotting and final key validation. |
+| `src/next_ads/decisioning/bulk_assignment.py` | `deduplicate` | 2 | Active bulk assignment route | Deterministic | The v1 MASID mapping and v2 account-rank spine retain exact projected keys; no conflicting row is selected and the final route key is validated once before publication. |
 | `src/next_ads/decisioning/assignment_publication.py` | `collect_set` | 1 | Active assignment publisher | Deterministic | `sort_array` canonicalises teaser tokens before the correction predicate. |
 | `src/next_ads/decisioning/table_maintenance.py` | `OPTIMIZE` | 2 | Deployed maintenance | Maintenance only | This allowlisted 05:00 job is outside the build failure domain and runs optimisation only on its weekly branch. |
 | `src/next_ads/decisioning/table_maintenance.py` | `VACUUM` | 3 | Deployed maintenance | Maintenance only | This allowlisted 05:00 job retains 168 hours and runs vacuum only on its weekly branch. |
@@ -159,10 +146,7 @@ individually so a new experiment entrypoint cannot be added without review.
 
 ## Source-context fingerprints
 
-These fingerprints bind the reviewed findings above to their normalised
-five-line source contexts without relying on line numbers. A finding moved or
-replaced inside the same file must therefore be reviewed and the fingerprint
-updated, even when the per-file pattern count is unchanged.
+These fingerprints bind the reviewed findings above to their normalised five-line source contexts without relying on line numbers. A finding moved or replaced inside the same file must therefore be reviewed and the fingerprint updated, even when the per-file pattern count is unchanged.
 
 <!-- source-context-fingerprints:start -->
 | Path | Fingerprint |
@@ -170,7 +154,7 @@ updated, even when the per-file pattern count is unchanged.
 | `jobs/features/nextads/preflight_checks.py` | `10f99e2382863fd4` |
 | `jobs/nextads_assignment/build_page.py` | `e0c727e1591e9a37` |
 | `jobs/nextads_candidates/build_targeting_scores.py` | `8c7c6abaf90cdf22` |
-| `jobs/nextads_candidates/build_theme_scores.py` | `13a659d3a45793db` |
+| `jobs/nextads_candidates/build_theme_scores.py` | `db3850157ee0fbd0` |
 | `jobs/nextads_candidates/conditional_probability_recs.py` | `1345f38a460ac2bc` |
 | `jobs/nextads_candidates/get_ad_items.py` | `25a2eeb377ed8ddb` |
 | `jobs/nextads_cells/assign_customer_cells.py` | `84cb7f3eb5dcee6b` |
@@ -202,8 +186,9 @@ updated, even when the per-file pattern count is unchanged.
 | `src/next_ads/control/theme_mapping_sync.py` | `f3de2421f3365b69` |
 | `src/next_ads/data/sort_order/data_pull.py` | `94a56daae56851ca` |
 | `src/next_ads/data/validation/custom_checks.py` | `d29043e49e31db92` |
-| `src/next_ads/decisioning/assignment.py` | `79cb23eb899ab472` |
-| `src/next_ads/decisioning/assignment_publication.py` | `bee35828dd6d7c61` |
+| `src/next_ads/decisioning/assignment.py` | `84082b65cf068139` |
+| `src/next_ads/decisioning/bulk_assignment.py` | `1a66cbb88ec990d6` |
+| `src/next_ads/decisioning/assignment_publication.py` | `dde854cb5e7b7380` |
 | `src/next_ads/decisioning/table_maintenance.py` | `295aed008767ece0` |
 | `src/next_ads/delivery/google_sheets.py` | `3b8f3f9bd142852a` |
 | `src/next_ads/delivery/masid_handoff.py` | `0e5737e9b5a0eece` |
@@ -211,7 +196,7 @@ updated, even when the per-file pattern count is unchanged.
 | `src/next_ads/features/nextads_core.py` | `c0c506a3d561cf00` |
 | `src/next_ads/features/theme_affinity.py` | `29132ead649f42f5` |
 | `src/next_ads/ranking/scoring.py` | `e366917953536f92` |
-| `src/next_ads/ranking/theme_affinity/clean_output.py` | `bb70272c46cf2860` |
+| `src/next_ads/ranking/theme_affinity/clean_output.py` | `5792365699e20987` |
 | `src/next_ads/ranking/theme_affinity/data_prep.py` | `e6d4a8cd497e8285` |
 | `src/next_ads/ranking/theme_affinity/dlt_pipeline.py` | `5d25f3006ed9e7e3` |
 | `src/next_ads/ranking/theme_affinity/sense_check.py` | `17c5bc37cd36e7b1` |
@@ -232,10 +217,7 @@ updated, even when the per-file pattern count is unchanged.
 
 ## Ordered-window review
 
-The table records every direct `Window...orderBy(...)` construction under
-`jobs/` and `src/`. Windows without ordering are aggregation-only and are not
-selection windows. Exact single-row selections on the active route are also
-covered by the focused determinism tests.
+The table records every direct `Window...orderBy(...)` construction under `jobs/` and `src/`. Windows without ordering are aggregation-only and are not selection windows. Exact single-row selections on the active route are also covered by the focused determinism tests.
 
 <!-- window-findings:start -->
 | Path | Count | Reachability | Disposition | Rationale and review boundary |
@@ -249,7 +231,7 @@ covered by the focused determinism tests.
 | `jobs/realtime/viewed_bought.py` | 2 | Active realtime input | Total order | Revenue and association ranks finish with item identifiers. |
 | `src/next_ads/control/control_sheet_audit.py` | 1 | Active warning-only control audit | Total order | Capped diagnostic examples are ordered by their unique rendered example key before aggregation. |
 | `src/next_ads/control/theme_mapping.py` | 2 | Active Markov dependency | Tie preserving | Both use `dense_rank`; equal scoring inputs intentionally share a rank and no arbitrary single row is selected. |
-| `src/next_ads/decisioning/assignment.py` | 15 | Active assignment dependency | Total order | Exact assignment selections, accepted-candidate tie splits and multi-ad creative slots finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
+| `src/next_ads/decisioning/assignment.py` | 16 | Active assignment dependency | Total order | Exact assignment selections, accepted-candidate tie splits, reusable bulk ordinals and multi-ad creative slots finish with stable hash ordering and `UniqueAdID`; focused allocation tests cover repartitioning. |
 | `src/next_ads/features/nextads_core.py` | 2 | Deployed feature foundation | Out of scope | Feature-foundation ranking is outside this incident route; feature-platform owner review is required. |
 | `src/next_ads/features/theme_affinity.py` | 2 | Deployed feature foundation | Total order | Feature ranks finish with the theme key, but feature-foundation output validation remains separately owned. |
 | `src/next_ads/ranking/provider_signals.py` | 1 | Active scoring-provider route | Total order | Provider ranking finishes with the entity identifier, giving identical scores a stable and replay-safe order. |
@@ -266,10 +248,7 @@ covered by the focused determinism tests.
 
 ## SQL-window review
 
-SQL files and dynamic SQL strings are scanned separately from PySpark window
-objects. Ranking windows finish with stable business keys. Aggregate and
-percentile windows either preserve ties deliberately or have downstream
-results that are invariant to equal ordering values.
+SQL files and dynamic SQL strings are scanned separately from PySpark window objects. Ranking windows finish with stable business keys. Aggregate and percentile windows either preserve ties deliberately or have downstream results that are invariant to equal ordering values.
 
 <!-- sql-window-findings:start -->
 | Path | Count | Reachability | Disposition | Rationale and review boundary |
@@ -285,8 +264,4 @@ results that are invariant to equal ordering values.
 
 ## Release boundary
 
-The out-of-scope reporting, feature-foundation, model-lifecycle, setup and
-unbundled legacy rows are recorded so they cannot silently gain new findings.
-They are not candidates for opportunistic cleanup in this release. Any later
-activation or migration requires the named route owner, focused equivalence
-evidence and a new audit disposition.
+The out-of-scope reporting, feature-foundation, model-lifecycle, setup and unbundled legacy rows are recorded so they cannot silently gain new findings. They are not candidates for opportunistic cleanup in this release. Any later activation or migration requires the named route owner, focused equivalence evidence and a new audit disposition.

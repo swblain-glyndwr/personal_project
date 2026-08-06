@@ -42,7 +42,6 @@ from next_ads.decisioning.customer_cells import ensure_audience_column
 from next_ads.ranking.scoring_inputs import (
     latest_delta_version,
     read_delta_version,
-    summarise_content,
 )
 
 
@@ -52,6 +51,7 @@ JOB_ENV = jobparser.get_arg("--job_env")
 CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
 RUN_DATE_RAW = jobparser.get_arg("--run_date")
+GIT_COMMIT = jobparser.get_arg("--git_commit")
 if not RUN_DATE_RAW:
     raise ValueError("--run_date is required")
 try:
@@ -163,20 +163,22 @@ try:
             CELLS_TABLE_LATEST,
             df_selected.columns,
         )
-        df_selected = df_selected.select(*target_columns).persist()
-        summary = summarise_content(
-            df_selected,
-            key_columns=("AccountNumber",),
+        df_selected = df_selected.select(*target_columns)
+        logger.info(
+            f"Atomically replacing combined cells: {CELLS_TABLE_LATEST}"
         )
-        summary.require_valid("combined customer cells")
-        logger.info(f"Atomically replacing combined cells: {CELLS_TABLE_LATEST}")
-        replace_validated_snapshot(
+        result = replace_validated_snapshot(
             spark,
             df_selected,
             table=CELLS_TABLE_LATEST,
             key_columns=["AccountNumber"],
+            build_id=f"customer_cells_{RUN_DATE.isoformat()}",
+            attempt_id=f"customer_cells_{RUN_DATE.isoformat()}",
+            git_commit=GIT_COMMIT,
         )
-        selected_version = latest_delta_version(spark, CELLS_TABLE_LATEST)
+        selected_version = result.write.delta_version
+        selected_row_count = result.validation.row_count
+        selected_receipt_id = result.write.receipt_id
         selected_run_date = RUN_DATE
         selection_status = READY_FOR_NEXTADS
         warning_count = 0
@@ -186,12 +188,7 @@ try:
             spark,
             CELLS_TABLE_LATEST,
             selected_version,
-        ).persist()
-        summary = summarise_content(
-            df_selected,
-            key_columns=("AccountNumber",),
         )
-        summary.require_valid("accepted combined customer cells")
         date_bounds = df_selected.agg(
             F.min("rundate").alias("min_rundate"),
             F.max("rundate").alias("max_rundate"),
@@ -210,6 +207,8 @@ try:
             )
         selection_status = FALLBACK_PREVIOUS
         warning_count = 1
+        selected_row_count = 0
+        selected_receipt_id = f"delta-version:{selected_version}"
         logger.warning(
             "Using combined customer cells from %s at Delta version %s",
             selected_run_date,
@@ -223,11 +222,13 @@ try:
         key="customer_cells_source_run_date",
         value=selected_run_date.isoformat(),
     )
-    task_values.set(key="customer_cells_selection_status", value=selection_status)
-    task_values.set(key="customer_cells_row_count", value=summary.row_count)
     task_values.set(
-        key="customer_cells_content_checksum",
-        value=summary.content_checksum,
+        key="customer_cells_selection_status", value=selection_status
+    )
+    task_values.set(key="customer_cells_row_count", value=selected_row_count)
+    task_values.set(
+        key="customer_cells_write_receipt_id",
+        value=selected_receipt_id,
     )
     task_values.set(
         key="customer_cells_schema_checksum",
@@ -235,8 +236,6 @@ try:
     )
     task_values.set(key="customer_cells_warning_count", value=warning_count)
 finally:
-    if "df_selected" in locals():
-        df_selected.unpersist()
     if "AlgoDivision" in df_cells_transient.columns:
         df_cells_transient.unpersist()
 

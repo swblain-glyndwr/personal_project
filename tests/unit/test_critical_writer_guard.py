@@ -58,22 +58,14 @@ def test_critical_route_has_no_destructive_writer_or_housekeeping(
     assert not any(sql in upper_source for sql in HOUSEKEEPING_SQL)
 
 
-def test_only_run_unique_scorer_materialisation_uses_save_as_table():
+def test_critical_writers_do_not_use_intermediate_save_as_table():
     save_as_table_files = []
     for relative_path in CRITICAL_WRITER_FILES:
         source = (PROJECT_ROOT / relative_path).read_text()
         if "saveAsTable(" in source:
             save_as_table_files.append(relative_path)
 
-    assert save_as_table_files == [
-        "jobs/nextads_candidates/build_theme_scores.py"
-    ]
-    scorer_source = (PROJECT_ROOT / save_as_table_files[0]).read_text()
-    assert scorer_source.count("saveAsTable(") == 1
-    assert '.mode("errorifexists").saveAsTable(' in scorer_source
-    assert "temp_next_theme_probs_" in scorer_source
-    assert "uuid.uuid4().hex" in scorer_source
-    assert "DROP TABLE IF EXISTS " in scorer_source
+    assert save_as_table_files == []
 
 
 def test_production_sources_do_not_use_unsupported_dbr_15_4_replace_syntax():

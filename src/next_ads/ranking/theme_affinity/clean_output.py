@@ -56,9 +56,9 @@ def _write_inference_log(
     inference_log_table = model_tables.inference_log
     inference_log = signals.select(
         F.col("RunDate").alias("inference_date"),
-        F.lit(inference_timestamp).cast("timestamp").alias(
-            "inference_timestamp"
-        ),
+        F.lit(inference_timestamp)
+        .cast("timestamp")
+        .alias("inference_timestamp"),
         F.lit(model_id).alias("model_id"),
         F.col("AccountNumber").alias("account_number"),
         F.regexp_replace("EntityID", "[^a-zA-Z0-9]", "").alias("theme"),
@@ -120,7 +120,7 @@ def _rerank_model_output(full_results, penalty_themes, penalty: float):
     )
 
 
-def stage_model_output(spark, runtime, predictions) -> int:
+def stage_model_output(spark, runtime, predictions):
     from pyspark.sql import functions as F
     from next_ads.ranking.provider_publication import stage_provider_signals
     from next_ads.ranking.provider_signals import adapt_account_entity_scores
@@ -137,7 +137,7 @@ def stage_model_output(spark, runtime, predictions) -> int:
         raise ValueError("Theme Affinity staging requires a provider context")
 
     stats_df = (
-        read_runtime_foundation_output(spark, runtime, "complete")
+        read_runtime_foundation_output(spark, runtime, "ranked")
         .groupBy("theme_clean")
         .agg(
             F.avg("repurchase_ratio").alias("rep_ratio"),
@@ -154,7 +154,7 @@ def stage_model_output(spark, runtime, predictions) -> int:
     ).select("theme_clean")
     manual_themes_df = spark.createDataFrame(
         [(theme,) for theme in model_config.high_repurchase_manual_themes],
-        ["theme_clean"],
+        schema="theme_clean string not null",
     )
     penalty_themes = dynamic_themes_df.union(manual_themes_df).distinct()
 
@@ -209,11 +209,14 @@ def stage_model_output(spark, runtime, predictions) -> int:
         score_direction=provider.score_direction,
         max_entities_per_account=int(provider.max_entities_per_account),
     )
+    if not runtime.git_commit:
+        raise ValueError("Theme Affinity publication requires a Git commit")
     return stage_provider_signals(
         spark,
         signals,
         context=runtime.provider_context,
         table=runtime.config.tables_write.score_provider_signals,
+        git_commit=runtime.git_commit,
     )
 
 

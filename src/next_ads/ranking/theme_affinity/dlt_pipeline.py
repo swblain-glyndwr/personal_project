@@ -176,11 +176,18 @@ def build_marker():
                     FOUNDATION_CONTEXT.input_snapshot_attempt_id
                 ),
                 "RunDate": FOUNDATION_CONTEXT.run_date,
-                "InvocationChecksum": (
-                    FOUNDATION_CONTEXT.invocation_checksum
-                ),
+                "InvocationChecksum": (FOUNDATION_CONTEXT.invocation_checksum),
             }
-        ]
+        ],
+        schema=(
+            "ContextSlot string not null, OrchestrationRunID long not null, "
+            "FoundationID string not null, FoundationVersion string not null, "
+            "ScoringFoundationBuildID string not null, "
+            "ScoringFoundationBuildAttemptID string not null, "
+            "InputSnapshotID string not null, "
+            "InputSnapshotAttemptID string not null, "
+            "RunDate date not null, InvocationChecksum string not null"
+        ),
     )
 
 

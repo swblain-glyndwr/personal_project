@@ -11,12 +11,18 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 from next_ads.common.delta_writes import (
-    DeltaWriteResult,
+    DeltaWriteReceipt,
     KeyValidationSummary,
     atomic_append_by_name,
+    find_delta_write_receipt,
+    replace_scope_by_name,
+    replace_table_by_name,
+    typed_table_frame,
     validate_target_columns,
+    validate_typed_table_schema,
     validate_unique_non_null_keys,
 )
+from next_ads.ranking.scoring_inputs import read_delta_version
 from next_ads.common.snapshot_writes import (
     publish_history_and_latest,
     replace_validated_scope,
@@ -249,7 +255,7 @@ class AssignmentStageResult:
     status: str
     row_count: int
     validation: KeyValidationSummary
-    event_write: DeltaWriteResult
+    event_write: DeltaWriteReceipt
     provenance: AssignmentProvenance
 
 
@@ -261,8 +267,8 @@ class AssignmentPublicationResult:
     row_count: int
     events: tuple[AssignmentScopeEvent, ...]
     validation: KeyValidationSummary
-    history_write: DeltaWriteResult
-    latest_write: DeltaWriteResult
+    history_write: DeltaWriteReceipt
+    latest_write: DeltaWriteReceipt
     provenance: AssignmentProvenance
 
 
@@ -413,7 +419,9 @@ def stage_assignment_scope(
         )
     )
     for column, value in provenance.column_values(columns).items():
-        staged_assignments = staged_assignments.withColumn(column, F.lit(value))
+        staged_assignments = staged_assignments.withColumn(
+            column, F.lit(value)
+        )
     staging_columns = [
         columns.build_run_id,
         columns.task_run_id,
@@ -465,7 +473,7 @@ def stage_assignment_scope(
         **provenance.column_values(columns),
     }
     event = (
-        spark.createDataFrame([event_values])
+        typed_table_frame(spark, tables.event_table, [event_values])
         .withColumn(
             columns.row_count,
             F.col(columns.row_count).cast("long"),
@@ -816,10 +824,7 @@ def _validate_v1_secondary_event_inheritance(
         secondary_event = events_by_scope.get(secondary_scope)
         if parent_event is None or secondary_event is None:
             continue
-        if (
-            parent_event.status == NO_ADS
-            and secondary_event.status != NO_ADS
-        ):
+        if parent_event.status == NO_ADS and secondary_event.status != NO_ADS:
             raise ValueError(
                 f"V1 assignment event {secondary_scope} must be NO_ADS "
                 f"when inherited parent {parent_scope} is NO_ADS"
@@ -851,21 +856,13 @@ def _remove_invalid_v1_teaser_assignments(
         .groupBy("AccountNumber")
         .agg(
             F.sum("_teaser_assigned").alias("_teasers_assigned"),
-            F.sort_array(F.collect_set("_masid_token")).alias(
-                "_token_set"
-            ),
+            F.sort_array(F.collect_set("_masid_token")).alias("_token_set"),
         )
         .where(
             (F.col("_teasers_assigned") < len(V1_TEASER_LOCATIONS))
-            | (
-                F.array_size(F.col("_token_set"))
-                < len(V1_TEASER_LOCATIONS)
-            )
+            | (F.array_size(F.col("_token_set")) < len(V1_TEASER_LOCATIONS))
         )
-        .where(
-            F.col("_token_set")
-            != F.array(F.lit(V1_TEASER_CONTROL_TOKEN))
-        )
+        .where(F.col("_token_set") != F.array(F.lit(V1_TEASER_CONTROL_TOKEN)))
         .select("AccountNumber")
         .withColumn("_invalid_teaser_assignment", F.lit(True))
     )
@@ -890,12 +887,8 @@ def _prepare_v1_public_assignments(
     build_date: date,
 ) -> DataFrame:
     """Remove intentional NO_ADS scopes and apply the v1 teaser correction."""
-    if set(V1_TEASER_LOCATIONS).issubset(
-        set(scope_contract.expected_scopes)
-    ):
-        return _remove_invalid_v1_teaser_assignments(
-            staged_assignments
-        )
+    if set(V1_TEASER_LOCATIONS).issubset(set(scope_contract.expected_scopes)):
+        return _remove_invalid_v1_teaser_assignments(staged_assignments)
     return staged_assignments
 
 
@@ -1016,6 +1009,287 @@ def validate_and_publish_assignment_build(
         staged.unpersist()
 
 
+def publish_bulk_assignment_build(
+    spark: Any,
+    assignments: DataFrame,
+    *,
+    tables: AssignmentTableContract,
+    columns: AssignmentColumnContract,
+    scope_contract: AssignmentScopeContract,
+    build_run_id: str,
+    build_date: date | datetime | str,
+    task_run_id: int,
+    execution_count: int,
+    provenance: AssignmentProvenance,
+    git_commit: str,
+) -> AssignmentPublicationResult:
+    """Validate one route graph, write history once, then advance live last."""
+    _validate_contract_compatibility(columns, scope_contract)
+    _validate_build_identity(
+        build_run_id,
+        columns=columns,
+        scope_contract=scope_contract,
+    )
+    resolved_date = _normalise_build_date(build_date, label=columns.build_date)
+    resolved_task = _validate_integer(
+        task_run_id, label=columns.task_run_id, minimum=1
+    )
+    resolved_execution = _validate_integer(
+        execution_count, label=columns.execution_count
+    )
+    _require_non_empty(git_commit, label="GitCommit")
+    event_columns = (
+        columns.build_run_id,
+        columns.route,
+        columns.event_scope,
+        columns.status,
+        columns.row_count,
+        columns.build_date,
+        columns.task_run_id,
+        columns.execution_count,
+        columns.completed_at,
+        *_provenance_columns(columns),
+    )
+    validate_typed_table_schema(spark, tables.event_table, event_columns)
+    validate_target_columns(
+        spark,
+        tables.history_table,
+        scope_contract.public_columns,
+    )
+    validate_target_columns(
+        spark,
+        tables.latest_table,
+        scope_contract.public_columns,
+    )
+    attempt_id = f"{build_run_id}:attempt:{resolved_execution}:{resolved_task}"
+
+    existing_history = find_delta_write_receipt(
+        spark,
+        target_table=tables.history_table,
+        build_id=build_run_id,
+        attempt_id=attempt_id,
+    )
+    if existing_history is not None:
+        history_version = existing_history.delta_version
+        if history_version is None:
+            raise ValueError("Assignment history receipt has no Delta version")
+        exact_history = read_delta_version(
+            spark, tables.history_table, history_version
+        ).where(
+            F.col(scope_contract.publication_date_column)
+            == F.lit(resolved_date)
+        )
+        latest_write = replace_table_by_name(
+            exact_history.select(*scope_contract.public_columns),
+            tables.latest_table,
+            scope_contract.public_columns,
+            spark=spark,
+            build_id=build_run_id,
+            attempt_id=attempt_id,
+            git_commit=git_commit,
+            commit_metadata={
+                "route": scope_contract.route,
+                "repair_from_history_version": history_version,
+            },
+            capture_receipt=False,
+        )
+        return AssignmentPublicationResult(
+            route=scope_contract.route,
+            build_run_id=build_run_id,
+            build_date=resolved_date,
+            row_count=existing_history.row_count or 0,
+            events=(),
+            validation=KeyValidationSummary(
+                row_count=existing_history.row_count or 0,
+                distinct_key_count=existing_history.row_count or 0,
+                null_key_count=0,
+            ),
+            history_write=existing_history,
+            latest_write=latest_write,
+            provenance=provenance,
+        )
+
+    input_columns = tuple(
+        column
+        for column in scope_contract.public_columns
+        if column != scope_contract.publication_date_column
+    )
+    _require_columns(assignments, input_columns, label="Bulk assignment frame")
+    public_assignments = with_run_date(
+        assignments.select(*input_columns),
+        resolved_date,
+        column=scope_contract.publication_date_column,
+    ).select(*scope_contract.public_columns)
+    if scope_contract.route == "v1":
+        public_assignments = _remove_invalid_v1_teaser_assignments(
+            public_assignments
+        )
+    # One Delta transaction remains a distributed Spark write.  Spread each
+    # route across enough scope/account partitions to occupy the existing
+    # four-worker D32 cluster without forcing the expanded frame into memory.
+    # The v1 route expands roughly 12 million customers across 79 locations;
+    # v2 expands them across five page types and several ranks.  These counts
+    # keep files and shuffle blocks bounded on the existing four-worker D32
+    # clusters while retaining enough tasks for all worker cores to stay busy.
+    target_partitions = 2048 if scope_contract.route == "v1" else 512
+    public_assignments = public_assignments.repartition(
+        target_partitions,
+        F.col(scope_contract.scope_column),
+        F.col("AccountNumber"),
+    ).persist(StorageLevel.DISK_ONLY)
+
+    validation_keys = list(scope_contract.key_columns)
+    if scope_contract.publication_date_column not in validation_keys:
+        validation_keys.append(scope_contract.publication_date_column)
+    null_key = None
+    for key in validation_keys:
+        condition = F.col(key).isNull()
+        null_key = condition if null_key is None else (null_key | condition)
+    keyed = (
+        public_assignments.withColumn("_null_key", null_key)
+        .groupBy(*validation_keys)
+        .agg(
+            F.count(F.lit(1)).alias("_key_count"),
+            F.max(F.col("_null_key").cast("int")).alias("_has_null_key"),
+        )
+    )
+    scope_rows = (
+        keyed.groupBy(scope_contract.scope_column)
+        .agg(
+            F.sum("_key_count").alias("row_count"),
+            F.sum(
+                F.when(
+                    F.col("_key_count") > 1, F.col("_key_count") - 1
+                ).otherwise(F.lit(0))
+            ).alias("duplicate_count"),
+            F.sum(
+                F.when(
+                    F.col("_has_null_key") == 1, F.col("_key_count")
+                ).otherwise(F.lit(0))
+            ).alias("null_count"),
+        )
+        .collect()
+    )
+    summaries = {
+        row[scope_contract.scope_column]: (
+            int(row["row_count"]),
+            int(row["duplicate_count"] or 0),
+            int(row["null_count"] or 0),
+        )
+        for row in scope_rows
+    }
+    unexpected = sorted(set(summaries) - set(scope_contract.expected_scopes))
+    if unexpected:
+        raise ValueError(
+            "Unexpected assignment scopes: " + ", ".join(unexpected)
+        )
+    duplicate_count = sum(value[1] for value in summaries.values())
+    null_count = sum(value[2] for value in summaries.values())
+    if duplicate_count or null_count:
+        raise ValueError(
+            "Final assignment key validation failed: "
+            f"duplicates={duplicate_count}, nulls={null_count}"
+        )
+    row_count = sum(value[0] for value in summaries.values())
+    completed = datetime.now(timezone.utc)
+    events = tuple(
+        AssignmentScopeEvent(
+            scope=scope,
+            status=READY if summaries.get(scope, (0, 0, 0))[0] else NO_ADS,
+            row_count=summaries.get(scope, (0, 0, 0))[0],
+            build_date=resolved_date,
+            task_run_id=resolved_task,
+            execution_count=resolved_execution,
+            completed_at=completed,
+            provenance=provenance,
+        )
+        for scope in scope_contract.expected_scopes
+    )
+    scope_commit_results = {
+        event.scope: {"status": event.status, "row_count": event.row_count}
+        for event in events
+    }
+    event_rows = [
+        {
+            columns.build_run_id: build_run_id,
+            columns.route: scope_contract.route,
+            columns.event_scope: event.scope,
+            columns.status: event.status,
+            columns.row_count: event.row_count,
+            columns.build_date: resolved_date,
+            columns.task_run_id: resolved_task,
+            columns.execution_count: resolved_execution,
+            columns.completed_at: completed,
+            **provenance.column_values(columns),
+        }
+        for event in events
+    ]
+    event_frame = typed_table_frame(spark, tables.event_table, event_rows)
+    replace_scope_by_name(
+        event_frame,
+        tables.event_table,
+        {
+            columns.build_run_id: build_run_id,
+            columns.task_run_id: resolved_task,
+            columns.execution_count: resolved_execution,
+        },
+        event_frame.columns,
+        spark=spark,
+        build_id=build_run_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata={
+            "route": scope_contract.route,
+            "scope_results": scope_commit_results,
+        },
+        capture_receipt=False,
+    )
+    history_write = replace_scope_by_name(
+        public_assignments,
+        tables.history_table,
+        {scope_contract.publication_date_column: resolved_date},
+        scope_contract.public_columns,
+        spark=spark,
+        build_id=build_run_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata={
+            "route": scope_contract.route,
+            "scope_results": scope_commit_results,
+        },
+    )
+    latest_write = replace_table_by_name(
+        public_assignments,
+        tables.latest_table,
+        scope_contract.public_columns,
+        spark=spark,
+        build_id=build_run_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata={
+            "route": scope_contract.route,
+            "scope_results": scope_commit_results,
+            "history_delta_version": history_write.delta_version,
+        },
+        capture_receipt=False,
+    )
+    return AssignmentPublicationResult(
+        route=scope_contract.route,
+        build_run_id=build_run_id,
+        build_date=resolved_date,
+        row_count=row_count,
+        events=events,
+        validation=KeyValidationSummary(
+            row_count=row_count,
+            distinct_key_count=row_count,
+            null_key_count=0,
+        ),
+        history_write=history_write,
+        latest_write=latest_write,
+        provenance=provenance,
+    )
+
+
 __all__ = [
     "NO_ADS",
     "READY",
@@ -1027,5 +1301,6 @@ __all__ = [
     "AssignmentStageResult",
     "AssignmentTableContract",
     "stage_assignment_scope",
+    "publish_bulk_assignment_build",
     "validate_and_publish_assignment_build",
 ]

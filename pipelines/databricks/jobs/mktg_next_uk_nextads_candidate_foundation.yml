@@ -54,6 +54,8 @@ mktg_next_uk_nextads_candidate_foundation_config: &mktg_next_uk_nextads_candidat
             - ${var.job_parameter_environment_name}
             - --run_date
             - "{{job.parameters.run_date}}"
+            - --git_commit
+            - ${var.git_commit_sha}
         job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
         libraries: ${var.shared_libraries}
         max_retries: 2
@@ -70,6 +72,8 @@ mktg_next_uk_nextads_candidate_foundation_config: &mktg_next_uk_nextads_candidat
             - "{{job.parameters.run_date}}"
             - --foundation_snapshot_id
             - "candidate_foundation_{{job.parameters.run_date}}_{{job.run_id}}"
+            - --git_commit
+            - ${var.git_commit_sha}
         job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
         libraries: ${var.shared_libraries}
         max_retries: 2
@@ -86,6 +90,8 @@ mktg_next_uk_nextads_candidate_foundation_config: &mktg_next_uk_nextads_candidat
             - "{{job.parameters.run_date}}"
             - --foundation_snapshot_id
             - "candidate_foundation_{{job.parameters.run_date}}_{{job.run_id}}"
+            - --git_commit
+            - ${var.git_commit_sha}
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         max_retries: 2
@@ -116,10 +122,10 @@ mktg_next_uk_nextads_candidate_foundation_config: &mktg_next_uk_nextads_candidat
             - "{{tasks.combine_customer_cells.values.customer_cells_selection_status}}"
             - --customer_cells_row_count
             - "{{tasks.combine_customer_cells.values.customer_cells_row_count}}"
-            - --customer_cells_content_checksum
-            - "{{tasks.combine_customer_cells.values.customer_cells_content_checksum}}"
             - --customer_cells_schema_checksum
             - "{{tasks.combine_customer_cells.values.customer_cells_schema_checksum}}"
+            - --customer_cells_write_receipt_id
+            - "{{tasks.combine_customer_cells.values.customer_cells_write_receipt_id}}"
             - --customer_cells_warning_count
             - "{{tasks.combine_customer_cells.values.customer_cells_warning_count}}"
             - --repeat_ad_exposure_table
@@ -128,8 +134,10 @@ mktg_next_uk_nextads_candidate_foundation_config: &mktg_next_uk_nextads_candidat
             - "{{tasks.build_repeat_ad_exposure.values.repeat_ad_exposure_delta_version}}"
             - --repeat_ad_exposure_row_count
             - "{{tasks.build_repeat_ad_exposure.values.repeat_ad_exposure_row_count}}"
-            - --repeat_ad_exposure_content_checksum
-            - "{{tasks.build_repeat_ad_exposure.values.repeat_ad_exposure_content_checksum}}"
+            - --repeat_ad_exposure_schema_checksum
+            - "{{tasks.build_repeat_ad_exposure.values.repeat_ad_exposure_schema_checksum}}"
+            - --repeat_ad_exposure_write_receipt_id
+            - "{{tasks.build_repeat_ad_exposure.values.repeat_ad_exposure_write_receipt_id}}"
             - --repeat_ad_exposure_source_bindings_json
             - "{{tasks.build_repeat_ad_exposure.values.repeat_ad_exposure_source_bindings_json}}"
             - --ad_feedback_table
@@ -138,14 +146,18 @@ mktg_next_uk_nextads_candidate_foundation_config: &mktg_next_uk_nextads_candidat
             - "{{tasks.build_ad_feedback.values.ad_feedback_delta_version}}"
             - --ad_feedback_row_count
             - "{{tasks.build_ad_feedback.values.ad_feedback_row_count}}"
-            - --ad_feedback_content_checksum
-            - "{{tasks.build_ad_feedback.values.ad_feedback_content_checksum}}"
+            - --ad_feedback_schema_checksum
+            - "{{tasks.build_ad_feedback.values.ad_feedback_schema_checksum}}"
+            - --ad_feedback_write_receipt_id
+            - "{{tasks.build_ad_feedback.values.ad_feedback_write_receipt_id}}"
             - --ad_feedback_source_bindings_json
             - "{{tasks.build_ad_feedback.values.ad_feedback_source_bindings_json}}"
             - --task_run_id
             - "{{task.run_id}}"
             - --execution_count
             - "{{task.execution_count}}"
+            - --git_commit
+            - ${var.git_commit_sha}
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1

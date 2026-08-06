@@ -12,7 +12,7 @@ from pyspark.sql import functions as F
 from next_ads.ranking.scoring_inputs import read_delta_version
 
 
-CANDIDATE_FOUNDATION_CONTRACT_VERSION = "nextads_candidate_foundation/v1"
+CANDIDATE_FOUNDATION_CONTRACT_VERSION = "nextads_candidate_foundation/v2"
 READY_FOR_NEXTADS = "READY_FOR_NEXTADS"
 FALLBACK_PREVIOUS = "FALLBACK_PREVIOUS"
 ACCEPTED_FOUNDATION_STATUSES = frozenset(
@@ -40,7 +40,9 @@ def parse_run_date(value: date | str) -> date:
         try:
             return date.fromisoformat(value)
         except ValueError as exc:
-            raise ValueError("run_date must use ISO format YYYY-MM-DD") from exc
+            raise ValueError(
+                "run_date must use ISO format YYYY-MM-DD"
+            ) from exc
     raise ValueError("run_date must be a date or ISO date string")
 
 
@@ -96,30 +98,24 @@ def build_repeat_ad_exposure(
     start_date = logical_date - timedelta(days=7)
     end_date = logical_date - timedelta(days=1)
 
-    web_sessions = (
-        sessions.where(
-            (F.col("SiteCountry") == "UK")
-            & F.col("Device").isin("Mobile", "Desktop")
-            & F.col("Date").between(F.lit(start_date), F.lit(end_date))
-            & F.col("AccountNumber_RPID").isNotNull()
-        )
-        .select(
-            "UniqueVisitID",
-            "Date",
-            F.col("AccountNumber_RPID").alias("AccountNumber"),
-        )
+    web_sessions = sessions.where(
+        (F.col("SiteCountry") == "UK")
+        & F.col("Device").isin("Mobile", "Desktop")
+        & F.col("Date").between(F.lit(start_date), F.lit(end_date))
+        & F.col("AccountNumber_RPID").isNotNull()
+    ).select(
+        "UniqueVisitID",
+        "Date",
+        F.col("AccountNumber_RPID").alias("AccountNumber"),
     )
-    app_sessions = (
-        sessions_app.where(
-            (F.col("SiteCountry") == "UK")
-            & F.col("Date").between(F.lit(start_date), F.lit(end_date))
-            & F.col("AccountNumber_RPID").isNotNull()
-        )
-        .select(
-            "UniqueVisitID",
-            "Date",
-            F.col("AccountNumber_RPID").alias("AccountNumber"),
-        )
+    app_sessions = sessions_app.where(
+        (F.col("SiteCountry") == "UK")
+        & F.col("Date").between(F.lit(start_date), F.lit(end_date))
+        & F.col("AccountNumber_RPID").isNotNull()
+    ).select(
+        "UniqueVisitID",
+        "Date",
+        F.col("AccountNumber_RPID").alias("AccountNumber"),
     )
     web_actions = actions.where(
         (F.col("Action") == "Banner Impression - Next Ads")
@@ -232,8 +228,7 @@ def build_ad_feedback_metrics(
         )
     )
     return aggregated.where(
-        F.col("IncARPSAdjPct").isNotNull()
-        & ~F.isnan("IncARPSAdjPct")
+        F.col("IncARPSAdjPct").isNotNull() & ~F.isnan("IncARPSAdjPct")
     ).select("UniqueAdID", "IncARPSAdjPct")
 
 
@@ -266,9 +261,7 @@ def score_ad_feedback_metrics(
         )
     return active_metrics.withColumn(
         "AdFeedbackScore",
-        (
-            F.col("IncARPSAdjPct") / F.lit(float(scale_factor))
-        )
+        (F.col("IncARPSAdjPct") / F.lit(float(scale_factor)))
         * F.lit(float(ad_feedback_weight))
         + F.lit(1.0),
     ).select("UniqueAdID", "AdFeedbackScore")
@@ -314,7 +307,9 @@ def load_candidate_foundation_inputs(
         or version < 0
         for version in versions
     ):
-        raise ValueError("Foundation Delta versions must be non-negative integers")
+        raise ValueError(
+            "Foundation Delta versions must be non-negative integers"
+        )
 
     customer_cells = read_delta_version(
         spark,

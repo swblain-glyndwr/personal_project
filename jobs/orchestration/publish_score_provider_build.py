@@ -30,9 +30,6 @@ from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
-from next_ads.ranking.provider_compatibility import (
-    configured_compatibility_publisher,
-)
 from next_ads.ranking.provider_context import (
     load_active_provider_context,
     transition_provider_context,
@@ -55,6 +52,7 @@ def main(
     ORCHESTRATION_RUN_ID,
     TASK_RUN_ID,
     EXECUTION_COUNT,
+    GIT_COMMIT,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -94,17 +92,14 @@ def main(
         builds_table=config.tables_write.score_provider_builds,
         provider_config=provider,
         contract_version=config.scoring.contract_version,
-        compatibility_publisher=configured_compatibility_publisher(
-            spark,
-            config=config,
-            context=context,
-            provider_config=provider,
-        ),
+        git_commit=GIT_COMMIT,
         task_run_id=int(TASK_RUN_ID),
         execution_count=int(EXECUTION_COUNT),
     )
     task_values = get_dbutils().jobs.taskValues
-    task_values.set(key="provider_build_id", value=result.build.provider_build_id)
+    task_values.set(
+        key="provider_build_id", value=result.build.provider_build_id
+    )
     task_values.set(
         key="provider_signals_delta_version",
         value=result.build.output_delta_version,
@@ -120,9 +115,7 @@ def main(
     task_values.set(key="status", value=result.build.status)
     transition_provider_context(
         spark,
-        context_table=(
-            config.tables_write.score_provider_run_contexts
-        ),
+        context_table=(config.tables_write.score_provider_run_contexts),
         context=context,
         status="CONSUMED",
         completed_at=datetime.now(timezone.utc),
@@ -154,6 +147,7 @@ def parse_args():
         "ORCHESTRATION_RUN_ID": parser.get_arg("--orchestration_run_id"),
         "TASK_RUN_ID": parser.get_arg("--task_run_id"),
         "EXECUTION_COUNT": parser.get_arg("--execution_count"),
+        "GIT_COMMIT": parser.get_arg("--git_commit"),
     }
 
 

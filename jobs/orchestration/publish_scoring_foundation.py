@@ -63,6 +63,8 @@ def main(
     PIPELINE_TASK_RUN_ID,
     TASK_RUN_ID,
     EXECUTION_COUNT,
+    GIT_COMMIT,
+    CONSUME_CONTEXT=True,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -92,6 +94,7 @@ def main(
     validate_foundation_output_manifest_contract(
         spark,
         outputs_table=config.tables_write.scoring_foundation_outputs,
+        builds_table=config.tables_write.scoring_foundation_builds,
         pipeline_relations=True,
     )
     validate_foundation_build_marker(
@@ -128,6 +131,7 @@ def main(
         spark,
         context=context,
         output_specs=specs,
+        git_commit=GIT_COMMIT,
     )
     # Recheck the marker after materialising and publishing the pipeline views.
     # A different marker means another update replaced the views mid-copy, so
@@ -152,14 +156,16 @@ def main(
         task_run_id=int(TASK_RUN_ID),
         execution_count=int(EXECUTION_COUNT),
         pipeline_task_run_id=pipeline_task.pipeline_task_run_id,
+        git_commit=GIT_COMMIT,
     )
-    transition_foundation_context(
-        spark,
-        context_table=config.tables_write.scoring_foundation_run_contexts,
-        context=context,
-        status="CONSUMED",
-        completed_at=datetime.now(timezone.utc),
-    )
+    if CONSUME_CONTEXT:
+        transition_foundation_context(
+            spark,
+            context_table=config.tables_write.scoring_foundation_run_contexts,
+            context=context,
+            status="CONSUMED",
+            completed_at=datetime.now(timezone.utc),
+        )
     task_values = get_dbutils().jobs.taskValues
     task_values.set(
         key="scoring_foundation_build_id",
@@ -182,6 +188,7 @@ def main(
         build.scoring_foundation_build_id,
         ",".join(output.output_name for output in outputs),
     )
+    return build
 
 
 if __name__ == "__main__":
@@ -201,4 +208,5 @@ if __name__ == "__main__":
         parser.get_arg("--pipeline_task_run_id"),
         parser.get_arg("--task_run_id"),
         parser.get_arg("--execution_count"),
+        parser.get_arg("--git_commit"),
     )

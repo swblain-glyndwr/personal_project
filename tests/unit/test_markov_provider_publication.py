@@ -11,7 +11,6 @@ from next_ads.ranking.provider_compatibility import (
     publish_markov_compatibility_outputs,
 )
 from next_ads.ranking.provider_context import ProviderContext
-from next_ads.ranking.provider_publication import summarise_provider_signals
 from next_ads.ranking.provider_signals import (
     adapt_configured_provider_scores,
 )
@@ -64,10 +63,13 @@ def _markov_config():
 
 
 def _rows(frame):
-    return sorted(tuple(row[column] for column in frame.columns) for row in frame.collect())
+    return sorted(
+        tuple(row[column] for column in frame.columns)
+        for row in frame.collect()
+    )
 
 
-def test_markov_adapter_and_checksum_are_partition_stable(spark):
+def test_markov_adapter_is_partition_stable(spark):
     source = spark.createDataFrame(
         [
             ("account-a", "menswear", 0.8, 0.2, 0.6),
@@ -91,18 +93,7 @@ def test_markov_adapter_and_checksum_are_partition_stable(spark):
         )
         for partitions in (1, 4, 8)
     ]
-    summaries = [
-        summarise_provider_signals(
-            frame,
-            context=context,
-            max_entities_per_account=100,
-        )
-        for frame in variants
-    ]
-
     assert _rows(variants[0]) == _rows(variants[1]) == _rows(variants[2])
-    assert summaries[0] == summaries[1] == summaries[2]
-    assert summaries[0].output_checksum
 
 
 def test_markov_legacy_and_canonical_scores_match_within_tolerance(spark):
@@ -136,8 +127,7 @@ def test_markov_legacy_and_canonical_scores_match_within_tolerance(spark):
                 "raw_difference"
             ),
             F.abs(
-                F.col("source.ProbAggRebased")
-                - F.col("legacy.ProbAggRebased")
+                F.col("source.ProbAggRebased") - F.col("legacy.ProbAggRebased")
             ).alias("score_difference"),
             F.abs(F.col("source.ProbBase") - F.col("legacy.ProbBase")).alias(
                 "base_difference"
@@ -323,5 +313,8 @@ def test_shared_publisher_entrypoint_has_no_model_specific_runtime_import():
 
     assert "theme_affinity" not in source
     assert "markov" not in source
-    assert "configured_compatibility_publisher(" in source
+    assert "configured_compatibility_publisher(" not in source
     assert "publish_provider_build(" in source
+    assert (
+        PROJECT_ROOT / "jobs/orchestration/publish_provider_compatibility.py"
+    ).is_file()

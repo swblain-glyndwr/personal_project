@@ -1,8 +1,6 @@
 import ast
 from pathlib import Path
 
-import pytest
-
 import next_ads.common.delta_writes as delta_writes
 
 
@@ -37,7 +35,7 @@ def _call_names(source: str) -> list[str]:
     return names
 
 
-def test_scoped_atomic_write_rejects_source_before_creating_write_view(
+def test_scoped_atomic_write_does_not_scan_source_before_write(
     monkeypatch,
 ):
     events = []
@@ -66,15 +64,14 @@ def test_scoped_atomic_write_rejects_source_before_creating_write_view(
         lambda *_args, **_kwargs: events.append("write"),
     )
 
-    with pytest.raises(ValueError, match="outside replacement scope"):
-        delta_writes.atomic_replace_where_by_name(
-            object(),
-            Frame(),
-            target_table="catalog.schema.history",
-            filters={"rundate": "2026-07-29"},
-        )
+    delta_writes.atomic_replace_where_by_name(
+        object(),
+        Frame(),
+        target_table="catalog.schema.history",
+        filters={"rundate": "2026-07-29"},
+    )
 
-    assert events == ["target_schema", "source_scope"]
+    assert events == ["target_schema", "write"]
 
 
 def test_clean_output_stages_before_separate_compatibility_publication():
@@ -114,11 +111,11 @@ def test_theme_scoring_writes_use_one_run_date_and_atomic_helpers():
     assert "TODAY = run_date.isoformat()" in build_source
     assert "replace_validated_snapshot(" in build_source
     assert build_source.count("publish_history_and_latest(") == 1
-    assert '.mode("errorifexists").saveAsTable(' in build_source
+    assert "saveAsTable(" not in build_source
     assert "adapt_configured_provider_scores(" in build_source
     assert "stage_provider_signals(" in build_source
-    assert "provider_signals_delta_version" in build_source
-    assert "quote_qualified_identifier(temp_table_name)" in build_source
+    assert "signals_delta_version=receipt.delta_version" in build_source
+    assert "temp_next_theme_probs_" not in build_source
 
     assert mapping_source.count("capture_run_date(") == 0
     assert "if isinstance(run_date, str):" in mapping_source

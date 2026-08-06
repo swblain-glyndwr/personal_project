@@ -1,12 +1,10 @@
-"""Run every scope for one assignment phase on a shared job cluster."""
+"""Build and atomically publish every scope for one assignment route."""
 
 from __future__ import annotations
 
-import runpy
 import sys
-from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
-from typing import Any
 
 try:
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -26,162 +24,166 @@ finally:
     sys.path.insert(0, str(SRC_ROOT))
     sys.path.insert(1, str(PROJECT_ROOT))
 
+from pyspark import StorageLevel
+
 from dsutils.argparser import get_job_parser
+from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
 from jobs.nextads_assignment.publish_build import (
-    ScopeManifestEntry,
+    build_assignment_scope_contract,
     parse_scope_manifest_json,
+    resolve_assignment_tables,
+    validate_configured_scope_manifest,
 )
-from next_ads.decisioning.candidate_inputs import clear_candidate_input_cache
-
-
-VALID_PHASES = {
-    "v1": frozenset({"primary", "secondary"}),
-    "v2": frozenset({"all"}),
-}
-COMMON_ARGUMENTS = (
-    "--client",
-    "--job_env",
-    "--scope_manifest_json",
-    "--run_date",
-    "--build_run_id",
-    "--candidate_build_attempt_id",
-    "--task_run_id",
-    "--execution_count",
-    "--customer_cells_table",
-    "--customer_cells_delta_version",
+from next_ads.common import config_manager, etl
+from next_ads.common.paths import load_client_config
+from next_ads.common.spark_runtime import configure_lean_spark
+from next_ads.decisioning.assignment_publication import (
+    AssignmentColumnContract,
+    publish_bulk_assignment_build,
 )
+from next_ads.decisioning.bulk_assignment import (
+    build_v1_assignments,
+    build_v2_assignments,
+)
+from next_ads.decisioning.candidate_inputs import (
+    load_accepted_candidate_inputs,
+)
+from next_ads.ranking.scoring_inputs import read_delta_version
 
 
-@dataclass(frozen=True)
-class ScopeInvocation:
-    scope: str
-    script: Path
-    arguments: tuple[str, ...]
-
-
-def _required_arg(job_parser: Any, name: str) -> str:
-    value = job_parser.get_arg(name)
+def _required(parser, name: str) -> str:
+    value = parser.get_arg(name)
     if value is None or not str(value).strip():
         raise ValueError(f"{name} must be provided")
     return str(value).strip()
 
 
-def select_phase_entries(
-    manifest: tuple[ScopeManifestEntry, ...],
-    *,
-    route: str,
-    phase: str,
-) -> tuple[ScopeManifestEntry, ...]:
-    if route not in VALID_PHASES:
-        raise ValueError("--route must be one of: v1, v2")
-    if phase not in VALID_PHASES[route]:
-        raise ValueError(
-            f"--phase must be one of: {', '.join(sorted(VALID_PHASES[route]))}"
-        )
-    entries = (
-        manifest
-        if route == "v2"
-        else tuple(entry for entry in manifest if entry.phase == phase)
-    )
-    if not entries:
-        raise ValueError(f"No {route} assignment scopes found for phase {phase}")
-    return entries
-
-
-def build_scope_invocations(
-    *,
-    project_root: Path,
-    route: str,
-    phase: str,
-    manifest: tuple[ScopeManifestEntry, ...],
-    common_arguments: tuple[str, ...],
-) -> tuple[ScopeInvocation, ...]:
-    entries = select_phase_entries(manifest, route=route, phase=phase)
-    script = (
-        project_root / "jobs/nextads_assignment/build_page.py"
-        if route == "v1"
-        else project_root / "jobs/nextads_v2/build_page.py"
-    )
-    invocations = []
-    for entry in entries:
-        scope_arguments = (
-            ("--location", entry.scope)
-            if route == "v1"
-            else ("--page_type", entry.scope)
-        )
-        inheritance_arguments = (
-            ("--inherit_basic_from", entry.inherit_basic_from)
-            if entry.inherit_basic_from
-            else ()
-        )
-        invocations.append(
-            ScopeInvocation(
-                scope=entry.scope,
-                script=script,
-                arguments=(
-                    *common_arguments,
-                    *scope_arguments,
-                    *inheritance_arguments,
-                ),
-            )
-        )
-    return tuple(invocations)
+def _integer(parser, name: str, *, minimum: int) -> int:
+    raw = _required(parser, name)
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if value < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    return value
 
 
 def main() -> None:
     parser = get_job_parser()
     parser._parse_args()
-    route = _required_arg(parser, "--route").lower()
-    phase = _required_arg(parser, "--phase").lower()
+    job_env = _required(parser, "--job_env")
+    client = _required(parser, "--client")
+    route = _required(parser, "--route").lower()
+    if route not in {"v1", "v2"}:
+        raise ValueError("--route must be one of: v1, v2")
     log_level = parser.get_arg("--log_level")
-    configure_logging(log_level=log_level) if log_level else configure_logging()
+    configure_logging(
+        log_level=log_level
+    ) if log_level else configure_logging()
     logger = get_logger(__name__)
-    raw_manifest = _required_arg(parser, "--scope_manifest_json")
-    manifest = parse_scope_manifest_json(raw_manifest)
-    common_arguments = tuple(
-        value
-        for name in COMMON_ARGUMENTS
-        for value in (name, _required_arg(parser, name))
+    try:
+        run_date = date.fromisoformat(_required(parser, "--run_date"))
+    except ValueError as exc:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
+    build_run_id = _required(parser, "--build_run_id")
+    candidate_attempt = _required(parser, "--candidate_build_attempt_id")
+    task_run_id = _integer(parser, "--task_run_id", minimum=1)
+    execution_count = _integer(parser, "--execution_count", minimum=0)
+    cells_table = _required(parser, "--customer_cells_table")
+    cells_version = _integer(
+        parser, "--customer_cells_delta_version", minimum=0
     )
-    if log_level:
-        common_arguments = (*common_arguments, "--log_level", str(log_level))
-    invocations = build_scope_invocations(
-        project_root=PROJECT_ROOT,
-        route=route,
-        phase=phase,
-        manifest=manifest,
-        common_arguments=common_arguments,
+    git_commit = _required(parser, "--git_commit")
+    manifest = parse_scope_manifest_json(
+        _required(parser, "--scope_manifest_json")
     )
 
-    original_argv = sys.argv[:]
-    try:
-        for index, invocation in enumerate(invocations, start=1):
-            logger.info(
-                "Building %s assignment scope %s (%s/%s)",
-                route,
-                invocation.scope,
-                index,
-                len(invocations),
-            )
-            sys.argv = [str(invocation.script), *invocation.arguments]
-            runpy.run_path(
-                str(invocation.script),
-                run_name=f"__nextads_{route}_{invocation.scope}__",
-            )
-    finally:
-        sys.argv = original_argv
-        clear_candidate_input_cache()
+    spark = configure_spark()
+    configure_lean_spark(spark)
+    config = config_manager.load_config(job_env, client=client)
+    cfg = load_client_config(client)
+    validate_configured_scope_manifest(config, route, manifest)
+    scope_contract = build_assignment_scope_contract(route, manifest)
+    tables = resolve_assignment_tables(config, route)
+
+    cells = (
+        read_delta_version(spark, cells_table, cells_version)
+        .drop("rundate")
+        .persist(StorageLevel.MEMORY_AND_DISK)
+    )
+    candidates = load_accepted_candidate_inputs(
+        spark,
+        builds_table=config.tables_write.candidate_builds,
+        scores_table=config.tables_write.candidate_scores,
+        ad_sets_table=config.tables_write.candidate_ad_sets,
+        candidate_build_attempt_id=candidate_attempt,
+        route=route,
+    )
+    nextgen_table = cfg["tables"]["read"]["nextgenads_assignments_latest"]
+    logger.info(
+        "Building %s assignments as one graph across %s scopes",
+        route,
+        len(manifest),
+    )
+    if route == "v1":
+        control = spark.table(
+            config.tables_write.control_sheet_latest
+        ).persist(StorageLevel.MEMORY_AND_DISK)
+        results_table = etl.map_tbl(
+            cfg["tables"]["write"]["results_ads"],
+            catalog=config.catalog_read,
+            schema=config.schema_read,
+            client=client,
+        )
+        assignments = build_v1_assignments(
+            spark,
+            cfg=cfg,
+            scope_manifest=manifest,
+            control=control,
+            customer_cells=cells,
+            candidate_inputs=candidates,
+            nextgen_assignments_table=nextgen_table,
+            results=spark.table(results_table),
+            run_date=run_date,
+        )
+    else:
+        control = spark.table(
+            config.tables_write.control_sheet_latest_v2
+        ).persist(StorageLevel.MEMORY_AND_DISK)
+        assignments = build_v2_assignments(
+            spark,
+            cfg=cfg,
+            page_types=tuple(entry.scope for entry in manifest),
+            control=control,
+            customer_cells=cells,
+            candidate_inputs=candidates,
+            nextgen_assignments_table=nextgen_table,
+        )
+
+    logger.info(
+        "Validating the final %s key once, then publishing history and latest",
+        route,
+    )
+    publish_bulk_assignment_build(
+        spark,
+        assignments,
+        tables=tables,
+        columns=AssignmentColumnContract(),
+        scope_contract=scope_contract,
+        build_run_id=build_run_id,
+        build_date=run_date,
+        task_run_id=task_run_id,
+        execution_count=execution_count,
+        provenance=candidates.provenance,
+        git_commit=git_commit,
+    )
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = [
-    "ScopeInvocation",
-    "build_scope_invocations",
-    "main",
-    "select_phase_entries",
-]
+__all__ = ["main"]

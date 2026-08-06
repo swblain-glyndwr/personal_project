@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pyspark.sql import functions as F
 
 from next_ads.ranking.provider_context import (
     ProviderContext,
@@ -14,9 +13,8 @@ from next_ads.ranking.provider_context import (
 )
 from next_ads.ranking.provider_signals import adapt_account_theme_scores
 from next_ads.ranking.scoring_inputs import (
-    ContentSummary,
+    InputVersionBinding,
     build_input_snapshot_id,
-    summarise_content,
 )
 
 
@@ -53,50 +51,61 @@ def _context():
     )
 
 
-def test_input_identity_excludes_delta_version_provenance():
-    summary = ContentSummary(10, 10, 0, 0, "checksum")
-
+def test_input_identity_binds_exact_version_schema_and_git_commit():
+    binding = InputVersionBinding(
+        table="catalog.schema.item_themes",
+        delta_version=7,
+        schema_version="item_themes/v2",
+        schema_checksum="schema-a",
+    )
     first = build_input_snapshot_id(
         RUN_DATE,
-        {"item_themes": summary},
+        {"item_themes": binding},
+        git_commit="abc123",
     )
-    rewritten_same_content = build_input_snapshot_id(
+    same_binding = build_input_snapshot_id(
         RUN_DATE,
-        {"item_themes": summary},
+        {"item_themes": binding},
+        git_commit="abc123",
+    )
+    rewritten_table = build_input_snapshot_id(
+        RUN_DATE,
+        {
+            "item_themes": InputVersionBinding(
+                table=binding.table,
+                delta_version=8,
+                schema_version=binding.schema_version,
+                schema_checksum=binding.schema_checksum,
+            )
+        },
+        git_commit="abc123",
+    )
+    changed_code = build_input_snapshot_id(
+        RUN_DATE,
+        {"item_themes": binding},
+        git_commit="def456",
     )
 
-    assert first == rewritten_same_content
+    assert first == same_binding
+    assert rewritten_table != first
+    assert changed_code != first
 
 
-def test_input_acceptance_treats_null_logical_dates_as_invalid():
+def test_input_acceptance_uses_not_null_date_contracts_without_data_scan():
     acceptance = (
         PROJECT_ROOT / "jobs/nextads_control/accept_scoring_inputs.py"
     ).read_text()
-    mapping = (
-        PROJECT_ROOT / "jobs/nextads_control/parse_theme_mapping.py"
+    snapshots_sql = (
+        PROJECT_ROOT / "sql/ranking/create_table_scoring_input_snapshots.sql"
+    ).read_text()
+    sources_sql = (
+        PROJECT_ROOT
+        / "sql/ranking/create_table_scoring_input_snapshot_sources.sql"
     ).read_text()
 
-    assert 'F.col("RunDate").isNull()' in acceptance
-    assert 'F.col("rundate").isNull()' in acceptance
-    assert 'F.col("RunDate").isNull()' in mapping
-
-
-def test_content_checksum_is_partition_and_order_stable(spark):
-    frame = spark.createDataFrame(
-        [("2", "b", 2), ("1", "a", 1), ("3", "c", 3)],
-        ["pid", "theme", "theme_rank"],
-    )
-
-    one = summarise_content(
-        frame.repartition(1),
-        key_columns=("pid", "theme"),
-    )
-    four = summarise_content(
-        frame.orderBy(F.desc("pid")).repartition(4),
-        key_columns=("pid", "theme"),
-    )
-
-    assert one == four
+    assert 'F.col("RunDate").isNull()' not in acceptance
+    assert "RunDate date not null" in snapshots_sql
+    assert "RunDate date not null" in sources_sql
 
 
 def test_provider_build_identity_requires_exact_model_and_semantic_config():
@@ -258,11 +267,14 @@ def test_pinned_item_themes_rejects_empty_or_wrong_date(spark, monkeypatch):
             frame if (name, version) == (table, 7) else None
         ),
     )
-    assert pinned_item_themes(
-        spark,
-        context,
-        input_table=table,
-    ).count() == 1
+    assert (
+        pinned_item_themes(
+            spark,
+            context,
+            input_table=table,
+        ).count()
+        == 1
+    )
     wrong_date = ProviderContext(
         **{
             **context.__dict__,
@@ -314,8 +326,7 @@ def test_canonical_adapter_allows_constant_finite_scores(spark):
 def test_jobs_pin_same_day_inputs_and_static_context_slot():
     affinity = yaml.safe_load(
         (
-            PROJECT_ROOT
-            / "pipelines/databricks/jobs/"
+            PROJECT_ROOT / "pipelines/databricks/jobs/"
             "mktg_next_uk_nextads_theme_affinity.yml"
         ).read_text()
     )["mktg_next_uk_nextads_theme_affinity_config"][
@@ -323,8 +334,7 @@ def test_jobs_pin_same_day_inputs_and_static_context_slot():
     ]
     inputs = yaml.safe_load(
         (
-            PROJECT_ROOT
-            / "pipelines/databricks/jobs/"
+            PROJECT_ROOT / "pipelines/databricks/jobs/"
             "mktg_next_uk_nextads_theme_inputs.yml"
         ).read_text()
     )["mktg_next_uk_nextads_theme_inputs_config"][
@@ -344,26 +354,29 @@ def test_jobs_pin_same_day_inputs_and_static_context_slot():
     foundation_parameters = prepare_foundation["spark_python_task"][
         "parameters"
     ]
-    assert int(
-        foundation_parameters[
-            foundation_parameters.index("--readiness_wait_seconds") + 1
-        ]
-    ) == 5400
+    assert (
+        int(
+            foundation_parameters[
+                foundation_parameters.index("--readiness_wait_seconds") + 1
+            ]
+        )
+        == 5400
+    )
     assert prepare_foundation["timeout_seconds"] > 5400
 
-    prepare_provider = next(
+    publish_and_score = next(
         task
         for task in affinity["tasks"]
-        if task["task_key"] == "prepare_provider_context"
+        if task["task_key"] == "publish_and_score"
     )
-    parameters = prepare_provider["spark_python_task"]["parameters"]
-    assert parameters[parameters.index("--context_slot") + 1] == (
+    parameters = publish_and_score["spark_python_task"]["parameters"]
+    assert parameters[parameters.index("--provider_context_slot") + 1] == (
         "theme_affinity_serving"
     )
-    assert int(
-        parameters[parameters.index("--readiness_wait_seconds") + 1]
-    ) == 0
-    assert prepare_provider["timeout_seconds"] > 0
+    assert publish_and_score["job_cluster_key"] == (
+        "next_ads_job_cluster_D32ads_v5_1_4"
+    )
+    assert publish_and_score["timeout_seconds"] == 10800
 
 
 def _task_parameter_map(task):
@@ -373,10 +386,9 @@ def _task_parameter_map(task):
     while index < len(parameters):
         name = parameters[index]
         next_index = index + 1
-        if (
-            next_index == len(parameters)
-            or str(parameters[next_index]).startswith("--")
-        ):
+        if next_index == len(parameters) or str(
+            parameters[next_index]
+        ).startswith("--"):
             parsed[name] = True
             index += 1
         else:
@@ -385,11 +397,10 @@ def _task_parameter_map(task):
     return parsed
 
 
-def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
+def test_provider_lifecycle_is_flattened_without_serial_publication_tasks():
     affinity = yaml.safe_load(
         (
-            PROJECT_ROOT
-            / "pipelines/databricks/jobs/"
+            PROJECT_ROOT / "pipelines/databricks/jobs/"
             "mktg_next_uk_nextads_theme_affinity.yml"
         ).read_text()
     )["mktg_next_uk_nextads_theme_affinity_config"][
@@ -397,181 +408,41 @@ def test_provider_lifecycle_tasks_use_neutral_entrypoints_and_complete_args():
     ]
     markov = yaml.safe_load(
         (
-            PROJECT_ROOT
-            / "pipelines/databricks/jobs/"
+            PROJECT_ROOT / "pipelines/databricks/jobs/"
             "mktg_next_uk_nextads_markov_scoring.yml"
         ).read_text()
     )["mktg_next_uk_nextads_markov_scoring_config"][
         "mktg_next_uk_nextads_markov_scoring_cicd"
     ]
-    affinity_tasks = {
-        task["task_key"]: task for task in affinity["tasks"]
-    }
+    affinity_tasks = {task["task_key"]: task for task in affinity["tasks"]}
     markov_tasks = {task["task_key"]: task for task in markov["tasks"]}
 
-    neutral_prepare = (
-        "../../../jobs/orchestration/prepare_score_provider_context.py"
-    )
-    neutral_finalize = (
-        "../../../jobs/orchestration/finalize_score_provider_context.py"
-    )
-    neutral_publish = (
-        "../../../jobs/orchestration/publish_score_provider_build.py"
-    )
-    assert (
-        affinity_tasks["prepare_provider_context"]["spark_python_task"][
-            "python_file"
-        ]
-        == neutral_prepare
-    )
-    assert (
-        markov_tasks["prepare_provider_context"]["spark_python_task"][
-            "python_file"
-        ]
-        == neutral_prepare
-    )
-    assert (
-        markov_tasks["finalize_provider_context"]["spark_python_task"][
-            "python_file"
-        ]
-        == neutral_finalize
-    )
-    assert (
-        affinity_tasks["finalize_provider_context"]["spark_python_task"][
-            "python_file"
-        ]
-        == neutral_finalize
-    )
-    assert (
-        affinity_tasks["publish_provider_build"]["spark_python_task"][
-            "python_file"
-        ]
-        == neutral_publish
-    )
-    assert (
-        markov_tasks["publish_provider_build"]["spark_python_task"][
-            "python_file"
-        ]
-        == neutral_publish
-    )
-
-    expected_prepare = {
-        "--client",
-        "--job_env",
-        "--run_date",
-        "--input_snapshot_id",
-        "--model_uri",
-        "--context_slot",
-        "--readiness_wait_seconds",
-        "--readiness_poll_seconds",
-        "--task_run_id",
-        "--execution_count",
-        "--orchestration_run_id",
-        "--log_level",
+    assert set(affinity_tasks) == {
+        "prepare_foundation_context",
+        "predict_data_prep",
+        "publish_and_score",
     }
-    assert set(
-        _task_parameter_map(affinity_tasks["prepare_provider_context"])
-    ) == expected_prepare | {
-        "--allow-serial-run-takeover",
-        "--scoring_foundation_build_id",
-        "--scoring_foundation_build_attempt_id",
-    }
-    assert set(
-        _task_parameter_map(markov_tasks["prepare_provider_context"])
-    ) == expected_prepare | {
-        "--allow-serial-run-takeover",
-        "--provider_id",
-        "--use_case",
-    }
-    assert set(_task_parameter_map(markov_tasks["build_markov_scores"])) == {
-        "--client",
-        "--job_env",
-        "--refresh_model_date",
-        "--run_date",
-        "--input_snapshot_id",
-        "--provider_build_id",
-        "--provider_build_attempt_id",
-        "--context_slot",
-        "--orchestration_run_id",
-    }
-
-    assert set(_task_parameter_map(affinity_tasks["model_predict"])) == {
-        "--client",
-        "--job_env",
-        "--model_uri",
-        "--run_date",
-        "--input_snapshot_id",
-        "--provider_build_id",
-        "--provider_build_attempt_id",
-        "--context_slot",
-        "--log_level",
-    }
-    assert set(
-        _task_parameter_map(affinity_tasks["publish_provider_build"])
-    ) == {
-        "--client",
-        "--job_env",
-        "--run_date",
-        "--input_snapshot_id",
-        "--provider_build_id",
-        "--provider_build_attempt_id",
-        "--provider_signals_delta_version",
-        "--context_slot",
-        "--orchestration_run_id",
-        "--task_run_id",
-        "--execution_count",
-        "--log_level",
-    }
-    assert set(
-        _task_parameter_map(markov_tasks["publish_provider_build"])
-    ) == {
-        "--client",
-        "--job_env",
-        "--run_date",
-        "--input_snapshot_id",
-        "--provider_build_id",
-        "--provider_build_attempt_id",
-        "--provider_signals_delta_version",
-        "--context_slot",
-        "--orchestration_run_id",
-        "--task_run_id",
-        "--execution_count",
-        "--log_level",
-    }
-    publish_parameters = _task_parameter_map(
-        affinity_tasks["publish_provider_build"]
-    )
-    assert publish_parameters["--provider_signals_delta_version"] == (
-        "{{tasks.model_predict.values.provider_signals_delta_version}}"
-    )
-    markov_publish_parameters = _task_parameter_map(
-        markov_tasks["publish_provider_build"]
-    )
-    assert markov_publish_parameters[
-        "--provider_signals_delta_version"
-    ] == (
-        "{{tasks.build_markov_scores.values."
-        "provider_signals_delta_version}}"
-    )
-    assert "clean_output" not in affinity_tasks
-
-    expected_finalize = {
-        "--client",
-        "--job_env",
-        "--context_slot",
-        "--orchestration_run_id",
-        "--status",
-        "--log_level",
-    }
-    assert set(
-        _task_parameter_map(affinity_tasks["finalize_provider_context"])
-    ) == expected_finalize
-    assert affinity_tasks["finalize_provider_context"]["depends_on"] == [
-        {"task_key": "publish_provider_build"}
+    assert affinity_tasks["publish_and_score"]["depends_on"] == [
+        {"task_key": "predict_data_prep"}
     ]
-    assert set(
-        _task_parameter_map(markov_tasks["finalize_provider_context"])
-    ) == expected_finalize
-    assert markov_tasks["finalize_provider_context"]["depends_on"] == [
-        {"task_key": "publish_provider_build"}
-    ]
+    assert (
+        affinity_tasks["publish_and_score"]["spark_python_task"]["python_file"]
+        == "../../../jobs/orchestration/publish_theme_affinity.py"
+    )
+    affinity_parameters = _task_parameter_map(
+        affinity_tasks["publish_and_score"]
+    )
+    assert affinity_parameters["--pipeline_task_run_id"] == (
+        "{{tasks.predict_data_prep.run_id}}"
+    )
+    assert "--git_commit" in affinity_parameters
+
+    assert set(markov_tasks) == {"build_and_publish_markov"}
+    markov_task = markov_tasks["build_and_publish_markov"]
+    assert markov_task["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_candidates/build_theme_scores.py"
+    )
+    assert markov_task["job_cluster_key"] == (
+        "next_ads_job_cluster_D32ads_v5_1_4"
+    )
+    assert "--git_commit" in _task_parameter_map(markov_task)

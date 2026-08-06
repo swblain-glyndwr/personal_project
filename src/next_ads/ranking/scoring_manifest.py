@@ -103,15 +103,15 @@ class ScoringInputSource:
     source_table: str
     delta_version: int
     schema_version: str
+    schema_checksum: str
     is_required: bool
-    row_count: int
-    distinct_key_count: int
-    null_key_count: int
-    duplicate_key_count: int
-    content_checksum: str
     task_run_id: int
     execution_count: int
     captured_at: datetime
+    accepted_table: str | None = None
+    accepted_delta_version: int | None = None
+    accepted_schema_checksum: str | None = None
+    write_receipt_id: str | None = None
 
     def __post_init__(self) -> None:
         """Validate one pinned scoring input source."""
@@ -122,25 +122,24 @@ class ScoringInputSource:
             "source_role",
             "source_table",
             "schema_version",
-            "content_checksum",
+            "schema_checksum",
         ):
             _text(getattr(self, name), name)
         _date(self.run_date, "run_date")
         _timestamp(self.captured_at, "captured_at")
         if not isinstance(self.is_required, bool):
             raise ValueError("is_required must be a boolean")
-        for name in (
-            "delta_version",
-            "row_count",
-            "distinct_key_count",
-            "null_key_count",
-            "duplicate_key_count",
-            "execution_count",
-        ):
+        for name in ("delta_version", "execution_count"):
             _count(getattr(self, name), name)
         _count(self.task_run_id, "task_run_id", 1)
-        if self.distinct_key_count > self.row_count:
-            raise ValueError("distinct_key_count must not exceed row_count")
+        for name in (
+            "accepted_table",
+            "accepted_schema_checksum",
+            "write_receipt_id",
+        ):
+            _optional_text(getattr(self, name), name)
+        if self.accepted_delta_version is not None:
+            _count(self.accepted_delta_version, "accepted_delta_version")
 
 
 @dataclass(frozen=True)
@@ -149,6 +148,7 @@ class ScoringInputSnapshot:
     input_snapshot_attempt_id: str
     run_date: date
     input_schema_version: str
+    git_commit: str
     status: str
     warning_count: int
     task_run_id: int
@@ -161,6 +161,7 @@ class ScoringInputSnapshot:
         _text(self.input_snapshot_id, "input_snapshot_id")
         _text(self.input_snapshot_attempt_id, "input_snapshot_attempt_id")
         _text(self.input_schema_version, "input_schema_version")
+        _text(self.git_commit, "git_commit")
         _date(self.run_date, "run_date")
         _timestamp(self.completed_at, "completed_at")
         if self.status not in VALID_INPUT_STATUSES:
@@ -197,21 +198,6 @@ class ScoringInputSnapshot:
         if self.status in {READY, READY_WITH_WARNINGS}:
             if not sources:
                 raise ValueError("A ready input snapshot must contain sources")
-            invalid_required_sources = [
-                source.source_name
-                for source in sources
-                if source.is_required
-                and (
-                    source.row_count == 0
-                    or source.null_key_count
-                    or source.duplicate_key_count
-                )
-            ]
-            if invalid_required_sources:
-                raise ValueError(
-                    "Required input sources are structurally invalid: "
-                    + ", ".join(invalid_required_sources)
-                )
 
 
 @dataclass(frozen=True)
@@ -229,12 +215,10 @@ class ScoringFoundationOutput:
     output_schema_checksum: str
     is_required: bool
     row_count: int
-    account_count: int
-    entity_count: int
-    null_key_count: int
-    duplicate_key_count: int
-    invalid_value_count: int
-    output_checksum: str
+    write_receipt_id: str
+    git_commit: str
+    write_duration_ms: int
+    retry_count: int
     published_at: datetime
 
     def __post_init__(self) -> None:
@@ -248,7 +232,8 @@ class ScoringFoundationOutput:
             "output_table",
             "output_schema_version",
             "output_schema_checksum",
-            "output_checksum",
+            "write_receipt_id",
+            "git_commit",
         ):
             _text(getattr(self, name), name)
         _date(self.run_date, "run_date")
@@ -258,30 +243,14 @@ class ScoringFoundationOutput:
         for name in (
             "output_delta_version",
             "row_count",
-            "account_count",
-            "entity_count",
-            "null_key_count",
-            "duplicate_key_count",
-            "invalid_value_count",
+            "write_duration_ms",
+            "retry_count",
         ):
             _count(getattr(self, name), name)
         if self.source_delta_version is not None:
             _count(self.source_delta_version, "source_delta_version")
-        if self.account_count > self.row_count:
-            raise ValueError("account_count must not exceed row_count")
-        if self.entity_count > self.row_count:
-            raise ValueError("entity_count must not exceed row_count")
-        if self.is_required:
-            if self.row_count == 0:
-                raise ValueError("A required foundation output cannot be empty")
-            if (
-                self.null_key_count
-                or self.duplicate_key_count
-                or self.invalid_value_count
-            ):
-                raise ValueError(
-                    "A required foundation output must have valid unique keys"
-                )
+        if self.is_required and self.row_count == 0:
+            raise ValueError("A required foundation output cannot be empty")
 
 
 @dataclass(frozen=True)
@@ -296,6 +265,7 @@ class ScoringFoundationBuild:
     capability: str
     contract_version: str
     invocation_checksum: str
+    git_commit: str
     required_output_names: tuple[str, ...]
     status: str
     warning_count: int
@@ -321,6 +291,7 @@ class ScoringFoundationBuild:
             "capability",
             "contract_version",
             "invocation_checksum",
+            "git_commit",
         ):
             _text(getattr(self, name), name)
         _date(self.run_date, "run_date")
@@ -357,7 +328,9 @@ class ScoringFoundationBuild:
             required_output_names,
         )
         if not required_output_names:
-            raise ValueError("A scoring foundation must define required outputs")
+            raise ValueError(
+                "A scoring foundation must define required outputs"
+            )
         for output_name in required_output_names:
             _text(output_name, "required_output_name")
         if len(required_output_names) != len(set(required_output_names)):
@@ -380,15 +353,15 @@ class ScoringFoundationBuild:
                 self.run_date,
             )
             if identity != expected:
-                raise ValueError("Foundation outputs must match the build attempt")
+                raise ValueError(
+                    "Foundation outputs must match the build attempt"
+                )
 
         if self.status == READY_FOR_PROVIDERS:
             _text(self.pipeline_id, "pipeline_id")
             _count(self.pipeline_task_run_id, "pipeline_task_run_id", 1)
             required_outputs = {
-                output.output_name
-                for output in outputs
-                if output.is_required
+                output.output_name for output in outputs if output.is_required
             }
             if required_outputs != set(required_output_names):
                 raise ValueError(
@@ -409,13 +382,12 @@ class ScoreProviderBuild:
     contract_version: str
     status: str
     row_count: int
-    account_count: int
-    entity_count: int
-    null_key_count: int
-    duplicate_key_count: int
-    invalid_score_count: int
     warning_count: int
-    output_checksum: str | None
+    output_schema_checksum: str | None
+    write_receipt_id: str | None
+    git_commit: str
+    write_duration_ms: int
+    retry_count: int
     task_run_id: int
     execution_count: int
     completed_at: datetime
@@ -440,6 +412,7 @@ class ScoreProviderBuild:
             "provider_id",
             "provider_version",
             "contract_version",
+            "git_commit",
         ):
             _text(getattr(self, name), name)
         _date(self.run_date, "run_date")
@@ -450,12 +423,9 @@ class ScoreProviderBuild:
             )
         for name in (
             "row_count",
-            "account_count",
-            "entity_count",
-            "null_key_count",
-            "duplicate_key_count",
-            "invalid_score_count",
             "warning_count",
+            "write_duration_ms",
+            "retry_count",
             "execution_count",
         ):
             _count(getattr(self, name), name)
@@ -467,39 +437,24 @@ class ScoreProviderBuild:
             "pipeline_update_id",
             "output_snapshot_id",
             "output_table",
+            "output_schema_checksum",
+            "write_receipt_id",
         ):
             _optional_text(getattr(self, name), name)
 
         if self.status == READY_FOR_NEXTADS:
-            for name in ("row_count", "account_count", "entity_count"):
-                _count(getattr(self, name), name, 1)
-            if self.account_count > self.row_count:
-                raise ValueError("account_count must not exceed row_count")
-            if self.entity_count > self.row_count:
-                raise ValueError("entity_count must not exceed row_count")
-            if any(
-                (
-                    self.null_key_count,
-                    self.duplicate_key_count,
-                    self.invalid_score_count,
-                )
-            ):
-                raise ValueError(
-                    "A ready provider build must have valid unique score keys"
-                )
-            _text(self.output_checksum, "output_checksum")
+            _count(self.row_count, "row_count", 1)
             outputs = (
                 self.output_snapshot_id,
                 self.output_table,
                 self.output_delta_version,
+                self.output_schema_checksum,
+                self.write_receipt_id,
             )
             if any(value is None for value in outputs):
                 raise ValueError(
                     "A ready provider build must identify its output"
                 )
-        elif self.output_checksum is not None:
-            _text(self.output_checksum, "output_checksum")
-
         if self.output_delta_version is not None:
             _count(self.output_delta_version, "output_delta_version")
 
@@ -1034,7 +989,9 @@ def validate_scoring_config(scoring: Mapping[str, Any]) -> None:
             if foundation_id not in foundations:
                 raise ValueError("Provider references an unknown foundation")
             if foundations[foundation_id].get("capability") != capability:
-                raise ValueError("Provider foundation capability does not match")
+                raise ValueError(
+                    "Provider foundation capability does not match"
+                )
 
     for client, portfolios in client_portfolios.items():
         if not isinstance(portfolios, Mapping) or not portfolios:

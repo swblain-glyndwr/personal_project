@@ -55,7 +55,7 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
         default: >-
           [{"scope":"HomePage"},{"scope":"ShoppingBagPage"},{"scope":"CheckoutPage"},{"scope":"ProductListingPage"},{"scope":"ForYouPage"}]
     tasks:
-      - task_key: build_page_v2
+      - task_key: build_and_publish_v2
         spark_python_task:
           python_file: ../../../jobs/nextads_assignment/bulk_build.py
           parameters:
@@ -65,8 +65,6 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
             - ${var.job_parameter_environment_name}
             - --route
             - "v2"
-            - --phase
-            - "all"
             - --scope_manifest_json
             - "{{job.parameters.scope_manifest_json}}"
             - --run_date
@@ -83,29 +81,8 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
             - "{{job.parameters.customer_cells_table}}"
             - --customer_cells_delta_version
             - "{{job.parameters.customer_cells_delta_version}}"
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        min_retry_interval_millis: 5000
-        timeout_seconds: 10800
-      - task_key: publish_assignment_build_v2
-        depends_on:
-          - task_key: build_page_v2
-        spark_python_task:
-          python_file: ../../../jobs/nextads_assignment/publish_build.py
-          parameters:
-            - --client
-            - "next_uk"
-            - --job_env
-            - ${var.job_parameter_environment_name}
-            - --route
-            - "v2"
-            - --run_date
-            - "{{job.parameters.run_date}}"
-            - --build_run_id
-            - "{{job.parameters.build_run_id}}"
-            - --scope_manifest_json
-            - "{{job.parameters.scope_manifest_json}}"
+            - --git_commit
+            - ${var.git_commit_sha}
         job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
         libraries: ${var.shared_libraries}
         max_retries: 2
@@ -113,7 +90,7 @@ mktg_next_uk_nextads_page_build_config_v2: &mktg_next_uk_nextads_page_build_conf
         timeout_seconds: 10800
       - task_key: run_payload_export
         depends_on:
-          - task_key: publish_assignment_build_v2
+          - task_key: build_and_publish_v2
         run_job_task:
           job_id: ${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}
           job_parameters:

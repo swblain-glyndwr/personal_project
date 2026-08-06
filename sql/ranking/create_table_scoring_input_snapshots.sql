@@ -3,6 +3,7 @@ create table {catalog}.{schema}.{client}_nextads_scoring_input_snapshots (
     InputSnapshotAttemptID string not null,
     RunDate date not null,
     InputSchemaVersion string not null,
+    GitCommit string not null,
     Status string not null,
     SourceCount int not null,
     WarningCount bigint not null,

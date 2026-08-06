@@ -250,15 +250,13 @@ def test_main_job_waits_for_native_page_build_results():
     ]
     assert trigger_v1_task["run_job_task"] == {
         "job_id": (
-            "${resources.jobs."
-            "mktg_next_uk_nextads_page_build_cicd.id}"
+            "${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}"
         ),
         "job_parameters": _expected_page_job_parameters("v1"),
     }
     assert trigger_v2_task["run_job_task"] == {
         "job_id": (
-            "${resources.jobs."
-            "mktg_next_uk_nextads_page_build_cicd_v2.id}"
+            "${resources.jobs.mktg_next_uk_nextads_page_build_cicd_v2.id}"
         ),
         "job_parameters": _expected_page_job_parameters("v2"),
     }
@@ -284,8 +282,7 @@ def test_deployed_route_jobs_do_not_reference_async_trigger_wrapper():
             "mktg_next_uk_nextads_page_build_cicd",
         ),
         _load_job(
-            "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_page_build_v2.yml",
+            "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
             "mktg_next_uk_nextads_page_build_cicd_v2",
         ),
     )
@@ -364,64 +361,17 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
         "run_date": "{{job.start_time.iso_date}}",
         "input_snapshot_id": "same_day",
     }
-    assert list(tasks_by_key) == [
-        "prepare_provider_context",
-        "build_markov_scores",
-        "publish_provider_build",
-        "finalize_provider_context",
-    ]
-    prepare = tasks_by_key["prepare_provider_context"]
-    assert "depends_on" not in prepare
-    assert (
-        prepare["spark_python_task"]["python_file"]
-        == "../../../jobs/orchestration/prepare_score_provider_context.py"
+    assert list(tasks_by_key) == ["build_and_publish_markov"]
+    task = tasks_by_key["build_and_publish_markov"]
+    assert "depends_on" not in task
+    assert task["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_candidates/build_theme_scores.py"
     )
-    prepare_parameters = prepare["spark_python_task"]["parameters"]
-    assert prepare_parameters[
-        prepare_parameters.index("--provider_id") + 1
-    ] == "markov"
-    assert prepare_parameters[
-        prepare_parameters.index("--context_slot") + 1
-    ] == "markov_scoring"
-    assert prepare_parameters[
-        prepare_parameters.index("--readiness_wait_seconds") + 1
-    ] == "5400"
-    assert tasks_by_key["build_markov_scores"]["depends_on"] == [
-        {"task_key": "prepare_provider_context"},
-    ]
-    score_parameters = tasks_by_key["build_markov_scores"][
-        "spark_python_task"
-    ]["parameters"]
+    score_parameters = task["spark_python_task"]["parameters"]
     assert "{{job.parameters.run_date}}" in score_parameters
-    assert (
-        "{{tasks.prepare_provider_context.values.input_snapshot_id}}"
-        in score_parameters
-    )
-    assert tasks_by_key["publish_provider_build"]["depends_on"] == [
-        {"task_key": "build_markov_scores"},
-    ]
-    assert tasks_by_key["finalize_provider_context"]["depends_on"] == [
-        {"task_key": "publish_provider_build"},
-    ]
-    assert tasks_by_key["finalize_provider_context"]["run_if"] == "ALL_DONE"
-    assert {
-        task_key: task["job_cluster_key"]
-        for task_key, task in tasks_by_key.items()
-    } == {
-        "prepare_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
-        "build_markov_scores": "next_ads_job_cluster_D32ads_v5_1_4",
-        "publish_provider_build": "next_ads_job_cluster_D32ads_v5_1_4",
-        "finalize_provider_context": "next_ads_job_cluster_D4ads_v5_1_1",
-    }
-    assert {
-        task_key: task["timeout_seconds"]
-        for task_key, task in tasks_by_key.items()
-    } == {
-        "prepare_provider_context": 5700,
-        "build_markov_scores": 18000,
-        "publish_provider_build": 5400,
-        "finalize_provider_context": 900,
-    }
+    assert "{{job.parameters.input_snapshot_id}}" in score_parameters
+    assert task["job_cluster_key"] == "next_ads_job_cluster_D32ads_v5_1_4"
+    assert task["timeout_seconds"] == 18000
 
 
 def test_theme_affinity_foundation_and_provider_stages_are_explicit():
@@ -436,25 +386,22 @@ def test_theme_affinity_foundation_and_provider_stages_are_explicit():
     assert tasks["predict_data_prep"]["depends_on"] == [
         {"task_key": "prepare_foundation_context"}
     ]
-    assert tasks["publish_foundation"]["depends_on"] == [
+    assert list(tasks) == [
+        "prepare_foundation_context",
+        "predict_data_prep",
+        "publish_and_score",
+    ]
+    assert tasks["publish_and_score"]["depends_on"] == [
         {"task_key": "predict_data_prep"}
     ]
-    assert tasks["prepare_provider_context"]["depends_on"] == [
-        {"task_key": "publish_foundation"}
-    ]
-    assert tasks["model_predict"]["depends_on"] == [
-        {"task_key": "prepare_provider_context"}
-    ]
-    assert tasks["publish_provider_build"]["depends_on"] == [
-        {"task_key": "model_predict"}
-    ]
-    assert "clean_output" not in tasks
+    publisher = tasks["publish_and_score"]
+    assert publisher["spark_python_task"]["python_file"] == (
+        "../../../jobs/orchestration/publish_theme_affinity.py"
+    )
+    assert publisher["job_cluster_key"] == (
+        "next_ads_job_cluster_D32ads_v5_1_4"
+    )
     assert "publish_compatibility_outputs" not in tasks
-    for task_key in (
-        "finalize_foundation_context",
-        "finalize_provider_context",
-    ):
-        assert tasks[task_key]["run_if"] == "ALL_DONE"
 
 
 @pytest.mark.parametrize(
@@ -470,13 +417,11 @@ def test_theme_affinity_foundation_and_provider_stages_are_explicit():
             "mktg_next_uk_nextads_cicd",
         ),
         (
-            "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_page_build.yml",
+            "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml",
             "mktg_next_uk_nextads_page_build_cicd",
         ),
         (
-            "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_page_build_v2.yml",
+            "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
             "mktg_next_uk_nextads_page_build_cicd_v2",
         ),
         (
@@ -485,8 +430,7 @@ def test_theme_affinity_foundation_and_provider_stages_are_explicit():
             "mktg_next_uk_nextads_assignment_validation_cicd",
         ),
         (
-            "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_masid_handoff.yml",
+            "pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml",
             "mktg_next_uk_nextads_masid_handoff_cicd",
         ),
         (
@@ -521,14 +465,16 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
         "pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml",
         "mktg_next_uk_nextads_page_build_cicd_v2",
     )
-    validation = _load_job(
-        "pipelines/databricks/jobs/"
-        "mktg_next_uk_nextads_assignment_validation.yml",
-        "mktg_next_uk_nextads_assignment_validation_cicd",
+    masid = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml",
+        "mktg_next_uk_nextads_masid_handoff_cicd",
+    )
+    plp = _load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml",
+        "mktg_next_uk_nextads_plp_gs_delivery_cicd",
     )
     payload = _load_job(
-        "pipelines/databricks/jobs/"
-        "mktg_next_uk_nextads_payload_export.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml",
         "mktg_next_uk_nextads_payload_export_cicd",
     )
     data_pull = _load_job(
@@ -536,26 +482,16 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
         "mktg_next_uk_nextads_data_pull",
     )
 
-    candidate_tasks = {
-        task["task_key"]: task for task in candidate["tasks"]
-    }
+    candidate_tasks = {task["task_key"]: task for task in candidate["tasks"]}
     page_v1_tasks = {task["task_key"]: task for task in page_v1["tasks"]}
     page_v2_tasks = {task["task_key"]: task for task in page_v2["tasks"]}
 
-    v1_page_critical_path = sum(
-        (
-            page_v1_tasks["build_page_primary"]["timeout_seconds"],
-            page_v1_tasks["build_page_secondary"]["timeout_seconds"],
-            page_v1_tasks["publish_assignment_build_v1"]["timeout_seconds"],
-            validation["timeout_seconds"],
-        )
-    )
-    v2_page_critical_path = sum(
-        (
-            page_v2_tasks["build_page_v2"]["timeout_seconds"],
-            page_v2_tasks["publish_assignment_build_v2"]["timeout_seconds"],
-            payload["timeout_seconds"],
-        )
+    v1_page_critical_path = page_v1_tasks["build_and_publish_v1"][
+        "timeout_seconds"
+    ] + max(masid["timeout_seconds"], plp["timeout_seconds"])
+    v2_page_critical_path = (
+        page_v2_tasks["build_and_publish_v2"]["timeout_seconds"]
+        + payload["timeout_seconds"]
     )
 
     assert page_v1["timeout_seconds"] == 43200
@@ -567,9 +503,7 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
         max(
             candidate_tasks["load_control_sheet_v1"]["timeout_seconds"]
             + candidate_tasks["audit_control_sheet_v1"]["timeout_seconds"],
-                candidate_tasks["resolve_scoring_portfolio_v1"][
-                "timeout_seconds"
-            ],
+            candidate_tasks["resolve_scoring_portfolio_v1"]["timeout_seconds"],
         )
         + candidate_tasks["validate_score_provider_theme_coverage_v1"][
             "timeout_seconds"
@@ -580,9 +514,7 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
             data_pull["timeout_seconds"]
             + candidate_tasks["load_control_sheet_v2"]["timeout_seconds"]
             + candidate_tasks["audit_control_sheet_v2"]["timeout_seconds"],
-                candidate_tasks["resolve_scoring_portfolio_v2"][
-                "timeout_seconds"
-            ],
+            candidate_tasks["resolve_scoring_portfolio_v2"]["timeout_seconds"],
         )
         + candidate_tasks["validate_score_provider_theme_coverage_v2"][
             "timeout_seconds"
@@ -632,8 +564,7 @@ def test_candidate_resource_excludes_legacy_markov_tasks():
     )
     assert (
         "pipelines/databricks/jobs/"
-        "mktg_next_uk_nextads_markov_scoring.yml"
-        in bundle_config["include"]
+        "mktg_next_uk_nextads_markov_scoring.yml" in bundle_config["include"]
     )
 
 
@@ -769,7 +700,6 @@ def test_control_sheet_audits_are_warning_only_but_order_route_coverage():
 
     tasks_by_key = _tasks_by_key(job)
 
-
     for route in ("v1", "v2"):
         audit_task = tasks_by_key[f"audit_control_sheet_{route}"]
 
@@ -795,9 +725,9 @@ def test_control_sheet_audits_are_warning_only_but_order_route_coverage():
             == "next_ads_job_cluster_D4ads_v5_1_1"
         )
         assert audit_task["timeout_seconds"] == 1800
-        assert tasks_by_key[
-            f"validate_score_provider_theme_coverage_{route}"
-        ]["depends_on"] == [
+        assert tasks_by_key[f"validate_score_provider_theme_coverage_{route}"][
+            "depends_on"
+        ] == [
             {"task_key": f"audit_control_sheet_{route}"},
             {"task_key": f"resolve_scoring_portfolio_{route}"},
         ]
@@ -890,8 +820,7 @@ def test_critical_route_tasks_use_default_all_success_failure_propagation():
                 "mktg_next_uk_nextads_page_build_cicd",
             ),
             {
-                "publish_assignment_build_v1",
-                "run_assignment_validation",
+                "build_and_publish_v1",
                 "run_masid_handoff",
                 "run_plp_gs_delivery",
             },
@@ -902,7 +831,7 @@ def test_critical_route_tasks_use_default_all_success_failure_propagation():
                 "mktg_next_uk_nextads_page_build_v2.yml",
                 "mktg_next_uk_nextads_page_build_cicd_v2",
             ),
-            {"publish_assignment_build_v2", "run_payload_export"},
+            {"build_and_publish_v2", "run_payload_export"},
         ),
     )
 
@@ -986,70 +915,38 @@ def test_page_build_v1_publishes_one_complete_build_before_handoffs():
     )
     assert scope_manifest == [*primary_manifest, *secondary_manifest]
 
-    primary = tasks_by_key["build_page_primary"]
-    assert "depends_on" not in primary
-    assert "for_each_task" not in primary
-    assert primary["spark_python_task"]["python_file"] == (
-        "../../../jobs/nextads_assignment/bulk_build.py"
-    )
-    assert primary["spark_python_task"]["parameters"] == (
-        _bulk_assignment_parameters("v1", "primary")
-    )
-
-    secondary = tasks_by_key["build_page_secondary"]
-    assert secondary["depends_on"] == [
-        {"task_key": "build_page_primary"}
-    ]
-    assert "for_each_task" not in secondary
-    assert secondary["spark_python_task"]["python_file"] == (
-        "../../../jobs/nextads_assignment/bulk_build.py"
-    )
-    assert secondary["spark_python_task"]["parameters"] == (
-        _bulk_assignment_parameters("v1", "secondary")
-    )
-
-    publisher = tasks_by_key["publish_assignment_build_v1"]
-    assert publisher["depends_on"] == [
-        {"task_key": "build_page_secondary"}
-    ]
-    assert "run_if" not in publisher
+    publisher = tasks_by_key["build_and_publish_v1"]
+    assert "depends_on" not in publisher
+    assert "for_each_task" not in publisher
     assert publisher["spark_python_task"]["python_file"] == (
-        "../../../jobs/nextads_assignment/publish_build.py"
+        "../../../jobs/nextads_assignment/bulk_build.py"
     )
-    assert publisher["spark_python_task"]["parameters"] == [
-        "--client",
-        "next_uk",
-        "--job_env",
-        "${var.job_parameter_environment_name}",
-        "--route",
-        "v1",
-        "--run_date",
-        "{{job.parameters.run_date}}",
-        "--build_run_id",
-        "{{job.parameters.build_run_id}}",
-        "--scope_manifest_json",
-        "{{job.parameters.scope_manifest_json}}",
-    ]
+    assert publisher["job_cluster_key"] == (
+        "next_ads_job_cluster_D32ads_v5_4_4_photon"
+    )
+    _assert_cli_values(
+        publisher,
+        {
+            "--route": "v1",
+            "--scope_manifest_json": "{{job.parameters.scope_manifest_json}}",
+            "--candidate_build_attempt_id": (
+                "{{job.parameters.candidate_build_attempt_id}}"
+            ),
+            "--git_commit": "${var.git_commit_sha}",
+        },
+    )
 
     downstream_jobs = {
-        "run_assignment_validation": (
-            "${resources.jobs."
-            "mktg_next_uk_nextads_assignment_validation_cicd.id}"
-        ),
         "run_masid_handoff": (
-            "${resources.jobs."
-            "mktg_next_uk_nextads_masid_handoff_cicd.id}"
+            "${resources.jobs.mktg_next_uk_nextads_masid_handoff_cicd.id}"
         ),
         "run_plp_gs_delivery": (
-            "${resources.jobs."
-            "mktg_next_uk_nextads_plp_gs_delivery_cicd.id}"
+            "${resources.jobs.mktg_next_uk_nextads_plp_gs_delivery_cicd.id}"
         ),
     }
     for task_key, job_id in downstream_jobs.items():
         task = tasks_by_key[task_key]
-        assert task["depends_on"] == [
-            {"task_key": "publish_assignment_build_v1"}
-        ]
+        assert task["depends_on"] == [{"task_key": "build_and_publish_v1"}]
         assert task["run_job_task"] == {
             "job_id": job_id,
             "job_parameters": _forwarded_page_identity_parameters(),
@@ -1110,44 +1007,33 @@ def test_page_build_v2_publishes_complete_build_before_payload_submission():
     ]
     assert len({entry["scope"] for entry in scope_manifest}) == 5
 
-    build_task = tasks_by_key["build_page_v2"]
+    build_task = tasks_by_key["build_and_publish_v2"]
     assert "for_each_task" not in build_task
     assert build_task["spark_python_task"]["python_file"] == (
         "../../../jobs/nextads_assignment/bulk_build.py"
     )
-    assert build_task["spark_python_task"]["parameters"] == (
-        _bulk_assignment_parameters("v2", "all")
+    assert build_task["job_cluster_key"] == (
+        "next_ads_job_cluster_D32ads_v5_4_4_photon"
     )
-
-    publisher = tasks_by_key["publish_assignment_build_v2"]
-    assert publisher["depends_on"] == [{"task_key": "build_page_v2"}]
-    assert "run_if" not in publisher
-    assert publisher["spark_python_task"]["python_file"] == (
-        "../../../jobs/nextads_assignment/publish_build.py"
+    _assert_cli_values(
+        build_task,
+        {
+            "--route": "v2",
+            "--scope_manifest_json": "{{job.parameters.scope_manifest_json}}",
+            "--candidate_build_attempt_id": (
+                "{{job.parameters.candidate_build_attempt_id}}"
+            ),
+            "--git_commit": "${var.git_commit_sha}",
+        },
     )
-    assert publisher["spark_python_task"]["parameters"] == [
-        "--client",
-        "next_uk",
-        "--job_env",
-        "${var.job_parameter_environment_name}",
-        "--route",
-        "v2",
-        "--run_date",
-        "{{job.parameters.run_date}}",
-        "--build_run_id",
-        "{{job.parameters.build_run_id}}",
-        "--scope_manifest_json",
-        "{{job.parameters.scope_manifest_json}}",
-    ]
 
     payload_task = tasks_by_key["run_payload_export"]
     assert payload_task["depends_on"] == [
-        {"task_key": "publish_assignment_build_v2"},
+        {"task_key": "build_and_publish_v2"},
     ]
     assert payload_task["run_job_task"] == {
         "job_id": (
-            "${resources.jobs."
-            "mktg_next_uk_nextads_payload_export_cicd.id}"
+            "${resources.jobs.mktg_next_uk_nextads_payload_export_cicd.id}"
         ),
         "job_parameters": _forwarded_page_identity_parameters(),
     }
@@ -1236,8 +1122,7 @@ def test_assignment_validation_job_has_independent_definition_and_internal_notif
 
 def test_assignment_validation_entrypoint_is_read_only():
     source = (
-        PROJECT_ROOT
-        / "jobs/nextads_reporting/assignment_validation.py"
+        PROJECT_ROOT / "jobs/nextads_reporting/assignment_validation.py"
     ).read_text()
     normalized = source.lower()
 

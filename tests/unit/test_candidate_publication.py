@@ -1,6 +1,7 @@
 from copy import deepcopy
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
+import time
 
 import pytest
 
@@ -16,6 +17,7 @@ from next_ads.candidates.publication import (
     select_candidate_build,
     validate_assignment_rank_limit,
 )
+from next_ads.common.delta_writes import DeltaWriteReceipt
 from next_ads.ranking.theme_score_retrieval import build_ad_group_mappings
 
 
@@ -56,6 +58,7 @@ def _context(entries, *, execution_count=0):
         candidate_policy_checksum_value="policy-checksum",
         task_run_id=123 + execution_count,
         execution_count=execution_count,
+        git_commit="abc123",
     )
 
 
@@ -107,7 +110,7 @@ def test_different_synthetic_provider_uses_the_same_generic_runtime(
                 tuple(entry.provider_build_id for entry in provider_entries)
             )
 
-        def finalize(self, _entries):
+        def finalize(self, _entries, **_kwargs):
             return "accepted"
 
     monkeypatch.setattr(
@@ -165,6 +168,7 @@ def test_different_synthetic_provider_uses_the_same_generic_runtime(
         output_preranked_table="compatibility",
         task_run_id=123,
         execution_count=0,
+        git_commit="abc123",
         compatibility_top_count=100,
         apply_ad_feedback=True,
         ad_feedback_weight=0.05,
@@ -175,7 +179,7 @@ def test_different_synthetic_provider_uses_the_same_generic_runtime(
     assert result == "accepted"
     assert sorted(calls) == [
         ("synthetic-build", False),
-        ("theme_affinity-build", True),
+        ("theme_affinity-build", False),
     ]
     assert sorted(published) == [
         ("synthetic-build",),
@@ -271,9 +275,7 @@ def test_portfolio_loader_excludes_evaluation_only_entries(spark):
         portfolio_attempt_id="portfolio-v1:attempt:0",
     )
 
-    assert [entry.portfolio_entry_id for entry in entries] == [
-        "serving-entry"
-    ]
+    assert [entry.portfolio_entry_id for entry in entries] == ["serving-entry"]
 
 
 def test_partial_candidate_rows_without_ready_header_are_not_selectable():
@@ -297,6 +299,85 @@ def test_partial_candidate_rows_without_ready_header_are_not_selectable():
         select_candidate_build((failed,), run_date=RUN_DATE, route="v1")
 
 
+def test_manifest_failure_repairs_from_existing_candidate_receipts(
+    monkeypatch,
+):
+    entry = _entry()
+    context = _context((entry,))
+    publisher = object.__new__(CandidateBuildPublisher)
+    publisher.spark = "spark"
+    publisher.context = context
+    publisher.builds_table = "candidate_builds"
+    publisher.scores_table = "candidate_scores"
+    publisher.ad_sets_table = "candidate_ad_sets"
+    publisher.group_column = "Location"
+    publisher._ad_sets = "ad-set-frame"
+    publisher._score_frames = ["score-frame"]
+    publisher._published_entry_ids = {entry.portfolio_entry_id}
+    publisher._started_at = time.monotonic()
+
+    receipts = {
+        "candidate_ad_sets": DeltaWriteReceipt(
+            statement="",
+            attempts=1,
+            receipt_id="ad-set-receipt",
+            target_table="candidate_ad_sets",
+            delta_version=41,
+            row_count=20,
+            schema_checksum="ad-set-schema",
+        ),
+        "candidate_scores": DeltaWriteReceipt(
+            statement="",
+            attempts=1,
+            receipt_id="score-receipt",
+            target_table="candidate_scores",
+            delta_version=42,
+            row_count=100,
+            schema_checksum="score-schema",
+        ),
+    }
+    receipt_lookups = []
+    manifest_writes = []
+
+    def find_receipt(_spark, *, target_table, **_kwargs):
+        receipt_lookups.append(target_table)
+        return receipts[target_table]
+
+    monkeypatch.setattr(
+        "next_ads.candidates.publication.find_delta_write_receipt",
+        find_receipt,
+    )
+    monkeypatch.setattr(
+        "next_ads.candidates.publication.typed_table_frame",
+        lambda _spark, _table, rows: SimpleNamespace(columns=list(rows[0])),
+    )
+    monkeypatch.setattr(
+        "next_ads.candidates.publication.replace_scope_by_name",
+        lambda _frame, table, *_args, **_kwargs: manifest_writes.append(table),
+    )
+
+    with pytest.raises(RuntimeError, match="injected manifest failure"):
+        publisher.finalize(
+            (entry,),
+            completed_at=COMPLETED_AT,
+            before_ready=lambda _build: (_ for _ in ()).throw(
+                RuntimeError("injected manifest failure")
+            ),
+        )
+    assert manifest_writes == []
+
+    repaired = publisher.finalize((entry,), completed_at=COMPLETED_AT)
+
+    assert repaired.status == "READY_FOR_NEXTADS"
+    assert manifest_writes == ["candidate_builds"]
+    assert receipt_lookups == [
+        "candidate_ad_sets",
+        "candidate_scores",
+        "candidate_ad_sets",
+        "candidate_scores",
+    ]
+
+
 def test_candidate_rows_and_ad_sets_publish_before_ready_header(
     spark,
     monkeypatch,
@@ -312,9 +393,8 @@ def test_candidate_rows_and_ad_sets_publish_before_ready_header(
         "ControlTable string, ControlDeltaVersion long, "
         "CandidateContractVersion string, CandidatePolicyVersion string, "
         "CandidatePolicyChecksum string, ProviderBindingsJSON string, "
-        "Status string, EntryCount int, AdSetCount long, "
-        "CandidateRowCount long, CandidateChecksum string, "
-        "AdSetChecksum string, WarningCount long, TaskRunID long, "
+        "Status string, EntryCount int, OutputBindingsJSON string, "
+        "GitCommit string, RuntimeMs long, TaskRunID long, "
         "ExecutionCount int, CompletedAt timestamp",
     ).createOrReplaceTempView(builds_table)
     spark.createDataFrame(
@@ -338,10 +418,26 @@ def test_candidate_rows_and_ad_sets_publish_before_ready_header(
         materialized = spark.createDataFrame(frame.collect(), frame.schema)
         materialized.createOrReplaceTempView(table)
         operations.append(table)
+        return DeltaWriteReceipt(
+            statement=f"replace {table}",
+            attempts=1,
+            receipt_id=f"receipt-{table}",
+            target_table=table,
+            delta_version=len(operations),
+            row_count=materialized.count(),
+            schema_checksum=f"schema-{table}",
+            build_id=_context((entry,)).candidate_build_id,
+            attempt_id=_context((entry,)).candidate_build_attempt_id,
+            git_commit="abc123",
+        )
 
     monkeypatch.setattr(
         "next_ads.candidates.publication.replace_scope_by_name",
         replace,
+    )
+    monkeypatch.setattr(
+        "next_ads.candidates.publication.find_delta_write_receipt",
+        lambda *_args, **_kwargs: None,
     )
     entry = _entry()
     publisher = CandidateBuildPublisher(
@@ -381,16 +477,15 @@ def test_candidate_rows_and_ad_sets_publish_before_ready_header(
         ["UniqueAdID", "AdSetID"],
     )
 
-    publisher.publish_provider(
-        (entry,), ranked, ad_set_to_group, ad_to_ad_set
-    )
+    publisher.publish_provider((entry,), ranked, ad_set_to_group, ad_to_ad_set)
     result = publisher.finalize((entry,), completed_at=COMPLETED_AT)
 
     assert result.status == "READY_FOR_NEXTADS"
     assert operations == [ad_sets_table, scores_table, builds_table]
     assert spark.table(scores_table).count() == 20
     assert spark.table(scores_table).agg({"Rank": "max"}).first()[0] == 20
-    assert spark.table(builds_table).first()["CandidateRowCount"] == 20
+    bindings = spark.table(builds_table).first()["OutputBindingsJSON"]
+    assert '"row_count":20' in bindings
 
 
 def test_content_stable_ad_set_ids_match_at_one_four_and_eight_partitions(

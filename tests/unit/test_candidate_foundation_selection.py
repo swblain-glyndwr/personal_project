@@ -28,7 +28,8 @@ def _bindings():
                 "table": f"catalog.schema.{name}",
                 "delta_version": index,
                 "schema_version": "v1",
-                "content_checksum": f"checksum-{name}",
+                "schema_checksum": f"schema-{name}",
+                "write_receipt_id": f"receipt-{name}",
                 "row_count": 1,
             }
             for index, name in enumerate(
@@ -60,6 +61,7 @@ def _build(
         fallback_source_run_date=None,
         task_run_id=100 + execution_count,
         execution_count=execution_count,
+        git_commit="abc123",
         completed_at=completed_at,
     )
 

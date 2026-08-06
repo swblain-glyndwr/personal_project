@@ -36,10 +36,10 @@ from next_ads.candidates.foundation_manifest import canonical_json
 from next_ads.common import config_manager, etl
 from next_ads.common.delta_writes import replace_scope_by_name
 from next_ads.common.paths import load_client_config
+from next_ads.common.spark_runtime import configure_lean_spark
 from next_ads.ranking.scoring_inputs import (
     latest_delta_version,
     read_delta_version,
-    summarise_content,
 )
 
 
@@ -57,10 +57,14 @@ def main(
     LOG_LEVEL,
     RUN_DATE,
     FOUNDATION_SNAPSHOT_ID,
+    GIT_COMMIT,
 ):
-    configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
+    configure_lean_spark(spark)
     logical_date = parse_run_date(RUN_DATE)
     snapshot_id = (FOUNDATION_SNAPSHOT_ID or "").strip()
     if not snapshot_id:
@@ -97,36 +101,34 @@ def main(
         "UniqueAdID",
         "IncARPSAdjPct",
     )
-    metrics = metrics.persist()
-    try:
-        summary = summarise_content(
-            metrics,
-            key_columns=("CandidateFoundationSnapshotID", "UniqueAdID"),
-        )
-        if summary.null_key_count or summary.duplicate_key_count:
-            summary.require_valid("candidate ad feedback")
-        table = config.tables_write.candidate_ad_feedback
-        replace_scope_by_name(
-            metrics,
-            table,
-            {
-                "CandidateFoundationSnapshotID": snapshot_id,
-                "RunDate": logical_date,
-            },
-            OUTPUT_COLUMNS,
-            spark=spark,
-        )
-        output_version = latest_delta_version(spark, table)
-    finally:
-        metrics.unpersist()
+    table = config.tables_write.candidate_ad_feedback
+    receipt = replace_scope_by_name(
+        metrics,
+        table,
+        {
+            "CandidateFoundationSnapshotID": snapshot_id,
+            "RunDate": logical_date,
+        },
+        OUTPUT_COLUMNS,
+        spark=spark,
+        build_id=snapshot_id,
+        attempt_id=snapshot_id,
+        git_commit=GIT_COMMIT,
+    )
 
     task_values = get_dbutils().jobs.taskValues
     task_values.set(key="ad_feedback_table", value=table)
-    task_values.set(key="ad_feedback_delta_version", value=output_version)
-    task_values.set(key="ad_feedback_row_count", value=summary.row_count)
     task_values.set(
-        key="ad_feedback_content_checksum",
-        value=summary.content_checksum,
+        key="ad_feedback_delta_version", value=receipt.delta_version
+    )
+    task_values.set(key="ad_feedback_row_count", value=receipt.row_count)
+    task_values.set(
+        key="ad_feedback_schema_checksum",
+        value=receipt.schema_checksum,
+    )
+    task_values.set(
+        key="ad_feedback_write_receipt_id",
+        value=receipt.receipt_id,
     )
     task_values.set(
         key="ad_feedback_source_bindings_json",
@@ -134,9 +136,9 @@ def main(
     )
     logger.info(
         "Published %s advert feedback rows for %s at Delta version %s",
-        summary.row_count,
+        receipt.row_count,
         snapshot_id,
-        output_version,
+        receipt.delta_version,
     )
 
 
@@ -149,6 +151,7 @@ def parse_args():
         "LOG_LEVEL": parser.get_arg("--log_level"),
         "RUN_DATE": parser.get_arg("--run_date"),
         "FOUNDATION_SNAPSHOT_ID": parser.get_arg("--foundation_snapshot_id"),
+        "GIT_COMMIT": parser.get_arg("--git_commit"),
     }
 
 

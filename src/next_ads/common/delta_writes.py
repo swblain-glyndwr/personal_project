@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import json
 import random
+import threading
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from functools import reduce
 from operator import and_, or_
 from typing import Any
@@ -18,12 +21,15 @@ from pyspark.sql import functions as F
 
 __all__ = [
     "DeltaRetryPolicy",
-    "DeltaWriteResult",
+    "DeltaWriteReceipt",
+    "find_delta_write_receipt",
     "KeyValidationSummary",
     "atomic_append_by_name",
     "atomic_replace_where_by_name",
     "replace_scope_by_name",
     "replace_table_by_name",
+    "typed_table_frame",
+    "validate_typed_table_schema",
     "validate_target_columns",
     "validate_replace_source_scope",
     "validate_unique_non_null_keys",
@@ -58,12 +64,196 @@ class DeltaRetryPolicy:
 
 
 @dataclass(frozen=True)
-class DeltaWriteResult:
+class DeltaWriteReceipt:
+    """The exact Delta transaction produced by one atomic writer."""
+
     statement: str
     attempts: int
+    receipt_id: str = ""
+    target_table: str = ""
+    delta_version: int | None = None
+    row_count: int | None = None
+    schema_checksum: str | None = None
+    build_id: str | None = None
+    attempt_id: str | None = None
+    git_commit: str | None = None
+    committed_at: datetime | None = None
+    write_duration_ms: int = 0
+
+    def as_binding(self) -> dict[str, Any]:
+        """Return the small, serialisable proof stored in a READY manifest."""
+        if self.delta_version is None:
+            raise ValueError("Delta receipt is missing its committed version")
+        if self.row_count is None:
+            raise ValueError("Delta receipt is missing its output row count")
+        if (
+            not self.receipt_id
+            or not self.target_table
+            or not self.schema_checksum
+        ):
+            raise ValueError("Delta receipt is incomplete")
+        return {
+            "table": self.target_table,
+            "delta_version": self.delta_version,
+            "row_count": self.row_count,
+            "schema_checksum": self.schema_checksum,
+            "write_receipt_id": self.receipt_id,
+            "write_duration_ms": self.write_duration_ms,
+            "retry_count": max(0, self.attempts - 1),
+        }
+
+
+@dataclass(frozen=True)
+class _ReceiptMetadata:
+    receipt_id: str
+    target_table: str
+    build_id: str | None
+    attempt_id: str | None
+    git_commit: str | None
+    details: Mapping[str, Any] | None = None
+
+    def as_json(self) -> str:
+        payload = {
+            "nextads_receipt_id": self.receipt_id,
+            "target_table": self.target_table,
+            "build_id": self.build_id,
+            "attempt_id": self.attempt_id,
+            "git_commit": self.git_commit,
+        }
+        if self.details:
+            payload["details"] = dict(self.details)
+        return json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+
+_DELTA_COMMIT_METADATA_KEY = "spark.databricks.delta.commitInfo.userMetadata"
+_COMMIT_METADATA_LOCK = threading.Lock()
 
 
 SqlLiteral = str | int | float | bool | date | datetime | None
+
+
+def typed_table_frame(
+    spark: Any,
+    table: str,
+    rows: Sequence[Mapping[str, Any]],
+) -> DataFrame:
+    """Create manifest rows with the repo-owned target schema, never inference."""
+    if not rows:
+        raise ValueError("At least one typed table row is required")
+    target_schema = spark.table(table).schema
+    target_names = {field.name for field in target_schema}
+    for index, row in enumerate(rows):
+        unknown = sorted(set(row).difference(target_names))
+        if unknown:
+            raise ValueError(
+                f"Row {index} contains columns absent from {table}: "
+                + ", ".join(unknown)
+            )
+        missing_required = sorted(
+            field.name
+            for field in target_schema
+            if not field.nullable and field.name not in row
+        )
+        if missing_required:
+            raise ValueError(
+                f"Row {index} is missing required columns for {table}: "
+                + ", ".join(missing_required)
+            )
+    return spark.createDataFrame(list(rows), schema=target_schema)
+
+
+def validate_typed_table_schema(
+    spark: Any,
+    table: str,
+    expected_columns: Sequence[str],
+    *,
+    nullable_columns: Sequence[str] = (),
+) -> None:
+    """Validate a small typed-table contract without scanning any rows."""
+    if not spark.catalog.tableExists(table):
+        raise ValueError(f"Required typed table is missing: {table}")
+    fields = {field.name: field for field in spark.table(table).schema}
+    expected = list(expected_columns)
+    missing = sorted(set(expected).difference(fields))
+    unexpected = sorted(set(fields).difference(expected))
+    if missing or unexpected:
+        details = []
+        if missing:
+            details.append("missing " + ", ".join(missing))
+        if unexpected:
+            details.append("unexpected " + ", ".join(unexpected))
+        raise ValueError(
+            f"Typed table {table} does not match its v2 contract: "
+            + "; ".join(details)
+        )
+    invalid_nullable = sorted(
+        column
+        for column in nullable_columns
+        if column not in fields or not fields[column].nullable
+    )
+    if invalid_nullable:
+        raise ValueError(
+            f"Typed table {table} must allow null values for: "
+            + ", ".join(invalid_nullable)
+        )
+
+
+def find_delta_write_receipt(
+    spark: Any,
+    *,
+    target_table: str,
+    build_id: str,
+    attempt_id: str,
+) -> DeltaWriteReceipt | None:
+    """Find the exact tagged commit for an idempotent write repair."""
+    history = spark.sql(
+        f"DESCRIBE HISTORY {quote_qualified_identifier(target_table)}"
+    )
+    row = (
+        history.where(
+            (
+                F.get_json_object("userMetadata", "$.target_table")
+                == F.lit(target_table)
+            )
+            & (
+                F.get_json_object("userMetadata", "$.build_id")
+                == F.lit(build_id)
+            )
+            & (
+                F.get_json_object("userMetadata", "$.attempt_id")
+                == F.lit(attempt_id)
+            )
+        )
+        .orderBy(F.col("version").desc())
+        .limit(2)
+        .collect()
+    )
+    if not row:
+        return None
+    if len(row) != 1:
+        raise RuntimeError(
+            "Multiple Delta commits share one NextAds build attempt for "
+            f"{target_table}"
+        )
+    metadata = json.loads(row[0]["userMetadata"])
+    return _receipt_from_history_row(
+        spark,
+        row=row[0],
+        statement="",
+        attempts=1,
+        metadata=_ReceiptMetadata(
+            receipt_id=metadata["nextads_receipt_id"],
+            target_table=target_table,
+            build_id=build_id,
+            attempt_id=attempt_id,
+            git_commit=metadata.get("git_commit"),
+        ),
+        write_duration_ms=0,
+    )
 
 
 def validate_unique_non_null_keys(
@@ -82,19 +272,16 @@ def validate_unique_non_null_keys(
         raise ValueError(f"Missing key columns: {', '.join(missing)}")
 
     any_null = reduce(or_, (F.col(column).isNull() for column in keys))
-    summary = (
-        df.agg(
-            F.count(F.lit(1)).alias("_row_count"),
-            F.countDistinct(
-                F.struct(*[F.col(column) for column in keys])
-            ).alias("_distinct_key_count"),
-            F.coalesce(
-                F.sum(F.when(any_null, F.lit(1)).otherwise(F.lit(0))),
-                F.lit(0),
-            ).alias("_null_key_count"),
-        )
-        .first()
-    )
+    summary = df.agg(
+        F.count(F.lit(1)).alias("_row_count"),
+        F.countDistinct(F.struct(*[F.col(column) for column in keys])).alias(
+            "_distinct_key_count"
+        ),
+        F.coalesce(
+            F.sum(F.when(any_null, F.lit(1)).otherwise(F.lit(0))),
+            F.lit(0),
+        ).alias("_null_key_count"),
+    ).first()
 
     result = KeyValidationSummary(
         row_count=int(summary["_row_count"]),
@@ -137,17 +324,12 @@ def validate_replace_source_scope(
             predicates.append(F.col(column).eqNullSafe(F.lit(value)))
 
     in_scope = reduce(and_, predicates)
-    summary = (
-        df.agg(
-            F.coalesce(
-                F.sum(
-                    F.when(~in_scope, F.lit(1)).otherwise(F.lit(0))
-                ),
-                F.lit(0),
-            ).alias("_out_of_scope_count")
-        )
-        .first()
-    )
+    summary = df.agg(
+        F.coalesce(
+            F.sum(F.when(~in_scope, F.lit(1)).otherwise(F.lit(0))),
+            F.lit(0),
+        ).alias("_out_of_scope_count")
+    ).first()
     out_of_scope_count = int(summary["_out_of_scope_count"])
     if out_of_scope_count:
         raise ValueError(
@@ -215,7 +397,9 @@ def sql_literal(value: SqlLiteral) -> str:
         return str(value)
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise ValueError("Non-finite floats are not supported SQL literals")
+            raise ValueError(
+                "Non-finite floats are not supported SQL literals"
+            )
         return repr(value)
     if isinstance(value, str):
         escaped = value.replace("'", "''")
@@ -255,8 +439,12 @@ def build_replace_where_statement(
     if replace_all == bool(filters):
         raise ValueError("Specify exactly one of filters or replace_all=True")
 
-    predicate = "TRUE" if replace_all else build_equality_predicate(filters or {})
-    column_sql = ", ".join(quote_identifier(column) for column in selected_columns)
+    predicate = (
+        "TRUE" if replace_all else build_equality_predicate(filters or {})
+    )
+    column_sql = ", ".join(
+        quote_identifier(column) for column in selected_columns
+    )
     return (
         f"INSERT INTO {quote_qualified_identifier(target_table)}\n"
         f"REPLACE WHERE {predicate}\n"
@@ -278,7 +466,9 @@ def build_append_statement(
     if len(set(selected_columns)) != len(selected_columns):
         raise ValueError("Output columns must be unique")
 
-    column_sql = ", ".join(quote_identifier(column) for column in selected_columns)
+    column_sql = ", ".join(
+        quote_identifier(column) for column in selected_columns
+    )
     return (
         f"INSERT INTO {quote_qualified_identifier(target_table)} BY NAME\n"
         f"SELECT {column_sql}\n"
@@ -295,9 +485,14 @@ def atomic_replace_where_by_name(
     replace_all: bool = False,
     columns: Sequence[str] | None = None,
     retry_policy: DeltaRetryPolicy | None = None,
+    build_id: str | None = None,
+    attempt_id: str | None = None,
+    git_commit: str | None = None,
+    commit_metadata: Mapping[str, Any] | None = None,
+    capture_receipt: bool = True,
     sleep: Callable[[float], None] = time.sleep,
     jitter: Callable[[], float] = random.random,
-) -> DeltaWriteResult:
+) -> DeltaWriteReceipt:
     """Atomically replace a target slice, matching source columns by name."""
     if replace_all == bool(filters):
         raise ValueError("Specify exactly one of filters or replace_all=True")
@@ -317,11 +512,10 @@ def atomic_replace_where_by_name(
                 "Replacement filter columns must be written: "
                 f"{', '.join(omitted_filters)}"
             )
-        validate_replace_source_scope(df, filters)
-
     return _write_from_temporary_view(
         spark,
         df,
+        target_table=target_table,
         statement_builder=lambda source_view, selected_columns: (
             build_replace_where_statement(
                 target_table=target_table,
@@ -336,6 +530,11 @@ def atomic_replace_where_by_name(
         # retains name alignment and one atomic Delta statement.
         columns=target_columns,
         retry_policy=retry_policy,
+        build_id=build_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata=commit_metadata,
+        capture_receipt=capture_receipt,
         sleep=sleep,
         jitter=jitter,
     )
@@ -348,7 +547,12 @@ def replace_table_by_name(
     *,
     spark: Any | None = None,
     retry_policy: DeltaRetryPolicy | None = None,
-) -> DeltaWriteResult:
+    build_id: str | None = None,
+    attempt_id: str | None = None,
+    git_commit: str | None = None,
+    commit_metadata: Mapping[str, Any] | None = None,
+    capture_receipt: bool = True,
+) -> DeltaWriteReceipt:
     """Atomically replace a complete Delta table using name-aligned columns."""
     return atomic_replace_where_by_name(
         spark or df.sparkSession,
@@ -357,6 +561,11 @@ def replace_table_by_name(
         replace_all=True,
         columns=columns,
         retry_policy=retry_policy,
+        build_id=build_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata=commit_metadata,
+        capture_receipt=capture_receipt,
     )
 
 
@@ -368,7 +577,12 @@ def replace_scope_by_name(
     *,
     spark: Any | None = None,
     retry_policy: DeltaRetryPolicy | None = None,
-) -> DeltaWriteResult:
+    build_id: str | None = None,
+    attempt_id: str | None = None,
+    git_commit: str | None = None,
+    commit_metadata: Mapping[str, Any] | None = None,
+    capture_receipt: bool = True,
+) -> DeltaWriteReceipt:
     """Atomically replace one structured equality/date scope by column name."""
     return atomic_replace_where_by_name(
         spark or df.sparkSession,
@@ -377,6 +591,11 @@ def replace_scope_by_name(
         filters=scope,
         columns=columns,
         retry_policy=retry_policy,
+        build_id=build_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata=commit_metadata,
+        capture_receipt=capture_receipt,
     )
 
 
@@ -387,15 +606,21 @@ def atomic_append_by_name(
     target_table: str,
     columns: Sequence[str] | None = None,
     retry_policy: DeltaRetryPolicy | None = None,
+    build_id: str | None = None,
+    attempt_id: str | None = None,
+    git_commit: str | None = None,
+    commit_metadata: Mapping[str, Any] | None = None,
+    capture_receipt: bool = True,
     sleep: Callable[[float], None] = time.sleep,
     jitter: Callable[[], float] = random.random,
-) -> DeltaWriteResult:
+) -> DeltaWriteReceipt:
     """Append to a target while matching source columns by name."""
     selected_columns = list(columns or df.columns)
     validate_target_columns(spark, target_table, selected_columns)
     return _write_from_temporary_view(
         spark,
         df,
+        target_table=target_table,
         statement_builder=lambda source_view, selected_columns: (
             build_append_statement(
                 target_table=target_table,
@@ -405,6 +630,11 @@ def atomic_append_by_name(
         ),
         columns=selected_columns,
         retry_policy=retry_policy,
+        build_id=build_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata=commit_metadata,
+        capture_receipt=capture_receipt,
         sleep=sleep,
         jitter=jitter,
     )
@@ -414,33 +644,199 @@ def _write_from_temporary_view(
     spark: Any,
     df: DataFrame,
     *,
+    target_table: str,
     statement_builder: Callable[[str, Sequence[str]], str],
     columns: Sequence[str] | None,
     retry_policy: DeltaRetryPolicy | None,
+    build_id: str | None,
+    attempt_id: str | None,
+    git_commit: str | None,
+    commit_metadata: Mapping[str, Any] | None,
+    capture_receipt: bool,
     sleep: Callable[[float], None],
     jitter: Callable[[], float],
-) -> DeltaWriteResult:
+) -> DeltaWriteReceipt:
     selected_columns = list(columns or df.columns)
     if not selected_columns:
         raise ValueError("At least one output column is required")
-    missing = [column for column in selected_columns if column not in df.columns]
+    missing = [
+        column for column in selected_columns if column not in df.columns
+    ]
     if missing:
         raise ValueError(f"Missing output columns: {', '.join(missing)}")
 
     source_view = f"_nextads_delta_write_{uuid.uuid4().hex}"
     statement = statement_builder(source_view, selected_columns)
+    receipt_metadata = _ReceiptMetadata(
+        receipt_id=uuid.uuid4().hex,
+        target_table=target_table,
+        build_id=build_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        details=commit_metadata,
+    )
     df.select(*selected_columns).createOrReplaceTempView(source_view)
+    started = time.monotonic()
     try:
-        attempts = _execute_with_delta_retry(
-            spark,
-            statement,
-            retry_policy=retry_policy or DeltaRetryPolicy(),
-            sleep=sleep,
-            jitter=jitter,
-        )
+        if _supports_commit_receipts(spark):
+            with _COMMIT_METADATA_LOCK:
+                previous_metadata = _set_commit_metadata(
+                    spark, receipt_metadata.as_json()
+                )
+                try:
+                    attempts = _execute_with_delta_retry(
+                        spark,
+                        statement,
+                        retry_policy=retry_policy or DeltaRetryPolicy(),
+                        sleep=sleep,
+                        jitter=jitter,
+                    )
+                    if capture_receipt:
+                        receipt = _read_commit_receipt(
+                            spark,
+                            statement=statement,
+                            attempts=attempts,
+                            metadata=receipt_metadata,
+                            write_duration_ms=int(
+                                (time.monotonic() - started) * 1000
+                            ),
+                        )
+                    else:
+                        receipt = DeltaWriteReceipt(
+                            statement=statement,
+                            attempts=attempts,
+                            receipt_id=receipt_metadata.receipt_id,
+                            target_table=target_table,
+                            build_id=build_id,
+                            attempt_id=attempt_id,
+                            git_commit=git_commit,
+                            write_duration_ms=int(
+                                (time.monotonic() - started) * 1000
+                            ),
+                        )
+                finally:
+                    _restore_commit_metadata(spark, previous_metadata)
+        else:
+            attempts = _execute_with_delta_retry(
+                spark,
+                statement,
+                retry_policy=retry_policy or DeltaRetryPolicy(),
+                sleep=sleep,
+                jitter=jitter,
+            )
+            receipt = DeltaWriteReceipt(
+                statement=statement,
+                attempts=attempts,
+                receipt_id=receipt_metadata.receipt_id,
+                target_table=target_table,
+                build_id=build_id,
+                attempt_id=attempt_id,
+                git_commit=git_commit,
+                write_duration_ms=int((time.monotonic() - started) * 1000),
+            )
     finally:
         spark.catalog.dropTempView(source_view)
-    return DeltaWriteResult(statement=statement, attempts=attempts)
+    return receipt
+
+
+def _supports_commit_receipts(spark: Any) -> bool:
+    conf = getattr(spark, "conf", None)
+    return all(hasattr(conf, name) for name in ("get", "set", "unset"))
+
+
+def _set_commit_metadata(spark: Any, value: str) -> str | None:
+    try:
+        previous = spark.conf.get(_DELTA_COMMIT_METADATA_KEY)
+    except Exception:
+        previous = None
+    spark.conf.set(_DELTA_COMMIT_METADATA_KEY, value)
+    return previous
+
+
+def _restore_commit_metadata(spark: Any, previous: str | None) -> None:
+    if previous is None:
+        spark.conf.unset(_DELTA_COMMIT_METADATA_KEY)
+    else:
+        spark.conf.set(_DELTA_COMMIT_METADATA_KEY, previous)
+
+
+def _target_schema_checksum(spark: Any, target_table: str) -> str:
+    schema = spark.table(target_table).schema
+    return hashlib.sha256(schema.json().encode("utf-8")).hexdigest()
+
+
+def _read_commit_receipt(
+    spark: Any,
+    *,
+    statement: str,
+    attempts: int,
+    metadata: _ReceiptMetadata,
+    write_duration_ms: int,
+) -> DeltaWriteReceipt:
+    metadata_json = metadata.as_json()
+    history = spark.sql(
+        f"DESCRIBE HISTORY {quote_qualified_identifier(metadata.target_table)}"
+    )
+    row = (
+        history.where(F.col("userMetadata") == F.lit(metadata_json))
+        .orderBy(F.col("version").desc())
+        .limit(1)
+        .first()
+    )
+    if row is None:
+        raise RuntimeError(
+            "Delta write completed without a matching transaction receipt: "
+            f"{metadata.receipt_id}"
+        )
+    return _receipt_from_history_row(
+        spark,
+        row=row,
+        statement=statement,
+        attempts=attempts,
+        metadata=metadata,
+        write_duration_ms=write_duration_ms,
+    )
+
+
+def _receipt_from_history_row(
+    spark: Any,
+    *,
+    row: Any,
+    statement: str,
+    attempts: int,
+    metadata: _ReceiptMetadata,
+    write_duration_ms: int,
+) -> DeltaWriteReceipt:
+    operation_metrics = row["operationMetrics"] or {}
+    raw_row_count = next(
+        (
+            operation_metrics[name]
+            for name in (
+                "numOutputRows",
+                "numTargetRowsInserted",
+                "numInsertedRows",
+            )
+            if operation_metrics.get(name) is not None
+        ),
+        None,
+    )
+    committed_at = row["timestamp"]
+    if committed_at is not None and committed_at.tzinfo is None:
+        committed_at = committed_at.replace(tzinfo=timezone.utc)
+    return DeltaWriteReceipt(
+        statement=statement,
+        attempts=attempts,
+        receipt_id=metadata.receipt_id,
+        target_table=metadata.target_table,
+        delta_version=int(row["version"]),
+        row_count=int(raw_row_count) if raw_row_count is not None else None,
+        schema_checksum=_target_schema_checksum(spark, metadata.target_table),
+        build_id=metadata.build_id,
+        attempt_id=metadata.attempt_id,
+        git_commit=metadata.git_commit,
+        committed_at=committed_at,
+        write_duration_ms=write_duration_ms,
+    )
 
 
 def _execute_with_delta_retry(

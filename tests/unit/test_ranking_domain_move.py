@@ -1,4 +1,4 @@
-﻿import importlib
+import importlib
 import importlib.util
 from pathlib import Path
 
@@ -6,7 +6,9 @@ import pytest
 from pyspark.sql import SparkSession
 
 from next_ads.ranking import scoring
-from next_ads.ranking.theme_coverage import build_missing_theme_affinity_coverage
+from next_ads.ranking.theme_coverage import (
+    build_missing_theme_affinity_coverage,
+)
 from tests.job_resource_helpers import load_job
 
 
@@ -37,9 +39,14 @@ def test_scoring_package_exports_expected_functions():
 
 
 def test_package_code_uses_moved_scoring_import():
-    source = (PROJECT_ROOT / "src/next_ads/control/load_control_sheet.py").read_text()
+    source = (
+        PROJECT_ROOT / "src/next_ads/control/load_control_sheet.py"
+    ).read_text()
 
-    assert "from next_ads.ranking.scoring import append_targeting_criteria" in source
+    assert (
+        "from next_ads.ranking.scoring import append_targeting_criteria"
+        in source
+    )
 
 
 def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
@@ -63,8 +70,7 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
     ).read_text()
 
     assert (
-        "from next_ads.candidates.runtime "
-        "import run_portfolio_candidate_build"
+        "from next_ads.candidates.runtime import run_portfolio_candidate_build"
     ) in entrypoint
     assert "run_portfolio_candidate_build(" in entrypoint
     assert "run_theme_score_mapping(" in runtime_module
@@ -92,7 +98,8 @@ def test_theme_score_mapping_entrypoint_delegates_to_ranking_package():
 
 def test_v2_theme_score_mapping_uses_v2_control_sheet_directly():
     v2_entrypoint = (
-        PROJECT_ROOT / "jobs/nextads_candidates/build_page_type_candidates_v2.py"
+        PROJECT_ROOT
+        / "jobs/nextads_candidates/build_page_type_candidates_v2.py"
     ).read_text()
 
     assert "run_portfolio_candidate_build(" in v2_entrypoint
@@ -100,14 +107,16 @@ def test_v2_theme_score_mapping_uses_v2_control_sheet_directly():
         "control_table=config.tables_write.control_sheet_latest_v2"
         in v2_entrypoint
     )
-    assert "output_grain=\"page_type\"" in v2_entrypoint
+    assert 'output_grain="page_type"' in v2_entrypoint
     assert "next_theme_scores_latest_v2" not in v2_entrypoint
     assert "theme_scores_table" not in v2_entrypoint
     assert "write_score_components=False" in v2_entrypoint
     assert "preranked_ads_from_themes_latest" not in v2_entrypoint
 
 
-def test_theme_affinity_coverage_finds_ad_themes_missing_from_model(local_spark):
+def test_theme_affinity_coverage_finds_ad_themes_missing_from_model(
+    local_spark,
+):
     spark = local_spark
     control_ads = spark.createDataFrame(
         [
@@ -128,9 +137,9 @@ def test_theme_affinity_coverage_finds_ad_themes_missing_from_model(local_spark)
         route="v2",
     )
 
-    assert [(row.route, row.Theme, row.ad_count) for row in missing.collect()] == [
-        ("v2", "denim", 1)
-    ]
+    assert [
+        (row.route, row.Theme, row.ad_count) for row in missing.collect()
+    ] == [("v2", "denim", 1)]
 
 
 def test_theme_affinity_job_uses_model_entrypoints():
@@ -140,21 +149,26 @@ def test_theme_affinity_job_uses_model_entrypoints():
     )
     tasks = {task["task_key"]: task for task in job["tasks"]}
 
-    assert tasks["model_predict"]["spark_python_task"]["python_file"] == (
-        "../../../jobs/model/theme_affinity/model_predict.py"
+    assert set(tasks) == {
+        "prepare_foundation_context",
+        "predict_data_prep",
+        "publish_and_score",
+    }
+    assert tasks["publish_and_score"]["spark_python_task"]["python_file"] == (
+        "../../../jobs/orchestration/publish_theme_affinity.py"
     )
-    assert "clean_output" not in tasks
-    assert tasks["sense_check_dlt_data"]["spark_python_task"]["python_file"] == (
-        "../../../jobs/model/theme_affinity/sense_check.py"
-    )
-    assert tasks["sense_check_model_outputs"]["spark_python_task"][
-        "python_file"
-    ] == "../../../jobs/model/theme_affinity/sense_check.py"
+    assert not {
+        "clean_output",
+        "sense_check_dlt_data",
+        "sense_check_model_outputs",
+    }.intersection(tasks)
 
 
 def test_theme_affinity_scripts_live_under_model_jobs():
     try:
-        legacy_theme_affinity_spec = importlib.util.find_spec("scripts.theme_affinity")
+        legacy_theme_affinity_spec = importlib.util.find_spec(
+            "scripts.theme_affinity"
+        )
     except ModuleNotFoundError:
         legacy_theme_affinity_spec = None
 
@@ -165,7 +179,11 @@ def test_theme_affinity_scripts_live_under_model_jobs():
         "sense_check",
     ]:
         assert (
-            PROJECT_ROOT / "jobs" / "model" / "theme_affinity" / f"{module_name}.py"
+            PROJECT_ROOT
+            / "jobs"
+            / "model"
+            / "theme_affinity"
+            / f"{module_name}.py"
         ).is_file()
 
 
@@ -176,9 +194,10 @@ def test_v2_entrypoints_use_jobs_folder():
     )
     tasks = {task["task_key"]: task for task in job["tasks"]}
 
-    assert tasks["load_control_sheet_v2"]["spark_python_task"]["python_file"] == (
-        "../../../jobs/nextads_control/load_control_sheet_v2.py"
-    )
-    assert tasks["map_theme_scores_to_ads_v2"]["spark_python_task"][
+    assert tasks["load_control_sheet_v2"]["spark_python_task"][
         "python_file"
-    ] == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"
+    ] == ("../../../jobs/nextads_control/load_control_sheet_v2.py")
+    assert (
+        tasks["map_theme_scores_to_ads_v2"]["spark_python_task"]["python_file"]
+        == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"
+    )

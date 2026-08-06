@@ -22,7 +22,6 @@ default:
         contract_version: account_theme_foundation/v1
         required_outputs:
           ranked: account_theme_ranked/v1
-          complete: account_theme_complete/v1
         input_bindings:
           item_themes:
             table: "@format {this.tables_write.scoring_input_item_themes}"

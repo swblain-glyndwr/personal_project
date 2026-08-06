@@ -25,7 +25,7 @@ finally:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 from dsutils.argparser import get_job_parser
-from dsutils.dbc import configure_spark, get_dbutils
+from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.candidates.foundation import (
@@ -76,9 +76,8 @@ def _validated_customer_cell_status(
             "READY_FOR_NEXTADS customer cells must match the foundation "
             "run date"
         )
-    if (
-        status == FALLBACK_PREVIOUS
-        and source_run_date != run_date - timedelta(days=1)
+    if status == FALLBACK_PREVIOUS and source_run_date != run_date - timedelta(
+        days=1
     ):
         raise ValueError(
             "FALLBACK_PREVIOUS customer cells must be from the previous "
@@ -98,23 +97,28 @@ def main(
     CUSTOMER_CELLS_SOURCE_RUN_DATE,
     CUSTOMER_CELLS_SELECTION_STATUS,
     CUSTOMER_CELLS_ROW_COUNT,
-    CUSTOMER_CELLS_CONTENT_CHECKSUM,
     CUSTOMER_CELLS_SCHEMA_CHECKSUM,
+    CUSTOMER_CELLS_WRITE_RECEIPT_ID,
     CUSTOMER_CELLS_WARNING_COUNT,
     REPEAT_AD_EXPOSURE_TABLE,
     REPEAT_AD_EXPOSURE_DELTA_VERSION,
     REPEAT_AD_EXPOSURE_ROW_COUNT,
-    REPEAT_AD_EXPOSURE_CONTENT_CHECKSUM,
+    REPEAT_AD_EXPOSURE_SCHEMA_CHECKSUM,
+    REPEAT_AD_EXPOSURE_WRITE_RECEIPT_ID,
     REPEAT_AD_EXPOSURE_SOURCE_BINDINGS_JSON,
     AD_FEEDBACK_TABLE,
     AD_FEEDBACK_DELTA_VERSION,
     AD_FEEDBACK_ROW_COUNT,
-    AD_FEEDBACK_CONTENT_CHECKSUM,
+    AD_FEEDBACK_SCHEMA_CHECKSUM,
+    AD_FEEDBACK_WRITE_RECEIPT_ID,
     AD_FEEDBACK_SOURCE_BINDINGS_JSON,
     TASK_RUN_ID,
     EXECUTION_COUNT,
+    GIT_COMMIT,
 ):
-    configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
@@ -150,7 +154,8 @@ def main(
                 CUSTOMER_CELLS_ROW_COUNT,
                 "customer_cells_row_count",
             ),
-            "content_checksum": CUSTOMER_CELLS_CONTENT_CHECKSUM,
+            "schema_checksum": CUSTOMER_CELLS_SCHEMA_CHECKSUM,
+            "write_receipt_id": CUSTOMER_CELLS_WRITE_RECEIPT_ID,
         },
         "repeat_ad_exposure": {
             "table": REPEAT_AD_EXPOSURE_TABLE,
@@ -161,7 +166,8 @@ def main(
                 REPEAT_AD_EXPOSURE_ROW_COUNT,
                 "repeat_ad_exposure_row_count",
             ),
-            "content_checksum": REPEAT_AD_EXPOSURE_CONTENT_CHECKSUM,
+            "schema_checksum": REPEAT_AD_EXPOSURE_SCHEMA_CHECKSUM,
+            "write_receipt_id": REPEAT_AD_EXPOSURE_WRITE_RECEIPT_ID,
         },
         "ad_feedback": {
             "table": AD_FEEDBACK_TABLE,
@@ -172,39 +178,24 @@ def main(
                 AD_FEEDBACK_ROW_COUNT,
                 "ad_feedback_row_count",
             ),
-            "content_checksum": AD_FEEDBACK_CONTENT_CHECKSUM,
+            "schema_checksum": AD_FEEDBACK_SCHEMA_CHECKSUM,
+            "write_receipt_id": AD_FEEDBACK_WRITE_RECEIPT_ID,
         },
     }
     verify_output_binding(
         spark,
         name="customer_cells",
         binding=output_bindings["customer_cells"],
-        snapshot_id=snapshot_id,
-        run_date=run_date,
-        key_columns=("AccountNumber",),
-        allow_empty=False,
     )
     verify_output_binding(
         spark,
         name="repeat_ad_exposure",
         binding=output_bindings["repeat_ad_exposure"],
-        snapshot_id=snapshot_id,
-        run_date=run_date,
-        key_columns=(
-            "CandidateFoundationSnapshotID",
-            "AccountNumber",
-            "AdSeen",
-        ),
-        allow_empty=True,
     )
     verify_output_binding(
         spark,
         name="ad_feedback",
         binding=output_bindings["ad_feedback"],
-        snapshot_id=snapshot_id,
-        run_date=run_date,
-        key_columns=("CandidateFoundationSnapshotID", "UniqueAdID"),
-        allow_empty=True,
     )
 
     source_bindings = [
@@ -235,7 +226,11 @@ def main(
         "customer_cells_warning_count",
     )
     status = customer_selection_status
-    build = publish_candidate_foundation_manifest(
+    logger.info(
+        "Publishing typed READY receipt for candidate foundation %s",
+        snapshot_id,
+    )
+    publish_candidate_foundation_manifest(
         spark,
         snapshot_id=snapshot_id,
         run_date=run_date,
@@ -245,6 +240,7 @@ def main(
         status=status,
         task_run_id=_integer(TASK_RUN_ID, "task_run_id"),
         execution_count=_integer(EXECUTION_COUNT, "execution_count"),
+        git_commit=GIT_COMMIT,
         builds_table=config.tables_write.candidate_foundation_builds,
         sources_table=config.tables_write.candidate_foundation_sources,
         fallback_source_snapshot_id=(
@@ -255,15 +251,6 @@ def main(
         fallback_source_run_date=(
             customer_source_date if status == FALLBACK_PREVIOUS else None
         ),
-    )
-    task_values = get_dbutils().jobs.taskValues
-    task_values.set(key="foundation_snapshot_id", value=build.snapshot_id)
-    task_values.set(key="foundation_attempt_id", value=build.attempt_id)
-    task_values.set(key="foundation_status", value=build.status)
-    logger.info(
-        "Candidate foundation %s accepted with status %s",
-        build.snapshot_id,
-        build.status,
     )
 
 
@@ -281,21 +268,24 @@ def parse_args():
         "CUSTOMER_CELLS_SOURCE_RUN_DATE": "customer_cells_source_run_date",
         "CUSTOMER_CELLS_SELECTION_STATUS": "customer_cells_selection_status",
         "CUSTOMER_CELLS_ROW_COUNT": "customer_cells_row_count",
-        "CUSTOMER_CELLS_CONTENT_CHECKSUM": "customer_cells_content_checksum",
         "CUSTOMER_CELLS_SCHEMA_CHECKSUM": "customer_cells_schema_checksum",
+        "CUSTOMER_CELLS_WRITE_RECEIPT_ID": "customer_cells_write_receipt_id",
         "CUSTOMER_CELLS_WARNING_COUNT": "customer_cells_warning_count",
         "REPEAT_AD_EXPOSURE_TABLE": "repeat_ad_exposure_table",
         "REPEAT_AD_EXPOSURE_DELTA_VERSION": "repeat_ad_exposure_delta_version",
         "REPEAT_AD_EXPOSURE_ROW_COUNT": "repeat_ad_exposure_row_count",
-        "REPEAT_AD_EXPOSURE_CONTENT_CHECKSUM": "repeat_ad_exposure_content_checksum",
+        "REPEAT_AD_EXPOSURE_SCHEMA_CHECKSUM": "repeat_ad_exposure_schema_checksum",
+        "REPEAT_AD_EXPOSURE_WRITE_RECEIPT_ID": "repeat_ad_exposure_write_receipt_id",
         "REPEAT_AD_EXPOSURE_SOURCE_BINDINGS_JSON": "repeat_ad_exposure_source_bindings_json",
         "AD_FEEDBACK_TABLE": "ad_feedback_table",
         "AD_FEEDBACK_DELTA_VERSION": "ad_feedback_delta_version",
         "AD_FEEDBACK_ROW_COUNT": "ad_feedback_row_count",
-        "AD_FEEDBACK_CONTENT_CHECKSUM": "ad_feedback_content_checksum",
+        "AD_FEEDBACK_SCHEMA_CHECKSUM": "ad_feedback_schema_checksum",
+        "AD_FEEDBACK_WRITE_RECEIPT_ID": "ad_feedback_write_receipt_id",
         "AD_FEEDBACK_SOURCE_BINDINGS_JSON": "ad_feedback_source_bindings_json",
         "TASK_RUN_ID": "task_run_id",
         "EXECUTION_COUNT": "execution_count",
+        "GIT_COMMIT": "git_commit",
     }
     values = {
         output: parser.get_arg(f"--{argument}")

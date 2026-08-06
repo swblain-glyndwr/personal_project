@@ -10,6 +10,7 @@ from next_ads.ranking import provider_context
 from next_ads.ranking.provider_context import (
     ProviderContext,
     activate_provider_context,
+    load_reusable_provider_context,
     transition_provider_context,
 )
 
@@ -99,6 +100,32 @@ def _context(**overrides):
     return ProviderContext(**values)
 
 
+def _context_row(context, *, status="FAILED", execution_count=1):
+    return {
+        "ContextSlot": context.context_slot,
+        "OrchestrationRunID": context.orchestration_run_id,
+        "ProviderID": context.provider_id,
+        "ProviderBuildID": context.provider_build_id,
+        "ProviderBuildAttemptID": context.provider_build_attempt_id,
+        "InputSnapshotID": context.input_snapshot_id,
+        "RunDate": context.run_date,
+        "ModelURI": context.model_uri,
+        "BindingsJSON": context.bindings_json,
+        "Capability": context.capability,
+        "UseCase": context.use_case,
+        "InvocationChecksum": context.invocation_checksum,
+        "Status": status,
+        "ExpiresAt": context.expires_at,
+        "TaskRunID": 456,
+        "ExecutionCount": execution_count,
+        "ActivatedAt": NOW,
+        "ScoringFoundationBuildID": (context.scoring_foundation_build_id),
+        "ScoringFoundationBuildAttemptID": (
+            context.scoring_foundation_build_attempt_id
+        ),
+    }
+
+
 def test_same_run_higher_execution_can_reclaim_its_context(monkeypatch):
     context = _context()
     spark = _Spark()
@@ -118,17 +145,52 @@ def test_same_run_higher_execution_can_reclaim_its_context(monkeypatch):
     )
 
     claim = spark.statements[0]
-    assert (
-        "target.OrchestrationRunID = source.OrchestrationRunID"
-        in claim
-    )
+    assert "target.OrchestrationRunID = source.OrchestrationRunID" in claim
     assert "source.ExecutionCount > target.ExecutionCount" in claim
     assert spark.created[0].rows[0]["ExecutionCount"] == 2
     assert spark.created_schemas == ["provider-context-schema"]
     assert spark.created[0].rows[0]["ScoringFoundationBuildID"] is None
-    assert (
-        spark.created[0].rows[0]["ScoringFoundationBuildAttemptID"] is None
+    assert spark.created[0].rows[0]["ScoringFoundationBuildAttemptID"] is None
+
+
+@pytest.mark.parametrize("status", ["ACTIVE", "FAILED"])
+def test_repair_reuses_exact_incomplete_provider_attempt(monkeypatch, status):
+    previous = _context(provider_build_attempt_id="build:old-task:0")
+    expected = _context(
+        provider_build_attempt_id="build:new-task:2",
+        expires_at=NOW + timedelta(hours=9),
     )
+    spark = _Spark([_context_row(previous, status=status)])
+    monkeypatch.setattr(provider_context.F, "col", lambda name: _Expression())
+
+    reusable = load_reusable_provider_context(
+        spark,
+        context_table="catalog.schema.contexts",
+        expected_context=expected,
+        execution_count=2,
+    )
+
+    assert reusable is not None
+    assert reusable.provider_build_attempt_id == "build:old-task:0"
+    assert reusable.expires_at == expected.expires_at
+
+
+def test_repair_does_not_reuse_provider_attempt_from_another_run(monkeypatch):
+    previous = _context(
+        provider_build_attempt_id="build:old-task:0",
+        orchestration_run_id=999,
+    )
+    spark = _Spark([_context_row(previous)])
+    monkeypatch.setattr(provider_context.F, "col", lambda name: _Expression())
+
+    reusable = load_reusable_provider_context(
+        spark,
+        context_table="catalog.schema.contexts",
+        expected_context=_context(provider_build_attempt_id="build:new:2"),
+        execution_count=2,
+    )
+
+    assert reusable is None
 
 
 def test_foreign_run_cannot_take_an_unexpired_context(monkeypatch):

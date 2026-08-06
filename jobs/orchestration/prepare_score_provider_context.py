@@ -42,9 +42,9 @@ from next_ads.ranking.provider_context import (
     activate_provider_context,
     build_provider_build_id,
     build_provider_invocation_checksum,
+    load_reusable_provider_context,
     pinned_item_themes,
 )
-from next_ads.ranking.scoring_inputs import latest_delta_version
 
 
 def _as_dict(value):
@@ -117,10 +117,17 @@ def _select_snapshot_id(
     source_rows = (
         spark.table(sources_table)
         .where(
-            F.col("InputSnapshotAttemptID")
-            == winner["InputSnapshotAttemptID"]
+            F.col("InputSnapshotAttemptID") == winner["InputSnapshotAttemptID"]
         )
-        .select("SourceName", "SourceRole", "IsRequired")
+        .select(
+            "SourceName",
+            "SourceRole",
+            "IsRequired",
+            "AcceptedTable",
+            "AcceptedDeltaVersion",
+            "AcceptedSchemaChecksum",
+            "WriteReceiptID",
+        )
         .collect()
     )
     observed = {
@@ -128,8 +135,33 @@ def _select_snapshot_id(
         for row in source_rows
     }
     if len(source_rows) != len(observed) or observed != EXPECTED_SOURCES:
-        raise ValueError("Accepted scoring input source contract is incomplete")
-    return winner["InputSnapshotID"]
+        raise ValueError(
+            "Accepted scoring input source contract is incomplete"
+        )
+    item_themes = next(
+        row for row in source_rows if row["SourceName"] == "item_themes"
+    )
+    if (
+        not item_themes["AcceptedTable"]
+        or item_themes["AcceptedDeltaVersion"] is None
+        or int(item_themes["AcceptedDeltaVersion"]) < 0
+        or not item_themes["AcceptedSchemaChecksum"]
+        or not item_themes["WriteReceiptID"]
+    ):
+        raise ValueError("Accepted item-theme receipt is incomplete")
+    return (
+        winner["InputSnapshotID"],
+        winner["InputSnapshotAttemptID"],
+        {
+            "table": item_themes["AcceptedTable"],
+            "input_snapshot_id": winner["InputSnapshotID"],
+            "input_snapshot_attempt_id": winner["InputSnapshotAttemptID"],
+            "run_date": run_date.isoformat(),
+            "delta_version": int(item_themes["AcceptedDeltaVersion"]),
+            "schema_checksum": item_themes["AcceptedSchemaChecksum"],
+            "write_receipt_id": item_themes["WriteReceiptID"],
+        },
+    )
 
 
 def _wait_for_snapshot_id(
@@ -177,10 +209,14 @@ def _load_foundation_binding(
     )
     if foundation_id is None:
         if any(supplied):
-            raise ValueError("Foundation-free provider received foundation IDs")
+            raise ValueError(
+                "Foundation-free provider received foundation IDs"
+            )
         return None
     if not all(supplied):
-        raise ValueError("Provider requires an exact scoring foundation attempt")
+        raise ValueError(
+            "Provider requires an exact scoring foundation attempt"
+        )
     foundation = config.scoring.foundations[foundation_id]
     build_rows = (
         spark.table(config.tables_write.scoring_foundation_builds)
@@ -236,7 +272,9 @@ def _load_foundation_binding(
     if tuple(json.loads(build["RequiredOutputsJSON"])) != tuple(
         sorted(required_outputs)
     ):
-        raise ValueError("Scoring foundation required outputs do not match config")
+        raise ValueError(
+            "Scoring foundation required outputs do not match config"
+        )
     observed = {row["OutputName"]: row for row in output_rows}
     if len(observed) != len(output_rows) or set(observed) != set(
         required_outputs
@@ -246,17 +284,14 @@ def _load_foundation_binding(
     for output_name, schema_version in sorted(required_outputs.items()):
         row = observed[output_name]
         invalid = (
-            row["ScoringFoundationBuildID"]
-            != scoring_foundation_build_id
+            row["ScoringFoundationBuildID"] != scoring_foundation_build_id
             or row["RunDate"] != run_date
             or row["OutputSchemaVersion"] != schema_version
             or not bool(row["IsRequired"])
             or int(row["RowCount"]) < 1
-            or int(row["NullKeyCount"]) != 0
-            or int(row["DuplicateKeyCount"]) != 0
-            or int(row["InvalidValueCount"]) != 0
             or int(row["OutputDeltaVersion"]) < 0
-            or not row["OutputChecksum"]
+            or not row["WriteReceiptID"]
+            or not row["GitCommit"]
             or not row["SourceSchemaChecksum"]
             or not row["OutputSchemaChecksum"]
             or row["SourceSchemaChecksum"] != row["OutputSchemaChecksum"]
@@ -267,12 +302,12 @@ def _load_foundation_binding(
             )
         outputs[output_name] = {
             "source_table": row["SourceTable"],
-            "source_delta_version": int(row["SourceDeltaVersion"]),
+            "source_delta_version": row["SourceDeltaVersion"],
             "table": row["OutputTable"],
             "delta_version": int(row["OutputDeltaVersion"]),
             "schema_version": row["OutputSchemaVersion"],
             "schema_checksum": row["OutputSchemaChecksum"],
-            "output_checksum": row["OutputChecksum"],
+            "write_receipt_id": row["WriteReceiptID"],
         }
     return {
         "scoring_foundation_build_id": scoring_foundation_build_id,
@@ -306,6 +341,9 @@ def main(
     SCORING_FOUNDATION_BUILD_ID=None,
     SCORING_FOUNDATION_BUILD_ATTEMPT_ID=None,
     ALLOW_SERIAL_RUN_TAKEOVER=False,
+    ACTIVATE_CONTEXT=True,
+    EMIT_TASK_VALUES=True,
+    REUSE_INCOMPLETE_ATTEMPT=False,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -327,7 +365,11 @@ def main(
             else None
         ),
     )
-    input_snapshot_id = _wait_for_snapshot_id(
+    (
+        input_snapshot_id,
+        _input_snapshot_attempt_id,
+        accepted_item_themes_binding,
+    ) = _wait_for_snapshot_id(
         spark,
         table=config.tables_write.scoring_input_snapshots,
         sources_table=config.tables_write.scoring_input_snapshot_sources,
@@ -361,15 +403,7 @@ def main(
         ),
     )
     if foundation_binding is None:
-        item_themes_binding = {
-            "table": config.tables_write.scoring_input_item_themes,
-            "input_snapshot_id": input_snapshot_id,
-            "run_date": run_date.isoformat(),
-            "delta_version": latest_delta_version(
-                spark,
-                config.tables_write.scoring_input_item_themes,
-            ),
-        }
+        item_themes_binding = accepted_item_themes_binding
         bindings = {"item_themes": item_themes_binding}
     else:
         item_themes_binding = foundation_binding["input_bindings"].get(
@@ -410,33 +444,50 @@ def main(
             SCORING_FOUNDATION_BUILD_ATTEMPT_ID
         ),
     )
-    task_values = get_dbutils().jobs.taskValues
-    task_values.set(key="input_snapshot_id", value=input_snapshot_id)
-    task_values.set(key="provider_build_id", value=provider_build_id)
-    task_values.set(
-        key="provider_build_attempt_id",
-        value=provider_build_attempt_id,
-    )
+    if REUSE_INCOMPLETE_ATTEMPT:
+        reusable = load_reusable_provider_context(
+            spark,
+            context_table=config.tables_write.score_provider_run_contexts,
+            expected_context=context,
+            execution_count=execution_count,
+        )
+        if reusable is not None:
+            context = reusable
+            provider_build_attempt_id = context.provider_build_attempt_id
+            logger.info(
+                "Reusing incomplete provider attempt %s",
+                provider_build_attempt_id,
+            )
+    if EMIT_TASK_VALUES:
+        task_values = get_dbutils().jobs.taskValues
+        task_values.set(key="input_snapshot_id", value=input_snapshot_id)
+        task_values.set(key="provider_build_id", value=provider_build_id)
+        task_values.set(
+            key="provider_build_attempt_id",
+            value=provider_build_attempt_id,
+        )
     pinned_item_themes(
         spark,
         context,
         input_table=config.tables_write.scoring_input_item_themes,
     )
-    activate_provider_context(
-        spark,
-        context_table=config.tables_write.score_provider_run_contexts,
-        context=context,
-        task_run_id=task_run_id,
-        execution_count=execution_count,
-        activated_at=activated_at,
-        allow_serial_run_takeover=ALLOW_SERIAL_RUN_TAKEOVER,
-    )
+    if ACTIVATE_CONTEXT:
+        activate_provider_context(
+            spark,
+            context_table=config.tables_write.score_provider_run_contexts,
+            context=context,
+            task_run_id=task_run_id,
+            execution_count=execution_count,
+            activated_at=activated_at,
+            allow_serial_run_takeover=ALLOW_SERIAL_RUN_TAKEOVER,
+        )
     logger.info(
         "Activated %s for provider build %s and input %s",
         CONTEXT_SLOT,
         provider_build_id,
         input_snapshot_id,
     )
+    return context
 
 
 if __name__ == "__main__":
@@ -460,4 +511,5 @@ if __name__ == "__main__":
         parser.get_arg("--scoring_foundation_build_id"),
         parser.get_arg("--scoring_foundation_build_attempt_id"),
         parser.has_arg("--allow-serial-run-takeover"),
+        REUSE_INCOMPLETE_ATTEMPT=parser.has_arg("--reuse-incomplete-attempt"),
     )

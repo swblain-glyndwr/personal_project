@@ -28,6 +28,7 @@ from next_ads.candidates.foundation import load_candidate_foundation_inputs
 from next_ads.candidates.runtime import run_portfolio_candidate_build
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
+from next_ads.common.spark_runtime import configure_lean_spark
 
 
 jobparser = get_job_parser()
@@ -43,6 +44,7 @@ PORTFOLIO_ATTEMPT_ID = jobparser.get_arg("--portfolio_attempt_id")
 CURRENT_INPUT_SNAPSHOT_ID = jobparser.get_arg("--current_input_snapshot_id")
 TASK_RUN_ID = jobparser.get_arg("--task_run_id")
 EXECUTION_COUNT = jobparser.get_arg("--execution_count")
+GIT_COMMIT = jobparser.get_arg("--git_commit")
 FOUNDATION_SNAPSHOT_ID = jobparser.get_arg("--foundation_snapshot_id")
 FOUNDATION_SOURCE_RUN_DATE = jobparser.get_arg("--foundation_source_run_date")
 CUSTOMER_CELLS_TABLE = jobparser.get_arg("--customer_cells_table")
@@ -56,6 +58,7 @@ REPEAT_AD_EXPOSURE_DELTA_VERSION = jobparser.get_arg(
 AD_FEEDBACK_TABLE = jobparser.get_arg("--ad_feedback_table")
 AD_FEEDBACK_DELTA_VERSION = jobparser.get_arg("--ad_feedback_delta_version")
 spark = configure_spark()
+configure_lean_spark(spark)
 logger.info(f"Running in job environment: {JOB_ENV}")
 
 if not CLIENT:
@@ -95,23 +98,31 @@ missing_foundation = [
 ]
 if missing_foundation:
     raise ValueError(
-        "Missing candidate foundation values: "
-        + ", ".join(missing_foundation)
+        "Missing candidate foundation values: " + ", ".join(missing_foundation)
     )
 try:
     foundation_inputs = load_candidate_foundation_inputs(
         spark,
         **foundation_values,
         customer_cells_delta_version=int(CUSTOMER_CELLS_DELTA_VERSION),
-        repeat_ad_exposure_delta_version=int(
-            REPEAT_AD_EXPOSURE_DELTA_VERSION
-        ),
+        repeat_ad_exposure_delta_version=int(REPEAT_AD_EXPOSURE_DELTA_VERSION),
         ad_feedback_delta_version=int(AD_FEEDBACK_DELTA_VERSION),
     )
 except (TypeError, ValueError) as exc:
     raise ValueError("Candidate foundation bindings are invalid") from exc
 
 top_ads = int(jobparser.get_arg("--top-ads-per-location") or 20)
+task_values = get_dbutils().jobs.taskValues
+
+
+def publish_task_identity(build):
+    task_values.set(key="candidate_build_id", value=build.candidate_build_id)
+    task_values.set(
+        key="candidate_build_attempt_id",
+        value=build.candidate_build_attempt_id,
+    )
+
+
 result = run_portfolio_candidate_build(
     spark=spark,
     config=config,
@@ -132,17 +143,13 @@ result = run_portfolio_candidate_build(
     ),
     task_run_id=TASK_RUN_ID,
     execution_count=EXECUTION_COUNT,
+    git_commit=GIT_COMMIT,
     compatibility_top_count=top_ads,
     apply_ad_feedback=jobparser.has_arg("--apply-ad-feedback"),
     ad_feedback_weight=float(
         jobparser.get_arg("--ad-feedback-weight") or 0.05
     ),
-    write_score_components=True,
+    write_score_components=False,
     logger=logger,
-)
-task_values = get_dbutils().jobs.taskValues
-task_values.set(key="candidate_build_id", value=result.candidate_build_id)
-task_values.set(
-    key="candidate_build_attempt_id",
-    value=result.candidate_build_attempt_id,
+    before_ready=publish_task_identity,
 )

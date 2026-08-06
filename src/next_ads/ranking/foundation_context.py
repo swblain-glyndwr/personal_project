@@ -13,6 +13,7 @@ from pyspark.sql import functions as F
 from next_ads.common.delta_writes import (
     quote_identifier,
     quote_qualified_identifier,
+    typed_table_frame,
 )
 
 
@@ -195,7 +196,7 @@ def activate_foundation_context(
         "ExecutionCount": execution_count,
         "ActivatedAt": activated_at,
     }
-    frame = spark.createDataFrame([row])
+    frame = typed_table_frame(spark, context_table, [row])
     source_view = f"_nextads_foundation_context_{uuid.uuid4().hex}"
     frame.createOrReplaceTempView(source_view)
     columns = list(row)
@@ -336,7 +337,9 @@ def transition_foundation_context(
 ) -> None:
     """Release a foundation lease only when all ownership fields match."""
     if status not in {"CONSUMED", "FAILED"}:
-        raise ValueError("Foundation context status must be CONSUMED or FAILED")
+        raise ValueError(
+            "Foundation context status must be CONSUMED or FAILED"
+        )
     if completed_at.tzinfo is None:
         raise ValueError("completed_at must be timezone-aware")
     escaped_slot = context.context_slot.replace("'", "''")

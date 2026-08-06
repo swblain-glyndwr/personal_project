@@ -25,8 +25,13 @@ from next_ads.candidates.foundation import (
     FALLBACK_PREVIOUS,
     parse_run_date,
 )
-from next_ads.common.delta_writes import replace_scope_by_name
-from next_ads.ranking.scoring_inputs import read_delta_version, summarise_content
+from next_ads.common.delta_writes import (
+    replace_scope_by_name,
+    typed_table_frame,
+    validate_typed_table_schema,
+)
+from next_ads.ranking.scoring_inputs import read_delta_version
+from next_ads.candidates.foundation import schema_checksum
 
 
 MAX_FALLBACK_AGE = timedelta(hours=24)
@@ -46,6 +51,7 @@ class CandidateFoundationBuild:
     fallback_source_run_date: date | None
     task_run_id: int
     execution_count: int
+    git_commit: str
     completed_at: datetime
 
 
@@ -74,6 +80,7 @@ BUILD_COLUMNS = (
     "FallbackSourceRunDate",
     "TaskRunID",
     "ExecutionCount",
+    "GitCommit",
     "CompletedAt",
 )
 
@@ -91,6 +98,7 @@ BUILD_SCHEMA = StructType(
         StructField("FallbackSourceRunDate", DateType(), True),
         StructField("TaskRunID", LongType(), False),
         StructField("ExecutionCount", IntegerType(), False),
+        StructField("GitCommit", StringType(), False),
         StructField("CompletedAt", TimestampType(), False),
     ]
 )
@@ -170,20 +178,33 @@ def parse_output_bindings(value: str) -> dict[str, Mapping[str, Any]]:
             details.append("missing: " + ", ".join(missing))
         if unexpected:
             details.append("unexpected: " + ", ".join(unexpected))
-        raise ValueError("Invalid candidate foundation bindings (" + "; ".join(details) + ")")
+        raise ValueError(
+            "Invalid candidate foundation bindings ("
+            + "; ".join(details)
+            + ")"
+        )
     for name, binding in parsed.items():
         if not isinstance(binding, dict):
             raise ValueError(f"Binding {name} must be an object")
         _required_text(binding.get("table"), f"{name}.table")
-        _non_negative_int(binding.get("delta_version"), f"{name}.delta_version")
+        _non_negative_int(
+            binding.get("delta_version"), f"{name}.delta_version"
+        )
         _required_text(binding.get("schema_version"), f"{name}.schema_version")
-        _required_text(binding.get("content_checksum"), f"{name}.content_checksum")
+        _required_text(
+            binding.get("schema_checksum"), f"{name}.schema_checksum"
+        )
+        _required_text(
+            binding.get("write_receipt_id"), f"{name}.write_receipt_id"
+        )
         _non_negative_int(binding.get("row_count"), f"{name}.row_count")
     return parsed
 
 
 def parse_candidate_foundation_build(row: Any) -> CandidateFoundationBuild:
-    values = row.asDict(recursive=True) if hasattr(row, "asDict") else dict(row)
+    values = (
+        row.asDict(recursive=True) if hasattr(row, "asDict") else dict(row)
+    )
     missing = [column for column in BUILD_COLUMNS if column not in values]
     if missing:
         raise ValueError(
@@ -214,7 +235,9 @@ def parse_candidate_foundation_build(row: Any) -> CandidateFoundationBuild:
             values["OutputBindingsJSON"],
             "OutputBindingsJSON",
         ),
-        warning_count=_non_negative_int(values["WarningCount"], "WarningCount"),
+        warning_count=_non_negative_int(
+            values["WarningCount"], "WarningCount"
+        ),
         status=_required_text(values["Status"], "Status"),
         fallback_source_snapshot_id=(
             None
@@ -232,6 +255,7 @@ def parse_candidate_foundation_build(row: Any) -> CandidateFoundationBuild:
             values["ExecutionCount"],
             "ExecutionCount",
         ),
+        git_commit=_required_text(values["GitCommit"], "GitCommit"),
         completed_at=_utc(values["CompletedAt"]),
     )
     parse_output_bindings(build.output_bindings_json)
@@ -408,10 +432,6 @@ def verify_output_binding(
     *,
     name: str,
     binding: Mapping[str, Any],
-    snapshot_id: str,
-    run_date: date,
-    key_columns: tuple[str, ...],
-    allow_empty: bool,
 ) -> None:
     table = _required_text(binding.get("table"), f"{name}.table")
     version = _non_negative_int(
@@ -419,25 +439,14 @@ def verify_output_binding(
         f"{name}.delta_version",
     )
     frame = read_delta_version(spark, table, version)
-    if name != "customer_cells":
-        frame = frame.where(
-            (F.col("CandidateFoundationSnapshotID") == snapshot_id)
-            & (F.col("RunDate") == F.lit(run_date))
-        )
-    summary = summarise_content(frame, key_columns=key_columns)
-    if not allow_empty:
-        summary.require_valid(name)
-    elif summary.null_key_count or summary.duplicate_key_count:
-        summary.require_valid(name)
-    expected_count = _non_negative_int(binding.get("row_count"), "row_count")
-    expected_checksum = _required_text(
-        binding.get("content_checksum"),
-        "content_checksum",
+    expected_schema = _required_text(
+        binding.get("schema_checksum"),
+        f"{name}.schema_checksum",
     )
-    if summary.row_count != expected_count:
-        raise ValueError(f"Binding {name} row count does not match its output")
-    if summary.content_checksum != expected_checksum:
-        raise ValueError(f"Binding {name} checksum does not match its output")
+    if schema_checksum(frame) != expected_schema:
+        raise ValueError(f"Binding {name} schema does not match its output")
+    _required_text(binding.get("write_receipt_id"), f"{name}.write_receipt_id")
+    _non_negative_int(binding.get("row_count"), f"{name}.row_count")
 
 
 def publish_candidate_foundation_manifest(
@@ -451,47 +460,79 @@ def publish_candidate_foundation_manifest(
     status: str,
     task_run_id: int,
     execution_count: int,
+    git_commit: str,
     builds_table: str,
     sources_table: str,
     fallback_source_snapshot_id: str | None = None,
     fallback_source_run_date: date | None = None,
     completed_at: datetime | None = None,
 ) -> CandidateFoundationBuild:
+    validate_typed_table_schema(spark, sources_table, SOURCE_COLUMNS)
+    validate_typed_table_schema(
+        spark,
+        builds_table,
+        BUILD_COLUMNS,
+        nullable_columns=(
+            "FallbackSourceSnapshotID",
+            "FallbackSourceRunDate",
+        ),
+    )
     if status not in ACCEPTED_FOUNDATION_STATUSES:
         raise ValueError(f"Unsupported accepted foundation status: {status}")
     parse_output_bindings(canonical_json(output_bindings))
-    names = [_required_text(source.get("name"), "source.name") for source in source_bindings]
+    names = [
+        _required_text(source.get("name"), "source.name")
+        for source in source_bindings
+    ]
     if len(names) != len(set(names)):
         raise ValueError("Candidate foundation source names must be unique")
     completed = _utc(completed_at or datetime.now(timezone.utc))
     attempt_id = f"{snapshot_id}:attempt:{execution_count}:{task_run_id}"
-    source_json = canonical_json(sorted(source_bindings, key=lambda value: value["name"]))
+    source_json = canonical_json(
+        sorted(source_bindings, key=lambda value: value["name"])
+    )
     output_json = canonical_json(output_bindings)
 
-    source_rows = []
+    source_rows: list[dict[str, Any]] = []
     for binding in source_bindings:
         source_rows.append(
-            (
-                snapshot_id,
-                attempt_id,
-                run_date,
-                _required_text(binding.get("name"), "source.name"),
-                _required_text(binding.get("role"), "source.role"),
-                _required_text(binding.get("table"), "source.table"),
-                _non_negative_int(binding.get("delta_version"), "source.delta_version"),
-                _required_text(binding.get("schema_version"), "source.schema_version"),
-                _required_text(binding.get("schema_checksum"), "source.schema_checksum"),
-                bool(binding.get("required", True)),
-                completed,
-            )
+            {
+                "CandidateFoundationSnapshotID": snapshot_id,
+                "CandidateFoundationAttemptID": attempt_id,
+                "RunDate": run_date,
+                "SourceName": _required_text(
+                    binding.get("name"), "source.name"
+                ),
+                "SourceRole": _required_text(
+                    binding.get("role"), "source.role"
+                ),
+                "SourceTable": _required_text(
+                    binding.get("table"), "source.table"
+                ),
+                "DeltaVersion": _non_negative_int(
+                    binding.get("delta_version"), "source.delta_version"
+                ),
+                "SchemaVersion": _required_text(
+                    binding.get("schema_version"), "source.schema_version"
+                ),
+                "SchemaChecksum": _required_text(
+                    binding.get("schema_checksum"), "source.schema_checksum"
+                ),
+                "IsRequired": bool(binding.get("required", True)),
+                "CapturedAt": completed,
+            }
         )
-    source_frame = spark.createDataFrame(source_rows, schema=SOURCE_SCHEMA)
+    source_frame = typed_table_frame(spark, sources_table, source_rows)
     replace_scope_by_name(
         source_frame,
         sources_table,
         {"CandidateFoundationAttemptID": attempt_id, "RunDate": run_date},
         SOURCE_COLUMNS,
         spark=spark,
+        build_id=snapshot_id,
+        attempt_id=attempt_id,
+        git_commit=_required_text(git_commit, "git_commit"),
+        capture_receipt=False,
     )
 
     build = CandidateFoundationBuild(
@@ -507,27 +548,30 @@ def publish_candidate_foundation_manifest(
         fallback_source_run_date=fallback_source_run_date,
         task_run_id=_non_negative_int(task_run_id, "task_run_id"),
         execution_count=_non_negative_int(execution_count, "execution_count"),
+        git_commit=_required_text(git_commit, "git_commit"),
         completed_at=completed,
     )
-    build_frame = spark.createDataFrame(
+    build_frame = typed_table_frame(
+        spark,
+        builds_table,
         [
-            (
-                build.snapshot_id,
-                build.attempt_id,
-                build.run_date,
-                build.contract_version,
-                build.source_bindings_json,
-                build.output_bindings_json,
-                build.warning_count,
-                build.status,
-                build.fallback_source_snapshot_id,
-                build.fallback_source_run_date,
-                build.task_run_id,
-                build.execution_count,
-                build.completed_at,
-            )
+            {
+                "CandidateFoundationSnapshotID": build.snapshot_id,
+                "CandidateFoundationAttemptID": build.attempt_id,
+                "RunDate": build.run_date,
+                "ContractVersion": build.contract_version,
+                "SourceBindingsJSON": build.source_bindings_json,
+                "OutputBindingsJSON": build.output_bindings_json,
+                "WarningCount": build.warning_count,
+                "Status": build.status,
+                "FallbackSourceSnapshotID": build.fallback_source_snapshot_id,
+                "FallbackSourceRunDate": build.fallback_source_run_date,
+                "TaskRunID": build.task_run_id,
+                "ExecutionCount": build.execution_count,
+                "GitCommit": build.git_commit,
+                "CompletedAt": build.completed_at,
+            }
         ],
-        schema=BUILD_SCHEMA,
     )
     replace_scope_by_name(
         build_frame,
@@ -535,6 +579,10 @@ def publish_candidate_foundation_manifest(
         {"CandidateFoundationAttemptID": attempt_id, "RunDate": run_date},
         BUILD_COLUMNS,
         spark=spark,
+        build_id=snapshot_id,
+        attempt_id=attempt_id,
+        git_commit=build.git_commit,
+        capture_receipt=False,
     )
     return build
 

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable, Mapping
+import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
@@ -10,15 +11,73 @@ from typing import Any
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
-from next_ads.common.delta_writes import replace_scope_by_name
-from next_ads.ranking.scoring_inputs import summarise_content
+from next_ads.common.delta_writes import (
+    DeltaWriteReceipt,
+    find_delta_write_receipt,
+    replace_scope_by_name,
+    typed_table_frame,
+    validate_typed_table_schema,
+)
 
 
-CANDIDATE_CONTRACT_VERSION = "nextads_candidates/v1"
+CANDIDATE_CONTRACT_VERSION = "nextads_candidates/v2"
 CANDIDATE_POLICY_VERSION = "nextads_candidate_policy/v1"
 READY_FOR_NEXTADS = "READY_FOR_NEXTADS"
 SERVING = "SERVING"
 MAX_CANDIDATES_PER_AD_SET = 20
+CANDIDATE_SCORE_COLUMNS = (
+    "CandidateBuildID",
+    "CandidateBuildAttemptID",
+    "RunDate",
+    "Route",
+    "PortfolioEntryID",
+    "ServingSlot",
+    "ExperimentID",
+    "VariantID",
+    "ProviderBuildID",
+    "ProviderBuildAttemptID",
+    "AccountNumber",
+    "AdSetID",
+    "UniqueAdID",
+    "Score",
+    "TriggerScore",
+    "Rank",
+    "CandidateID",
+)
+CANDIDATE_AD_SET_COLUMNS = (
+    "CandidateBuildID",
+    "CandidateBuildAttemptID",
+    "RunDate",
+    "Route",
+    "AdSetID",
+    "ScopeType",
+    "ScopeValue",
+    "UniqueAdID",
+)
+CANDIDATE_BUILD_COLUMNS = (
+    "CandidateBuildID",
+    "CandidateBuildAttemptID",
+    "RunDate",
+    "Route",
+    "OutputGrain",
+    "PortfolioID",
+    "PortfolioAttemptID",
+    "CandidateFoundationSnapshotID",
+    "ControlTable",
+    "ControlDeltaVersion",
+    "CandidateContractVersion",
+    "CandidatePolicyVersion",
+    "CandidatePolicyChecksum",
+    "ProviderBindingsJSON",
+    "Status",
+    "EntryCount",
+    "OutputBindingsJSON",
+    "GitCommit",
+    "RuntimeMs",
+    "TaskRunID",
+    "ExecutionCount",
+    "CompletedAt",
+)
 
 
 @dataclass(frozen=True)
@@ -65,6 +124,7 @@ class CandidateBuildContext:
     provider_bindings_json: str
     task_run_id: int
     execution_count: int
+    git_commit: str
 
 
 @dataclass(frozen=True)
@@ -116,12 +176,8 @@ def candidate_policy_checksum(
         "feedback": {
             "enabled": bool(apply_ad_feedback),
             "weight": float(ad_feedback_weight),
-            "minimum_control_sessions": cfg["results_prm"][
-                "min_c_sessions"
-            ],
-            "lookback_days": cfg["incrementality"][
-                "incremental_lookback"
-            ],
+            "minimum_control_sessions": cfg["results_prm"]["min_c_sessions"],
+            "lookback_days": cfg["incrementality"]["incremental_lookback"],
         },
         "exposure": {
             "lookback_days": 7,
@@ -295,6 +351,7 @@ def build_candidate_context(
     candidate_policy_checksum_value: str,
     task_run_id: int,
     execution_count: int,
+    git_commit: str,
 ) -> CandidateBuildContext:
     if not entries:
         raise ValueError("Candidate build requires serving portfolio entries")
@@ -327,15 +384,16 @@ def build_candidate_context(
         "route": route,
         "output_grain": output_grain,
         "portfolio_id": next(iter(portfolio_ids)),
-        "candidate_foundation_snapshot_id": (
-            candidate_foundation_snapshot_id
-        ),
+        "candidate_foundation_snapshot_id": (candidate_foundation_snapshot_id),
         "control_table": control_table,
         "control_delta_version": control_delta_version,
         "candidate_policy_checksum": candidate_policy_checksum_value,
         "provider_bindings": bindings,
+        "git_commit": _required_text(git_commit, "git_commit"),
     }
-    digest = hashlib.sha256(canonical_json(identity).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(
+        canonical_json(identity).encode("utf-8")
+    ).hexdigest()
     build_id = f"candidates_{route}_{run_date:%Y%m%d}_{digest[:20]}"
     return CandidateBuildContext(
         candidate_build_id=build_id,
@@ -362,14 +420,13 @@ def build_candidate_context(
         ),
         provider_bindings_json=canonical_json(bindings),
         task_run_id=_non_negative_int(task_run_id, "task_run_id"),
-        execution_count=_non_negative_int(
-            execution_count, "execution_count"
-        ),
+        execution_count=_non_negative_int(execution_count, "execution_count"),
+        git_commit=_required_text(git_commit, "git_commit"),
     )
 
 
 class CandidateBuildPublisher:
-    """Publish attempt-scoped rows first and the accepted manifest last."""
+    """Materialise each canonical candidate table once, then publish READY."""
 
     def __init__(
         self,
@@ -387,8 +444,26 @@ class CandidateBuildPublisher:
         self.scores_table = scores_table
         self.ad_sets_table = ad_sets_table
         self.group_column = group_column
-        self._ad_sets_written = False
+        validate_typed_table_schema(
+            spark,
+            builds_table,
+            CANDIDATE_BUILD_COLUMNS,
+        )
+        validate_typed_table_schema(
+            spark,
+            scores_table,
+            CANDIDATE_SCORE_COLUMNS,
+            nullable_columns=("TriggerScore",),
+        )
+        validate_typed_table_schema(
+            spark,
+            ad_sets_table,
+            CANDIDATE_AD_SET_COLUMNS,
+        )
+        self._ad_sets: DataFrame | None = None
+        self._score_frames: list[DataFrame] = []
         self._published_entry_ids: set[str] = set()
+        self._started_at = time.monotonic()
 
     def _ordered(self, frame: DataFrame, table: str) -> DataFrame:
         return frame.select(*self.spark.table(table).columns)
@@ -401,10 +476,9 @@ class CandidateBuildPublisher:
         ad_to_ad_set: DataFrame,
     ) -> None:
         context = self.context
-        if not self._ad_sets_written:
-            ad_sets = (
-                ad_to_ad_set.join(ad_set_to_group, "AdSetID", "inner")
-                .select(
+        if self._ad_sets is None:
+            self._ad_sets = self._ordered(
+                ad_to_ad_set.join(ad_set_to_group, "AdSetID", "inner").select(
                     F.lit(context.candidate_build_id).alias(
                         "CandidateBuildID"
                     ),
@@ -415,120 +489,131 @@ class CandidateBuildPublisher:
                     F.lit(context.route).alias("Route"),
                     "AdSetID",
                     F.lit(context.output_grain).alias("ScopeType"),
-                    F.col(self.group_column).cast("string").alias(
-                        "ScopeValue"
-                    ),
-                    "UniqueAdID",
-                )
-            )
-            ad_sets = self._ordered(ad_sets, self.ad_sets_table)
-            summary = summarise_content(
-                ad_sets,
-                key_columns=(
-                    "CandidateBuildAttemptID",
-                    "AdSetID",
-                    "ScopeType",
-                    "ScopeValue",
+                    F.col(self.group_column)
+                    .cast("string")
+                    .alias("ScopeValue"),
                     "UniqueAdID",
                 ),
-            )
-            summary.require_valid("candidate ad sets")
-            replace_scope_by_name(
-                ad_sets,
                 self.ad_sets_table,
-                {
-                    "CandidateBuildAttemptID": (
-                        context.candidate_build_attempt_id
-                    )
-                },
-                ad_sets.columns,
-                spark=self.spark,
             )
-            self._ad_sets_written = True
 
-        for entry in entries:
-            if entry.portfolio_entry_id in self._published_entry_ids:
-                raise ValueError("Candidate portfolio entry was published twice")
-            scores = (
-                ranked_scores.where(
-                    F.col("Rank") <= F.lit(MAX_CANDIDATES_PER_AD_SET)
-                )
-                .select(
-                    F.lit(context.candidate_build_id).alias(
-                        "CandidateBuildID"
-                    ),
-                    F.lit(context.candidate_build_attempt_id).alias(
-                        "CandidateBuildAttemptID"
-                    ),
-                    F.lit(context.run_date).cast("date").alias("RunDate"),
-                    F.lit(context.route).alias("Route"),
-                    F.lit(entry.portfolio_entry_id).alias(
-                        "PortfolioEntryID"
-                    ),
-                    F.lit(entry.serving_slot).alias("ServingSlot"),
-                    F.lit(entry.experiment_id).alias("ExperimentID"),
-                    F.lit(entry.variant_id).alias("VariantID"),
-                    F.lit(entry.provider_build_id).alias("ProviderBuildID"),
-                    F.lit(entry.provider_build_attempt_id).alias(
-                        "ProviderBuildAttemptID"
-                    ),
-                    "AccountNumber",
-                    "AdSetID",
-                    "UniqueAdID",
-                    F.col("Score").cast("double").alias("Score"),
-                    F.col("TriggerScore").cast("double").alias(
-                        "TriggerScore"
-                    ),
-                    F.col("Rank").cast("int").alias("Rank"),
-                )
-                .withColumn(
-                    "CandidateID",
-                    F.concat(
-                        F.lit("candidate_"),
-                        F.sha2(
-                            F.concat_ws(
-                                "\u001f",
-                                "CandidateBuildID",
-                                "PortfolioEntryID",
-                                "AccountNumber",
-                                "AdSetID",
-                                "UniqueAdID",
-                            ),
-                            256,
-                        ),
-                    ),
-                )
+        duplicate_entries = sorted(
+            entry.portfolio_entry_id
+            for entry in entries
+            if entry.portfolio_entry_id in self._published_entry_ids
+        )
+        if duplicate_entries:
+            raise ValueError(
+                "Candidate portfolio entry was published twice: "
+                + ", ".join(duplicate_entries)
             )
-            scores = self._ordered(scores, self.scores_table)
-            summary = summarise_content(
-                scores,
-                key_columns=(
-                    "CandidateBuildAttemptID",
-                    "CandidateID",
+
+        # Expand one provider calculation with a tiny literal relation.  This
+        # keeps one expensive ranked lineage even when the same provider build
+        # occupies multiple serving slots.
+        entry_structs = [
+            F.struct(
+                F.lit(entry.portfolio_entry_id)
+                .cast("string")
+                .alias("PortfolioEntryID"),
+                F.lit(entry.serving_slot).cast("string").alias("ServingSlot"),
+                F.lit(entry.experiment_id)
+                .cast("string")
+                .alias("ExperimentID"),
+                F.lit(entry.variant_id).cast("string").alias("VariantID"),
+                F.lit(entry.provider_build_id)
+                .cast("string")
+                .alias("ProviderBuildID"),
+                F.lit(entry.provider_build_attempt_id)
+                .cast("string")
+                .alias("ProviderBuildAttemptID"),
+            )
+            for entry in entries
+        ]
+        entry_frame = (
+            self.spark.range(1)
+            .select(F.explode(F.array(*entry_structs)).alias("entry"))
+            .select("entry.*")
+        )
+        scores = (
+            ranked_scores.where(
+                F.col("Rank") <= F.lit(MAX_CANDIDATES_PER_AD_SET)
+            )
+            .crossJoin(F.broadcast(entry_frame))
+            .select(
+                F.lit(context.candidate_build_id).alias("CandidateBuildID"),
+                F.lit(context.candidate_build_attempt_id).alias(
+                    "CandidateBuildAttemptID"
+                ),
+                F.lit(context.run_date).cast("date").alias("RunDate"),
+                F.lit(context.route).alias("Route"),
+                "PortfolioEntryID",
+                "ServingSlot",
+                "ExperimentID",
+                "VariantID",
+                "ProviderBuildID",
+                "ProviderBuildAttemptID",
+                "AccountNumber",
+                "AdSetID",
+                "UniqueAdID",
+                F.col("Score").cast("double").alias("Score"),
+                F.col("TriggerScore").cast("double").alias("TriggerScore"),
+                F.col("Rank").cast("int").alias("Rank"),
+            )
+            .withColumn(
+                "CandidateID",
+                F.concat(
+                    F.lit("candidate_"),
+                    F.sha2(
+                        F.concat_ws(
+                            "\u001f",
+                            "CandidateBuildID",
+                            "PortfolioEntryID",
+                            "AccountNumber",
+                            "AdSetID",
+                            "UniqueAdID",
+                        ),
+                        256,
+                    ),
                 ),
             )
-            summary.require_valid(
-                f"candidate scores for {entry.portfolio_entry_id}"
-            )
-            replace_scope_by_name(
-                scores,
-                self.scores_table,
-                {
-                    "CandidateBuildAttemptID": (
-                        context.candidate_build_attempt_id
-                    ),
-                    "PortfolioEntryID": entry.portfolio_entry_id,
-                },
-                scores.columns,
-                spark=self.spark,
-            )
-            self._published_entry_ids.add(entry.portfolio_entry_id)
+        )
+        self._score_frames.append(self._ordered(scores, self.scores_table))
+        self._published_entry_ids.update(
+            entry.portfolio_entry_id for entry in entries
+        )
+
+    def _write_once(
+        self,
+        frame: DataFrame,
+        table: str,
+    ) -> DeltaWriteReceipt:
+        context = self.context
+        existing = find_delta_write_receipt(
+            self.spark,
+            target_table=table,
+            build_id=context.candidate_build_id,
+            attempt_id=context.candidate_build_attempt_id,
+        )
+        if existing is not None:
+            return existing
+        return replace_scope_by_name(
+            frame,
+            table,
+            {"CandidateBuildAttemptID": (context.candidate_build_attempt_id)},
+            frame.columns,
+            spark=self.spark,
+            build_id=context.candidate_build_id,
+            attempt_id=context.candidate_build_attempt_id,
+            git_commit=context.git_commit,
+        )
 
     def finalize(
         self,
         entries: tuple[ServingPortfolioEntry, ...],
         *,
         completed_at: datetime | None = None,
+        before_ready: Callable[[CandidateBuild], None] | None = None,
     ) -> CandidateBuild:
         expected_entries = {entry.portfolio_entry_id for entry in entries}
         if self._published_entry_ids != expected_entries:
@@ -538,43 +623,13 @@ class CandidateBuildPublisher:
                 + ", ".join(missing)
             )
         context = self.context
-        scores = self.spark.table(self.scores_table).where(
-            F.col("CandidateBuildAttemptID")
-            == context.candidate_build_attempt_id
-        )
-        score_summary = summarise_content(
-            scores,
-            key_columns=("CandidateBuildAttemptID", "CandidateID"),
-            content_columns=tuple(
-                column
-                for column in scores.columns
-                if column != "CandidateBuildAttemptID"
-            ),
-        )
-        score_summary.require_valid("accepted candidate scores")
-        ad_sets = self.spark.table(self.ad_sets_table).where(
-            F.col("CandidateBuildAttemptID")
-            == context.candidate_build_attempt_id
-        )
-        ad_set_summary = summarise_content(
-            ad_sets,
-            key_columns=(
-                "CandidateBuildAttemptID",
-                "AdSetID",
-                "ScopeType",
-                "ScopeValue",
-                "UniqueAdID",
-            ),
-            content_columns=tuple(
-                column
-                for column in ad_sets.columns
-                if column != "CandidateBuildAttemptID"
-            ),
-        )
-        ad_set_summary.require_valid("accepted candidate ad sets")
-        ad_set_count = (
-            ad_sets.groupBy("AdSetID").count().drop("count").count()
-        )
+        if not self._score_frames or self._ad_sets is None:
+            raise ValueError("Candidate build contains no canonical outputs")
+        scores = self._score_frames[0]
+        for frame in self._score_frames[1:]:
+            scores = scores.unionByName(frame)
+        ad_sets_receipt = self._write_once(self._ad_sets, self.ad_sets_table)
+        scores_receipt = self._write_once(scores, self.scores_table)
         completed = completed_at or datetime.now(timezone.utc)
         build = CandidateBuild(
             candidate_build_id=context.candidate_build_id,
@@ -591,6 +646,10 @@ class CandidateBuildPublisher:
             task_run_id=context.task_run_id,
             execution_count=context.execution_count,
         )
+        output_bindings = {
+            "candidate_ad_sets": ad_sets_receipt.as_binding(),
+            "candidate_scores": scores_receipt.as_binding(),
+        }
         row = {
             "CandidateBuildID": build.candidate_build_id,
             "CandidateBuildAttemptID": build.candidate_build_attempt_id,
@@ -610,24 +669,26 @@ class CandidateBuildPublisher:
             "ProviderBindingsJSON": context.provider_bindings_json,
             "Status": build.status,
             "EntryCount": len(entries),
-            "AdSetCount": ad_set_count,
-            "CandidateRowCount": score_summary.row_count,
-            "CandidateChecksum": score_summary.content_checksum,
-            "AdSetChecksum": ad_set_summary.content_checksum,
-            "WarningCount": 0,
+            "OutputBindingsJSON": canonical_json(output_bindings),
+            "GitCommit": context.git_commit,
+            "RuntimeMs": int((time.monotonic() - self._started_at) * 1000),
             "TaskRunID": build.task_run_id,
             "ExecutionCount": build.execution_count,
             "CompletedAt": build.completed_at,
         }
-        frame = self.spark.createDataFrame(
-            [row], schema=self.spark.table(self.builds_table).schema
-        )
+        if before_ready is not None:
+            before_ready(build)
+        frame = typed_table_frame(self.spark, self.builds_table, [row])
         replace_scope_by_name(
             frame,
             self.builds_table,
             {"CandidateBuildAttemptID": build.candidate_build_attempt_id},
             frame.columns,
             spark=self.spark,
+            build_id=context.candidate_build_id,
+            attempt_id=context.candidate_build_attempt_id,
+            git_commit=context.git_commit,
+            capture_receipt=False,
         )
         return build
 
@@ -659,6 +720,9 @@ def select_candidate_build(
 
 
 __all__ = [
+    "CANDIDATE_AD_SET_COLUMNS",
+    "CANDIDATE_BUILD_COLUMNS",
+    "CANDIDATE_SCORE_COLUMNS",
     "CANDIDATE_CONTRACT_VERSION",
     "CANDIDATE_POLICY_VERSION",
     "CandidateBuild",
