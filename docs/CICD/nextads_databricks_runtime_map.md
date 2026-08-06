@@ -15,13 +15,12 @@ The diagrams below show the Databricks Asset Bundle job structure currently defi
 
 Durations are recent observed successful run durations, not SLAs. They should be treated as a guide for debugging, planning model refreshes, and understanding where a new model, feature-store table, or challenger route would attach.
 
-## Modular, Deterministic And Atomic Route Introduced By This Change
+## End-To-End Route Added By This Change
 
-This is the single-page view of the operational changes. The coloured
-backgrounds are system responsibilities; each box names the job or boundary
-that owns the work. Solid arrows are required dependencies. Dotted arrows are
-optional provider participation or independent maintenance, not blocking
-dependencies.
+This is the single-page view of the operational change. The coloured
+backgrounds show which system responsibility owns each job or boundary. Solid
+arrows are required dependencies; dotted arrows show optional provider
+participation or independent retention work.
 
 ```mermaid
 flowchart LR
@@ -30,92 +29,78 @@ flowchart LR
   classDef ranking fill:#f3e8ff,stroke:#9333ea,color:#111827
   classDef decision fill:#dcfce7,stroke:#16a34a,color:#111827
   classDef delivery fill:#fff7ed,stroke:#ea580c,color:#111827
-  classDef state fill:#f8fafc,stroke:#475569,color:#111827
+  classDef state fill:#ffffff,stroke:#334155,stroke-width:3px,color:#111827
   classDef failure fill:#fef2f2,stroke:#dc2626,color:#111827
-  classDef guarantee fill:#111827,stroke:#111827,color:#ffffff
   classDef operations fill:#f1f5f9,stroke:#64748b,color:#111827
 
-  subgraph INPUTS["INPUTS AND ACCEPTED FOUNDATIONS"]
+  subgraph INPUTS["INPUTS AND FOUNDATIONS"]
     direction TB
-    theme_sources["Theme mapping<br/>and item attributes"]:::input
-    theme_inputs["Job: theme_inputs<br/>land, build and validate inputs"]:::input
-    input_snapshot[("Accepted scoring-input snapshot<br/>RunDate, source versions and checksum<br/>ready manifest written last")]:::state
-    foundation_sources["Customer cells, sessions/actions<br/>and advert results"]:::input
-    candidate_foundation["Job: candidate_foundation<br/>cells + repeat exposure + raw feedback"]:::input
-    foundation_snapshot[("Accepted candidate foundation<br/>exact source Delta versions<br/>ready manifest written last")]:::state
-    control_v1["Candidate Build input branch<br/>load and audit v1 control sheet"]:::input
-    control_v2["Candidate Build input branch<br/>data pull, then load and audit v2 control sheet"]:::input
-    other_model_inputs["Any model-owned<br/>input or foundation"]:::input
+    theme_inputs["Job: theme_inputs<br/>land mapping, refresh attributes<br/>and validate item themes"]:::input
+    input_snapshot[("Accepted scoring-input snapshot<br/>fixed RunDate, source Delta versions<br/>and content checksum")]:::state
+    candidate_foundation["Job: candidate_foundation<br/>customer cells + repeat exposure<br/>+ raw advert feedback"]:::input
+    foundation_snapshot[("Accepted candidate foundation<br/>fixed source Delta versions<br/>and content checksums")]:::state
+    control_v1["Candidate Build / v1 input branch<br/>load and audit one control-sheet version"]:::input
+    control_v2["Candidate Build / v2 input branch<br/>data pull, then load and audit<br/>one control-sheet version"]:::input
 
-    theme_sources --> theme_inputs --> input_snapshot
-    foundation_sources --> candidate_foundation --> foundation_snapshot
+    theme_inputs -->|ready manifest last| input_snapshot
+    candidate_foundation -->|ready manifest last| foundation_snapshot
   end
 
   subgraph SCORING["SCORING PROVIDERS"]
     direction TB
-    theme_affinity["Job: theme_affinity<br/>build foundation, predict and validate"]:::scoring
-    theme_provider[("Theme Affinity canonical provider<br/>model URI, exact input and output version<br/>ready manifest written last")]:::state
-    markov["Job: markov_scoring<br/>independent shadow calculation"]:::scoring
-    markov_provider[("Markov canonical provider<br/>optional EVALUATE entry<br/>ready manifest written last")]:::state
-    challenger["Any themed or non-themed challenger<br/>model output adapted to the<br/>canonical provider contract"]:::scoring
-    challenger_provider[("Canonical challenger provider<br/>validated output and ready manifest")]:::state
+    theme_affinity["Job: theme_affinity<br/>accepted input → foundation<br/>→ model prediction"]:::scoring
+    markov["Job: markov_scoring<br/>accepted input → Markov scores"]:::scoring
+    challenger["Any themed or non-themed model<br/>build output and adapt it to<br/>the canonical provider columns"]:::scoring
+    provider_boundary[("Canonical provider boundary<br/>each model publishes its own build using<br/>the same entity keys, scores and ranks<br/>rows first; ready manifest last<br/>model-specific code ends here")]:::state
 
-    theme_affinity --> theme_provider
-    markov --> markov_provider
-    challenger --> challenger_provider
+    theme_affinity -->|required provider build| provider_boundary
+    markov -. optional evaluation build .-> provider_boundary
+    challenger -. when configured .-> provider_boundary
   end
 
   subgraph RANKING["PORTFOLIO AND CANDIDATE RANKING"]
     direction TB
-    portfolio["Candidate Build: resolve v1/v2 portfolios<br/>bind exact provider attempts and versions<br/>required serving slots must be present"]:::ranking
-    candidate_v1["Candidate Build: one bulk v1 candidate task<br/>all serving entries and advert sets<br/>validate rows, then write ready manifest"]:::ranking
-    candidate_v2["Candidate Build: one bulk v2 candidate task<br/>all serving entries and page types<br/>validate rows, then write ready manifest"]:::ranking
-    candidate_attempt_v1[("Accepted v1 candidate attempt<br/>top 20 retained for assignment")]:::state
-    candidate_attempt_v2[("Accepted v2 candidate attempt<br/>top 20 retained for assignment")]:::state
+    portfolio["Candidate Build / portfolio branch<br/>bind ProviderBuildAttemptID<br/>and provider-output Delta version<br/>Theme Affinity fills both serving slots;<br/>missing Markov does not block"]:::ranking
+    candidate_v1["Candidate Build / one bulk v1 task<br/>all serving entries and advert sets<br/>stable ordering + validation"]:::ranking
+    candidate_v2["Candidate Build / one bulk v2 task<br/>all serving entries and page types<br/>stable ordering + validation"]:::ranking
+    candidate_attempt_v1[("Accepted v1 CandidateBuildAttemptID<br/>rows and advert sets written first<br/>checksum validated; ready manifest last")]:::state
+    candidate_attempt_v2[("Accepted v2 CandidateBuildAttemptID<br/>rows and advert sets written first<br/>checksum validated; ready manifest last")]:::state
 
-    portfolio --> candidate_v1 --> candidate_attempt_v1
-    portfolio --> candidate_v2 --> candidate_attempt_v2
+    portfolio -->|exact PortfolioAttemptID| candidate_v1
+    candidate_v1 --> candidate_attempt_v1
+    portfolio -->|same exact PortfolioAttemptID| candidate_v2
+    candidate_v2 --> candidate_attempt_v2
   end
 
-  subgraph DECISIONING["DECISIONING AND COMPLETE-SNAPSHOT PUBLICATION"]
+  subgraph DECISIONING["DECISIONING AND PUBLICATION"]
     direction TB
-    build_v1["Job: page_build_v1<br/>bulk-stage 77 primary scopes, then<br/>SB2 and OC2 as one isolated attempt"]:::decision
-    gate_v1{"All 79 v1 scopes<br/>complete and valid?"}:::decision
-    publish_v1["Idempotently publish the complete v1 date slice<br/>then atomically replace the live latest snapshot"]:::decision
-    keep_v1["No public v1 update<br/>previous accepted snapshot stays active"]:::failure
-    build_v2["Job: page_build_v2<br/>bulk-stage all five page types<br/>as one isolated attempt"]:::decision
-    gate_v2{"All five v2 page types<br/>complete and valid?"}:::decision
-    publish_v2["Idempotently publish the complete v2 date slice<br/>then atomically replace the live latest snapshot"]:::decision
-    keep_v2["No public v2 update<br/>previous accepted snapshot stays active"]:::failure
-    retry_rule["Retry stability<br/>each repair keeps its attempt identity;<br/>rows from different attempts cannot mix"]:::state
+    build_v1["Job: page_build_v1<br/>exact CandidateBuildAttemptID +<br/>customer-cell Delta version<br/>77 primary scopes, then SB2 and OC2<br/>staged under one BuildRunID"]:::decision
+    gate_v1{"For each scope, select one latest successful<br/>TaskRunID + ExecutionCount.<br/>Do all 79 events match their staged<br/>row counts and checksums?"}:::decision
+    publish_v1["Publish complete v1 date slice<br/>then one Delta transaction replaces<br/>the live latest snapshot"]:::decision
+    keep_v1["No live v1 replacement<br/>previous accepted snapshot remains active"]:::failure
+    build_v2["Job: page_build_v2<br/>exact CandidateBuildAttemptID +<br/>customer-cell Delta version<br/>all five page types staged<br/>under one BuildRunID"]:::decision
+    gate_v2{"For each page type, select one latest successful<br/>TaskRunID + ExecutionCount.<br/>Do all five events match their staged<br/>row counts and checksums?"}:::decision
+    publish_v2["Publish complete v2 date slice<br/>then one Delta transaction replaces<br/>the live latest snapshot"]:::decision
+    keep_v2["No live v2 replacement<br/>previous accepted snapshot remains active"]:::failure
 
     build_v1 --> gate_v1
     gate_v1 -- Yes --> publish_v1
     gate_v1 -- No --> keep_v1
-    publish_v1 -. latest replacement fails .-> keep_v1
+    publish_v1 -. replacement fails .-> keep_v1
     build_v2 --> gate_v2
     gate_v2 -- Yes --> publish_v2
     gate_v2 -- No --> keep_v2
-    publish_v2 -. latest replacement fails .-> keep_v2
-    retry_rule --> build_v1
-    retry_rule --> build_v2
+    publish_v2 -. replacement fails .-> keep_v2
   end
 
   subgraph DELIVERY["DELIVERY"]
     direction TB
-    v1_delivery["V1 fan-out after publication<br/>assignment validation + MASID + PLP"]:::delivery
-    v2_delivery["V2 fan-out after publication<br/>payload export"]:::delivery
+    v1_delivery["V1 after successful publication<br/>assignment validation + MASID + PLP"]:::delivery
+    v2_delivery["V2 after successful publication<br/>payload export"]:::delivery
   end
 
-  subgraph GUARANTEES["SYSTEM GUARANTEES ADDED BY THIS CHANGE"]
-    direction TB
-    deterministic["DETERMINISM<br/>Pinned dates, snapshots and Delta versions<br/>stable ordering, checksums and attempt IDs"]:::guarantee
-    atomic["ATOMICITY<br/>Rows before ready manifests<br/>all scopes before public publication<br/>failure leaves the previous snapshot active"]:::guarantee
-    modular["MODULARITY<br/>Any canonical provider can join a portfolio<br/>and reuse candidate, decisioning and delivery"]:::guarantee
-  end
-
-  subgraph OPERATIONS["INDEPENDENT OPERATIONS"]
-    maintenance["Job: table_maintenance at 05:00<br/>remove expired attempts and staging<br/>never blocks the nightly route"]:::operations
+  subgraph OPERATIONS["INDEPENDENT RETENTION"]
+    maintenance["Job: table_maintenance at 05:00<br/>remove expired attempts and staging<br/>not a nightly dependency"]:::operations
   end
 
   style INPUTS fill:#f0fdff,stroke:#0891b2,stroke-width:2px
@@ -123,49 +108,41 @@ flowchart LR
   style RANKING fill:#faf5ff,stroke:#9333ea,stroke-width:2px
   style DECISIONING fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
   style DELIVERY fill:#fffaf5,stroke:#ea580c,stroke-width:2px
-  style GUARANTEES fill:#f8fafc,stroke:#111827,stroke-width:2px
   style OPERATIONS fill:#f8fafc,stroke:#64748b,stroke-width:2px
 
-  input_snapshot --> theme_affinity
-  input_snapshot --> markov
-  other_model_inputs --> challenger
-  theme_provider --> portfolio
-  markov_provider -. optional shadow .-> portfolio
-  challenger_provider -. configured challenger .-> portfolio
-  foundation_snapshot --> candidate_v1
-  foundation_snapshot --> candidate_v2
+  input_snapshot -->|exact InputSnapshotID| theme_affinity
+  input_snapshot -->|same exact InputSnapshotID| markov
+  provider_boundary -->|exact provider attempts| portfolio
+  foundation_snapshot -->|exact FoundationSnapshotID| candidate_v1
+  foundation_snapshot -->|same exact FoundationSnapshotID| candidate_v2
   control_v1 --> candidate_v1
   control_v2 --> candidate_v2
-  candidate_attempt_v1 --> build_v1
-  candidate_attempt_v2 --> build_v2
+  candidate_attempt_v1 -->|exact accepted attempt only| build_v1
+  candidate_attempt_v2 -->|exact accepted attempt only| build_v2
+  candidate_v1 -. no ready manifest .-> keep_v1
+  candidate_v2 -. no ready manifest .-> keep_v2
   publish_v1 --> v1_delivery
   publish_v2 --> v2_delivery
-  deterministic -. governs .-> input_snapshot
-  deterministic -. governs .-> portfolio
-  atomic -. governs .-> candidate_attempt_v1
-  atomic -. governs .-> gate_v1
-  atomic -. governs .-> gate_v2
-  modular -. enables .-> challenger_provider
-  modular -. enables .-> portfolio
-  maintenance -. retention only .-> retry_rule
+  maintenance -. retention only .-> candidate_attempt_v1
+  maintenance -. retention only .-> candidate_attempt_v2
 ```
 
-The important live-state rule is shown by the two decision gates. Candidate
-rows and assignment scopes are private to one attempt until their ready or
-complete marker is published. A failed task or repair therefore cannot combine
-part of one attempt with part of another. If any required v1 scope or v2 page
-type is missing, the public latest table is not advanced and the previous
-accepted assignment snapshot remains active. V1 and v2 make that decision
-independently, so one route can succeed without publishing partial state from
-the other. This is the protection against the partial-retry failure mode behind
-duplicate live Shopping Bag assignments: a repaired scope cannot be combined
-with rows from another attempt in the public latest snapshot.
+The thick-bordered cylinders are acceptance boundaries: downstream work reads
+the exact identifier and Delta version shown on the connecting arrow, rather
+than asking for whichever data is latest at execution time. Stable ordering and
+checksums then make a repeat of those accepted inputs select the same rows.
 
-Theme Affinity is the required provider in the current default portfolios.
-Markov is an independently runnable, optional evaluation entry and cannot block
-candidate publication. A new challenger follows the same model-output,
-canonical-provider, portfolio, candidate and assignment path; it does not need
-a separate assignment or delivery implementation.
+All model-specific code ends at the canonical provider boundary. Theme
+Affinity, optional Markov and any later themed or non-themed challenger publish
+the same keys, scores, ranks and ready manifest. From that point onward there is
+one shared portfolio, candidate, decisioning and delivery route.
+
+Rows are written before their ready manifest, and assignment scopes remain
+private to one BuildRunID until the publisher selects one successful attempt per
+scope and validates every staged row count and checksum. A failed or repaired
+attempt therefore cannot mix with another attempt in the public Shopping Bag
+snapshot; the previous accepted live snapshot remains unchanged instead. V1
+and v2 make that publication decision independently.
 
 ## Daily Runtime Shape
 
