@@ -258,7 +258,10 @@ def activate_provider_context(
         "ExecutionCount": execution_count,
         "ActivatedAt": activated_at,
     }
-    frame = spark.createDataFrame([row])
+    frame = spark.createDataFrame(
+        [row],
+        schema=spark.table(context_table).schema,
+    )
     source_view = "_nextads_provider_context_claim"
     frame.createOrReplaceTempView(source_view)
     columns = list(row)

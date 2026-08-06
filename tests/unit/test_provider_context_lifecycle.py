@@ -38,6 +38,7 @@ class _CreatedFrame:
 class _Query:
     def __init__(self, rows):
         self.rows = rows
+        self.schema = "provider-context-schema"
 
     def where(self, condition):
         return self
@@ -62,11 +63,13 @@ class _Spark:
         self.rows = list(rows)
         self.statements = []
         self.created = []
+        self.created_schemas = []
         self.catalog = _Catalog()
 
-    def createDataFrame(self, rows):  # noqa: N802
+    def createDataFrame(self, rows, schema=None):  # noqa: N802
         frame = _CreatedFrame(rows)
         self.created.append(frame)
+        self.created_schemas.append(schema)
         return frame
 
     def sql(self, statement):
@@ -121,6 +124,11 @@ def test_same_run_higher_execution_can_reclaim_its_context(monkeypatch):
     )
     assert "source.ExecutionCount > target.ExecutionCount" in claim
     assert spark.created[0].rows[0]["ExecutionCount"] == 2
+    assert spark.created_schemas == ["provider-context-schema"]
+    assert spark.created[0].rows[0]["ScoringFoundationBuildID"] is None
+    assert (
+        spark.created[0].rows[0]["ScoringFoundationBuildAttemptID"] is None
+    )
 
 
 def test_foreign_run_cannot_take_an_unexpired_context(monkeypatch):

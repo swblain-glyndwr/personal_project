@@ -353,7 +353,10 @@ def register_ready_provider_build(
         ),
     )
     row = _build_row(build)
-    frame = spark.createDataFrame([row])
+    frame = spark.createDataFrame(
+        [row],
+        schema=spark.table(builds_table).schema,
+    )
     replace_scope_by_name(
         frame,
         builds_table,

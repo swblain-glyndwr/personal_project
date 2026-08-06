@@ -1,5 +1,7 @@
 import json
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from pyspark.sql import functions as F
@@ -17,6 +19,7 @@ from next_ads.ranking.provider_context import ProviderContext
 from next_ads.ranking.provider_publication import (
     ProviderOutputSummary,
     publish_provider_build,
+    register_ready_provider_build,
     stage_provider_signals,
     summarise_provider_signals,
 )
@@ -462,6 +465,73 @@ def test_ready_manifest_is_the_last_write_and_binds_exact_staged_output(
     )
     assert manifest_row["OutputTable"] == SIGNALS_TABLE
     assert manifest_row["OutputDeltaVersion"] == SIGNALS_VERSION
+
+
+def test_foundation_free_provider_manifest_uses_target_schema(monkeypatch):
+    context = replace(
+        _context(),
+        context_slot="markov_scoring",
+        provider_id="markov",
+        provider_build_id="markov-build",
+        provider_build_attempt_id="markov-build:task:0",
+        model_uri="code:/markov/v1",
+        bindings_json="{}",
+        invocation_checksum="markov-invocation-checksum",
+        scoring_foundation_build_id=None,
+        scoring_foundation_build_attempt_id=None,
+    )
+    target_schema = object()
+    created = []
+
+    def create_frame(rows, schema=None):
+        created.append((rows, schema))
+        return SimpleNamespace(columns=list(rows[0]))
+
+    spark = SimpleNamespace(
+        table=lambda table: SimpleNamespace(schema=target_schema),
+        createDataFrame=create_frame,
+    )
+    writes = []
+    monkeypatch.setattr(
+        publication,
+        "replace_scope_by_name",
+        lambda frame, table, scope, columns, *, spark: writes.append(
+            (frame, table, scope, columns)
+        ),
+    )
+
+    build = register_ready_provider_build(
+        spark,
+        context=context,
+        summary=ProviderOutputSummary(
+            row_count=10,
+            account_count=2,
+            entity_count=5,
+            null_key_count=0,
+            duplicate_key_count=0,
+            wrong_metadata_count=0,
+            invalid_score_count=0,
+            invalid_rank_count=0,
+            output_checksum="checksum",
+        ),
+        signals_table=SIGNALS_TABLE,
+        signals_delta_version=SIGNALS_VERSION,
+        builds_table=BUILDS_TABLE,
+        provider_config={"provider_version": "markov/v1"},
+        contract_version="account_entity_scores/v1",
+        task_run_id=456,
+        execution_count=0,
+        completed_at=NOW,
+    )
+
+    rows, schema = created[0]
+    assert schema is target_schema
+    assert rows[0]["ModelName"] is None
+    assert rows[0]["ModelVersion"] is None
+    assert rows[0]["PipelineUpdateID"] is None
+    assert rows[0]["ScoringFoundationBuildID"] is None
+    assert build.provider_id == "markov"
+    assert len(writes) == 1
 
 
 def test_compatibility_failure_never_records_a_ready_build(
