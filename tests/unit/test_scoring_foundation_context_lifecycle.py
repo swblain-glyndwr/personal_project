@@ -4,12 +4,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from jobs.orchestration import finalize_scoring_foundation_context
+from jobs.orchestration import (
+    finalize_scoring_foundation_context,
+    prepare_scoring_foundation_context,
+)
 from next_ads.ranking import foundation_context
 from next_ads.ranking.foundation_context import (
     ScoringFoundationContext,
     activate_foundation_context,
     load_active_foundation_context,
+    load_reusable_failed_foundation_context,
     transition_foundation_context,
 )
 
@@ -218,6 +222,157 @@ def test_expired_context_is_rejected(monkeypatch):
             context_slot="account_theme_foundation",
             now=NOW,
         )
+
+
+def _failed_context_row(context, *, execution_count=0, **overrides):
+    values = {
+        "ContextSlot": context.context_slot,
+        "OrchestrationRunID": context.orchestration_run_id,
+        "FoundationID": context.foundation_id,
+        "FoundationVersion": context.foundation_version,
+        "ScoringFoundationBuildID": context.scoring_foundation_build_id,
+        "ScoringFoundationBuildAttemptID": (
+            context.scoring_foundation_build_attempt_id
+        ),
+        "InputSnapshotID": context.input_snapshot_id,
+        "InputSnapshotAttemptID": context.input_snapshot_attempt_id,
+        "RunDate": context.run_date,
+        "BindingsJSON": context.bindings_json,
+        "Capability": context.capability,
+        "ContractVersion": context.contract_version,
+        "InvocationChecksum": context.invocation_checksum,
+        "Status": "FAILED",
+        "ExpiresAt": NOW,
+        "ExecutionCount": execution_count,
+    }
+    values.update(overrides)
+    return values
+
+
+def test_repair_can_reuse_exact_failed_foundation_attempt(monkeypatch):
+    failed = _context()
+    expected = replace(
+        failed,
+        scoring_foundation_build_attempt_id="foundation-build:new-task:1",
+        expires_at=NOW + timedelta(hours=8),
+    )
+    spark = _Spark([_failed_context_row(failed)])
+    monkeypatch.setattr(foundation_context.F, "col", lambda name: _Expression())
+
+    recovered = load_reusable_failed_foundation_context(
+        spark,
+        context_table="catalog.schema.contexts",
+        expected_context=expected,
+        execution_count=1,
+    )
+
+    assert recovered is not None
+    assert (
+        recovered.scoring_foundation_build_attempt_id
+        == failed.scoring_foundation_build_attempt_id
+    )
+    assert recovered.expires_at == expected.expires_at
+
+
+def test_prepare_reuses_failed_attempt_only_when_marker_matches(monkeypatch):
+    fresh = replace(
+        _context(),
+        scoring_foundation_build_attempt_id="foundation-build:new-task:1",
+    )
+    failed = _context()
+    logger = SimpleNamespace(info=lambda *args: None)
+    monkeypatch.setattr(
+        prepare_scoring_foundation_context,
+        "load_reusable_failed_foundation_context",
+        lambda *args, **kwargs: failed,
+    )
+    validated = []
+    monkeypatch.setattr(
+        prepare_scoring_foundation_context,
+        "validate_foundation_build_marker",
+        lambda *args, **kwargs: validated.append(kwargs["marker_table"]),
+    )
+
+    recovered = prepare_scoring_foundation_context._reuse_completed_output(
+        object(),
+        context_table="catalog.schema.contexts",
+        expected_context=fresh,
+        execution_count=1,
+        source_namespace="catalog.pipeline",
+        source_table_prefix="foundation_stage",
+        logger=logger,
+    )
+
+    assert recovered == failed
+    assert validated == ["catalog.pipeline.foundation_stage_build_marker"]
+
+
+def test_prepare_keeps_fresh_attempt_when_reused_marker_does_not_match(
+    monkeypatch,
+):
+    fresh = replace(
+        _context(),
+        scoring_foundation_build_attempt_id="foundation-build:new-task:1",
+    )
+    failed = _context()
+    monkeypatch.setattr(
+        prepare_scoring_foundation_context,
+        "load_reusable_failed_foundation_context",
+        lambda *args, **kwargs: failed,
+    )
+    monkeypatch.setattr(
+        prepare_scoring_foundation_context,
+        "validate_foundation_build_marker",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            ValueError("attempt mismatch")
+        ),
+    )
+
+    selected = prepare_scoring_foundation_context._reuse_completed_output(
+        object(),
+        context_table="catalog.schema.contexts",
+        expected_context=fresh,
+        execution_count=1,
+        source_namespace="catalog.pipeline",
+        source_table_prefix="foundation_stage",
+        logger=SimpleNamespace(info=lambda *args: None),
+    )
+
+    assert selected == fresh
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"Status": "ACTIVE"},
+        {"OrchestrationRunID": 999},
+        {"BindingsJSON": '{"changed":true}'},
+        {"InvocationChecksum": "changed"},
+        {"ExecutionCount": 1},
+    ],
+)
+def test_repair_does_not_reuse_non_matching_failed_attempt(
+    monkeypatch,
+    overrides,
+):
+    failed = _context()
+    expected = replace(
+        failed,
+        scoring_foundation_build_attempt_id="foundation-build:new-task:1",
+        expires_at=NOW + timedelta(hours=8),
+    )
+    spark = _Spark([_failed_context_row(failed, **overrides)])
+    monkeypatch.setattr(foundation_context.F, "col", lambda name: _Expression())
+
+    assert (
+        load_reusable_failed_foundation_context(
+            spark,
+            context_table="catalog.schema.contexts",
+            expected_context=expected,
+            execution_count=1,
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize("rows", [[], [{"Status": "CONSUMED"}]])

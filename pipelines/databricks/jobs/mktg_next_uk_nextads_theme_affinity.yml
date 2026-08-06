@@ -55,6 +55,11 @@ mktg_next_uk_nextads_theme_affinity_config: &mktg_next_uk_nextads_theme_affinity
             - --context_slot
             - account_theme_features_v2
             - --allow-serial-run-takeover
+            - --reuse-completed-output
+            - --source_namespace
+            - "{{job.parameters.publish_source_namespace}}"
+            - --source_table_prefix
+            - "{{job.parameters.publish_source_table_prefix}}"
             - --readiness_wait_seconds
             - "5400"
             - --readiness_poll_seconds

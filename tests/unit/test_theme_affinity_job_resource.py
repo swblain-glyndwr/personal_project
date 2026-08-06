@@ -135,6 +135,13 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
     assert foundation_parameters[
         foundation_parameters.index("--context_slot") + 1
     ] == "account_theme_features_v2"
+    assert "--reuse-completed-output" in foundation_parameters
+    assert foundation_parameters[
+        foundation_parameters.index("--source_namespace") + 1
+    ] == "{{job.parameters.publish_source_namespace}}"
+    assert foundation_parameters[
+        foundation_parameters.index("--source_table_prefix") + 1
+    ] == "{{job.parameters.publish_source_table_prefix}}"
     prepare_task = tasks["prepare_provider_context"]
     assert (
         prepare_task["spark_python_task"]["python_file"]

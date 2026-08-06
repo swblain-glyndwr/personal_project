@@ -39,6 +39,10 @@ from next_ads.ranking.foundation_context import (
     activate_foundation_context,
     build_foundation_invocation_checksum,
     build_scoring_foundation_build_id,
+    load_reusable_failed_foundation_context,
+)
+from next_ads.ranking.foundation_publication import (
+    validate_foundation_build_marker,
 )
 from next_ads.ranking.scoring_inputs import latest_delta_version
 
@@ -244,6 +248,51 @@ def _build_bindings(
     return json.dumps(bindings, sort_keys=True, separators=(",", ":"))
 
 
+def _reuse_completed_output(
+    spark,
+    *,
+    context_table,
+    expected_context,
+    execution_count,
+    source_namespace,
+    source_table_prefix,
+    logger,
+):
+    namespace = (source_namespace or "").strip().strip(".")
+    table_prefix = (source_table_prefix or "").strip().strip(".")
+    if namespace.count(".") != 1 or not table_prefix:
+        raise ValueError(
+            "Completed-output reuse requires a catalog.schema source "
+            "namespace and table prefix"
+        )
+    reusable = load_reusable_failed_foundation_context(
+        spark,
+        context_table=context_table,
+        expected_context=expected_context,
+        execution_count=execution_count,
+    )
+    if reusable is None:
+        return expected_context
+    try:
+        validate_foundation_build_marker(
+            spark,
+            context=reusable,
+            marker_table=f"{namespace}.{table_prefix}_build_marker",
+        )
+    except ValueError as error:
+        logger.info(
+            "Not reusing failed foundation attempt because its completed "
+            "output marker is not an exact match: %s",
+            error,
+        )
+        return expected_context
+    logger.info(
+        "Reusing completed output from failed foundation attempt %s",
+        reusable.scoring_foundation_build_attempt_id,
+    )
+    return reusable
+
+
 def main(
     JOB_ENV,
     CLIENT,
@@ -258,6 +307,9 @@ def main(
     READINESS_POLL_SECONDS,
     ORCHESTRATION_RUN_ID,
     ALLOW_SERIAL_RUN_TAKEOVER=False,
+    REUSE_COMPLETED_OUTPUT=False,
+    SOURCE_NAMESPACE=None,
+    SOURCE_TABLE_PREFIX=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -325,6 +377,19 @@ def main(
         invocation_checksum=invocation_checksum,
         expires_at=activated_at + timedelta(hours=8),
     )
+    if REUSE_COMPLETED_OUTPUT:
+        context = _reuse_completed_output(
+            spark,
+            context_table=(
+                config.tables_write.scoring_foundation_run_contexts
+            ),
+            expected_context=context,
+            execution_count=execution_count,
+            source_namespace=SOURCE_NAMESPACE,
+            source_table_prefix=SOURCE_TABLE_PREFIX,
+            logger=logger,
+        )
+        build_attempt_id = context.scoring_foundation_build_attempt_id
     activate_foundation_context(
         spark,
         context_table=config.tables_write.scoring_foundation_run_contexts,
@@ -366,4 +431,7 @@ if __name__ == "__main__":
         parser.get_arg("--readiness_poll_seconds") or "60",
         parser.get_arg("--orchestration_run_id"),
         parser.has_arg("--allow-serial-run-takeover"),
+        parser.has_arg("--reuse-completed-output"),
+        parser.get_arg("--source_namespace"),
+        parser.get_arg("--source_table_prefix"),
     )

@@ -4,7 +4,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -17,6 +17,7 @@ from next_ads.common.delta_writes import (
 
 
 ACTIVE = "ACTIVE"
+FAILED = "FAILED"
 
 
 def _non_empty_text(value: Any, label: str) -> str:
@@ -260,6 +261,71 @@ WHEN NOT MATCHED THEN INSERT ({insert_columns}) VALUES ({insert_values})
         )
 
 
+def load_reusable_failed_foundation_context(
+    spark: Any,
+    *,
+    context_table: str,
+    expected_context: ScoringFoundationContext,
+    execution_count: int,
+) -> ScoringFoundationContext | None:
+    """Return an exact failed attempt that a repair may safely reactivate.
+
+    The attempt identity is reused only within the same orchestration run and
+    only when every immutable input and contract field still matches. The
+    caller must additionally prove that the materialised output marker belongs
+    to the returned attempt before activating it.
+    """
+    if (
+        isinstance(execution_count, bool)
+        or not isinstance(execution_count, int)
+        or execution_count < 1
+    ):
+        return None
+    rows = (
+        spark.table(context_table)
+        .where(F.col("ContextSlot") == expected_context.context_slot)
+        .collect()
+    )
+    if not rows:
+        return None
+    if len(rows) != 1:
+        raise ValueError(
+            f"Expected one {expected_context.context_slot} context, "
+            f"found {len(rows)}"
+        )
+    row = rows[0]
+    if row["Status"] != FAILED:
+        return None
+    if int(row["ExecutionCount"]) >= execution_count:
+        return None
+    existing = _context_from_row(row)
+    comparable_fields = (
+        "context_slot",
+        "orchestration_run_id",
+        "foundation_id",
+        "foundation_version",
+        "scoring_foundation_build_id",
+        "input_snapshot_id",
+        "input_snapshot_attempt_id",
+        "run_date",
+        "bindings_json",
+        "capability",
+        "contract_version",
+        "invocation_checksum",
+    )
+    if any(
+        getattr(existing, field) != getattr(expected_context, field)
+        for field in comparable_fields
+    ):
+        return None
+    return replace(
+        expected_context,
+        scoring_foundation_build_attempt_id=(
+            existing.scoring_foundation_build_attempt_id
+        ),
+    )
+
+
 def transition_foundation_context(
     spark: Any,
     *,
@@ -341,6 +407,13 @@ def load_active_foundation_context(
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at <= current_time:
         raise ValueError(f"{context_slot} foundation context has expired")
+    return _context_from_row(row)
+
+
+def _context_from_row(row: Any) -> ScoringFoundationContext:
+    expires_at = row["ExpiresAt"]
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
     return ScoringFoundationContext(
         context_slot=row["ContextSlot"],
         orchestration_run_id=int(row["OrchestrationRunID"]),
@@ -367,5 +440,6 @@ __all__ = [
     "build_foundation_invocation_checksum",
     "build_scoring_foundation_build_id",
     "load_active_foundation_context",
+    "load_reusable_failed_foundation_context",
     "transition_foundation_context",
 ]
