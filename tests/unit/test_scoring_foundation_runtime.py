@@ -1,6 +1,7 @@
 from inspect import getsource
 from pathlib import Path
 
+from jobs.table_operations.create_tables import extract_create_table_columns
 from next_ads.ranking.theme_affinity.data_prep import (
     build_account_theme_spine,
     build_ranked_sql,
@@ -60,3 +61,32 @@ def test_declarative_pipeline_reuses_the_shared_spine_and_ranking_contracts():
     assert "build_ranked_sql(" in source
     assert "GROUP BY ALL" not in source.upper()
     assert " UNION\n" not in source.upper()
+
+
+def test_foundation_table_contracts_preserve_pipeline_numeric_types():
+    expected_types = {
+        "algo_baskets5__freq12_top10": "bigint",
+        "views_behavior__recency": "int",
+        "views_behavior__frequency": "bigint",
+        "atbs_behavior__frequency": "bigint",
+        "baskets_behavior__frequency": "bigint",
+        "user_total_views": "bigint",
+        "views_ly_7": "bigint",
+        "views_ly_30": "bigint",
+        "baskets_ly_7": "bigint",
+        "baskets_ly_30": "bigint",
+    }
+
+    for output_name in ("complete", "ranked"):
+        contract_path = (
+            PROJECT_ROOT
+            / "sql/ranking/theme_affinity"
+            / f"create_table_account_theme_foundation_{output_name}.sql"
+        )
+        contract_types = dict(
+            extract_create_table_columns(contract_path.read_text())
+        )
+        assert {
+            column: contract_types[column]
+            for column in expected_types
+        } == expected_types
