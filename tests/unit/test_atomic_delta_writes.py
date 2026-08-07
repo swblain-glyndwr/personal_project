@@ -23,6 +23,7 @@ from next_ads.common.delta_writes import (
     validate_unique_non_null_keys,
     validate_typed_table_schema,
 )
+from next_ads.candidates.foundation import schema_checksum as binding_checksum
 
 
 class FakeExpression:
@@ -297,6 +298,22 @@ def test_nullable_manifest_rows_always_use_the_explicit_target_schema():
 
     assert captured["schema"] == schema
     assert captured["rows"][0]["PipelineUpdateID"] is None
+
+
+def test_delta_receipt_schema_checksum_matches_manifest_binding_checksum():
+    schema = StructType(
+        [
+            StructField("BuildID", StringType(), nullable=False),
+            StructField("PipelineUpdateID", LongType(), nullable=True),
+        ]
+    )
+    frame = SimpleNamespace(schema=schema)
+    spark = SimpleNamespace(table=lambda _table: frame)
+
+    assert delta_writes._target_schema_checksum(
+        spark,
+        "catalog.schema.output",
+    ) == binding_checksum(frame)
 
 
 def test_replace_retries_only_delta_conflicts_and_drops_temporary_view():

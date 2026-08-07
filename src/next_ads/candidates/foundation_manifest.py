@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from collections.abc import Iterable, Mapping
@@ -443,7 +444,13 @@ def verify_output_binding(
         binding.get("schema_checksum"),
         f"{name}.schema_checksum",
     )
-    if schema_checksum(frame) != expected_schema:
+    legacy_receipt_schema = hashlib.sha256(
+        frame.schema.json().encode("utf-8")
+    ).hexdigest()
+    if expected_schema not in {
+        schema_checksum(frame),
+        legacy_receipt_schema,
+    }:
         raise ValueError(f"Binding {name} schema does not match its output")
     _required_text(binding.get("write_receipt_id"), f"{name}.write_receipt_id")
     _non_negative_int(binding.get("row_count"), f"{name}.row_count")

@@ -762,7 +762,12 @@ def _restore_commit_metadata(spark: Any, previous: str | None) -> None:
 
 def _target_schema_checksum(spark: Any, target_table: str) -> str:
     schema = spark.table(target_table).schema
-    return hashlib.sha256(schema.json().encode("utf-8")).hexdigest()
+    signature = [
+        (field.name, field.dataType.simpleString()) for field in schema
+    ]
+    return hashlib.sha256(
+        json.dumps(signature, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def _read_commit_receipt(

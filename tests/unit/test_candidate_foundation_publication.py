@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
@@ -13,7 +14,9 @@ from next_ads.candidates.foundation_manifest import (
     canonical_json,
     parse_output_bindings,
     publish_candidate_foundation_manifest,
+    verify_output_binding,
 )
+from pyspark.sql.types import LongType, StringType, StructField, StructType
 
 
 RUN_DATE = date(2026, 8, 3)
@@ -50,6 +53,37 @@ def test_output_bindings_reject_missing_required_input():
 
     with pytest.raises(ValueError, match="missing: ad_feedback"):
         parse_output_bindings(json.dumps(incomplete))
+
+
+def test_output_binding_accepts_legacy_delta_receipt_schema_for_repair(
+    monkeypatch,
+):
+    schema = StructType(
+        [
+            StructField("BuildID", StringType(), nullable=False),
+            StructField("TaskRunID", LongType(), nullable=True),
+        ]
+    )
+    frame = SimpleNamespace(schema=schema)
+    monkeypatch.setattr(
+        manifest_module,
+        "read_delta_version",
+        lambda *_args: frame,
+    )
+
+    verify_output_binding(
+        SimpleNamespace(),
+        name="repeat_ad_exposure",
+        binding={
+            "table": "catalog.schema.repeat_ad_exposure",
+            "delta_version": 2,
+            "row_count": 306623,
+            "schema_checksum": hashlib.sha256(
+                schema.json().encode("utf-8")
+            ).hexdigest(),
+            "write_receipt_id": "receipt-1",
+        },
+    )
 
 
 def test_customer_cell_status_accepts_only_same_day_or_previous_day_fallback():
