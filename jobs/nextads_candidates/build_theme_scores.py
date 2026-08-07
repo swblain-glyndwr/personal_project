@@ -68,6 +68,18 @@ from jobs.orchestration.prepare_score_provider_context import (
 from next_ads.reporting.plotting import DirectedGraphPlotter
 
 
+def _has_pinned_provider_attempt(
+    provider_build_id,
+    provider_build_attempt_id,
+):
+    pinned_values = (provider_build_id, provider_build_attempt_id)
+    if any(pinned_values) and not all(pinned_values):
+        raise ValueError(
+            "Pinned Markov scoring requires both provider build IDs"
+        )
+    return all(pinned_values)
+
+
 def _run_markov(
     JOB_ENV,
     CLIENT,
@@ -118,21 +130,28 @@ def _run_markov(
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
-    existing_context_values = (
+    has_pinned_provider_attempt = _has_pinned_provider_attempt(
         PROVIDER_BUILD_ID,
         PROVIDER_BUILD_ATTEMPT_ID,
-        CONTEXT_SLOT,
-        ORCHESTRATION_RUN_ID,
     )
-    if any(existing_context_values) and not all(existing_context_values):
-        raise ValueError(
-            "Pinned Markov scoring requires the complete provider context"
-        )
     provider_context = None
-    if all(existing_context_values):
-        if not INPUT_SNAPSHOT_ID:
+    if has_pinned_provider_attempt:
+        required_pinned_values = {
+            "INPUT_SNAPSHOT_ID": INPUT_SNAPSHOT_ID,
+            "CONTEXT_SLOT": CONTEXT_SLOT,
+            "ORCHESTRATION_RUN_ID": ORCHESTRATION_RUN_ID,
+            "GIT_COMMIT": GIT_COMMIT,
+            "TASK_RUN_ID": TASK_RUN_ID,
+            "EXECUTION_COUNT": EXECUTION_COUNT,
+        }
+        missing = [
+            name
+            for name, value in required_pinned_values.items()
+            if value is None
+        ]
+        if missing:
             raise ValueError(
-                "Pinned Markov scoring requires an input snapshot"
+                "Pinned Markov scoring is missing: " + ", ".join(missing)
             )
         provider_context = load_active_provider_context(
             spark,

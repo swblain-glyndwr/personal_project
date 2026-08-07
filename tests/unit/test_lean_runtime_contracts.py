@@ -1,6 +1,7 @@
 import ast
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -29,6 +30,12 @@ def _function_source(path: str, function: str) -> str:
         and item.name == function
     )
     return ast.get_source_segment(source, node)
+
+
+def _standalone_function(path: str, function: str):
+    namespace = {}
+    exec(_function_source(path, function), namespace)
+    return namespace[function]
 
 
 def test_large_outputs_remain_distributed_spark_writes():
@@ -138,6 +145,18 @@ def test_scoring_job_graphs_keep_modularity_without_extra_clusters():
     for source in (theme_entrypoint, markov_entrypoint):
         assert 'status="CONSUMED"' in source or '"CONSUMED"' in source
         assert 'status="FAILED"' in source or '"FAILED"' in source
+
+
+def test_markov_single_task_runtime_metadata_does_not_require_pinned_ids():
+    has_pinned_attempt = _standalone_function(
+        "jobs/nextads_candidates/build_theme_scores.py",
+        "_has_pinned_provider_attempt",
+    )
+
+    assert has_pinned_attempt(None, None) is False
+    assert has_pinned_attempt("build", "attempt") is True
+    with pytest.raises(ValueError, match="both provider build IDs"):
+        has_pinned_attempt("build", None)
 
 
 def test_theme_affinity_repair_checks_receipt_before_any_spark_rebuild():
