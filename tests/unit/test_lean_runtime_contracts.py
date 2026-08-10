@@ -135,8 +135,16 @@ def test_scoring_job_graphs_keep_modularity_without_extra_clusters():
         "publish_and_score",
     ]
     assert [task["task_key"] for task in markov["tasks"]] == [
-        "build_and_publish_markov"
+        "build_and_publish_markov",
+        "publish_markov_compatibility",
     ]
+    markov_tasks = {task["task_key"]: task for task in markov["tasks"]}
+    assert markov_tasks["publish_markov_compatibility"]["depends_on"] == [
+        {"task_key": "build_and_publish_markov"}
+    ]
+    assert markov_tasks["publish_markov_compatibility"]["job_cluster_key"] == (
+        markov_tasks["build_and_publish_markov"]["job_cluster_key"]
+    )
     assert "saveAsTable(" not in _read(
         "jobs/nextads_candidates/build_theme_scores.py"
     )
@@ -147,7 +155,7 @@ def test_scoring_job_graphs_keep_modularity_without_extra_clusters():
         assert 'status="FAILED"' in source or '"FAILED"' in source
 
 
-def test_markov_single_task_runtime_metadata_does_not_require_pinned_ids():
+def test_markov_standalone_runtime_metadata_does_not_require_pinned_ids():
     has_pinned_attempt = _standalone_function(
         "jobs/nextads_candidates/build_theme_scores.py",
         "_has_pinned_provider_attempt",

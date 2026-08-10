@@ -397,7 +397,7 @@ def _task_parameter_map(task):
     return parsed
 
 
-def test_provider_lifecycle_is_flattened_without_serial_publication_tasks():
+def test_canonical_provider_lifecycle_is_flattened_before_compatibility():
     affinity = yaml.safe_load(
         (
             PROJECT_ROOT / "pipelines/databricks/jobs/"
@@ -437,7 +437,10 @@ def test_provider_lifecycle_is_flattened_without_serial_publication_tasks():
     )
     assert "--git_commit" in affinity_parameters
 
-    assert set(markov_tasks) == {"build_and_publish_markov"}
+    assert set(markov_tasks) == {
+        "build_and_publish_markov",
+        "publish_markov_compatibility",
+    }
     markov_task = markov_tasks["build_and_publish_markov"]
     assert markov_task["spark_python_task"]["python_file"] == (
         "../../../jobs/nextads_candidates/build_theme_scores.py"
@@ -446,3 +449,13 @@ def test_provider_lifecycle_is_flattened_without_serial_publication_tasks():
         "next_ads_job_cluster_D32ads_v5_1_4"
     )
     assert "--git_commit" in _task_parameter_map(markov_task)
+
+    compatibility_task = markov_tasks["publish_markov_compatibility"]
+    assert compatibility_task["depends_on"] == [
+        {"task_key": "build_and_publish_markov"}
+    ]
+    compatibility_parameters = _task_parameter_map(compatibility_task)
+    assert compatibility_parameters["--provider_id"] == "markov"
+    assert compatibility_parameters["--run_date"] == (
+        "{{job.parameters.run_date}}"
+    )

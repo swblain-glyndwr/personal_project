@@ -84,6 +84,9 @@ def test_markov_scoring_job_uses_moved_control_and_scoring_entrypoints():
         "build_and_publish_markov": (
             "../../../jobs/nextads_candidates/build_theme_scores.py"
         ),
+        "publish_markov_compatibility": (
+            "../../../jobs/orchestration/publish_provider_compatibility.py"
+        ),
     }
 
     for task_key, expected_path in expected_paths.items():

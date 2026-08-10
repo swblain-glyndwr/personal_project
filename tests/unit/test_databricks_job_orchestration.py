@@ -361,7 +361,10 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
         "run_date": "{{job.start_time.iso_date}}",
         "input_snapshot_id": "same_day",
     }
-    assert list(tasks_by_key) == ["build_and_publish_markov"]
+    assert list(tasks_by_key) == [
+        "build_and_publish_markov",
+        "publish_markov_compatibility",
+    ]
     task = tasks_by_key["build_and_publish_markov"]
     assert "depends_on" not in task
     assert task["spark_python_task"]["python_file"] == (
@@ -372,6 +375,25 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
     assert "{{job.parameters.input_snapshot_id}}" in score_parameters
     assert task["job_cluster_key"] == "next_ads_job_cluster_D32ads_v5_1_4"
     assert task["timeout_seconds"] == 18000
+
+    compatibility = tasks_by_key["publish_markov_compatibility"]
+    assert compatibility["depends_on"] == [
+        {"task_key": "build_and_publish_markov"}
+    ]
+    assert compatibility["spark_python_task"]["python_file"] == (
+        "../../../jobs/orchestration/publish_provider_compatibility.py"
+    )
+    compatibility_parameters = compatibility["spark_python_task"]["parameters"]
+    assert compatibility_parameters[
+        compatibility_parameters.index("--provider_id") + 1
+    ] == "markov"
+    assert compatibility_parameters[
+        compatibility_parameters.index("--run_date") + 1
+    ] == "{{job.parameters.run_date}}"
+    assert compatibility["job_cluster_key"] == (
+        "next_ads_job_cluster_D32ads_v5_1_4"
+    )
+    assert compatibility["timeout_seconds"] == 5400
 
 
 def test_theme_affinity_foundation_and_provider_stages_are_explicit():
