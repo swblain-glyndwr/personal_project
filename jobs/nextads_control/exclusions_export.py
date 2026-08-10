@@ -26,6 +26,8 @@ from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager
 from next_ads.delivery.cosmos import get_cosmos_config, sdk_write_to_cosmos
+from pyspark.sql.types import StructType, StructField, StringType, ArrayType
+import pyspark.sql.functions as F
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL):
@@ -37,40 +39,59 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
     dbutils = get_dbutils()
     logger.info(f"Running in job environment: {JOB_ENV}")
 
+    REALM_TERRITORY = "next-gb"
     EXCLUSIONS_TABLE = config.tables_write.exclusions_latest
     exclusions_df = spark.table(EXCLUSIONS_TABLE)
     exclusions_df.createOrReplaceTempView("exclusions")
 
-    sql = """
-        with a as (
-        select
-            'next-uk' as id,
-            url,
-            CMSPageID as Ad
-        from
-            exclusions
-        ),
-        b as (
-        select
-            id,
-            url,
-            collect_list(distinct Ad) as excludedAds
-        from
-            a
-        group by
-            id,
-            url
-        )
-        select
-        id,
-        collect_list(struct(url, excludedAds)) as mappings
-        from
-        b
-        group by
-        id
-  """
+    payload_schema = StructType(
+        [
+            StructField("id", StringType(), False),
+            StructField(
+                "mappings",
+                ArrayType(
+                    StructType(
+                        [
+                            StructField("url", StringType(), False),
+                            StructField(
+                                "excludedAds",
+                                ArrayType(StringType(), containsNull=False),
+                                False,
+                            ),
+                        ]
+                    ),
+                    containsNull=False,
+                ),
+                False,
+            ),
+        ]
+    )
 
-    payload = spark.sql(sql)
+    # need to always return a dataframe even if there are no exclusions,
+    # so existing exclusions can be cleared in cosmos
+    payload = spark.createDataFrame(
+        [(REALM_TERRITORY, [])], schema=payload_schema
+    )
+
+    exclusions_payload = (
+        exclusions_df.select(
+            F.lit(REALM_TERRITORY).alias("id"),
+            F.col("url"),
+            F.col("CMSPageID").alias("Ad"),
+        )
+        .groupBy("id", "url")
+        .agg(F.collect_set("Ad").alias("excludedAds"))
+        .groupBy("id")
+        .agg(F.collect_set(F.struct("url", "excludedAds")).alias("mappings"))
+    )
+
+    if exclusions_payload.schema != payload_schema:
+        raise ValueError(
+            f"Schema mismatch:\npayload={payload_schema.simpleString()}\n"
+            f"exclusions={exclusions_payload.schema.simpleString()}"
+        )
+
+    payload = exclusions_payload if exclusions_payload.take(1) else payload
 
     clientId = dbutils.secrets.get(
         config.dbutils_secret_scope, config.secret_key_spn_clientid
@@ -106,19 +127,23 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         payload.write.format("cosmos.oltp").options(
             **cosmosconfig_upsert
         ).mode("APPEND").save()
-        write_success = True
 
-        logger.info("Reading back top 10 records from Cosmos DB")
+        logger.info("Reading back document from Cosmos DB")
         cosmos_preview_df = (
             spark.read.format("cosmos.oltp")
             .options(**cosmosconfig_read)
             .load()
+            .filter(f"id = '{REALM_TERRITORY}'")
         )
-        cosmos_preview_df.filter("id = 'next-uk'").show(10, truncate=False)
+
+        cosmos_preview_df.show(truncate=False)
+
+        if cosmos_preview_df.count() == 1:
+            write_success = True
 
     except Exception as c_e:
         logger.error(
-            f"Failed writing to Cosmos DB using spark connector: {c_e}"
+            f"Failed writing to Cosmos DB using spark connector (clientId: {clientId}): {c_e}"
         )
 
     if not write_success:
@@ -126,7 +151,9 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
             sdk_write_to_cosmos(config, JOB_ENV, payload)
             write_success = True
         except Exception as sdk_e:
-            logger.error(f"Failed writing to Cosmos DB using SDK: {sdk_e}")
+            logger.error(
+                f"Failed writing to Cosmos DB using SDK (clientId: {clientId}): {sdk_e}"
+            )
             raise sdk_e
 
     logger.info("Run complete")
