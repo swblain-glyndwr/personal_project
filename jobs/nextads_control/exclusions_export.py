@@ -31,8 +31,10 @@ import pyspark.sql.functions as F
 
 
 def main(JOB_ENV, CLIENT, LOG_LEVEL):
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
-    configure_logging(LOG_LEVEL)
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
 
     spark = configure_spark()
