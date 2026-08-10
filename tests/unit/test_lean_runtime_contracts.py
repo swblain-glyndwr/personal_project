@@ -108,6 +108,24 @@ def test_critical_publishers_do_not_restore_full_frame_audits():
         assert "coalesce(1)" not in source
 
 
+def test_pinned_scoring_inputs_do_not_eagerly_scan_filtered_frames():
+    readers = (
+        _function_source(
+            "src/next_ads/ranking/theme_score_retrieval.py",
+            "load_provider_theme_scores",
+        ),
+        _function_source(
+            "src/next_ads/ranking/provider_context.py",
+            "pinned_item_themes",
+        ),
+    )
+
+    for source in readers:
+        assert ".count(" not in source
+        assert ".collect(" not in source
+        assert ".limit(" not in source
+
+
 def test_same_provider_is_expanded_without_duplicating_its_spark_graph():
     source = _function_source(
         "src/next_ads/candidates/publication.py",

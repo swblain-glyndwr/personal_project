@@ -88,12 +88,12 @@ def test_nextgen_multi_ad_slotting_deduplicates_before_window_and_filters_before
     v2_source = inspect.getsource(assign_nextgenads_v2)
 
     assert v1_source.index(".distinct()") < v1_source.index('"creative_slot"')
-    assert v2_source.index(".distinct()") < v2_source.index("'creative_slot'")
+    assert v2_source.index(".distinct()") < v2_source.index('"creative_slot"')
     assert v1_source.index("F.pmod") < v1_source.index(
         '.select("AccountNumber", "UniqueAdID")'
     )
     assert v2_source.index("F.pmod") < v2_source.index(
-        ".select('AccountNumber', 'UniqueAdID', 'Rank', 'TriggerScore')"
+        '.select("AccountNumber", "UniqueAdID", "Rank", "TriggerScore")'
     )
 
 

@@ -93,7 +93,10 @@ def test_candidate_reads_only_the_selected_provider_build_and_delta_version(
     ]
 
 
-def test_candidate_rejects_missing_exact_provider_build(spark, monkeypatch):
+def test_candidate_lazily_filters_a_missing_exact_provider_build(
+    spark,
+    monkeypatch,
+):
     monkeypatch.setattr(
         theme_score_retrieval,
         "read_delta_version",
@@ -101,18 +104,19 @@ def test_candidate_rejects_missing_exact_provider_build(spark, monkeypatch):
     )
     customers = spark.createDataFrame([("1",)], ["AccountNumber"])
 
-    with pytest.raises(ValueError, match="contains no theme signals"):
-        theme_score_retrieval.load_provider_theme_scores(
-            spark,
-            provider_signals_table="catalog.schema.provider_signals",
-            provider_signals_delta_version=17,
-            provider_build_id="missing",
-            provider_source_run_date=RUN_DATE,
-            customer_base_df=customers,
-        )
+    result = theme_score_retrieval.load_provider_theme_scores(
+        spark,
+        provider_signals_table="catalog.schema.provider_signals",
+        provider_signals_delta_version=17,
+        provider_build_id="missing",
+        provider_source_run_date=RUN_DATE,
+        customer_base_df=customers,
+    )
+
+    assert result.count() == 0
 
 
-def test_candidate_rejects_provider_build_outside_customer_base(
+def test_candidate_lazily_filters_provider_build_outside_customer_base(
     spark,
     monkeypatch,
 ):
@@ -123,15 +127,16 @@ def test_candidate_rejects_provider_build_outside_customer_base(
     )
     customers = spark.createDataFrame([("2",)], ["AccountNumber"])
 
-    with pytest.raises(ValueError, match="accepted customer base"):
-        theme_score_retrieval.load_provider_theme_scores(
-            spark,
-            provider_signals_table="catalog.schema.provider_signals",
-            provider_signals_delta_version=17,
-            provider_build_id="build-a",
-            provider_source_run_date=RUN_DATE,
-            customer_base_df=customers,
-        )
+    result = theme_score_retrieval.load_provider_theme_scores(
+        spark,
+        provider_signals_table="catalog.schema.provider_signals",
+        provider_signals_delta_version=17,
+        provider_build_id="build-a",
+        provider_source_run_date=RUN_DATE,
+        customer_base_df=customers,
+    )
+
+    assert result.count() == 0
 
 
 def test_candidate_quarantines_fallback_themes_changed_since_provider_input(
@@ -146,16 +151,17 @@ def test_candidate_quarantines_fallback_themes_changed_since_provider_input(
     customers = spark.createDataFrame([("1",)], ["AccountNumber"])
     allowed_themes = spark.createDataFrame([("other",)], ["NextTheme"])
 
-    with pytest.raises(ValueError, match="contains no theme signals"):
-        theme_score_retrieval.load_provider_theme_scores(
-            spark,
-            provider_signals_table="catalog.schema.provider_signals",
-            provider_signals_delta_version=17,
-            provider_build_id="build-a",
-            provider_source_run_date=RUN_DATE,
-            customer_base_df=customers,
-            allowed_themes_df=allowed_themes,
-        )
+    result = theme_score_retrieval.load_provider_theme_scores(
+        spark,
+        provider_signals_table="catalog.schema.provider_signals",
+        provider_signals_delta_version=17,
+        provider_build_id="build-a",
+        provider_source_run_date=RUN_DATE,
+        customer_base_df=customers,
+        allowed_themes_df=allowed_themes,
+    )
+
+    assert result.count() == 0
 
 
 def test_constant_provider_scores_use_a_neutral_range(spark):

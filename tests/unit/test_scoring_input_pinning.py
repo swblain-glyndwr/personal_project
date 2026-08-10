@@ -246,7 +246,10 @@ def test_theme_affinity_build_changes_for_inference_setting_or_model_uri():
     assert changed_model != baseline
 
 
-def test_pinned_item_themes_rejects_empty_or_wrong_date(spark, monkeypatch):
+def test_pinned_item_themes_filters_wrong_date_without_an_eager_scan(
+    spark,
+    monkeypatch,
+):
     table = "catalog.schema.item_themes"
     context = _context()
     frame = spark.createDataFrame(
@@ -293,12 +296,14 @@ def test_pinned_item_themes_rejects_empty_or_wrong_date(spark, monkeypatch):
             ),
         }
     )
-    with pytest.raises(ValueError, match="empty"):
+    assert (
         pinned_item_themes(
             spark,
             wrong_date,
             input_table=table,
-        )
+        ).count()
+        == 0
+    )
 
 
 def test_canonical_adapter_allows_constant_finite_scores(spark):

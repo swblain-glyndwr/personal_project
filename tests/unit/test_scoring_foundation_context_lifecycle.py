@@ -78,6 +78,15 @@ class _Spark:
         return _Query(self.rows)
 
 
+@pytest.fixture(autouse=True)
+def _use_typed_context_frame(monkeypatch):
+    monkeypatch.setattr(
+        foundation_context,
+        "typed_table_frame",
+        lambda spark, _table, rows: spark.createDataFrame(rows),
+    )
+
+
 def _context(**overrides):
     values = {
         "context_slot": "account_theme_foundation",

@@ -98,7 +98,7 @@ def test_clean_output_stages_before_separate_compatibility_publication():
 def test_theme_scoring_writes_use_one_run_date_and_atomic_helpers():
     build_source = _function_source(
         "jobs/nextads_candidates/build_theme_scores.py",
-        "main",
+        "_run_markov",
     )
     mapping_source = _function_source(
         "src/next_ads/ranking/theme_score_mapping.py",

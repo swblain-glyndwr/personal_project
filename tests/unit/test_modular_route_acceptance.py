@@ -76,14 +76,14 @@ def test_modular_route_acceptance_contract_remains_explicit():
         "docs/CICD/nextads_modular_route_dev_acceptance.md"
     )
     required_statements = (
-        "interchangeable provider, portfolio, candidate and assignment",
-        "Markov remains a shadow provider",
-        "Multiple simultaneous challenger traffic allocation is not active",
-        "one Delta transaction per table",
-        "target-ordered `REPLACE WHERE`",
-        "05:00 Europe/London",
-        "No public-preview Lakeflow metadata is required",
-        "Feature compatibility remains separate from the nightly route",
+        "Foundation, provider, candidate and assignment frames remain distributed",
+        "Theme Affinity physically publishes the ranked foundation once",
+        "Markov remains shadow-only",
+        "one atomic Delta transaction for a logical output",
+        "one bulk Spark graph",
+        "live-latest transaction is the final mandatory operation",
+        "No larger clusters are required by this change",
+        "Compatibility and monitoring failures must alert independently",
     )
 
     for statement in required_statements:

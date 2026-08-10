@@ -199,6 +199,11 @@ def test_stage_assignment_scope_replaces_only_one_structured_build_scope(
             calls.append(("run_date", df, value, column)) or dated
         ),
     )
+    monkeypatch.setattr(
+        publication,
+        "typed_table_frame",
+        lambda spark, _table, rows: spark.createDataFrame(rows),
+    )
 
     def fake_replace(
         spark,

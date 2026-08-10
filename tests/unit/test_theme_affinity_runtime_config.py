@@ -117,7 +117,7 @@ def test_prediction_and_cleaning_do_not_read_mutable_foundation_tables():
     )
     assert "spark.table(model_tables.predict_input_table)" not in prediction
     assert (
-        'read_runtime_foundation_output(spark, runtime, "complete")'
+        'read_runtime_foundation_output(spark, runtime, "ranked")'
         in cleaning
     )
     assert "spark.table(model_tables.predict_complete)" not in cleaning
