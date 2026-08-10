@@ -318,3 +318,12 @@ def test_shared_publisher_entrypoint_has_no_model_specific_runtime_import():
     assert (
         PROJECT_ROOT / "jobs/orchestration/publish_provider_compatibility.py"
     ).is_file()
+
+
+def test_markov_passes_the_exact_signal_receipt_to_the_shared_publisher():
+    source = (
+        PROJECT_ROOT / "jobs/nextads_candidates/build_theme_scores.py"
+    ).read_text()
+
+    assert "write_receipt=existing_receipt" in source
+    assert "write_receipt=receipt" in source

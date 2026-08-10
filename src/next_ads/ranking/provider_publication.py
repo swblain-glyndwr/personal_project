@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from next_ads.common.delta_writes import (
     DeltaWriteReceipt,
     find_delta_write_receipt,
+    quote_qualified_identifier,
     replace_scope_by_name,
+    sql_literal,
     typed_table_frame,
     validate_typed_table_schema,
 )
@@ -288,12 +290,48 @@ def register_ready_provider_build(
     return build
 
 
+def _complete_provider_receipt(
+    spark: Any,
+    *,
+    receipt: DeltaWriteReceipt,
+    context: Any,
+    signals_table: str,
+) -> DeltaWriteReceipt:
+    """Recover a missing platform metric from one exact committed build."""
+    if receipt.delta_version is None:
+        raise RuntimeError("Provider output has no committed Delta version")
+    if receipt.row_count is not None:
+        return receipt
+
+    # Databricks normally supplies numOutputRows in Delta history. If that
+    # metric is absent, count only this provider build at the already-recorded
+    # version. This is a repair fallback, not a scan of the mutable latest
+    # table and not a second model calculation.
+    row = spark.sql(
+        "\n".join(
+            (
+                "SELECT COUNT(*) AS `_nextads_row_count`",
+                f"FROM {quote_qualified_identifier(signals_table)} "
+                f"VERSION AS OF {receipt.delta_version}",
+                "WHERE `ProviderBuildID` = "
+                f"{sql_literal(context.provider_build_id)}",
+                f"  AND `ProviderID` = {sql_literal(context.provider_id)}",
+                f"  AND `RunDate` = {sql_literal(context.run_date)}",
+            )
+        )
+    ).first()
+    if row is None or row["_nextads_row_count"] is None:
+        raise RuntimeError("Provider output row count could not be recovered")
+    return replace(receipt, row_count=int(row["_nextads_row_count"]))
+
+
 def publish_provider_build(
     spark: Any,
     *,
     context: Any,
     signals_table: str,
     signals_delta_version: int,
+    write_receipt: DeltaWriteReceipt | None = None,
     builds_table: str,
     provider_config: Any,
     contract_version: str,
@@ -318,7 +356,7 @@ def publish_provider_build(
             "Provider configuration does not match its active context: "
             + ", ".join(mismatched)
         )
-    receipt = find_delta_write_receipt(
+    receipt = write_receipt or find_delta_write_receipt(
         spark,
         target_table=signals_table,
         build_id=context.provider_build_id,
@@ -328,6 +366,18 @@ def publish_provider_build(
         raise ValueError(
             "Provider publication is not bound to its exact write receipt"
         )
+    if (
+        receipt.target_table != signals_table
+        or receipt.build_id != context.provider_build_id
+        or receipt.attempt_id != context.provider_build_attempt_id
+    ):
+        raise ValueError("Provider publication received the wrong write receipt")
+    receipt = _complete_provider_receipt(
+        spark,
+        receipt=receipt,
+        context=context,
+        signals_table=signals_table,
+    )
     build = register_ready_provider_build(
         spark,
         context=context,

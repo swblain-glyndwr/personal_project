@@ -162,6 +162,7 @@ def main(
             context=context,
             signals_table=config.tables_write.score_provider_signals,
             signals_delta_version=receipt.delta_version,
+            write_receipt=receipt,
             builds_table=config.tables_write.score_provider_builds,
             provider_config=provider,
             contract_version=config.scoring.contract_version,

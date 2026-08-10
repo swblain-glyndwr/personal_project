@@ -316,6 +316,26 @@ def test_delta_receipt_schema_checksum_matches_manifest_binding_checksum():
     ) == binding_checksum(frame)
 
 
+@pytest.mark.parametrize(
+    "metric_name",
+    (
+        "numOutputRows",
+        "numTargetRowsInserted",
+        "numInsertedRows",
+        "numSourceRows",
+    ),
+)
+def test_delta_receipt_accepts_documented_output_row_metrics(metric_name):
+    assert delta_writes._operation_row_count({metric_name: "123"}) == 123
+
+
+def test_delta_receipt_excludes_maintenance_commits_with_write_metadata():
+    assert delta_writes._is_data_write_history_row({"operation": "WRITE"})
+    assert not delta_writes._is_data_write_history_row(
+        {"operation": "OPTIMIZE"}
+    )
+
+
 def test_replace_retries_only_delta_conflicts_and_drops_temporary_view():
     conflict = DeltaConcurrentModificationException("conflict")
     spark = FakeSpark(

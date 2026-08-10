@@ -130,6 +130,40 @@ class _ReceiptMetadata:
 
 
 _DELTA_COMMIT_METADATA_KEY = "spark.databricks.delta.commitInfo.userMetadata"
+_DATA_WRITE_OPERATIONS = frozenset(
+    {
+        "WRITE",
+        "MERGE",
+        "CREATE TABLE AS SELECT",
+        "REPLACE TABLE AS SELECT",
+        "COPY INTO",
+        "STREAMING UPDATE",
+    }
+)
+_OUTPUT_ROW_METRICS = (
+    "numOutputRows",
+    "numTargetRowsInserted",
+    "numInsertedRows",
+    "numSourceRows",
+)
+
+
+def _is_data_write_history_row(row: Any) -> bool:
+    """Exclude maintenance commits that can inherit write metadata."""
+    return row["operation"] in _DATA_WRITE_OPERATIONS
+
+
+def _operation_row_count(operation_metrics: Mapping[str, Any] | None) -> int | None:
+    metrics = operation_metrics or {}
+    raw_row_count = next(
+        (
+            metrics[name]
+            for name in _OUTPUT_ROW_METRICS
+            if metrics.get(name) is not None
+        ),
+        None,
+    )
+    return int(raw_row_count) if raw_row_count is not None else None
 _COMMIT_METADATA_LOCK = threading.Lock()
 
 
@@ -213,7 +247,7 @@ def find_delta_write_receipt(
     history = spark.sql(
         f"DESCRIBE HISTORY {quote_qualified_identifier(target_table)}"
     )
-    row = (
+    matching_rows = (
         history.where(
             (
                 F.get_json_object("userMetadata", "$.target_table")
@@ -229,20 +263,22 @@ def find_delta_write_receipt(
             )
         )
         .orderBy(F.col("version").desc())
-        .limit(2)
+        .limit(10)
         .collect()
     )
-    if not row:
+    write_rows = [row for row in matching_rows if _is_data_write_history_row(row)]
+    if not write_rows:
         return None
-    if len(row) != 1:
+    if len(write_rows) != 1:
         raise RuntimeError(
             "Multiple Delta commits share one NextAds build attempt for "
             f"{target_table}"
         )
-    metadata = json.loads(row[0]["userMetadata"])
+    row = write_rows[0]
+    metadata = json.loads(row["userMetadata"])
     return _receipt_from_history_row(
         spark,
-        row=row[0],
+        row=row,
         statement="",
         attempts=1,
         metadata=_ReceiptMetadata(
@@ -782,20 +818,26 @@ def _read_commit_receipt(
     history = spark.sql(
         f"DESCRIBE HISTORY {quote_qualified_identifier(metadata.target_table)}"
     )
-    row = (
+    matching_rows = (
         history.where(F.col("userMetadata") == F.lit(metadata_json))
         .orderBy(F.col("version").desc())
-        .limit(1)
-        .first()
+        .limit(10)
+        .collect()
     )
-    if row is None:
+    write_rows = [row for row in matching_rows if _is_data_write_history_row(row)]
+    if not write_rows:
         raise RuntimeError(
             "Delta write completed without a matching transaction receipt: "
             f"{metadata.receipt_id}"
         )
+    if len(write_rows) != 1:
+        raise RuntimeError(
+            "Multiple Delta writes share one transaction receipt: "
+            f"{metadata.receipt_id}"
+        )
     return _receipt_from_history_row(
         spark,
-        row=row,
+        row=write_rows[0],
         statement=statement,
         attempts=attempts,
         metadata=metadata,
@@ -812,19 +854,7 @@ def _receipt_from_history_row(
     metadata: _ReceiptMetadata,
     write_duration_ms: int,
 ) -> DeltaWriteReceipt:
-    operation_metrics = row["operationMetrics"] or {}
-    raw_row_count = next(
-        (
-            operation_metrics[name]
-            for name in (
-                "numOutputRows",
-                "numTargetRowsInserted",
-                "numInsertedRows",
-            )
-            if operation_metrics.get(name) is not None
-        ),
-        None,
-    )
+    row_count = _operation_row_count(row["operationMetrics"])
     committed_at = row["timestamp"]
     if committed_at is not None and committed_at.tzinfo is None:
         committed_at = committed_at.replace(tzinfo=timezone.utc)
@@ -834,7 +864,7 @@ def _receipt_from_history_row(
         receipt_id=metadata.receipt_id,
         target_table=metadata.target_table,
         delta_version=int(row["version"]),
-        row_count=int(raw_row_count) if raw_row_count is not None else None,
+        row_count=row_count,
         schema_checksum=_target_schema_checksum(spark, metadata.target_table),
         build_id=metadata.build_id,
         attempt_id=metadata.attempt_id,

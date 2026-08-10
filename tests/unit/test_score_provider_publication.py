@@ -264,6 +264,59 @@ def test_provider_publish_binds_receipt_without_reading_signals(monkeypatch):
     assert result.compatibility_output_versions == {}
 
 
+def test_provider_publish_recovers_missing_history_metric_from_exact_version(
+    monkeypatch,
+):
+    incomplete_receipt = DeltaWriteReceipt(
+        **{**_receipt().__dict__, "row_count": None}
+    )
+    queries = []
+    spark = SimpleNamespace(
+        sql=lambda statement: queries.append(statement)
+        or SimpleNamespace(first=lambda: {"_nextads_row_count": 100})
+    )
+    captured = {}
+    monkeypatch.setattr(
+        publication,
+        "find_delta_write_receipt",
+        lambda *_a, **_k: pytest.fail("the supplied receipt must be reused"),
+    )
+    monkeypatch.setattr(
+        publication,
+        "register_ready_provider_build",
+        lambda *_a, **kwargs: captured.update(receipt=kwargs["receipt"])
+        or "build",
+    )
+
+    result = publish_provider_build(
+        spark,
+        context=_context(),
+        signals_table=SIGNALS_TABLE,
+        signals_delta_version=42,
+        write_receipt=incomplete_receipt,
+        builds_table=BUILDS_TABLE,
+        provider_config={
+            "provider_id": "theme_affinity",
+            "provider_version": "theme_affinity/v1",
+            "capability": "account_theme",
+            "entity_type": "theme",
+        },
+        contract_version="account_entity_scores/v1",
+        git_commit="abc123",
+        task_run_id=456,
+        execution_count=0,
+        completed_at=NOW,
+    )
+
+    assert result.build == "build"
+    assert captured["receipt"].row_count == 100
+    assert len(queries) == 1
+    assert "VERSION AS OF 42" in queries[0]
+    assert "theme-affinity-build" in queries[0]
+    assert "`ProviderID` = 'theme_affinity'" in queries[0]
+    assert "`RunDate` = DATE '2026-08-03'" in queries[0]
+
+
 def test_provider_publisher_has_no_full_frame_scans_or_driver_write():
     source = inspect.getsource(publication)
     assert "countDistinct" not in source
