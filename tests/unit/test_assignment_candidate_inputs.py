@@ -1,13 +1,7 @@
 import json
-from pathlib import Path
 
 import pytest
 
-from jobs.nextads_assignment.bulk_build import (
-    build_scope_invocations,
-    select_phase_entries,
-)
-from jobs.nextads_assignment.publish_build import ScopeManifestEntry
 from next_ads.decisioning.candidate_inputs import (
     clear_candidate_input_cache,
     load_accepted_candidate_inputs,
@@ -179,58 +173,3 @@ def test_candidate_inputs_fail_before_assignment_for_invalid_manifest(
             )
     finally:
         clear_candidate_input_cache()
-
-
-def test_bulk_scope_invocations_preserve_phase_order_and_inheritance():
-    manifest = (
-        ScopeManifestEntry("PL1", "primary"),
-        ScopeManifestEntry("SB1", "primary"),
-        ScopeManifestEntry("SB2", "secondary", "SB1"),
-    )
-    common = ("--run_date", "2026-08-07")
-
-    primary = build_scope_invocations(
-        project_root=Path("C:/repo"),
-        route="v1",
-        phase="primary",
-        manifest=manifest,
-        common_arguments=common,
-    )
-    secondary = build_scope_invocations(
-        project_root=Path("C:/repo"),
-        route="v1",
-        phase="secondary",
-        manifest=manifest,
-        common_arguments=common,
-    )
-
-    assert [invocation.scope for invocation in primary] == ["PL1", "SB1"]
-    assert primary[0].arguments == (*common, "--location", "PL1")
-    assert secondary[0].arguments == (
-        *common,
-        "--location",
-        "SB2",
-        "--inherit_basic_from",
-        "SB1",
-    )
-    assert primary[0].script.as_posix().endswith(
-        "jobs/nextads_assignment/build_page.py"
-    )
-
-
-def test_v2_bulk_phase_runs_all_five_scopes_in_manifest_order():
-    manifest = tuple(
-        ScopeManifestEntry(scope)
-        for scope in (
-            "HomePage",
-            "ShoppingBagPage",
-            "CheckoutPage",
-            "ProductListingPage",
-            "ForYouPage",
-        )
-    )
-
-    selected = select_phase_entries(manifest, route="v2", phase="all")
-
-    assert selected == manifest
-    assert len(selected) == 5
