@@ -10,6 +10,7 @@ from next_ads.ranking.provider_context import (
     build_provider_build_id,
     build_provider_invocation_checksum,
     pinned_item_themes,
+    pinned_provider_model,
 )
 from next_ads.ranking.provider_signals import adapt_account_theme_scores
 from next_ads.ranking.scoring_inputs import (
@@ -135,6 +136,92 @@ def test_provider_build_identity_requires_exact_model_and_semantic_config():
             model_uri="models:/catalog.schema.model@champion",
             invocation_checksum="config",
             run_date=RUN_DATE,
+        )
+
+
+def test_provider_context_validates_and_reads_an_exact_delta_model(monkeypatch):
+    context = _context()
+    model_binding = {
+        "table": "marketingdata_prod.warehouse.markov_model",
+        "delta_version": 42,
+        "schema_version": "markov_transitions/v1",
+        "schema_checksum": "schema-42",
+    }
+    bound_context = ProviderContext(
+        **{
+            **context.__dict__,
+            "model_uri": (
+                "delta:marketingdata_prod.warehouse.markov_model"
+                "?version=42#markov/v1"
+            ),
+            "bindings_json": json.dumps(
+                {
+                    **json.loads(context.bindings_json),
+                    "model": model_binding,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        }
+    )
+    frame = type(
+        "ModelFrame",
+        (),
+        {"columns": ["theme", "next_theme", "probability"]},
+    )()
+    monkeypatch.setattr(
+        "next_ads.ranking.scoring_inputs.read_delta_version",
+        lambda _spark, table, version: (
+            frame
+            if (table, version)
+            == (model_binding["table"], model_binding["delta_version"])
+            else None
+        ),
+    )
+    monkeypatch.setattr(
+        "next_ads.ranking.scoring_inputs.schema_checksum",
+        lambda observed: "schema-42" if observed is frame else "wrong",
+    )
+
+    assert (
+        pinned_provider_model(
+            object(),
+            bound_context,
+            required_columns={"theme", "next_theme", "probability"},
+        )
+        is frame
+    )
+    assert build_provider_build_id(
+        provider_id="markov",
+        provider_version="markov/v1",
+        input_snapshot_id=bound_context.input_snapshot_id,
+        model_uri=bound_context.model_uri,
+        invocation_checksum=bound_context.invocation_checksum,
+        run_date=bound_context.run_date,
+    ).startswith("markov_20260730_")
+
+
+def test_provider_context_rejects_mutable_or_incomplete_model_binding():
+    context = _context()
+    with pytest.raises(
+        ValueError,
+        match="model binding delta_version",
+    ):
+        ProviderContext(
+            **{
+                **context.__dict__,
+                "bindings_json": json.dumps(
+                    {
+                        **json.loads(context.bindings_json),
+                        "model": {
+                            "table": "catalog.schema.model",
+                            "delta_version": None,
+                            "schema_version": "markov_transitions/v1",
+                            "schema_checksum": "checksum",
+                        },
+                    }
+                ),
+            }
         )
 
 

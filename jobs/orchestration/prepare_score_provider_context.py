@@ -344,6 +344,7 @@ def main(
     ACTIVATE_CONTEXT=True,
     EMIT_TASK_VALUES=True,
     REUSE_INCOMPLETE_ATTEMPT=False,
+    MODEL_BINDING=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -421,6 +422,13 @@ def main(
                 if key != "input_bindings"
             },
         }
+    if MODEL_BINDING is not None:
+        if foundation_binding is not None:
+            raise ValueError(
+                "A foundation-backed provider cannot add a separate model "
+                "binding"
+            )
+        bindings["model"] = dict(MODEL_BINDING)
     context = ProviderContext(
         context_slot=CONTEXT_SLOT,
         orchestration_run_id=int(ORCHESTRATION_RUN_ID),

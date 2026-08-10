@@ -93,6 +93,26 @@ class ProviderContext:
             raise ValueError("bindings_json must be valid JSON") from error
         if not isinstance(bindings, dict):
             raise ValueError("bindings_json must contain an object")
+        model_binding = bindings.get("model")
+        if model_binding is not None:
+            if not isinstance(model_binding, dict):
+                raise ValueError("Provider model binding must be a mapping")
+            for field in ("table", "schema_version", "schema_checksum"):
+                value = model_binding.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(
+                        f"Provider model binding {field} must not be empty"
+                    )
+            model_version = model_binding.get("delta_version")
+            if (
+                isinstance(model_version, bool)
+                or not isinstance(model_version, int)
+                or model_version < 0
+            ):
+                raise ValueError(
+                    "Provider model binding delta_version must be a "
+                    "non-negative integer"
+                )
         foundation_ids = (
             self.scoring_foundation_build_id,
             self.scoring_foundation_build_attempt_id,
@@ -578,5 +598,35 @@ def pinned_item_themes(
         raise ValueError(
             "Pinned item-theme snapshot is missing columns: "
             + ", ".join(missing)
+        )
+    return frame
+
+
+def pinned_provider_model(
+    spark: Any,
+    context: Any,
+    *,
+    required_columns: set[str] | frozenset[str] = frozenset(),
+):
+    """Read and validate the exact Delta model bound to a provider build."""
+    binding = json.loads(context.bindings_json).get("model")
+    if not isinstance(binding, dict):
+        raise ValueError("Provider context has no exact model binding")
+    from next_ads.ranking.scoring_inputs import (
+        read_delta_version,
+        schema_checksum,
+    )
+
+    frame = read_delta_version(
+        spark,
+        binding["table"],
+        binding["delta_version"],
+    )
+    if schema_checksum(frame) != binding["schema_checksum"]:
+        raise ValueError("Pinned provider model schema has changed")
+    missing = sorted(set(required_columns).difference(frame.columns))
+    if missing:
+        raise ValueError(
+            "Pinned provider model is missing columns: " + ", ".join(missing)
         )
     return frame

@@ -80,6 +80,8 @@ alert and a 26,100-second job deadline, so a delayed run cannot continue beyond
 20:15. A Markov failure remains outside the candidate-build failure domain
 because Markov is registered as a shadow provider, not selected for serving.
 
+Before a non-training run starts, Markov resolves the existing transition matrix from the production read catalog, rejects an empty model, and records its exact Delta table and version in the provider context and build identity. DEV scoring therefore uses the same immutable transition model as the current route while every scoring event, provider signal, receipt and compatibility output continues to write only to the named DEV schema.
+
 `build_markov_scores` materialises the model result once, converts that exact
 frame to the canonical account/entity score contract, and stages it. The shared
 `publish_provider_build` task then reads the exact staged Delta version,

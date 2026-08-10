@@ -2,8 +2,10 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from pyspark.sql import functions as F
 
+from jobs.nextads_candidates import build_theme_scores as markov_job
 from next_ads.ranking import provider_compatibility
 from next_ads.ranking.provider_compatibility import (
     build_markov_compatibility_scores,
@@ -19,6 +21,22 @@ from next_ads.ranking.provider_signals import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUN_DATE = date(2026, 8, 5)
 NOW = datetime(2026, 8, 5, 13, 0, tzinfo=timezone.utc)
+
+
+class _ModelFrame:
+    columns = sorted(markov_job.MARKOV_MODEL_COLUMNS)
+
+    def __init__(self, *, empty=False):
+        self.empty = empty
+
+    def select(self, *_columns):
+        return self
+
+    def limit(self, _count):
+        return self
+
+    def isEmpty(self):  # noqa: N802 - mirrors the Spark DataFrame API
+        return self.empty
 
 
 def _context(
@@ -327,3 +345,65 @@ def test_markov_passes_the_exact_signal_receipt_to_the_shared_publisher():
 
     assert "write_receipt=existing_receipt" in source
     assert "write_receipt=receipt" in source
+
+
+def test_markov_pins_the_transition_model_instead_of_reading_dev_latest():
+    source = (
+        PROJECT_ROOT / "jobs/nextads_candidates/build_theme_scores.py"
+    ).read_text()
+
+    assert "catalog=config.catalog_read" in source
+    assert "schema=config.schema_read" in source
+    assert "MODEL_BINDING=model_binding" in source
+    assert "pinned_provider_model(" in source
+    assert "model_uri = _markov_model_uri(model_binding)" in source
+
+
+def test_markov_model_binding_uses_an_exact_non_empty_delta_version(
+    monkeypatch,
+):
+    frame = _ModelFrame()
+    monkeypatch.setattr(markov_job, "latest_delta_version", lambda *_a: 42)
+    monkeypatch.setattr(
+        markov_job,
+        "read_delta_version",
+        lambda *_a: frame,
+    )
+    monkeypatch.setattr(
+        markov_job,
+        "schema_checksum",
+        lambda observed: "schema-42" if observed is frame else "wrong",
+    )
+
+    binding = markov_job._resolve_markov_model_binding(
+        object(),
+        "marketingdata_prod.warehouse.markov_model",
+    )
+
+    assert binding == {
+        "table": "marketingdata_prod.warehouse.markov_model",
+        "delta_version": 42,
+        "schema_version": "markov_transitions/v1",
+        "schema_checksum": "schema-42",
+    }
+    assert markov_job._markov_model_uri(binding) == (
+        "delta:marketingdata_prod.warehouse.markov_model"
+        "?version=42#markov/v1"
+    )
+
+
+def test_markov_model_binding_rejects_an_empty_model_before_scoring(
+    monkeypatch,
+):
+    monkeypatch.setattr(markov_job, "latest_delta_version", lambda *_a: 42)
+    monkeypatch.setattr(
+        markov_job,
+        "read_delta_version",
+        lambda *_a: _ModelFrame(empty=True),
+    )
+
+    with pytest.raises(ValueError, match="transition model is empty"):
+        markov_job._resolve_markov_model_binding(
+            object(),
+            "marketingdata_prod.warehouse.markov_model",
+        )

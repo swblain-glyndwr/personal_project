@@ -76,6 +76,7 @@ For every cycle:
 
 1. Run Theme Inputs and Candidate Foundation in parallel.
 2. After Theme Inputs is READY, run Theme Affinity. Markov may run in parallel or later; it is shadow-only and does not block candidates.
+   Markov reads an exact version of the existing production transition model and writes its results only to the named DEV schema, so the personal DEV transition table does not need to be seeded before this acceptance run.
 3. After Candidate Foundation, the accepted provider and the audited route control version are ready, run v1 and v2 candidate generation in parallel.
 4. Run the v1 and v2 bulk page jobs in parallel from their exact accepted candidate attempts.
 5. Let v1 continue to MASID and PLP delivery and v2 continue to payload export.

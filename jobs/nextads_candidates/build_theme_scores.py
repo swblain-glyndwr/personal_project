@@ -51,6 +51,7 @@ from next_ads.ranking.theme_score_generation import (
 from next_ads.ranking.provider_context import (
     load_active_provider_context,
     pinned_item_themes,
+    pinned_provider_model,
     transition_provider_context,
 )
 from next_ads.ranking.provider_publication import (
@@ -61,11 +62,56 @@ from next_ads.ranking.provider_publication import (
 from next_ads.ranking.provider_signals import (
     adapt_configured_provider_scores,
 )
+from next_ads.ranking.scoring_inputs import (
+    latest_delta_version,
+    read_delta_version,
+    schema_checksum,
+)
 from jobs.orchestration.prepare_score_provider_context import (
     main as prepare_provider_context,
 )
 
 from next_ads.reporting.plotting import DirectedGraphPlotter
+
+
+MARKOV_MODEL_COLUMNS = frozenset(
+    {
+        "theme",
+        "next_theme",
+        "probability",
+        "transition_freq",
+        "theme_total",
+        "base_probability",
+        "probability_rebased",
+    }
+)
+
+
+def _resolve_markov_model_binding(spark, table):
+    """Pin one non-empty transition model before the scoring build starts."""
+    version = latest_delta_version(spark, table)
+    frame = read_delta_version(spark, table, version)
+    missing = sorted(MARKOV_MODEL_COLUMNS.difference(frame.columns))
+    if missing:
+        raise ValueError(
+            "Markov transition model is missing columns: "
+            + ", ".join(missing)
+        )
+    if frame.select("theme").limit(1).isEmpty():
+        raise ValueError(f"Markov transition model is empty: {table}")
+    return {
+        "table": table,
+        "delta_version": version,
+        "schema_version": "markov_transitions/v1",
+        "schema_checksum": schema_checksum(frame),
+    }
+
+
+def _markov_model_uri(binding):
+    return (
+        f"delta:{binding['table']}?version={binding['delta_version']}"
+        "#markov/v1"
+    )
 
 
 def _has_pinned_provider_attempt(
@@ -129,6 +175,21 @@ def _run_markov(
         )
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
+
+    ACTIONS_END = ACTIONS_END or (run_date - timedelta(days=1))
+    if isinstance(ACTIONS_END, str):
+        ACTIONS_END = date.fromisoformat(ACTIONS_END)
+    ACTIONS_START = ACTIONS_END - timedelta(days=364)
+    TODAY = run_date.isoformat()
+    TRAIN = REFRESH_MODEL_DATE == TODAY or False
+
+    tbls = cfg["tables"]["write"]
+    markov_model_table = etl.map_tbl(
+        tbls["theme_transitions_latest"],
+        catalog=config.catalog_read,
+        schema=config.schema_read,
+        client=CLIENT,
+    )
 
     has_pinned_provider_attempt = _has_pinned_provider_attempt(
         PROVIDER_BUILD_ID,
@@ -201,13 +262,21 @@ def _run_markov(
             raise ValueError(
                 "Markov build-and-publish is missing: " + ", ".join(missing)
             )
+        model_binding = None
+        model_uri = f"code:/markov/v1#train={run_date.isoformat()}"
+        if not TRAIN:
+            model_binding = _resolve_markov_model_binding(
+                spark,
+                markov_model_table,
+            )
+            model_uri = _markov_model_uri(model_binding)
         provider_context = prepare_provider_context(
             JOB_ENV,
             CLIENT,
             LOG_LEVEL,
             run_date.isoformat(),
             INPUT_SNAPSHOT_ID,
-            "code:/markov/v1",
+            model_uri,
             CONTEXT_SLOT,
             TASK_RUN_ID,
             EXECUTION_COUNT,
@@ -222,6 +291,7 @@ def _run_markov(
             ACTIVATE_CONTEXT=True,
             EMIT_TASK_VALUES=False,
             REUSE_INCOMPLETE_ATTEMPT=True,
+            MODEL_BINDING=model_binding,
         )
         INPUT_SNAPSHOT_ID = provider_context.input_snapshot_id
         PROVIDER_BUILD_ID = provider_context.provider_build_id
@@ -274,7 +344,6 @@ def _run_markov(
     VIEWS_APP = cfg["tables"]["read"]["bq_views_app"]
     VIEWS_ENABLED = all([SESSIONS, VIEWS])
 
-    tbls = cfg["tables"]["write"]
     SCHEMA = config.schema_write
     logger.info(f"Write schema set to {SCHEMA}")
 
@@ -300,15 +369,6 @@ def _run_markov(
     THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
         tbls["theme_scoring_events_latest"], **tbl_args
     )  # noqa
-
-    ACTIONS_END = ACTIONS_END or (run_date - timedelta(days=1))
-
-    if isinstance(ACTIONS_END, str):
-        ACTIONS_END = date.fromisoformat(ACTIONS_END)
-    ACTIONS_START = ACTIONS_END - timedelta(days=364)
-
-    TODAY = run_date.isoformat()
-    TRAIN = REFRESH_MODEL_DATE == TODAY or False
 
     w_item_by_modified = Window.partitionBy("pid").orderBy(
         F.desc("date_modified"), "title"
@@ -596,9 +656,17 @@ def _run_markov(
 
     if not TRAIN:
         logger.info(
-            f"Reading transition probabilities from {THEME_TRANSITIONS_LATEST}"
+            "Reading the exact transition model bound to this provider build"
         )
-        transition_probs = spark.table(THEME_TRANSITIONS_LATEST)
+        transition_probs = (
+            pinned_provider_model(
+                spark,
+                provider_context,
+                required_columns=MARKOV_MODEL_COLUMNS,
+            )
+            if provider_context is not None
+            else spark.table(THEME_TRANSITIONS_LATEST)
+        )
 
     # --- Blended scoring (purchase baseline + view boost) ---
     logger.info("Scoring purchase history against transition matrix")
