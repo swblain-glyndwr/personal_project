@@ -1,12 +1,8 @@
-﻿# NextAds Repo Migration Map
+# NextAds Repo Migration Map
 
-This document is the control map for moving the current NextAds repo into the
-target production package structure. It is intentionally explicit so future PRs
-can point to a known destination, risk level, and validation expectation before
-moving code.
+This document is the control map for moving the current NextAds repo into the target production package structure. It is intentionally explicit so future PRs can point to a known destination, risk level, and validation expectation before moving code.
 
-The map supports story 5111778: map current repo components to target
-locations.
+The map supports story 5111778: map current repo components to target locations.
 
 ## Target Structure
 
@@ -92,9 +88,7 @@ src/
 
 ## Root Tooling And Dependency Map
 
-These files do not belong under the production package, but they still need an
-explicit migration decision because they control local development, CI
-behaviour, dependency installation, and Databricks bundle packaging.
+These files do not belong under the production package, but they still need an explicit migration decision because they control local development, CI behaviour, dependency installation, and Databricks bundle packaging.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -128,8 +122,7 @@ behaviour, dependency installation, and Databricks bundle packaging.
 
 ## Target Databricks Job Shape
 
-The Databricks job structure should move toward clear operational boundaries
-while preserving existing output contracts during the restructure.
+The Databricks job structure should move toward clear operational boundaries while preserving existing output contracts during the restructure.
 
 | Target job | Intended role | Current migration position |
 |---|---|---|
@@ -227,8 +220,7 @@ while preserving existing output contracts during the restructure.
 
 ## SQL Map
 
-The `sql/` folder remains the target home, but SQL should be grouped and owned
-by functional area before any further restructuring.
+The `sql/` folder remains the target home, but SQL should be grouped and owned by functional area before any further restructuring.
 
 | SQL family | Current examples | Target area | Status | Risk | Validation required |
 |---|---|---|---|---|---|
@@ -247,10 +239,7 @@ by functional area before any further restructuring.
 
 ## Response Model / pCTR Map
 
-pCTR is not just ranking. The current retained work includes feature/data prep,
-model training, model scoring, ranking, and output-table definitions. Keep
-experiment SQL with the experiment until the feature/model contracts are ready
-to split into production package and SQL domains.
+pCTR is not just ranking. The current retained work includes feature/data prep, model training, model scoring, ranking, and output-table definitions. Keep experiment SQL with the experiment until the feature/model contracts are ready to split into production package and SQL domains.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -268,16 +257,9 @@ to split into production package and SQL domains.
 
 ## Theme Affinity Model Map
 
-The retained `experiments/hackathon_theme_affinity_model/` folder is the
-legacy reference home of the Theme Affinity model. The model scores or ranks account-to-theme affinity
-using theme interaction, views, baskets, add-to-bag, repurchase, popularity,
-trending, and customer feature signals. It was created during a hackathon, but
-the target production domain name should be `theme_affinity`.
+The retained `experiments/hackathon_theme_affinity_model/` folder is the legacy reference home of the Theme Affinity model. The model scores or ranks account-to-theme affinity using theme interaction, views, baskets, add-to-bag, repurchase, popularity, trending, and customer feature signals. It was created during a hackathon, but the target production domain name should be `theme_affinity`.
 
-This work is operational-transition work. It is not safe to delete or ignore
-because current outputs are used by downstream NextAds assignment logic.
-During migration, keep existing table names and config keys working as legacy
-contracts until a separate output migration is agreed.
+This work is operational-transition work. It is not safe to delete or ignore because current outputs are used by downstream NextAds assignment logic. During migration, keep existing table names and config keys working as legacy contracts until a separate output migration is agreed.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -295,23 +277,11 @@ contracts until a separate output migration is agreed.
 
 ## Ads V2 Map
 
-The old `adsv2/` folder has been folded into the current route-oriented repo
-layout because the v2 route is becoming a major part of NextAds. V2 entrypoints
-can live in the route folder that describes what they do, for example
-`jobs/nextads_control`, `jobs/nextads_candidates`, `jobs/nextads_v2`, or
-`jobs/nextads_delivery`. Do not force every v2 file into `jobs/nextads_v2/`
-when the current route folder is clearer.
+The old `adsv2/` folder has been folded into the current route-oriented repo layout because the v2 route is becoming a major part of NextAds. V2 entrypoints can live in the route folder that describes what they do, for example `jobs/nextads_control`, `jobs/nextads_candidates`, `jobs/nextads_v2`, or `jobs/nextads_delivery`. Do not force every v2 file into `jobs/nextads_v2/` when the current route folder is clearer.
 
-Ads v2 is a candidate production route that affects how outputs
-are shaped and consumed by downstream systems. That makes it high-risk
-operational-transition work requiring explicit output contract checks and
-parallel-run evidence.
+Ads v2 is a candidate production route that affects how outputs are shaped and consumed by downstream systems. That makes it high-risk operational-transition work requiring explicit output contract checks and parallel-run evidence.
 
-CMS/data-pull work was reconciled through completed PR `249403`
-(`feature/TL/cmsdata`). The current data-pull route now lives in the
-Databricks data-pull job/pipeline resources plus `src/next_ads/data/sort_order/`
-and `jobs/nextads_data/archive_sort_order_data.py`; do not treat it as deferred
-Ads v2 cleanup.
+CMS/data-pull work was reconciled through completed PR `249403` (`feature/TL/cmsdata`). The current data-pull route now lives in the Databricks data-pull job/pipeline resources plus `src/next_ads/data/sort_order/` and `jobs/nextads_data/archive_sort_order_data.py`; do not treat it as deferred Ads v2 cleanup.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -371,57 +341,29 @@ Ads v2 cleanup.
 
 ## Recommended Move Order
 
-The migration used domain-by-domain moves so package code and Databricks
-entrypoints could move together while output contracts remained stable.
+The migration used domain-by-domain moves so package code and Databricks entrypoints could move together while output contracts remained stable.
 
-1. `feature/SWB/5128910-control-domain-move`
-   Move control sheet, attribute parsing, theme mapping, control helpers, and
-   matching entrypoints. This is draft PR `246383`.
-2. `feature/SWB/5128910-main-job-entrypoint-move`
-   Move remaining core main-job scripts into route-oriented `jobs/nextads_*`
-   folders and update DAB job paths in the same branch.
-3. `feature/SWB/5128910-ranking-domain-move`
-   Move scoring, theme-score mapping, Theme Affinity ranking pieces, and
-   ranking scripts into `src/next_ads/ranking` plus relevant job entrypoints.
-4. `feature/SWB/5128910-decisioning-domain-move`
-   Move assignment, customer-cell, and build-page logic into
-   `src/next_ads/decisioning` and update entrypoints.
-5. `feature/SWB/5128910-delivery-domain-move`
-   Move PLP GS, MASID handoff, Bloomreach/v2 payload, and export logic into
-   `src/next_ads/delivery` plus delivery job entrypoints.
-6. `feature/SWB/5128910-features-models-foundation`
-   Move feature generation, Theme Affinity DLT/Lakeflow feature prep, pCTR
-   feature prep, and MLflow train/promote/scoring routes into
-   `src/next_ads/features`, `src/next_ads/ranking/*`, and `jobs/model`. This is
-   already active through the Feature Store foundation and Theme Affinity
-   MLflow lifecycle PRs.
-7. `feature/SWB/5128910-adsv2-domain-move`
-   Keep v2 entrypoints in clear route folders, move reusable logic into Ads v2
-   package subdomains after active v2 PRs and contracts are clear. CMS/data
-   pull has already been reconciled through PR `249403`; its archive
-   entrypoint now lives in `jobs/nextads_data`.
-8. `feature/SWB/5128910-realtime-reporting-move`
-   Move realtime and reporting/results helpers into `src/next_ads/realtime`
-   and `src/next_ads/reporting`.
-9. `feature/SWB/5128910-config-sql-layout`
-   Move config and SQL into domain folders, update config loader/path
-   resolution, and update tests without renaming live table contracts.
-10. `feature/SWB/5128910-cleanup-legacy-paths`
-    Remove old wrappers, stale scripts, empty folders, dead imports, and update
-    docs once references are gone.
+1. `feature/SWB/5128910-control-domain-move` Move control sheet, attribute parsing, theme mapping, control helpers, and matching entrypoints. This is draft PR `246383`.
+2. `feature/SWB/5128910-main-job-entrypoint-move` Move remaining core main-job scripts into route-oriented `jobs/nextads_*` folders and update DAB job paths in the same branch.
+3. `feature/SWB/5128910-ranking-domain-move` Move scoring, theme-score mapping, Theme Affinity ranking pieces, and ranking scripts into `src/next_ads/ranking` plus relevant job entrypoints.
+4. `feature/SWB/5128910-decisioning-domain-move` Move assignment, customer-cell, and build-page logic into `src/next_ads/decisioning` and update entrypoints.
+5. `feature/SWB/5128910-delivery-domain-move` Move PLP GS, MASID handoff, Bloomreach/v2 payload, and export logic into `src/next_ads/delivery` plus delivery job entrypoints.
+6. `feature/SWB/5128910-features-models-foundation` Move feature generation, Theme Affinity DLT/Lakeflow feature prep, pCTR feature prep, and MLflow train/promote/scoring routes into `src/next_ads/features`, `src/next_ads/ranking/*`, and `jobs/model`. This is already active through the Feature Store foundation and Theme Affinity MLflow lifecycle PRs.
+7. `feature/SWB/5128910-adsv2-domain-move` Keep v2 entrypoints in clear route folders, move reusable logic into Ads v2 package subdomains after active v2 PRs and contracts are clear. CMS/data pull has already been reconciled through PR `249403`; its archive entrypoint now lives in `jobs/nextads_data`.
+8. `feature/SWB/5128910-realtime-reporting-move` Move realtime and reporting/results helpers into `src/next_ads/realtime` and `src/next_ads/reporting`.
+9. `feature/SWB/5128910-config-sql-layout` Move config and SQL into domain folders, update config loader/path resolution, and update tests without renaming live table contracts.
+10. `feature/SWB/5128910-cleanup-legacy-paths` Remove old wrappers, stale scripts, empty folders, dead imports, and update docs once references are gone.
 
 ## High-Risk Items Requiring Separate Stories
 
-Do not change the behaviour of these until their contracts and validation are
-agreed:
+Do not change the behaviour of these until their contracts and validation are agreed:
 
 - `src/next_ads/decisioning/assignment.py`
 - `src/next_ads/ranking/scoring.py`
 - `jobs/nextads_cells/assign_customer_cells.py`
 - `jobs/nextads_assignment/build_page.py`
 - `jobs/nextads_candidates/build_theme_ad_candidates.py`
-- future control-sheet logic or output changes beyond the PR `246383` entrypoint
-  move
+- future control-sheet logic or output changes beyond the PR `246383` entrypoint move
 - `jobs/nextads_candidates/conditional_probability_recs.py` and `sql/create_table_conditional_probability*.sql`
 - behavioural or downstream-contract changes to `jobs/nextads_reporting/results_to_bigquery.py`
 - `jobs/table_operations/create_tables.py`
@@ -442,26 +384,15 @@ agreed:
 
 ## Coverage Notes
 
-This map is intentionally a control map, not a line-by-line manifest. Some
-folders are mapped by family because listing every file would make the document
-harder to use:
+This map is intentionally a control map, not a line-by-line manifest. Some folders are mapped by family because listing every file would make the document harder to use:
 
 - SQL files under `sql/` are mapped by table family in the SQL Map.
-- Theme Affinity SQL files under `experiments/hackathon_theme_affinity_model/sql/` are mapped as a single
-  model-support SQL family because they should move together after the model
-  contract is documented.
-- Unit and integration tests are mapped by test folder, with imports updated as
-  corresponding production modules move.
-- Local/generated folders such as `.venv/`, `.pytest_cache/`, `.ruff_cache/`,
-  and `.databricks/` are explicitly not migration targets.
-- LLM context docs are part of the target structure. They should be maintained
-  alongside human docs so tools such as GitHub Copilot, Claude, Codex, and other
-  assistants can follow the repo structure, release route, and production safety
-  boundaries without guessing.
+- Theme Affinity SQL files under `experiments/hackathon_theme_affinity_model/sql/` are mapped as a single model-support SQL family because they should move together after the model contract is documented.
+- Unit and integration tests are mapped by test folder, with imports updated as corresponding production modules move.
+- Local/generated folders such as `.venv/`, `.pytest_cache/`, `.ruff_cache/`, and `.databricks/` are explicitly not migration targets.
+- LLM context docs are part of the target structure. They should be maintained alongside human docs so tools such as GitHub Copilot, Claude, Codex, and other assistants can follow the repo structure, release route, and production safety boundaries without guessing.
 
-If a future PR moves a file that is only covered by a family row, that PR should
-name the exact file in its own PR description and provide the validation listed
-for that family.
+If a future PR moves a file that is only covered by a family row, that PR should name the exact file in its own PR description and provide the validation listed for that family.
 
 ## PR Evidence Required By Move Type
 

@@ -2,7 +2,7 @@
 
 Status: Working note
 
-Architecture view refreshed: 2026-08-06. Observed runtime evidence last refreshed from Databricks: 2026-07-03.
+Architecture view refreshed: 2026-08-11. Observed runtime evidence last refreshed from Databricks: 2026-07-03.
 
 This page describes the NextAds Databricks bundle shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs wait for child jobs, and where reusable model-building routes sit alongside the operational delivery routes.
 
@@ -10,7 +10,7 @@ This is a runtime map, not a deployment policy. For target availability rules, s
 
 ## How to Read This
 
-The diagrams below show the Databricks Asset Bundle job structure currently defined under `pipelines/databricks/jobs`. Schedules and recent runtimes were pulled from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Child jobs do not have their own fixed schedule; the parent waits for their result.
+The diagrams below show the Databricks Asset Bundle job structure currently defined under `pipelines/databricks/jobs`. The schedules in the diagrams come from the current bundle. The runtime table is retained as historical pre-change evidence from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Child jobs do not have their own fixed schedule; the parent waits for their result.
 
 Durations are recent observed successful run durations, not SLAs. They should be treated as a guide for debugging, planning model refreshes, and understanding where a new model, feature-store table, or challenger route would attach.
 
@@ -55,15 +55,16 @@ flowchart LR
 
   subgraph RANKING["PORTFOLIO AND CANDIDATE RANKING"]
     direction TB
-    portfolio["Resolve configured portfolio<br/>bind exact provider build + Delta version<br/>same provider calculated once when reused"]:::ranking
+    portfolio_v1["Resolve configured v1 selection<br/>bind exact provider build + Delta version<br/>same provider calculated once when reused"]:::ranking
+    portfolio_v2["Resolve configured v2 selection<br/>bind exact provider build + Delta version<br/>same provider calculated once when reused"]:::ranking
     candidate_v1["v1 candidate graph<br/>all serving entries and locations"]:::ranking
     candidate_v2["v2 candidate graph<br/>all serving entries and page types"]:::ranking
     candidate_attempt_v1[("READY v1 candidate attempt<br/>one ad-set write + one score write<br/>exact receipts; manifest last")]:::state
     candidate_attempt_v2[("READY v2 candidate attempt<br/>one ad-set write + one score write<br/>exact receipts; manifest last")]:::state
 
-    portfolio -->|exact PortfolioAttemptID| candidate_v1
+    portfolio_v1 -->|exact PortfolioAttemptID| candidate_v1
     candidate_v1 --> candidate_attempt_v1
-    portfolio -->|same exact PortfolioAttemptID| candidate_v2
+    portfolio_v2 -->|exact PortfolioAttemptID| candidate_v2
     candidate_v2 --> candidate_attempt_v2
   end
 
@@ -93,7 +94,7 @@ flowchart LR
   end
 
   subgraph OPERATIONS["ASYNCHRONOUS COMPATIBILITY AND MONITORING"]
-    provider_compat["17:00 provider compatibility<br/>and Theme Affinity sense checks<br/>read exact READY provider"]:::operations
+    theme_compat["17:00 Theme Affinity compatibility<br/>legacy provider and feature tables<br/>plus independent sense checks"]:::operations
     candidate_compat["21:00 candidate compatibility<br/>and assignment quality monitoring<br/>read exact READY candidates"]:::operations
     maintenance["05:00 retention<br/>not a build dependency"]:::operations
   end
@@ -107,7 +108,8 @@ flowchart LR
 
   input_snapshot -->|exact InputSnapshotID| ranked
   input_snapshot -->|same exact InputSnapshotID| markov
-  provider_boundary -->|exact provider attempts| portfolio
+  provider_boundary -->|exact provider attempts| portfolio_v1
+  provider_boundary -->|exact provider attempts| portfolio_v2
   foundation_snapshot -->|exact FoundationSnapshotID| candidate_v1
   foundation_snapshot -->|same exact FoundationSnapshotID| candidate_v2
   control --> candidate_v1
@@ -118,7 +120,7 @@ flowchart LR
   candidate_v2 -. no ready manifest .-> keep_v2
   publish_v1 --> v1_delivery
   publish_v2 --> v2_delivery
-  provider_boundary -. exact READY version .-> provider_compat
+  provider_boundary -. exact READY version .-> theme_compat
   candidate_attempt_v1 -. exact READY version .-> candidate_compat
   candidate_attempt_v2 -. exact READY version .-> candidate_compat
   maintenance -. retention only .-> candidate_attempt_v1
@@ -127,7 +129,7 @@ flowchart LR
 
 The thick-bordered cylinders are acceptance boundaries: downstream work reads the exact identifier and Delta version shown on the connecting arrow, rather than asking for whichever data is latest at execution time. Canonical JSON identities, stable ordering and exact Delta versions make a repeat of those accepted inputs select the same rows without nightly whole-table hashing.
 
-All model-specific code ends at the canonical provider boundary. Theme Affinity, optional Markov and any later themed or non-themed challenger publish the same keys, scores, ranks and ready manifest. From that point onward there is one shared portfolio, candidate, decisioning and delivery route.
+All model-specific code ends at the canonical provider boundary. Theme Affinity, optional Markov and any later themed or non-themed challenger publish the same keys, scores, ranks and ready manifest. From that point onward v1 and v2 independently select their configured provider outputs, then use the same candidate, decisioning and delivery contracts.
 
 Data is written before its READY manifest. Assignment is calculated as one distributed Spark graph per route, checked once at the final public key, and written as one history transaction followed by one live-latest transaction. There is no scope-by-scope public chain to leave a mixed Shopping Bag snapshot. If the live transaction does not complete, the previous accepted snapshot remains active; a repair can publish it from the exact history version without recalculating assignments. V1 and v2 make that decision independently.
 
@@ -146,7 +148,7 @@ flowchart TD
   theme_inputs["12:15 theme inputs"]:::sharedModel
   theme_affinity["13:00 theme_affinity"]:::sharedModel
   markov["13:00 markov_scoring<br/>optional shadow"]:::sharedModel
-  provider_compat["17:00 provider compatibility<br/>and sense checks"]:::reporting
+  theme_compat["17:00 Theme Affinity compatibility<br/>and sense checks"]:::reporting
   candidate_foundation["16:00 candidate_foundation"]:::sharedTask
   candidate["18:00 candidate_build"]:::sharedTask
   candidate_compat["21:00 candidate compatibility"]:::reporting
@@ -161,8 +163,8 @@ flowchart TD
 
   theme_inputs --> theme_affinity
   theme_inputs --> markov
-  theme_affinity -. exact READY provider .-> provider_compat
-  theme_affinity --> candidate
+  theme_affinity -. exact READY provider .-> theme_compat
+  theme_affinity -. same-day or accepted fallback provider .-> candidate
   candidate_foundation --> candidate
   markov -. optional evaluation .-> candidate
   candidate --> page_build
@@ -172,9 +174,12 @@ flowchart TD
   page_build --> masid
   page_build --> plp
   page_build_v2 --> payload
+  theme_compat -. compatible feature tables .-> feature_store
 ```
 
-## Recent Observed Runtimes
+## Historical Observed Runtimes
+
+These measurements were captured on 2026-07-03 against the earlier job graph. They are retained only as a pre-change comparison and do not describe the runtime of the current bulk publication jobs.
 
 | Route | Workspace/profile | Databricks job id | Schedule or trigger | Latest successful run id | Last three successful durations |
 | --- | --- | --- | --- | --- | --- |
@@ -187,7 +192,7 @@ flowchart TD
 | Results | PROD | `326879697801368` | 07:15 daily | `1016879679282989` | 2h 1m 6s; 2h 12m 17s; 2h 1m 37s |
 | Realtime inputs | PROD | `510370009427574` | 18:00 daily | `384313899991554` | 20m 23s; 18m 26s; 19m 15s |
 | Realtime results | PROD | `36753739041122` | 07:30 daily | `276035162295688` | 9m 21s; 11m 23s; 9m 2s |
-| Theme Affinity | PROD | `27892907532455` | 09:00 daily | `11890698402594` | 3h 14m 33s; 3h 41m 37s; 4h 2m 16s |
+| Theme Affinity | PROD | `27892907532455` | 09:00 at the observation date; current bundle 13:00 | `11890698402594` | 3h 14m 33s; 3h 41m 37s; 4h 2m 16s |
 | Feature store | DEV | `643939878851484` | 21:00 daily in `DEV_FEATURE_STORE` | None found in recent successful runs | No recent successful durations found |
 
 ## Candidate Build Task Graph
@@ -294,7 +299,7 @@ flowchart TD
   run_masid_handoff --> masid["masid_handoff"]:::v1
   run_payload_export --> payload["payload_export"]:::v2
   run_plp_gs_delivery --> plp["plp_gs_delivery"]:::v1
-  quality["21:00 assignment quality monitoring<br/>reads exact READY candidate and live versions"]:::trigger
+  quality["21:00 assignment quality monitoring<br/>runs after compatibility publication"]:::trigger
   build_and_publish_v1 -.-> quality
   build_and_publish_v2 -.-> quality
 ```

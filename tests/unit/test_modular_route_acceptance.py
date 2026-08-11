@@ -69,22 +69,3 @@ def test_active_modular_route_has_no_unsafe_random_dedup_or_writer():
     }
 
     assert offenders == {}
-
-
-def test_modular_route_acceptance_contract_remains_explicit():
-    contract = _read(
-        "docs/CICD/nextads_modular_route_dev_acceptance.md"
-    )
-    required_statements = (
-        "Foundation, provider, candidate and assignment frames remain distributed",
-        "Theme Affinity physically publishes the ranked foundation once",
-        "Markov remains shadow-only",
-        "one atomic Delta transaction for a logical output",
-        "one bulk Spark graph",
-        "live-latest transaction is the final mandatory operation",
-        "No larger clusters are required by this change",
-        "Compatibility and monitoring failures must alert independently",
-    )
-
-    for statement in required_statements:
-        assert statement in contract

@@ -1,10 +1,6 @@
 # NextAds v2 Migration Plan
 
-This plan documents the current TL v2 branch direction and the long-lived v1/v2
-route split. The route files have been moved out of `scripts/` into
-route-oriented job folders. V2 candidate mapping now changes at the
-control-sheet join layer because v2 must remain active beside v1 rather than
-being a short cutover route.
+This plan documents the current TL v2 branch direction and the long-lived v1/v2 route split. The route files have been moved out of `scripts/` into route-oriented job folders. V2 candidate mapping now changes at the control-sheet join layer because v2 must remain active beside v1 rather than being a short cutover route.
 
 ## Current Decision
 
@@ -14,8 +10,7 @@ The v2 workbook is the operational source of truth for the `Theme Mapping` tab. 
 
 ## Current Rule
 
-Current v2 runtime paths are already route-oriented and should remain stable
-unless a specific file is clearly misplaced:
+Current v2 runtime paths are already route-oriented and should remain stable unless a specific file is clearly misplaced:
 
 - `jobs/nextads_control/load_control_sheet_v2.py`
 - `jobs/nextads_candidates/build_page_type_candidates_v2.py`
@@ -23,10 +18,7 @@ unless a specific file is clearly misplaced:
 - `jobs/nextads_delivery/build_v2_payload.py`
 - existing v2 DAB `python_file` references now point at these route folders
 
-Do not move all v2 files into `jobs/nextads_v2/` by default;
-`jobs/nextads_control`, `jobs/nextads_candidates`, and `jobs/nextads_delivery`
-are valid homes when the route role is clearer. The accepted behavioural change
-in this route-split PR is limited to candidate mapping: v2 maps shared Theme Affinity customer-theme scores directly to ads from `control_sheet_latest_v2` and writes `preranked_ads_from_themes_v2_latest` without reading v1 preranked output.
+Do not move all v2 files into `jobs/nextads_v2/` by default; `jobs/nextads_control`, `jobs/nextads_candidates`, and `jobs/nextads_delivery` are valid homes when the route role is clearer. The v2 candidate task maps the selected provider scores directly to ads from the exact `control_sheet_latest_v2` version and publishes the canonical accepted candidate tables without reading v1 output. The separate candidate compatibility job derives `preranked_ads_from_themes_v2_latest` from that exact accepted v2 attempt.
 
 ## Route Boundaries
 
@@ -59,9 +51,7 @@ Latest inspected TL branches:
 | `origin/feature/TL/e2e_pipeline` | `2c5c716` on 2026-06-02 | Adds ability to serve NextGenAds end to end. |
 | `origin/feature/TL/real_time_v2` | `8cc2c62` on 2026-06-05 | Adds MASID/Bloomreach real-time v2 client direction. |
 
-Several branches pre-date the current `src/`, `jobs/`, `configs/`, and grouped
-`sql/` layout. Do not merge any branch wholesale into the restructure branch.
-Cherry-pick or port the v2 changes after the restructure lands.
+Several branches pre-date the current `src/`, `jobs/`, `configs/`, and grouped `sql/` layout. Do not merge any branch wholesale into the restructure branch. Cherry-pick or port the v2 changes after the restructure lands.
 
 ## Deferred Target Shape
 
@@ -76,24 +66,16 @@ configs/adsv2/
 sql/adsv2/
 ```
 
-Keep v2 output table names, config keys, and downstream payload contracts stable
-until a separate compatibility/cutover plan is approved.
+Keep v2 output table names, config keys, and downstream payload contracts stable until a separate compatibility/cutover plan is approved.
 
-CMS/data-pull work was reconciled through completed PR `249403`
-(`feature/TL/cmsdata`). Treat the current data-pull job/pipeline route as part
-of the post-v2 baseline, not as outstanding Ads v2 structural cleanup.
+CMS/data-pull work was reconciled through completed PR `249403` (`feature/TL/cmsdata`). Treat the current data-pull job/pipeline route as part of the post-v2 baseline, not as outstanding Ads v2 structural cleanup.
 
 ## Suggested v2 Move Order
 
 1. Re-check active TL branches and open PRs.
-2. Port v2 control-sheet schema/load changes into `src/next_ads/control/adsv2`
-   while keeping the current `jobs/nextads_control/load_control_sheet_v2.py`
-   route entrypoint unless the job boundary changes.
-3. Port v2 score/ad mapping into `src/next_ads/ranking/adsv2` and
-   keep `jobs/nextads_candidates/build_page_type_candidates_v2.py` as the
-   route entrypoint unless the job boundary changes.
-4. Port v2 page/payload work into `src/next_ads/decisioning/adsv2`,
-   `src/next_ads/delivery/adsv2`, and the matching current route entrypoints.
+2. Port v2 control-sheet schema/load changes into `src/next_ads/control/adsv2` while keeping the current `jobs/nextads_control/load_control_sheet_v2.py` route entrypoint unless the job boundary changes.
+3. Port v2 score/ad mapping into `src/next_ads/ranking/adsv2` and keep `jobs/nextads_candidates/build_page_type_candidates_v2.py` as the route entrypoint unless the job boundary changes.
+4. Port v2 page/payload work into `src/next_ads/decisioning/adsv2`, `src/next_ads/delivery/adsv2`, and the matching current route entrypoints.
 5. Add output contract checks comparing v1/v2 where relevant.
 6. Update DAB paths only after DEV Integration validation is ready.
 
