@@ -37,6 +37,12 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
     logger = get_logger(__name__)
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
 
+    if JOB_ENV == "preprod":
+        logger.warning(
+            "Due to having the preprod environment in prod, this job can't run. Exiting."
+        )
+        return
+
     spark = configure_spark()
     dbutils = get_dbutils()
     logger.info(f"Running in job environment: {JOB_ENV}")
