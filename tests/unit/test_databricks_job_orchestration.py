@@ -242,6 +242,22 @@ def test_main_job_waits_for_native_page_build_results():
     assert data_pull_task["run_job_task"]["job_parameters"] == {
         "run_date": "{{job.parameters.run_date}}",
     }
+    assert tasks_by_key["load_control_sheet_v2"].get("depends_on") is None
+    assert data_pull_task["depends_on"] == [
+        {"task_key": "load_control_sheet_v2"},
+    ]
+    assert tasks_by_key["process_control_sheet_v2"]["depends_on"] == [
+        {"task_key": "trigger_data_pull_for_CMS_pull"},
+    ]
+    assert tasks_by_key["audit_control_sheet_v2"]["depends_on"] == [
+        {"task_key": "process_control_sheet_v2"},
+    ]
+    _assert_cli_values(
+        tasks_by_key["load_control_sheet_v2"], {"--phase": "land"}
+    )
+    _assert_cli_values(
+        tasks_by_key["process_control_sheet_v2"], {"--phase": "process"}
+    )
     assert trigger_v1_task["depends_on"] == [
         {"task_key": "map_theme_scores_to_ads_v1"},
     ]
@@ -533,8 +549,9 @@ def test_synchronous_route_timeouts_cover_complete_child_paths():
     )
     v2_control_and_coverage = (
         max(
-            data_pull["timeout_seconds"]
-            + candidate_tasks["load_control_sheet_v2"]["timeout_seconds"]
+            candidate_tasks["load_control_sheet_v2"]["timeout_seconds"]
+            + data_pull["timeout_seconds"]
+            + candidate_tasks["process_control_sheet_v2"]["timeout_seconds"]
             + candidate_tasks["audit_control_sheet_v2"]["timeout_seconds"],
             candidate_tasks["resolve_scoring_portfolio_v2"]["timeout_seconds"],
         )
@@ -724,9 +741,14 @@ def test_control_sheet_audits_are_warning_only_but_order_route_coverage():
 
     for route in ("v1", "v2"):
         audit_task = tasks_by_key[f"audit_control_sheet_{route}"]
+        expected_control_task = (
+            "load_control_sheet_v1"
+            if route == "v1"
+            else "process_control_sheet_v2"
+        )
 
         assert audit_task["depends_on"] == [
-            {"task_key": f"load_control_sheet_{route}"}
+            {"task_key": expected_control_task}
         ]
         assert audit_task["spark_python_task"]["python_file"] == (
             "../../../jobs/nextads_control/audit_control_sheet.py"
@@ -774,8 +796,9 @@ def test_v1_and_v2_candidate_routes_share_only_candidate_foundation():
         "map_theme_scores_to_ads_v1",
     } <= v1_ancestors
     assert {
-        "trigger_data_pull_for_CMS_pull",
         "load_control_sheet_v2",
+        "trigger_data_pull_for_CMS_pull",
+        "process_control_sheet_v2",
         "audit_control_sheet_v2",
         "resolve_scoring_portfolio_v2",
         "validate_score_provider_theme_coverage_v2",

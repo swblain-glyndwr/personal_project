@@ -214,13 +214,14 @@ flowchart TD
 
   provider_build["accepted canonical<br/>score-provider build"]:::sharedModel
   foundation_build["accepted candidate<br/>foundation snapshot"]:::sharedTask
-  cms_pull["CMS data pull"]:::external
+  cms_pull["CMS data pull<br/>uses landed v2 advert IDs"]:::external
 
   subgraph CANDIDATE_JOB["Job: candidate_build"]
     select_candidate_foundation["select_candidate_foundation"]:::sharedTask
     load_control_sheet_v1["load_control_sheet_v1<br/>control_sheet_latest"]:::v1
     audit_control_sheet_v1["audit_control_sheet_v1"]:::guardrail
-    load_control_sheet_v2["load_control_sheet_v2<br/>control_sheet_latest_v2"]:::v2
+    load_control_sheet_v2["load_control_sheet_v2<br/>land raw v2 inputs"]:::v2
+    process_control_sheet_v2["process_control_sheet_v2<br/>publish control_sheet_latest_v2"]:::v2
     audit_control_sheet_v2["audit_control_sheet_v2"]:::guardrail
     select_provider_v1["resolve_scoring_portfolio_v1"]:::v1
     select_provider_v2["resolve_scoring_portfolio_v2"]:::v2
@@ -234,7 +235,7 @@ flowchart TD
 
   foundation_build --> select_candidate_foundation
   load_control_sheet_v1 --> audit_control_sheet_v1
-  cms_pull --> load_control_sheet_v2 --> audit_control_sheet_v2
+  load_control_sheet_v2 --> cms_pull --> process_control_sheet_v2 --> audit_control_sheet_v2
   provider_build --> select_provider_v1
   provider_build --> select_provider_v2
   audit_control_sheet_v1 --> validate_provider_coverage_v1
@@ -258,9 +259,10 @@ Observed latest successful candidate-build task timing, from run `10142128211234
 | `select_candidate_foundation` | 0m | Ready immediately or waits up to 30 minutes for the accepted same-day foundation | None |
 | `load_control_sheet_v1` | 0m | 12m 43s historical baseline | None |
 | `audit_control_sheet_v1` | After v1 control | New route guard | `load_control_sheet_v1` |
-| `trigger_data_pull_for_CMS_pull` | 0m | Child-job runtime | None |
-| `load_control_sheet_v2` | After CMS acquisition | 11m 52s historical loader baseline | `trigger_data_pull_for_CMS_pull` |
-| `audit_control_sheet_v2` | After v2 control | New route guard | `load_control_sheet_v2` |
+| `load_control_sheet_v2` | 0m | The landing portion of the 11m 52s historical loader baseline; capture a new split-task baseline in DEV | None |
+| `trigger_data_pull_for_CMS_pull` | After raw v2 control landing | Child-job runtime | `load_control_sheet_v2` |
+| `process_control_sheet_v2` | After CMS acquisition | The processing portion of the 11m 52s historical loader baseline; capture a new split-task baseline in DEV | `trigger_data_pull_for_CMS_pull` |
+| `audit_control_sheet_v2` | After processed v2 control publication | New route guard | `process_control_sheet_v2` |
 | `resolve_scoring_portfolio_v1` | 0m | Ready immediately or required serving entry waits to 18:30 | None |
 | `resolve_scoring_portfolio_v2` | 0m | Ready immediately or required serving entry waits to 18:30 | None |
 | `validate_score_provider_theme_coverage_v1` | After v1 audit and portfolio resolution | New route guard | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |

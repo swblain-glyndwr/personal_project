@@ -221,7 +221,13 @@ def report_invalid_dates(
 ################################################################################
 
 
-def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, RUN_DATE: str):
+def main(
+    JOB_ENV: str,
+    CLIENT: str,
+    LOG_LEVEL: str,
+    RUN_DATE: str,
+    PHASE: str = "all",
+):
     if LOG_LEVEL:
         configure_logging(log_level=LOG_LEVEL)
     else:
@@ -236,7 +242,11 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, RUN_DATE: str):
         run_date = date.fromisoformat(RUN_DATE)
     except ValueError as exc:
         raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
+    phase = (PHASE or "all").strip().lower()
+    if phase not in {"all", "land", "process"}:
+        raise ValueError("--phase must be one of: all, land, process")
     logger.info(f"Running in job environment: {JOB_ENV}")
+    logger.info("V2 control-sheet phase: %s", phase)
 
     if not CLIENT:
         assert JOB_ENV.lower() == "dev", (
@@ -290,52 +300,59 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, RUN_DATE: str):
     # SECTION 2: DATA EXTRACTION - must be on Next VPN for this to work
     ################################################################################
 
-    logger.info("Reading Control Sheet from Google Sheets")
-
-    df_ctrl_raw = gcp.spark_df_from_sheets(
-        url=CONTROL_SHEET["url"],
-        worksheet_name=CONTROL_SHEET["sheet"],
-        gcp_scope=config.gcp.scope,
-        gcp_key=config.gcp.key,
-        schema=CONTROL_SHEET["read_schema"],
-    )
-
-    logger.info("Reading Exclusions Sheet from Google Sheets")
-
-    df_exclusions = gcp.spark_df_from_sheets(
-        url=EXCLUSIONS_SHEET["url"],
-        worksheet_name=EXCLUSIONS_SHEET["sheet"],
-        gcp_scope=config.gcp.scope,
-        gcp_key=config.gcp.key,
-        schema=EXCLUSIONS_SHEET["read_schema"],
-    )
-
-    ################################################################################
-    # SECTION 3: INITIAL DATA LOADING
-    ################################################################################
-
-    df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
-    df_exclusions_filtered = df_exclusions.filter(
-        ~(
-            (F.trim(F.coalesce(F.col("url"), F.lit(""))) == "")
-            & (F.trim(F.coalesce(F.col("masidSlot"), F.lit(""))) == "")
-            & (F.trim(F.coalesce(F.col("CMSPageID"), F.lit(""))) == "")
+    if phase in {"all", "land"}:
+        logger.info("Reading Control Sheet from Google Sheets")
+        df_ctrl_raw = gcp.spark_df_from_sheets(
+            url=CONTROL_SHEET["url"],
+            worksheet_name=CONTROL_SHEET["sheet"],
+            gcp_scope=config.gcp.scope,
+            gcp_key=config.gcp.key,
+            schema=CONTROL_SHEET["read_schema"],
         )
-    )
 
-    logger.info(
-        "Writing Control Sheet to raw history and latest tables"
-    )
-    logger.info(
-        "Writing Exclusions Sheet to history and latest tables"
-    )
-    write_v2_input_tables(
-        df_ctrl_raw_filtered,
-        df_exclusions_filtered,
-        config,
-        spark=spark,
-        run_date=run_date,
-    )
+        logger.info("Reading Exclusions Sheet from Google Sheets")
+        df_exclusions = gcp.spark_df_from_sheets(
+            url=EXCLUSIONS_SHEET["url"],
+            worksheet_name=EXCLUSIONS_SHEET["sheet"],
+            gcp_scope=config.gcp.scope,
+            gcp_key=config.gcp.key,
+            schema=EXCLUSIONS_SHEET["read_schema"],
+        )
+
+        df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
+        df_exclusions_filtered = df_exclusions.filter(
+            ~(
+                (F.trim(F.coalesce(F.col("url"), F.lit(""))) == "")
+                & (F.trim(F.coalesce(F.col("masidSlot"), F.lit(""))) == "")
+                & (F.trim(F.coalesce(F.col("CMSPageID"), F.lit(""))) == "")
+            )
+        )
+
+        logger.info("Writing Control Sheet to raw history and latest tables")
+        logger.info("Writing Exclusions Sheet to history and latest tables")
+        write_v2_input_tables(
+            df_ctrl_raw_filtered,
+            df_exclusions_filtered,
+            config,
+            spark=spark,
+            run_date=run_date,
+        )
+        if phase == "land":
+            logger.info("V2 control-sheet landing complete")
+            return
+    else:
+        logger.info("Reading the landed Control Sheet for %s", run_date)
+        df_ctrl_raw = (
+            spark.table(config.tables_write.control_sheet_raw_latest_v2)
+            .where(F.col("rundate") == F.lit(run_date))
+            .drop("rundate")
+        )
+        logger.info("Reading the landed Exclusions Sheet for %s", run_date)
+        df_exclusions_filtered = (
+            spark.table(config.tables_write.exclusions_latest)
+            .where(F.col("rundate") == F.lit(run_date))
+            .drop("rundate")
+        )
 
     ################################################################################
     # SECTION 4: DATA VALIDATION USING PANDERA SCHEMAS
@@ -726,4 +743,5 @@ if __name__ == "__main__":
     CLIENT = jobparser.get_arg("--client")
     LOG_LEVEL = jobparser.get_arg("--log_level")
     RUN_DATE = jobparser.get_arg("--run_date")
-    main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE)
+    PHASE = jobparser.get_arg("--phase")
+    main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE, PHASE)

@@ -42,7 +42,8 @@ flowchart TD
   subgraph CANDIDATE_JOB["18:00 candidate_build"]
     SELECT_FOUNDATION["select accepted Candidate Foundation"]:::shared
     V1_CONTROL["load and audit v1 control"]:::v1
-    V2_CONTROL["load and audit v2 control"]:::v2
+    V2_CONTROL_RAW["land raw v2 control"]:::v2
+    V2_CONTROL["process and audit v2 control<br/>against refreshed CMS"]:::v2
     V1_PROVIDER["select exact v1 provider build<br/>and validate theme coverage"]:::v1
     V2_PROVIDER["select exact v2 provider build<br/>and validate theme coverage"]:::v2
     V1_CANDIDATES["publish accepted v1 candidates"]:::v1
@@ -73,7 +74,7 @@ flowchart TD
   COMPAT["21:00 candidate compatibility<br/>and assignment quality monitoring"]:::monitor
 
   CANDIDATE_FOUNDATION --> SELECT_FOUNDATION
-  CMS --> V2_CONTROL
+  V2_CONTROL_RAW --> CMS --> V2_CONTROL
   THEME_AFFINITY --> V1_PROVIDER
   THEME_AFFINITY --> V2_PROVIDER
   MARKOV -. shadow; does not block .-> V1_PROVIDER
@@ -99,8 +100,9 @@ flowchart TD
   FOUNDATION["select_candidate_foundation"]:::shared
   LOAD_V1["load_control_sheet_v1"]:::v1
   AUDIT_V1["audit_control_sheet_v1"]:::guard
-  CMS["trigger_data_pull_for_CMS_pull"]:::external
-  LOAD_V2["load_control_sheet_v2"]:::v2
+  LOAD_V2["load_control_sheet_v2<br/>land raw inputs"]:::v2
+  CMS["trigger_data_pull_for_CMS_pull<br/>use landed advert IDs"]:::external
+  PROCESS_V2["process_control_sheet_v2<br/>check refreshed CMS"]:::v2
   AUDIT_V2["audit_control_sheet_v2"]:::guard
   SELECT_V1["resolve_scoring_portfolio_v1"]:::v1
   SELECT_V2["resolve_scoring_portfolio_v2"]:::v2
@@ -113,7 +115,7 @@ flowchart TD
 
   LOAD_V1 --> AUDIT_V1 --> COVER_V1
   SELECT_V1 --> COVER_V1
-  CMS --> LOAD_V2 --> AUDIT_V2 --> COVER_V2
+  LOAD_V2 --> CMS --> PROCESS_V2 --> AUDIT_V2 --> COVER_V2
   SELECT_V2 --> COVER_V2
   FOUNDATION --> MAP_V1
   FOUNDATION --> MAP_V2
@@ -152,9 +154,10 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | `select_candidate_foundation` | `jobs/orchestration/select_candidate_foundation.py` | None |
 | `load_control_sheet_v1` | `jobs/nextads_control/load_control_sheet.py` | None |
 | `audit_control_sheet_v1` | `jobs/nextads_control/audit_control_sheet.py` | `load_control_sheet_v1` |
-| `trigger_data_pull_for_CMS_pull` | Native `run_job_task` | None |
-| `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py` | `trigger_data_pull_for_CMS_pull` |
-| `audit_control_sheet_v2` | `jobs/nextads_control/audit_control_sheet.py` | `load_control_sheet_v2` |
+| `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase land` | None |
+| `trigger_data_pull_for_CMS_pull` | Native `run_job_task` | `load_control_sheet_v2` |
+| `process_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase process` | `trigger_data_pull_for_CMS_pull` |
+| `audit_control_sheet_v2` | `jobs/nextads_control/audit_control_sheet.py` | `process_control_sheet_v2` |
 | `resolve_scoring_portfolio_v1` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
 | `resolve_scoring_portfolio_v2` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
 | `validate_score_provider_theme_coverage_v1` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |
