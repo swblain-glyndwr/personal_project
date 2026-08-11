@@ -681,14 +681,14 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
         else:
             logger.info("Bloomreach import trigger is disabled")
 
-        # exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
-        #                  where roamingprofileid is not null
-        #                  and trim(roamingprofileid)!=''
-        #                  and (next_ads is not null)""")
-        # in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti") #GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
-        # distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", lit(""))
+        exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
+                         where roamingprofileid is not null
+                         and trim(roamingprofileid)!=''
+                         and (next_ads is not null)""")
+        in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti") #GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
+        distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", lit(""))
 
-        # write_output_to_csv(distinct_nextads_blank, config.pii_exponea_next_uk_path, logger, process="next_ads_blanking")
+        write_output_to_csv(distinct_nextads_blank, config.pii_exponea_next_uk_path, logger, process="next_ads_blanking")
 
     logger.info("Output complete")
     logger.info(f"Output row count: {df_latest_payload.count()}")
