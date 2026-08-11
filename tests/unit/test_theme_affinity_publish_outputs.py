@@ -3,6 +3,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from pyspark.sql.types import LongType, StructField, StructType
 
 import next_ads.ranking.theme_affinity.publish_outputs as publish_outputs_module
 from next_ads.ranking.theme_affinity.publish_outputs import (
@@ -18,6 +19,7 @@ class FakeDataFrame:
         self.table_name = table_name
         self.row_count = row_count
         self.columns = ["id"]
+        self.schema = StructType([StructField("id", LongType(), True)])
 
     def where(self, _condition):
         return self
@@ -143,9 +145,9 @@ def test_publish_outputs_writes_when_namespace_matches_but_target_prefix_differs
     ]
     assert spark.sql_statements == [
         "CREATE TABLE IF NOT EXISTS "
-        f"`marketingdata_prod`.`ds_sandbox`.`{target_prefix}_ranked` "
-        "LIKE "
-        f"`marketingdata_prod`.`ds_sandbox`.`{source_prefix}_ranked`"
+        f"`marketingdata_prod`.`ds_sandbox`.`{target_prefix}_ranked` (\n"
+        "  `id` bigint\n"
+        ") USING DELTA"
     ]
 
 
@@ -193,15 +195,39 @@ def test_publish_outputs_writes_delta_tables_for_configured_suffixes():
     assert sorted(spark.sql_statements) == sorted(
         [
             "CREATE TABLE IF NOT EXISTS "
-            f"`marketingdata_prod`.`warehouse`.`{table_prefix}_ranked` "
-            "LIKE "
-            f"`marketingdata_prod`.`ds_sandbox`.`{table_prefix}_ranked`",
+            f"`marketingdata_prod`.`warehouse`.`{table_prefix}_ranked` (\n"
+            "  `id` bigint\n"
+            ") USING DELTA",
             "CREATE TABLE IF NOT EXISTS "
-            f"`marketingdata_prod`.`warehouse`.`{table_prefix}_complete` "
-            "LIKE "
-            f"`marketingdata_prod`.`ds_sandbox`.`{table_prefix}_complete`",
+            f"`marketingdata_prod`.`warehouse`.`{table_prefix}_complete` (\n"
+            "  `id` bigint\n"
+            ") USING DELTA",
         ]
     )
+
+
+def test_publish_outputs_bootstraps_delta_target_without_lakeflow_like():
+    source_namespace = "marketingdata_prod.ds_sandbox"
+    target_namespace = "marketingdata_prod.warehouse"
+    table_prefix = "next_uk_nextads_theme_affinity_predict"
+    spark = FakeSpark(
+        existing_tables={
+            f"{source_namespace}.{table_prefix}_customer_features"
+        }
+    )
+
+    publish_theme_affinity_outputs(
+        spark,
+        source_namespace=source_namespace,
+        target_namespace=target_namespace,
+        table_prefix=table_prefix,
+        table_suffixes=("customer_features",),
+        run_date="2026-08-07",
+    )
+
+    assert len(spark.sql_statements) == 1
+    assert "USING DELTA" in spark.sql_statements[0]
+    assert " LIKE " not in spark.sql_statements[0]
 
 
 def test_publish_outputs_runs_concurrently_with_bounded_workers_and_order(

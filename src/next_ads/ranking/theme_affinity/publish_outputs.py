@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from next_ads.common.delta_writes import (
+    quote_identifier,
     quote_qualified_identifier,
     replace_scope_by_name,
 )
@@ -108,7 +109,7 @@ def _publish_output(
             "Required Theme Affinity compatibility output is empty for "
             f"{run_date}: {source_table}"
         )
-    _ensure_target_table(spark, source_table, target_table)
+    _ensure_target_table(spark, source_df, target_table)
     replace_scope_by_name(
         source_df,
         target_table,
@@ -119,14 +120,21 @@ def _publish_output(
     return target_table
 
 
-def _ensure_target_table(spark, source_table: str, target_table: str) -> None:
+def _ensure_target_table(spark, source_df, target_table: str) -> None:
     """Bootstrap a missing publish target before its first atomic replacement."""
     if spark.catalog.tableExists(target_table):
         return
+    columns = ",\n  ".join(
+        f"{quote_identifier(field.name)} {field.dataType.simpleString()}"
+        for field in source_df.schema
+    )
+    if not columns:
+        raise ValueError("Theme Affinity compatibility output has no columns")
     spark.sql(
         "CREATE TABLE IF NOT EXISTS "
-        f"{quote_qualified_identifier(target_table)} "
-        f"LIKE {quote_qualified_identifier(source_table)}"
+        f"{quote_qualified_identifier(target_table)} (\n"
+        f"  {columns}\n"
+        ") USING DELTA"
     )
 
 

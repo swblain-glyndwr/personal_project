@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -39,8 +39,8 @@ from next_ads.ranking.provider_compatibility import (
     configured_compatibility_publisher,
 )
 from next_ads.ranking.provider_selection import (
-    load_score_provider_builds,
-    select_score_provider_build,
+    load_score_provider_builds_for_run_date,
+    select_score_provider_build_for_run_date,
 )
 from next_ads.ranking.scoring_inputs import read_delta_version
 
@@ -58,25 +58,21 @@ def main(
     spark = configure_spark()
     config = config_manager.load_config(job_env, client=client)
     resolved_date = date.fromisoformat(run_date)
-    cutoff = datetime.now(timezone.utc)
     provider = config.scoring.providers[provider_id]
-    builds = load_score_provider_builds(
+    builds = load_score_provider_builds_for_run_date(
         spark,
         table=config.tables_write.score_provider_builds,
         run_date=resolved_date,
-        selection_cutoff=cutoff,
         provider_id=provider_id,
         capability=provider.capability,
         use_case="theme_ranking",
     )
-    selection = select_score_provider_build(
+    selection = select_score_provider_build_for_run_date(
         builds,
         run_date=resolved_date,
-        selection_cutoff=cutoff,
         provider_id=provider_id,
         capability=provider.capability,
         use_case="theme_ranking",
-        allow_fallback=False,
     )
     build = next(
         item

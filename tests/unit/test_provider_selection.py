@@ -11,6 +11,7 @@ from next_ads.ranking.provider_selection import (
     ProviderBuildSelection,
     parse_score_provider_build,
     select_score_provider_build,
+    select_score_provider_build_for_run_date,
     wait_for_score_provider_build,
 )
 from next_ads.ranking.scoring_manifest import (
@@ -278,6 +279,40 @@ def test_invalid_attempts_outside_fallback_window_do_not_block_today():
     selected = _select((ancient, duplicate_ancient, current))
 
     assert selected.provider_build_id == current.provider_build_id
+
+
+def test_historical_selection_accepts_exact_ready_build_after_24_hours():
+    historical = _build(completed_at=CUTOFF - timedelta(days=4))
+
+    selection = select_score_provider_build_for_run_date(
+        (historical,),
+        run_date=RUN_DATE,
+        provider_id="theme_affinity",
+        capability="account_theme",
+        use_case="theme_ranking",
+    )
+
+    assert selection.provider_build_id == historical.provider_build_id
+    assert selection.source_run_date == RUN_DATE
+    assert selection.selection_status == READY_FOR_NEXTADS
+
+
+def test_historical_selection_does_not_resurrect_failed_latest_attempt():
+    historical = _build(completed_at=CUTOFF - timedelta(days=4))
+    failed = _build(
+        attempt=1,
+        completed_at=CUTOFF - timedelta(days=3),
+        status=FAILED_BEFORE_PUBLISH,
+    )
+
+    with pytest.raises(ProviderBuildNotReadyError, match="on 2026-08-03"):
+        select_score_provider_build_for_run_date(
+            (historical, failed),
+            run_date=RUN_DATE,
+            provider_id="theme_affinity",
+            capability="account_theme",
+            use_case="theme_ranking",
+        )
 
 
 @pytest.mark.parametrize(

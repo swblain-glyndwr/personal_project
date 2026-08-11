@@ -390,6 +390,36 @@ def select_score_provider_build(
     return _selection_from_build(fallback, status=FALLBACK_PREVIOUS)
 
 
+def select_score_provider_build_for_run_date(
+    builds: Iterable[ScoreProviderBuild],
+    *,
+    run_date: date,
+    provider_id: str,
+    capability: str,
+    use_case: str,
+) -> ProviderBuildSelection:
+    """Select the accepted provider output for one explicit historical date."""
+    identity = (
+        _required_text(provider_id, "provider_id"),
+        _required_text(capability, "capability"),
+        _required_text(use_case, "use_case"),
+    )
+    relevant = tuple(
+        _normalise_build(build)
+        for build in builds
+        if (build.provider_id, build.capability, build.use_case) == identity
+        and build.run_date == run_date
+    )
+    latest_attempts = validate_score_provider_builds(relevant)
+    selected = _latest_ready(latest_attempts)
+    if selected is None:
+        raise ProviderBuildNotReadyError(
+            f"No READY_FOR_NEXTADS build exists for {provider_id} "
+            f"on {run_date.isoformat()}"
+        )
+    return _selection_from_build(selected, status=READY_FOR_NEXTADS)
+
+
 def load_score_provider_builds(
     spark: SparkSession,
     *,
@@ -434,6 +464,39 @@ def load_score_provider_builds(
             )
             | F.col("CompletedAt").isNull()
         )
+    )
+    return tuple(
+        parse_score_provider_build(row)
+        for row in filtered.select(*PROVIDER_BUILD_COLUMNS).collect()
+    )
+
+
+def load_score_provider_builds_for_run_date(
+    spark: SparkSession,
+    *,
+    table: str,
+    run_date: date,
+    provider_id: str,
+    capability: str,
+    use_case: str,
+) -> tuple[ScoreProviderBuild, ...]:
+    """Load every provider attempt for one explicit historical date."""
+    frame = spark.table(_required_text(table, "table"))
+    missing = [
+        column
+        for column in PROVIDER_BUILD_COLUMNS
+        if column not in frame.columns
+    ]
+    if missing:
+        raise ValueError(
+            "Provider build manifest is missing columns: " + ", ".join(missing)
+        )
+
+    filtered: DataFrame = frame.where(
+        (F.col("ProviderID") == F.lit(provider_id))
+        & (F.col("Capability") == F.lit(capability))
+        & (F.col("UseCase") == F.lit(use_case))
+        & (F.col("RunDate") == F.lit(run_date))
     )
     return tuple(
         parse_score_provider_build(row)
@@ -512,7 +575,9 @@ __all__ = [
     "ProviderBuildNotReadyError",
     "ProviderBuildSelection",
     "load_score_provider_builds",
+    "load_score_provider_builds_for_run_date",
     "parse_score_provider_build",
     "select_score_provider_build",
+    "select_score_provider_build_for_run_date",
     "wait_for_score_provider_build",
 ]
