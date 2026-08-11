@@ -251,9 +251,7 @@ def sdk_write_to_cosmos(config, env, dataframe):
         logger.info("Container check passed")
 
         logger.info("Collecting dataframe records for SDK upsert")
-        documents = [
-            row.asDict(recursive=True) for row in dataframe.collect()
-        ]
+        documents = [row.asDict(recursive=True) for row in dataframe.collect()]
         logger.info(f"Collected {len(documents)} documents")
 
         # Upsert documents
@@ -263,6 +261,34 @@ def sdk_write_to_cosmos(config, env, dataframe):
         logger.info(
             f"Upserted {len(documents)} documents using Cosmos Python SDK"
         )
+
+        logger.info("Verifying upserted documents by id")
+        verify_by_id_query = "SELECT * FROM c WHERE c.id = @id"
+        for index, doc in enumerate(documents, start=1):
+            doc_id = doc.get("id")
+            if doc_id is None:
+                logger.warning(
+                    f"Document {index} has no id field; skipping verification"
+                )
+                continue
+
+            matched_docs = list(
+                container.query_items(
+                    query=verify_by_id_query,
+                    parameters=[{"name": "@id", "value": doc_id}],
+                    enable_cross_partition_query=True,
+                )
+            )
+
+            if matched_docs:
+                logger.info(f"Verified document id in Cosmos DB: {doc_id}")
+                logger.info(f"Found Cosmos document: {matched_docs[0]}")
+            else:
+                raise LookupError(
+                    f"Document id not found in Cosmos DB after upsert: {doc_id}, "
+                    f"db={config.cosmos_database}, container={config.cosmos_container}"
+                )
+
     except CosmosHttpResponseError as e:
         _raise_cosmos_error_with_context("sdk_write_to_cosmos", e, config)
     except Exception as e:

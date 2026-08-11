@@ -47,7 +47,7 @@ preprod:
   schema_write: ds_sandbox
   az_st_account: adsstecmppeuw
   az_st_account_url: "@format https://{this.az_st_account}.blob.core.windows.net/"
-  dbutils_secret_scope: "DataIng-KV-MKT-Prod-EUW"
+  dbutils_secret_scope: "DataIng-KV-MKT-PP-EUW"
   pii_exponea_next_uk_path: "abfss://next-uk@piiblmrstmktprodeuw.dfs.core.windows.net"
   search_volume_path: "/Volumes/marketingdata_preprod/search_sandbox/search_volume/PF/next_ads"
   cosmos_url: "https://adscosmos-ecm-preprod-eun.documents.azure.com:443/"
