@@ -2144,7 +2144,7 @@ default:
       - string
       - 'null'
   theme_mapping_v2:
-    url: https://docs.google.com/spreadsheets/d/1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4/edit?gid=0#gid=0
+    url: https://docs.google.com/spreadsheets/d/1d75bqJ4ouPzz96WeJJLApv07rciIGNpym63-a9QrjIY/edit?gid=0#gid=0
     sheet: Theme Mapping
     source_of_truth: true
     copied_to: theme_mapping
