@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 import logging
 import sys
 from pathlib import Path
@@ -16,7 +17,7 @@ sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(1, str(PROJECT_ROOT))
 
 
-from next_ads.features import load_feature_store_registry
+from next_ads.features import FeatureStoreRegistry, load_feature_store_registry
 
 
 LOGGER = logging.getLogger(__name__)
@@ -54,20 +55,94 @@ def parse_common_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def log_owned_tables(source_job: str, args: argparse.Namespace) -> list[str]:
+def _builder_table_names(
+    builder: str,
+    registry: FeatureStoreRegistry,
+    *,
+    include_scaffolds: bool = False,
+) -> tuple[str, ...]:
+    return tuple(
+        feature.name
+        for feature in registry.features_for_builder(
+            builder,
+            include_scaffolds=include_scaffolds,
+        )
+    )
+
+
+def validate_builder_output_tables(
+    builder: str,
+    output_table_names: Iterable[str],
+    registry: FeatureStoreRegistry | None = None,
+) -> tuple[str, ...]:
+    """Require a builder to produce exactly its implemented registry outputs."""
+    if isinstance(output_table_names, str):
+        raise ValueError(
+            "Builder output table names must be an iterable of names"
+        )
+
+    actual = tuple(output_table_names)
+    if any(
+        not isinstance(table_name, str) or not table_name.strip()
+        for table_name in actual
+    ):
+        raise ValueError("Builder output table names must be non-blank text")
+    duplicate_names = sorted(
+        {table_name for table_name in actual if actual.count(table_name) > 1}
+    )
+    if duplicate_names:
+        raise ValueError(
+            f"Feature-store builder {builder} produced duplicate output names: "
+            + ", ".join(duplicate_names)
+        )
+
+    active_registry = registry or load_feature_store_registry()
+    declared = active_registry.features_for_builder(
+        builder,
+        include_scaffolds=True,
+    )
+    if not declared:
+        raise ValueError(f"Unknown feature-store builder: {builder}")
+    expected = _builder_table_names(builder, active_registry)
+    missing = sorted(set(expected) - set(actual))
+    unexpected = sorted(set(actual) - set(expected))
+    if missing or unexpected:
+        details = []
+        if missing:
+            details.append("missing=" + ",".join(missing))
+        if unexpected:
+            details.append("unexpected=" + ",".join(unexpected))
+        raise ValueError(
+            f"Feature-store builder {builder} outputs do not match the registry: "
+            + " ".join(details)
+        )
+    return actual
+
+
+def log_owned_tables(
+    builder: str,
+    args: argparse.Namespace,
+    *,
+    include_scaffolds: bool = False,
+) -> list[str]:
     configure_job_logging(args.log_level)
     registry = load_feature_store_registry()
     catalog = args.catalog or registry.default_catalog
     schema = args.schema or registry.default_schema
     owned_tables = [
-        registry.resolved_table_path(table.name, catalog=catalog, schema=schema)
-        for table in registry.physical_tables
-        if table.source_job == source_job
+        registry.resolved_table_path(
+            table_name, catalog=catalog, schema=schema
+        )
+        for table_name in _builder_table_names(
+            builder,
+            registry,
+            include_scaffolds=include_scaffolds,
+        )
     ]
 
     LOGGER.info(
         "Feature-store job %s reference_date=%s target=%s.%s",
-        source_job,
+        builder,
         args.reference_date,
         catalog,
         schema,
@@ -77,11 +152,11 @@ def log_owned_tables(source_job: str, args: argparse.Namespace) -> list[str]:
     return owned_tables
 
 
-def metadata_only_main(source_job: str) -> None:
+def metadata_only_main(builder: str) -> None:
     args = parse_common_args()
-    owned_tables = log_owned_tables(source_job, args)
+    owned_tables = log_owned_tables(builder, args, include_scaffolds=True)
     LOGGER.info(
         "%s completed metadata-only scaffold for %s tables",
-        source_job,
+        builder,
         len(owned_tables),
     )

@@ -390,6 +390,21 @@ class FeatureStoreRegistry:
             table for table in self.physical_tables if table.implemented
         )
 
+    def features_for_builder(
+        self,
+        builder: str,
+        *,
+        include_scaffolds: bool = False,
+    ) -> tuple[OfflineFeatureDefinition, ...]:
+        """Return definitions owned by one logical builder in registry order."""
+        selected = tuple(
+            table
+            for table in self.physical_tables
+            if table.builder == builder
+            and (include_scaffolds or table.implemented)
+        )
+        return selected
+
     def table_names(self) -> list[str]:
         return [table.name for table in self.physical_tables]
 

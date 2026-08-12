@@ -2,7 +2,12 @@
 
 import logging
 
-from _registry_job import configure_job_logging, log_owned_tables, parse_common_args
+from _registry_job import (
+    configure_job_logging,
+    log_owned_tables,
+    parse_common_args,
+    validate_builder_output_tables,
+)
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
 from next_ads.features.materialization import (
@@ -58,6 +63,11 @@ def main() -> None:
             )
         ),
     }
+    validate_builder_output_tables(
+        "build_advert_features",
+        writes,
+        registry,
+    )
 
     for table_name, dataframe in writes.items():
         table = registry.table_spec(table_name)
