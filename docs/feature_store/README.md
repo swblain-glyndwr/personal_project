@@ -1,13 +1,18 @@
 # Next Ads Feature Store Documentation
 
-Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
-Documentation/backlog story: 5111881
+| Work item | Purpose |
+| --- | --- |
+| 5111595 | Reusable feature layer (Databricks Feature Store). |
+| 5111881 | Documentation and migration backlog. |
 
 ## Scope
 
-This folder documents the first repo-owned Next Ads Databricks Feature Store route.
-
-The implementation is intentionally batch/offline first. It creates governed Databricks Feature Engineering table contracts and a shared DEV feature-store job in `marketingdata_dev.nextads_feature_store` so model-building work has a stable reusable feature layer without changing production scoring or delivery outputs in this slice.
+| Area | Current scope |
+| --- | --- |
+| Ownership | Feature contracts, job definitions and promotion controls remain in this repository. |
+| Serving mode | Batch/offline first. Realtime and online publication are separate later phases. |
+| Shared store | DEV writes to `marketingdata_dev.nextads_feature_store`. |
+| Customer impact | No production scoring, assignment, payload or delivery change in the contract-only slice. |
 
 ## Documents
 
@@ -22,39 +27,58 @@ The implementation is intentionally batch/offline first. It creates governed Dat
 
 ## Executable Contracts
 
-The repo-owned executable contract is split across:
+### Artifacts
 
-- `configs/features/nextads_feature_store.yaml` for logical definitions, delivery state, keys, ownership, freshness, consumers and DEV/PREPROD/PROD bindings.
-- `sql/features/nextads/` for table schemas consumed by the setup script.
-- `jobs/table_operations/create_feature_store_tables.py` for Databricks Feature Engineering table creation.
-- `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` for personal, integration and shared DEV feature-store DAB jobs.
-- `jobs/features/nextads/` for build-entrypoint scaffolds.
+| Artifact | Responsibility |
+| --- | --- |
+| `configs/features/nextads_feature_store.yaml` | Logical definitions, delivery states, keys, ownership, freshness, consumers and environment bindings. |
+| `sql/features/nextads/` | Physical table and compatibility-view schemas. |
+| `jobs/table_operations/create_feature_store_tables.py` | Databricks Feature Engineering table creation. |
+| `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` | Personal, integration and shared DEV Feature Store jobs. |
+| `jobs/features/nextads/` | Feature builders, checks and the read-only plan command. |
+| `configs/features/README.md` | Contract-state, binding and planner terminology. |
 
-The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
+### Current Contract Status
 
-The first populated feature-store slice now materialises customer/account features, web activity, advert metadata, item attributes, advert attribute rollups, Theme Affinity latest model-input features, Theme Affinity labelled historical training input, Theme response labels and Shopping Bag click labels from stable production source tables through the Databricks Feature Engineering client. Embedding-derived advert/product tables, pCTR model input and candidate-similarity diagnostics remain scaffolded until their model/source contracts are promoted into this route.
+| State | Count | Current coverage |
+| --- | ---: | --- |
+| `ACTIVE` | 11 | Account, web activity, advert, item, Theme Affinity, labels and quality tables with implemented builders. |
+| `COMPATIBILITY` | 2 | Theme Affinity model and training inputs retained during migration. |
+| `SCAFFOLD` | 7 | Embedding, advert/product, session and pCTR shells awaiting named source or materialisation contracts. |
 
-The registry makes that distinction executable. `ACTIVE` identifies reusable or support tables with an implemented builder, `COMPATIBILITY` identifies implemented model-specific inputs retained during migration, and `SCAFFOLD` identifies table shells that must not be presented as implemented. Every scaffold lists its missing source or materialisation contracts.
+### Environment Bindings
 
-Physical locations are separate `OfflineStoreBinding` records. DEV currently resolves to `marketingdata_dev.nextads_feature_store`, and its job target is declared in the repository. PREPROD resolves to release-isolated tables in `marketingdata_prod.ds_sandbox`, while PROD resolves to `marketingdata_prod.nextads_feature_store`; both remain plans until their deployment PRs land. Repository declaration is not evidence of a live job, populated table or READY snapshot. These bindings do not add PREPROD or PROD jobs in this contract-only change.
+| Environment | Location | Job target | Current state |
+| --- | --- | --- | --- |
+| DEV | `marketingdata_dev.nextads_feature_store` | `DEV_FEATURE_STORE` | Repository-declared. |
+| PREPROD | Release-isolated tables in `marketingdata_prod.ds_sandbox` | `PREPROD` | Planned; no job added by this contract slice. |
+| PROD | `marketingdata_prod.nextads_feature_store` | `PROD` | Planned; no job added by this contract slice. |
 
-Use the local read-only plan to inspect the same logical graph across all three environments, including builders, current task dependencies, resolved locations or release templates, and missing contracts:
+### Read-only Plan
+
+All environments:
 
 ```powershell
 .\.venv\Scripts\python.exe jobs\features\nextads\plan_offline_feature_store.py `
   --environment ALL --format text
 ```
 
-To resolve exact PREPROD table names, add a release identifier:
+One release-isolated PREPROD plan:
 
 ```powershell
 .\.venv\Scripts\python.exe jobs\features\nextads\plan_offline_feature_store.py `
   --environment PREPROD --release-id release/2026.08.12 --format text
 ```
 
-The planner reports `CONTRACT_READY` only when the repository has an
-implemented source contract for a compatibility view. It does not claim that a
-table is deployed, populated or backed by a READY immutable snapshot.
+| Planner term | Meaning |
+| --- | --- |
+| `REPO_DECLARED` | The job target is present in repository configuration. |
+| `PLANNED` | The binding exists but its job target has not been added. |
+| `CONTRACT_READY` | A compatibility view has an implemented repository source contract. |
+| `BLOCKED` | The source feature still has named missing contracts. |
+| `RELEASE_ID_REQUIRED` | An exact PREPROD location needs `--release-id`. |
+
+- Planner states do not prove that a job is deployed, a table is populated or an immutable snapshot is READY.
 
 ## Feature Catalogue
 

@@ -1,35 +1,64 @@
 # Offline Feature Contracts
 
-`nextads_feature_store.yaml` is the repository source of truth for the logical
-offline feature catalogue and its physical environment bindings.
+## Source of Truth
 
-Each feature has an explicit delivery state:
+| Artifact | Responsibility |
+| --- | --- |
+| `nextads_feature_store.yaml` | Logical offline feature catalogue and physical environment bindings. |
+| `../../sql/features/nextads/` | Physical table and compatibility-view schemas. |
+| `../../pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` | Current Feature Store task graph and declared bundle targets. |
 
-- `ACTIVE`: a reusable feature or support table with an implemented builder.
-- `COMPATIBILITY`: an implemented model-specific table retained while consumers
-  move to reusable feature lookups.
-- `SCAFFOLD`: a schema placeholder with named missing contracts. It is not an
-  implemented feature even if the current setup route creates an empty table.
+## Delivery States
 
-Logical definitions contain keys, grain, builder, ownership, freshness and
-consumer metadata. `store_bindings` separately resolves those definitions to
-DEV, PREPROD and PROD namespaces. `repository_declared` reports only whether
-the job target is present in this repository; it is not evidence that a job or
-table is live. Only the DEV job target is currently declared. PREPROD and PROD
-remain plans until their later deployment changes land.
-The logical `builder` defaults to the existing `source_job`; an explicit
-override records the actual writer where the legacy ownership metadata differs.
-Existing jobs continue to consume `source_job` in this contract-only change.
+| State | Meaning |
+| --- | --- |
+| `ACTIVE` | Reusable feature or support table with an implemented builder. |
+| `COMPATIBILITY` | Implemented model-specific table retained while consumers move to reusable feature lookups. |
+| `SCAFFOLD` | Table shell with named missing contracts; it must not be presented as implemented. |
 
-PREPROD table names include a readable release stem and a stable hash of the
-exact release identifier, so distinct release candidates cannot collapse onto
-the same sandbox tables after punctuation is normalized. Supply `--release-id`
-to resolve exact PREPROD names; without it the plan deliberately shows the
-`{release_id}` template.
+## Contract Layers
 
-Inspect all bindings without making platform changes:
+| Layer | Contents | Rule |
+| --- | --- | --- |
+| `OfflineFeatureDefinition` | Keys, grain, builder, owner, freshness, consumers and delivery state. | Must not contain environment-specific locations. |
+| `OfflineStoreBinding` | Catalog, schema, bundle target and table-name template. | May vary by environment without changing the logical feature graph. |
+| Legacy `source_job` | Existing ownership metadata used by current jobs. | Retained unchanged for compatibility. |
+| Logical `builder` | Task that currently writes the feature. | Defaults to `source_job`; use an override only when the actual writer differs. |
+
+## Environment Bindings
+
+| Environment | Namespace | Bundle target | Repository state | Table naming |
+| --- | --- | --- | --- | --- |
+| DEV | `marketingdata_dev.nextads_feature_store` | `DEV_FEATURE_STORE` | Declared | `{feature_id}` |
+| PREPROD | `marketingdata_prod.ds_sandbox` | `PREPROD` | Planned | `{release_id}__{feature_id}` |
+| PROD | `marketingdata_prod.nextads_feature_store` | `PROD` | Planned | `{feature_id}` |
+
+- `repository_declared` records only whether the job target exists in this repository. It does not prove that a job or table is live.
+- PREPROD uses a bounded readable stem plus a stable hash of the exact release identifier, preventing distinct release IDs from collapsing onto the same table name after punctuation is normalized.
+- Omitting `--release-id` leaves PREPROD locations as explicit `{release_id}` templates.
+
+## Inspect the Plan
+
+All environments:
 
 ```powershell
 .\.venv\Scripts\python.exe jobs\features\nextads\plan_offline_feature_store.py `
   --environment ALL --format text
 ```
+
+One release-isolated PREPROD plan:
+
+```powershell
+.\.venv\Scripts\python.exe jobs\features\nextads\plan_offline_feature_store.py `
+  --environment PREPROD --release-id release/2026.08.12 --format text
+```
+
+| Planner term | Meaning |
+| --- | --- |
+| `REPO_DECLARED` | The job target is present in repository configuration. |
+| `PLANNED` | The binding is defined but its job target is not yet present. |
+| `CONTRACT_READY` | The compatibility view has an implemented repository source contract. |
+| `BLOCKED` | The source feature still has named missing contracts. |
+| `RELEASE_ID_REQUIRED` | An exact PREPROD location needs `--release-id`. |
+
+- None of these terms is evidence of a deployed job, populated table or READY immutable snapshot.
