@@ -14,6 +14,21 @@
 | Shared store | DEV writes to `marketingdata_dev.nextads_feature_store`. |
 | Customer impact | No production scoring, assignment, payload or delivery change in the contract-only slice. |
 
+## Delivery Order
+
+| Order | Gate | Exit condition |
+| ---: | --- | --- |
+| 0 | `CONTRACT_BASELINE` | All intended definitions are classified and the environment-neutral graph is inspectable without claiming runtime readiness. |
+| 1 | `DEV_COMPLETE` | All 20 intended physical tables are implemented and populated in shared DEV according to their cadence, both compatibility views resolve implemented sources, `SCAFFOLD=0`, and table-level key, schema, freshness and row evidence passes. |
+| 2 | `DEV_SNAPSHOT_SAFE` | Build-scoped staging and atomic reference-date publication record exact Delta versions and retain the previous READY snapshot after failure. |
+| 3 | `DEV_OPERATION_PROVEN` | The complete DBR 15.4 route passes dependency smoke, full run, same-date retry and injected-failure evidence. |
+| 4 | `ENVIRONMENT_PARITY` | The completed logical graph is added to release-isolated PREPROD and matching PROD batch jobs. |
+| 5 | `OFFLINE_ACTIVATED` | PROD scheduling and alerts are enabled in an activation-only change after manual parity proof. |
+
+- PREPROD and PROD work is blocked until `DEV_COMPLETE` and `DEV_SNAPSHOT_SAFE` are evidenced.
+- A registered empty shell does not count as a populated DEV feature.
+- The on-demand Theme Affinity training input and feature-quality events are included in the table-by-table DEV evidence; they are not exempt because they do not share the daily cadence.
+
 ## Documents
 
 | Document | Story | Purpose |
@@ -46,13 +61,15 @@
 | `COMPATIBILITY` | 2 | Theme Affinity model and training inputs retained during migration. |
 | `SCAFFOLD` | 7 | Embedding, advert/product, session and pCTR shells awaiting named source or materialisation contracts. |
 
+- These counts describe repository contracts, not live DEV completion. `DEV_COMPLETE` requires every intended physical contract and both compatibility views to meet the migration-backlog exit gate.
+
 ### Environment Bindings
 
 | Environment | Location | Job target | Current state |
 | --- | --- | --- | --- |
 | DEV | `marketingdata_dev.nextads_feature_store` | `DEV_FEATURE_STORE` | Repository-declared. |
-| PREPROD | Release-isolated tables in `marketingdata_prod.ds_sandbox` | `PREPROD` | Planned; no job added by this contract slice. |
-| PROD | `marketingdata_prod.nextads_feature_store` | `PROD` | Planned; no job added by this contract slice. |
+| PREPROD | Release-isolated tables in `marketingdata_prod.ds_sandbox` | `PREPROD` | Planned; blocked by `DEV_COMPLETE` and `DEV_SNAPSHOT_SAFE`. |
+| PROD | `marketingdata_prod.nextads_feature_store` | `PROD` | Planned; blocked by `DEV_COMPLETE` and `DEV_SNAPSHOT_SAFE`. |
 
 ### Read-only Plan
 
@@ -117,7 +134,7 @@ The first development deployments target `marketingdata_dev` with explicit targe
 
 The feature-store job exposes source-table job parameters so DEV runs can be pointed at DEV-owned Theme Affinity outputs while production source access is being agreed. For example, a manual DEV run can override `theme_source_catalog=marketingdata_dev`, `theme_source_schema=<user_schema_or_nextads_integration>`, and `theme_table_prefix=next_uk_nextads_account_theme_foundation`. This keeps the feature-store table creation and write path testable against ordinary Delta tables without requiring the DEV service principal to read Lakeflow-managed storage.
 
-The labelled training-input build is controlled by `feature_store_theme_training_reference_date`. The default is `skip` so the daily latest-feature refresh does not silently build or overwrite training data. To create or refresh training data, run the feature-store route with a historical date at least 28 days old; the task stages historical Theme Affinity prep tables with `feature_store_theme_training_table_prefix`, validates that positives and negatives exist, then writes `next_uk_nextads_fs_theme_affinity_training_input`. Production feature-store publication is intentionally deferred to a later curated PR for specific stable feature contracts that need production runtime or monitoring use.
+The labelled training-input build is controlled by `feature_store_theme_training_reference_date`. The default is `skip` so the daily latest-feature refresh does not silently build or overwrite training data. To create or refresh training data, run the feature-store route with a historical date at least 28 days old; the task stages historical Theme Affinity prep tables with `feature_store_theme_training_table_prefix`, validates that positives and negatives exist, then writes `next_uk_nextads_fs_theme_affinity_training_input`. Matching PREPROD and PROD publication is blocked until the complete shared-DEV inventory passes `DEV_COMPLETE` and immutable publication passes `DEV_SNAPSHOT_SAFE`.
 
 ## Dependencies
 
@@ -128,7 +145,7 @@ The feature-store route depends on:
 - Existing production Theme Affinity outputs being available before the shared feature-store materialisation job runs for `reference_date=predict`.
 - Historical Theme Affinity prep sources having enough future-window basket data for the requested `feature_store_theme_training_reference_date`.
 - Existing production customer, control-sheet, item-attribute, assignment and BigQuery web/action tables being available for the same resolved feature-store reference date.
-- CWB analytics pCTR source contracts being brought into the branch before pCTR feature tables are populated.
+- Repo-owned Shopping Bag/BQ source contracts being implemented for session and label features, with explicitly approved CWB analytics inputs bound as versioned external sources for affinity and CTR semantics rather than moving the analytics notebooks wholesale.
 - Challenger testing before feature-store model inputs affect production ranking.
 - Separate offline diagnostics stories before candidate-similarity work is added to the repo.
 

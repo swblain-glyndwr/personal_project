@@ -16,6 +16,19 @@
 | `COMPATIBILITY` | Implemented model-specific table retained while consumers move to reusable feature lookups. |
 | `SCAFFOLD` | Table shell with named missing contracts; it must not be presented as implemented. |
 
+## Delivery Gates
+
+| Gate | Requirement |
+| --- | --- |
+| `CONTRACT_BASELINE` | Every intended definition is classified honestly and resolves through the planner. |
+| `DEV_COMPLETE` | All intended physical tables have implemented builders and populated shared-DEV evidence at their declared cadence; both compatibility views resolve implemented sources; `SCAFFOLD=0`. |
+| `DEV_SNAPSHOT_SAFE` | Shared DEV uses validated build-scoped staging and atomic publication, retaining the previous READY snapshot after failure. |
+| `ENVIRONMENT_PARITY` | Matching PREPROD and PROD jobs use the completed logical graph after both DEV gates pass. |
+
+- A SQL contract, empty registered table or planner entry does not satisfy `DEV_COMPLETE`.
+- `SCAFFOLD=0` must be achieved by implementing each named source and materializer contract. Removing an intended feature merely to pass the gate is not allowed.
+- A feature that is explicitly removed from the intended inventory requires a separate reviewed inventory decision.
+
 ## Contract Layers
 
 | Layer | Contents | Rule |
