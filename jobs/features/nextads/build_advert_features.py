@@ -77,9 +77,10 @@ def main() -> None:
             dataframe,
             catalog=target_catalog,
             schema=target_schema,
-            reference_date=reference_date if table.timestamp_key else None,
+            reference_date=reference_date,
             reference_date_column=table.timestamp_key or "reference_date",
             replace_reference_date=replace_reference_date,
+            mode=table.write_mode,
             feature_engineering_client=feature_engineering_client,
         )
         LOGGER.info("Wrote advert feature table: %s", table_path)

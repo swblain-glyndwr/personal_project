@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from typing import Any
 
@@ -128,6 +129,47 @@ def delete_reference_date_partition(
     )
 
 
+DELTA_COMMIT_METADATA_KEY = "spark.databricks.delta.commitInfo.userMetadata"
+
+
+def _read_spark_conf(spark: Any, key: str) -> str | None:
+    try:
+        return spark.conf.get(key)
+    except Exception:
+        return None
+
+
+def _set_feature_commit_metadata(
+    spark: Any,
+    table_name: str,
+    reference_date: str | date | None,
+) -> str | None:
+    previous_value = _read_spark_conf(spark, DELTA_COMMIT_METADATA_KEY)
+    metadata = {
+        "contract": "nextads_feature_build/v1",
+        "reference_date": str(reference_date) if reference_date else None,
+        "table_name": table_name,
+    }
+    spark.conf.set(
+        DELTA_COMMIT_METADATA_KEY,
+        json.dumps(metadata, sort_keys=True, separators=(",", ":")),
+    )
+    return previous_value
+
+
+def _restore_feature_commit_metadata(
+    spark: Any,
+    previous_value: str | None,
+) -> None:
+    if previous_value is not None:
+        spark.conf.set(DELTA_COMMIT_METADATA_KEY, previous_value)
+        return
+    try:
+        spark.conf.unset(DELTA_COMMIT_METADATA_KEY)
+    except Exception:
+        pass
+
+
 def write_feature_table(
     spark: Any,
     table_name: str,
@@ -137,10 +179,16 @@ def write_feature_table(
     reference_date: str | date | None = None,
     reference_date_column: str = "reference_date",
     replace_reference_date: bool = True,
+    mode: str = "merge",
     registry: FeatureStoreRegistry | None = None,
     feature_engineering_client: Any | None = None,
 ) -> str:
     """Validate and write a feature table through Databricks FE."""
+    if mode not in {"merge", "overwrite"}:
+        raise ValueError(
+            "Feature table write mode must be 'merge' or 'overwrite': "
+            f"{mode}"
+        )
     active_registry = registry or load_feature_store_registry()
     table = active_registry.table_spec(table_name)
     table_path = feature_table_path(table_name, catalog, schema, active_registry)
@@ -149,19 +197,31 @@ def write_feature_table(
     aligned_df = align_to_feature_table_contract(df, table_name, active_registry)
     validate_required_column_values(aligned_df, table.primary_keys, table_name)
 
-    if (
-        replace_reference_date
-        and reference_date
-        and reference_date_column in aligned_df.columns
-        and spark.catalog.tableExists(table_path)
-    ):
-        delete_reference_date_partition(
-            spark,
-            table_path,
-            reference_date_column,
-            reference_date,
-        )
-
     client = feature_engineering_client or create_feature_engineering_client()
-    client.write_table(name=table_path, df=aligned_df, mode="merge")
+    previous_metadata = _set_feature_commit_metadata(
+        spark,
+        table_name,
+        reference_date,
+    )
+    try:
+        if (
+            mode == "merge"
+            and replace_reference_date
+            and reference_date
+            and reference_date_column in aligned_df.columns
+            and spark.catalog.tableExists(table_path)
+        ):
+            delete_reference_date_partition(
+                spark,
+                table_path,
+                reference_date_column,
+                reference_date,
+            )
+
+        if mode == "overwrite":
+            aligned_df.write.mode("overwrite").insertInto(table_path)
+        else:
+            client.write_table(name=table_path, df=aligned_df, mode="merge")
+    finally:
+        _restore_feature_commit_metadata(spark, previous_metadata)
     return table_path
