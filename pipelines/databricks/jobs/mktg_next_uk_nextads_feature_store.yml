@@ -277,6 +277,12 @@ nextads_feature_store_config: &nextads_feature_store_config
     <<: *nextads_feature_store_job
 
 targets:
+  DEV:
+    resources:
+      jobs:
+        mktg_next_uk_nextads_feature_store:
+          <<: *nextads_feature_store_job
+          max_concurrent_runs: 1
   DEV_FEATURE_STORE:
     resources:
       jobs:
