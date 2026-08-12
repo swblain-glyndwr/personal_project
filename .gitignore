@@ -18,7 +18,7 @@ scratch*
 typings/
 .ruff_cache
 /data/*
-
+.github
 
 # local dynaconf config
 config/settings.local.yaml
