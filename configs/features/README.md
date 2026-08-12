@@ -75,3 +75,11 @@ One release-isolated PREPROD plan:
 | `RELEASE_ID_REQUIRED` | An exact PREPROD location needs `--release-id`. |
 
 - None of these terms is evidence of a deployed job, populated table or READY immutable snapshot.
+
+## Inspect Runtime Evidence
+
+The Feature Store quality task audits registry-defined implemented contracts rather than a separate hand-maintained table list. Search its Databricks task output for `FEATURE_STORE_DEV_AUDIT_MANIFEST=` to retrieve the stable JSON evidence for physical paths, row/key checks, ordered schema hashes, Feature Engineering keys, table/reference-date commit tags, exact final Delta versions, skipped on-demand contracts and compatibility views.
+
+`CURRENT_IMPLEMENTED_PASS` is not `DEV_COMPLETE`. The manifest keeps `dev_complete=false` while any scaffold remains, any implemented contract is skipped or either compatibility view is not ready.
+
+`write_mode` is part of the logical definition. Daily point-in-time tables default to keyed `merge`; `next_uk_nextads_fs_item_attributes_latest` uses an atomic whole-table `overwrite` so removed source items cannot survive as stale current features.

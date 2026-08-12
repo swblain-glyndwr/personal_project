@@ -97,6 +97,23 @@ One release-isolated PREPROD plan:
 
 - Planner states do not prove that a job is deployed, a table is populated or an immutable snapshot is READY.
 
+### Runtime Audit
+
+The final quality task derives its coverage from the same registry and writes one event for every implemented physical contract. It also logs one deterministic line beginning `FEATURE_STORE_DEV_AUDIT_MANIFEST=` with physical paths, audit scope, row/key results, ordered schema hashes, live Feature Engineering keys, table/reference-date commit tags, exact final Delta versions and compatibility-view status.
+
+| Audit field | Meaning |
+| --- | --- |
+| `CURRENT_IMPLEMENTED_PASS` | Every non-skipped implemented contract passed physical schema, Feature Engineering key, scoped commit-recency and row/key checks, and every implemented-source compatibility view matched its declared source and row/key evidence. |
+| `current_implemented_complete` | `true` only when none of the 13 implemented contracts was skipped and every implemented-source view is ready. |
+| `dev_complete` | `true` only when current implemented coverage is complete, every intended feature is implemented, no scaffolds remain and both views are ready. |
+| `BLOCKED` | The compatibility view resolves a source that is still a scaffold; the job does not present it as operational. |
+
+The normal daily job keeps the on-demand Theme Affinity training build at `skip`, so its manifest must report that table in `skipped_current_contracts` and keep `current_implemented_complete=false`. Supply an explicit historical `theme_training_reference_date` to build and audit that exact partition.
+
+The quality table's own persisted event uses `MANIFEST_ONLY` because a row cannot truthfully contain the Delta version created by writing itself. The deterministic manifest is emitted after that final merge and contains the exact resulting quality-table version.
+
+The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mode: overwrite`. Its builder uses one atomic whole-table replacement, while dated tables retain keyed merge behaviour; this prevents items absent from the latest source from remaining in the current feature snapshot.
+
 ## Feature Catalogue
 
 | Feature group | Physical table/view | Entity/grain | Primary consumers |
