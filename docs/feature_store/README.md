@@ -24,7 +24,7 @@ The implementation is intentionally batch/offline first. It creates governed Dat
 
 The repo-owned executable contract is split across:
 
-- `configs/features/nextads_feature_store.yaml` for table names, grain, primary keys, owner, freshness and consumers.
+- `configs/features/nextads_feature_store.yaml` for logical definitions, delivery state, keys, ownership, freshness, consumers and DEV/PREPROD/PROD bindings.
 - `sql/features/nextads/` for table schemas consumed by the setup script.
 - `jobs/table_operations/create_feature_store_tables.py` for Databricks Feature Engineering table creation.
 - `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` for personal, integration and shared DEV feature-store DAB jobs.
@@ -33,6 +33,28 @@ The repo-owned executable contract is split across:
 The docs should explain intent and migration order. The registry and SQL contracts remain the source of truth for physical table shape.
 
 The first populated feature-store slice now materialises customer/account features, web activity, advert metadata, item attributes, advert attribute rollups, Theme Affinity latest model-input features, Theme Affinity labelled historical training input, Theme response labels and Shopping Bag click labels from stable production source tables through the Databricks Feature Engineering client. Embedding-derived advert/product tables, pCTR model input and candidate-similarity diagnostics remain scaffolded until their model/source contracts are promoted into this route.
+
+The registry makes that distinction executable. `ACTIVE` identifies reusable or support tables with an implemented builder, `COMPATIBILITY` identifies implemented model-specific inputs retained during migration, and `SCAFFOLD` identifies table shells that must not be presented as implemented. Every scaffold lists its missing source or materialisation contracts.
+
+Physical locations are separate `OfflineStoreBinding` records. DEV currently resolves to `marketingdata_dev.nextads_feature_store`, and its job target is declared in the repository. PREPROD resolves to release-isolated tables in `marketingdata_prod.ds_sandbox`, while PROD resolves to `marketingdata_prod.nextads_feature_store`; both remain plans until their deployment PRs land. Repository declaration is not evidence of a live job, populated table or READY snapshot. These bindings do not add PREPROD or PROD jobs in this contract-only change.
+
+Use the local read-only plan to inspect the same logical graph across all three environments, including builders, current task dependencies, resolved locations or release templates, and missing contracts:
+
+```powershell
+.\.venv\Scripts\python.exe jobs\features\nextads\plan_offline_feature_store.py `
+  --environment ALL --format text
+```
+
+To resolve exact PREPROD table names, add a release identifier:
+
+```powershell
+.\.venv\Scripts\python.exe jobs\features\nextads\plan_offline_feature_store.py `
+  --environment PREPROD --release-id release/2026.08.12 --format text
+```
+
+The planner reports `CONTRACT_READY` only when the repository has an
+implemented source contract for a compatibility view. It does not claim that a
+table is deployed, populated or backed by a READY immutable snapshot.
 
 ## Feature Catalogue
 
