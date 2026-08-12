@@ -274,6 +274,12 @@ df_cells = (
             F.col("PageTypeIsolation")
         ),
     )
+    .withColumn(
+        "AdHocABTest1",
+        F.when(F.col("specialaccountindicator") == "S", "B").otherwise(
+            F.col("AdHocABTest1")
+        ),
+    )
 )
 
 df_cells_existing = spark.table(FIXED_CELLS_TABLE).drop("rundate")
