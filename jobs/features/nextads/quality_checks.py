@@ -369,9 +369,13 @@ def _feature_table_metadata_evidence(
     expected_entity_keys = tuple(
         key for key in feature.primary_keys if key != feature.timestamp_key
     )
+    expected_primary_key_shapes = {
+        expected_entity_keys,
+        tuple(feature.primary_keys),
+    }
     status = (
         "PASS"
-        if actual_primary_keys == expected_entity_keys
+        if actual_primary_keys in expected_primary_key_shapes
         and actual_timestamp_keys == expected_timestamp_keys
         else "FAIL"
     )

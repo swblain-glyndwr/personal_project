@@ -390,9 +390,12 @@ class _FeatureTableMetadata:
 
 
 class _FeatureMetadataClient:
+    def __init__(self, metadata=None):
+        self.metadata = metadata or _FeatureTableMetadata()
+
     def get_table(self, *, name):
         self.name = name
-        return _FeatureTableMetadata()
+        return self.metadata
 
 
 def test_feature_metadata_evidence_matches_registry_keys_and_timestamp_key():
@@ -412,6 +415,42 @@ def test_feature_metadata_evidence_matches_registry_keys_and_timestamp_key():
         "actual_timestamp_keys": ("reference_date",),
         "feature_metadata_status": "PASS",
     }
+
+
+def test_feature_metadata_evidence_accepts_timestamp_in_primary_keys():
+    registry = load_feature_store_registry()
+    feature = registry.table_spec("next_uk_nextads_fs_account_profile")
+    metadata = _FeatureTableMetadata()
+    metadata.primary_keys = ["account_number", "reference_date"]
+    client = _FeatureMetadataClient(metadata)
+
+    evidence = quality_checks._feature_table_metadata_evidence(
+        client,
+        "catalog.schema.table",
+        feature,
+    )
+
+    assert evidence == {
+        "actual_primary_keys": ("account_number", "reference_date"),
+        "actual_timestamp_keys": ("reference_date",),
+        "feature_metadata_status": "PASS",
+    }
+
+
+def test_feature_metadata_evidence_rejects_incorrect_primary_keys():
+    registry = load_feature_store_registry()
+    feature = registry.table_spec("next_uk_nextads_fs_account_profile")
+    metadata = _FeatureTableMetadata()
+    metadata.primary_keys = ["account_number", "unexpected_key", "reference_date"]
+    client = _FeatureMetadataClient(metadata)
+
+    evidence = quality_checks._feature_table_metadata_evidence(
+        client,
+        "catalog.schema.table",
+        feature,
+    )
+
+    assert evidence["feature_metadata_status"] == "FAIL"
 
 
 class _DataType:
