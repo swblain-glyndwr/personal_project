@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from jobs.table_operations.create_tables import (
+    OUTPUT_TABLE_CHECK_CONSTRAINTS,
     extract_create_table_columns,
     extract_table_paths,
 )
@@ -403,6 +404,7 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     for table_ref in TABLE_REFS:
         sql = resolve_sql_contract_path(table_ref).read_text().upper()
         assert "UNIQUE (" not in sql
+        assert "CHECK (" not in sql
         if "CONSTRAINT " in sql:
             assert "PRIMARY KEY (" in sql
 
@@ -410,8 +412,16 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
         "score_provider_signals"
     ).read_text()
     assert "partitioned by (RunDate, ProviderID)" in signals_sql
-    assert "nextads_provider_score_finite check" in signals_sql
-    assert "nextads_provider_rank_valid check" in signals_sql
+    assert OUTPUT_TABLE_CHECK_CONSTRAINTS["_nextads_score_provider_signals"] == {
+        "nextads_provider_raw_score_finite": (
+            "RawScore between -1.7976931348623157E308 "
+            "and 1.7976931348623157E308"
+        ),
+        "nextads_provider_score_finite": (
+            "Score between -1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_provider_rank_valid": "ProviderRank >= 1",
+    }
     builds_sql = resolve_sql_contract_path("score_provider_builds").read_text()
     assert "ThemeAffinityBuildID" not in builds_sql
     assert "ProviderBuildAttemptID string not null" in builds_sql
@@ -498,8 +508,16 @@ def test_scoring_table_constraints_are_dbr_15_4_compatible():
     assert "AdSetID string not null" in candidate_scores_sql
     assert "PortfolioEntryID string not null" in candidate_scores_sql
     assert "ProviderBuildAttemptID string not null" in candidate_scores_sql
-    assert "nextads_candidate_score_finite check" in candidate_scores_sql
-    assert "nextads_candidate_rank_valid check" in candidate_scores_sql
+    assert OUTPUT_TABLE_CHECK_CONSTRAINTS["_nextads_candidate_scores"] == {
+        "nextads_candidate_score_finite": (
+            "Score between -1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_candidate_trigger_finite": (
+            "TriggerScore is null or TriggerScore between "
+            "-1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_candidate_rank_valid": "Rank between 1 and 20",
+    }
 
     candidate_ad_sets_sql = resolve_sql_contract_path(
         "candidate_ad_sets"

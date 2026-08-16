@@ -2,14 +2,18 @@ from pathlib import Path
 
 import pytest
 
+import jobs.table_operations.create_tables as create_tables_module
 from jobs.table_operations.create_tables import (
     ColumnSpec,
+    OUTPUT_TABLE_CHECK_CONSTRAINTS,
     build_repair_insert_query,
     build_repair_create_table_query,
     repair_table_to_contract,
     can_use_additive_alter_only,
     build_add_missing_columns_query,
     compare_table_schema,
+    create_table_with_output_constraints,
+    ensure_output_table_check_constraints,
     extract_create_table_columns,
     get_unsupported_missing_columns,
     normalize_data_type,
@@ -38,6 +42,36 @@ class FakeLogger:
         pass
 
 
+class FakeRows:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def filter(self, *_args, **_kwargs):
+        return self
+
+    def collect(self):
+        return self.rows
+
+
+class FakeTableOperationsSpark(FakeSpark):
+    def __init__(self, *, table_exists=False, properties=()):
+        super().__init__()
+        self.catalog = type(
+            "FakeCatalog",
+            (),
+            {"tableExists": lambda _self, _table: table_exists},
+        )()
+        self.properties = list(properties)
+
+    def sql(self, statement):
+        self.sql_calls.append(statement)
+        if statement.startswith("SHOW SCHEMAS IN "):
+            return FakeRows([{"databaseName": "schema"}])
+        if statement.startswith("SHOW TBLPROPERTIES "):
+            return FakeRows(self.properties)
+        return None
+
+
 def test_extract_create_table_columns_ignores_constraints_and_table_options():
     sql = """
 CREATE TABLE {catalog}.{schema}.{client}_example (
@@ -56,6 +90,128 @@ PARTITIONED BY (rundate)
         ("FY20", "STRING"),
         ("rundate", "DATE"),
     ]
+
+
+def test_create_table_applies_registered_checks_after_create():
+    spark = FakeSpark()
+    table = "catalog.schema.next_uk_nextads_candidate_scores"
+    create_sql = "CREATE TABLE catalog.schema.next_uk_nextads_candidate_scores (id STRING)"
+
+    statements = create_table_with_output_constraints(
+        spark,
+        table_ref="candidate_scores",
+        table=table,
+        create_table_sql=create_sql,
+        dry_run=False,
+        logger=FakeLogger(),
+    )
+
+    expected_alters = [
+        f"ALTER TABLE {table} ADD CONSTRAINT `{name}` CHECK ({expression})"
+        for name, expression in OUTPUT_TABLE_CHECK_CONSTRAINTS[
+            "_nextads_candidate_scores"
+        ].items()
+    ]
+    assert statements == [create_sql, *expected_alters]
+    assert spark.sql_calls == statements
+
+
+def test_create_table_dry_run_plans_checks_without_executing_sql():
+    spark = FakeSpark()
+
+    statements = create_table_with_output_constraints(
+        spark,
+        table_ref="score_provider_signals",
+        table="catalog.schema.next_uk_nextads_score_provider_signals",
+        create_table_sql=(
+            "CREATE TABLE catalog.schema.next_uk_nextads_score_provider_signals "
+            "(id STRING)"
+        ),
+        dry_run=True,
+        logger=FakeLogger(),
+    )
+
+    assert len(statements) == 4
+    assert spark.sql_calls == []
+
+
+def test_existing_output_table_adds_only_missing_checks():
+    table = "catalog.schema.next_uk_nextads_candidate_scores"
+    first_constraint = next(
+        iter(OUTPUT_TABLE_CHECK_CONSTRAINTS["_nextads_candidate_scores"])
+    )
+    spark = FakeTableOperationsSpark(
+        table_exists=True,
+        properties=[
+            {
+                "key": f"delta.constraints.{first_constraint}",
+                "value": "existing expression",
+            }
+        ],
+    )
+
+    statements = ensure_output_table_check_constraints(
+        spark,
+        table=table,
+        dry_run=False,
+        logger=FakeLogger(),
+    )
+
+    assert spark.sql_calls[0] == f"SHOW TBLPROPERTIES {table}"
+    assert all(first_constraint not in statement for statement in statements)
+    assert spark.sql_calls[1:] == statements
+
+
+def test_main_links_fresh_create_to_registered_output_checks(
+    monkeypatch,
+    tmp_path,
+):
+    contract = tmp_path / "create_table_candidate_scores.sql"
+    contract.write_text(
+        "CREATE TABLE {catalog}.{schema}.{client}_nextads_candidate_scores "
+        "(id STRING)"
+    )
+    spark = FakeTableOperationsSpark()
+    table = "catalog.schema.next_uk_nextads_candidate_scores"
+    monkeypatch.setattr(create_tables_module, "configure_spark", lambda: spark)
+    monkeypatch.setattr(
+        create_tables_module.config_manager,
+        "load_config",
+        lambda *_args, **_kwargs: {
+            "tables_write": {"candidate_scores": table},
+            "catalog_write": "catalog",
+            "schema_write": "schema",
+        },
+    )
+    monkeypatch.setattr(
+        create_tables_module,
+        "extract_table_paths",
+        lambda _tables: {"candidate_scores": table},
+    )
+    monkeypatch.setattr(
+        create_tables_module,
+        "resolve_sql_contract_path",
+        lambda _table_ref: contract,
+    )
+
+    create_tables_module.main(
+        JOB_ENV="dev",
+        CLIENT="next_uk",
+        LOG_LEVEL="INFO",
+    )
+
+    create_call = next(
+        index
+        for index, statement in enumerate(spark.sql_calls)
+        if statement.startswith("CREATE TABLE ")
+    )
+    alter_calls = [
+        index
+        for index, statement in enumerate(spark.sql_calls)
+        if statement.startswith("ALTER TABLE ")
+    ]
+    assert alter_calls
+    assert all(create_call < alter_call for alter_call in alter_calls)
 
 
 def test_extract_create_table_columns_handles_multiline_struct_columns():
