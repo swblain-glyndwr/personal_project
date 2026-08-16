@@ -437,6 +437,62 @@ def test_feature_metadata_evidence_accepts_timestamp_in_primary_keys():
     }
 
 
+def test_feature_metadata_evidence_accepts_timestamp_moved_to_end():
+    registry = load_feature_store_registry()
+    feature = registry.table_spec("next_uk_nextads_fs_labels_clicks")
+    metadata = _FeatureTableMetadata()
+    metadata.primary_keys = [
+        "account_number",
+        "advert_id",
+        "location",
+        "label_horizon_days",
+        "session_date",
+    ]
+    metadata.timestamp_keys = ["session_date"]
+    client = _FeatureMetadataClient(metadata)
+
+    evidence = quality_checks._feature_table_metadata_evidence(
+        client,
+        "catalog.schema.table",
+        feature,
+    )
+
+    assert evidence == {
+        "actual_primary_keys": (
+            "account_number",
+            "advert_id",
+            "location",
+            "label_horizon_days",
+            "session_date",
+        ),
+        "actual_timestamp_keys": ("session_date",),
+        "feature_metadata_status": "PASS",
+    }
+
+
+def test_feature_metadata_evidence_rejects_reordered_entity_keys():
+    registry = load_feature_store_registry()
+    feature = registry.table_spec("next_uk_nextads_fs_labels_clicks")
+    metadata = _FeatureTableMetadata()
+    metadata.primary_keys = [
+        "advert_id",
+        "account_number",
+        "location",
+        "label_horizon_days",
+        "session_date",
+    ]
+    metadata.timestamp_keys = ["session_date"]
+    client = _FeatureMetadataClient(metadata)
+
+    evidence = quality_checks._feature_table_metadata_evidence(
+        client,
+        "catalog.schema.table",
+        feature,
+    )
+
+    assert evidence["feature_metadata_status"] == "FAIL"
+
+
 def test_feature_metadata_evidence_rejects_incorrect_primary_keys():
     registry = load_feature_store_registry()
     feature = registry.table_spec("next_uk_nextads_fs_account_profile")
