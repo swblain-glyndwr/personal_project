@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 from next_ads.common import paths as common_paths
@@ -69,6 +70,33 @@ def test_prediction_proof_records_the_exact_output_needed_for_adoption():
     assert "schedule:" not in job_source
     assert "mktg_next_uk_nextads.yml" not in job_source
     assert "PROD:" not in job_source
+
+
+def test_prediction_route_handles_empty_impression_history():
+    source_path = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    )
+    source = source_path.read_text()
+    tree = ast.parse(source)
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "optional_first_value"
+    )
+    namespace = {}
+    exec(
+        compile(
+            ast.Module(body=[helper], type_ignores=[]),
+            str(source_path),
+            "exec",
+        ),
+        namespace,
+    )
+
+    assert namespace["optional_first_value"]([]) is None
+    assert namespace["optional_first_value"]([(12.5,)]) == 12.5
+    assert "median_impressions = optional_first_value" in source
 
 
 def test_adsv2_entrypoints_remain_in_current_route_folders():

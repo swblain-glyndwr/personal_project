@@ -46,6 +46,11 @@ def validate_positive_int(name, value):
     return parsed_value
 
 
+def optional_first_value(rows):
+    """Return the first scalar, or None when an aggregate has no rows."""
+    return rows[0][0] if rows else None
+
+
 # COMMAND ----------
 dbutils.widgets.text(
     name="catalog_schema_prefix",
@@ -239,12 +244,19 @@ global_ads_table = (
 )
 
 # COMMAND ----------
-median_impressions = (
+median_impression_rows = (
     global_ads_table.filter(F.col("median_impressions").isNotNull())
     .dropDuplicates(["median_impressions"])
     .select("median_impressions")
-    .collect()[0][0]
+    .limit(1)
+    .collect()
 )
+median_impressions = optional_first_value(median_impression_rows)
+if median_impressions is None:
+    print(
+        "No advert impression history matched the current control sheet; "
+        "the popularity contribution will be zero."
+    )
 
 # COMMAND ----------
 ## Addition of items from adverts revenue as a tiebreaker if necessary
