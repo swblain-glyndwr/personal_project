@@ -1,0 +1,68 @@
+models:
+  - model_name: analytics_pctr
+    provider_id: analytics_pctr
+    problem_statement: Rank eligible adverts by click likelihood and account-advert affinity.
+    prediction_entity: account and advert
+    prediction_time: feature reference date
+    label: ad_clicked
+    success_metrics:
+      - auc_pr
+      - log_loss
+      - calibration
+    runtime_profile: dbr_15_4_spark_cpu
+    trainer: analytics_pctr_two_stage_xgboost
+    score_provider: analytics_pctr_two_stage_scores
+    candidate_adapter: account_advert_ranked_candidates
+    activation_mode: EVALUATE
+    feature_lookups:
+      - feature_id: next_uk_nextads_fs_pctr_model_input
+        observation_timestamp: reference_date
+        key_mapping:
+          account_number: account_number
+          advert_id: advert_id
+        selected_columns:
+          - cash_acc
+          - advert_ctr
+          - device_ctr
+          - geo_ctr
+          - gender_ctr
+          - dod_ctr_change
+          - wow_ctr_change
+          - age
+          - number_pages_viewed
+          - prior_30_day_order_value
+          - customer_total_clicks
+          - customer_total_unique_adverts_clicked
+          - customer_advert_previous_click_number
+          - number_clicks_same_algodivision
+          - advert_impressions
+          - device_impressions
+          - geo_impressions
+          - gender_impressions
+          - day_impressions
+          - prior_day_impressions
+          - view_theme_score
+          - perc_order_value_cat_affinity
+          - perc_30_day_order_value_cat_affinity
+          - perc_order_qty_cat_affinity
+          - view_highest_catid_weight
+          - view_lift_adjusted
+          - purchase_highest_catid_weight
+          - purchase_lift_adjusted
+          - purchase_theme_affinity
+        defaults:
+          customer_total_clicks: 0
+          customer_total_unique_adverts_clicked: 0
+          customer_advert_previous_click_number: 0
+          number_clicks_same_algodivision: 0
+          advert_impressions: 0
+          device_impressions: 0
+          geo_impressions: 0
+          gender_impressions: 0
+          day_impressions: 0
+          prior_day_impressions: 0
+          view_highest_catid_weight: 0.0
+          view_lift_adjusted: 0.0
+          purchase_highest_catid_weight: 0.0
+          purchase_lift_adjusted: 0.0
+          purchase_theme_affinity: 0.0
