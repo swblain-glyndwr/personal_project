@@ -5,10 +5,6 @@ models:
     prediction_entity: account and advert
     prediction_time: feature reference date
     label: ad_clicked
-    observation_keys:
-      - account_number
-      - advert_id
-      - reference_date
     success_metrics:
       - auc_pr
       - log_loss
