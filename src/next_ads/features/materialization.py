@@ -202,7 +202,6 @@ def write_feature_table(
     aligned_df = align_to_feature_table_contract(df, table_name, active_registry)
     validate_required_column_values(aligned_df, table.primary_keys, table_name)
 
-    del feature_engineering_client
     commit_metadata = {
         "contract": "nextads_feature_build/v1",
         "reference_date": str(reference_date) if reference_date else None,
@@ -234,8 +233,23 @@ def write_feature_table(
             commit_metadata=commit_metadata,
         )
     else:
-        raise ValueError(
-            "Merge feature writes require one explicit reference-date scope"
+        if return_receipt:
+            raise ValueError(
+                "Exact receipts require a date-scoped or full-table replacement"
+            )
+        previous_metadata = _set_feature_commit_metadata(
+            spark,
+            table_name,
+            reference_date,
         )
+        try:
+            client = (
+                feature_engineering_client
+                or create_feature_engineering_client()
+            )
+            client.write_table(name=table_path, df=aligned_df, mode="merge")
+        finally:
+            _restore_feature_commit_metadata(spark, previous_metadata)
+        return table_path
     result = FeatureMaterializationResult(table_path, receipt)
     return result if return_receipt else result.table_path

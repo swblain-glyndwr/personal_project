@@ -12,9 +12,26 @@ class _FakeCatalog:
         return True
 
 
+class _FakeConf:
+    def __init__(self):
+        self.values = {}
+
+    def get(self, key):
+        if key not in self.values:
+            raise KeyError(key)
+        return self.values[key]
+
+    def set(self, key, value):
+        self.values[key] = value
+
+    def unset(self, key):
+        self.values.pop(key, None)
+
+
 class _FakeSpark:
     def __init__(self):
         self.catalog = _FakeCatalog()
+        self.conf = _FakeConf()
         self.sql_calls = []
 
     def sql(self, query):
@@ -27,6 +44,14 @@ class _FakeFrame:
         "embedding_model_name",
         "embedding_model_version",
     ]
+
+
+class _FakeClient:
+    def __init__(self):
+        self.calls = []
+
+    def write_table(self, **kwargs):
+        self.calls.append(kwargs)
 
 
 def _stub_contract_alignment(monkeypatch):
@@ -189,14 +214,21 @@ def test_feature_write_rejects_an_unknown_mode_before_writing(monkeypatch):
         )
 
 
-def test_merge_requires_an_explicit_single_date_scope(monkeypatch):
+def test_explicit_upsert_uses_one_feature_engineering_merge(monkeypatch):
     _stub_contract_alignment(monkeypatch)
+    client = _FakeClient()
 
-    with pytest.raises(ValueError, match="explicit reference-date scope"):
-        materialization.write_feature_table(
-            _FakeSpark(),
-            "next_uk_nextads_fs_product_embeddings_latest",
-            _FakeFrame(),
-            reference_date=None,
-            mode="merge",
-        )
+    path = materialization.write_feature_table(
+        _FakeSpark(),
+        "next_uk_nextads_fs_product_embeddings_latest",
+        _FakeFrame(),
+        reference_date=None,
+        replace_reference_date=False,
+        mode="merge",
+        feature_engineering_client=client,
+    )
+
+    assert len(client.calls) == 1
+    assert client.calls[0]["name"] == path
+    assert client.calls[0]["mode"] == "merge"
+    assert isinstance(client.calls[0]["df"], _FakeFrame)
