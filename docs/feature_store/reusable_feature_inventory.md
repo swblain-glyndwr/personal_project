@@ -1,7 +1,9 @@
 # Next Ads Feature Store Reusable Feature Inventory
 
-Azure Boards story: 5111856
-Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
+| Work item | Purpose |
+| --- | --- |
+| 5111595 | Reusable feature layer (Databricks Feature Store). |
+| 5111856 | Reusable feature inventory. |
 
 ## Purpose
 
@@ -46,7 +48,9 @@ The initial feature-store contracts include these requirements in:
 - `next_uk_nextads_fs_pctr_model_input`
 
 
-## Initial Feature-Store Candidates
+## Historical First-Slice Candidates
+
+This table records the original first-slice ordering. It does not define completion: the current `DEV_COMPLETE` gate in `migration_backlog.md` requires every intended registry contract and compatibility view to be implemented and evidenced in shared DEV before environment promotion.
 
 The first registration/population candidates should be small enough to validate permissions and table lifecycle in DEV without changing production behaviour:
 

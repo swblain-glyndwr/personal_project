@@ -247,6 +247,7 @@ nextads_feature_store_job: &nextads_feature_store_job
     - task_key: quality_checks
       depends_on:
         - task_key: build_model_inputs
+        - task_key: build_theme_affinity_training_input
       spark_python_task:
         python_file: ../../../jobs/features/nextads/quality_checks.py
         parameters:
@@ -266,6 +267,8 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --theme_training_reference_date
+          - "{{job.parameters.theme_training_reference_date}}"
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -277,6 +280,12 @@ nextads_feature_store_config: &nextads_feature_store_config
     <<: *nextads_feature_store_job
 
 targets:
+  DEV:
+    resources:
+      jobs:
+        mktg_next_uk_nextads_feature_store:
+          <<: *nextads_feature_store_job
+          max_concurrent_runs: 1
   DEV_FEATURE_STORE:
     resources:
       jobs:

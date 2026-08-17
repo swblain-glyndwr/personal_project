@@ -76,7 +76,7 @@ DEV validation requires:
 - Ability for the job cluster service principal/user to read source tables and write Delta feature tables.
 - No writes to PROD targets or existing operational Next Ads output tables.
 
-The bundle route deploys the feature-store job only to `DEV_FEATURE_STORE`. That target is the scheduled shared DEV feature-store route and writes to `marketingdata_dev.nextads_feature_store`.
+The bundle route deploys a manual personal copy to `DEV`, writing to the normal commit-author schema, and a scheduled shared copy to `DEV_FEATURE_STORE`, writing to `marketingdata_dev.nextads_feature_store`. The personal copy is limited to one concurrent run and has no schedule.
 
 ## Acceptance Criteria Mapping
 

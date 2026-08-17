@@ -136,6 +136,13 @@ def test_feature_store_table_names_are_unique_and_have_required_metadata():
         assert table.consumers
         assert "two_tower" not in table.consumers
 
+    assert registry.table_spec(
+        "next_uk_nextads_fs_item_attributes_latest"
+    ).write_mode == "overwrite"
+    assert registry.table_spec(
+        "next_uk_nextads_fs_account_profile"
+    ).write_mode == "merge"
+
 
 def test_feature_store_schema_names_are_normalized_for_dev_user_paths():
     registry = load_feature_store_registry()
@@ -586,13 +593,18 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     }
     assert "feature_store_job_clusters_config" not in clusters_config["variables"]
     assert "next_ads_job_cluster_D32ads_v5_1_4" in shared_cluster_keys
-    assert set(job_config["targets"]) == {"DEV_FEATURE_STORE"}
+    assert set(job_config["targets"]) == {"DEV", "DEV_FEATURE_STORE"}
 
     job = job_config["nextads_feature_store_config"][
         "mktg_next_uk_nextads_feature_store"
     ]
     assert "schedule" not in job
     assert job["timeout_seconds"] == 14400
+    personal_job = job_config["targets"]["DEV"]["resources"]["jobs"][
+        "mktg_next_uk_nextads_feature_store"
+    ]
+    assert "schedule" not in personal_job
+    assert personal_job["max_concurrent_runs"] == 1
     scheduled_job = job_config["targets"]["DEV_FEATURE_STORE"]["resources"][
         "jobs"
     ]["mktg_next_uk_nextads_feature_store"]
@@ -729,6 +741,20 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         ]
         == "${var.feature_store_theme_training_table_prefix}"
     )
+    quality_task = next(
+        task for task in job["tasks"] if task["task_key"] == "quality_checks"
+    )
+    assert quality_task["depends_on"] == [
+        {"task_key": "build_model_inputs"},
+        {"task_key": "build_theme_affinity_training_input"},
+    ]
+    quality_parameters = quality_task["spark_python_task"]["parameters"]
+    assert (
+        quality_parameters[
+            quality_parameters.index("--theme_training_reference_date") + 1
+        ]
+        == "{{job.parameters.theme_training_reference_date}}"
+    )
     assert all(
         "${var.feature_store_schema}"
         in task["spark_python_task"]["parameters"]
@@ -802,6 +828,7 @@ def test_feature_store_creation_avoids_timestamp_partition_conflict():
     ).read_text()
 
     assert "client.write_table(name=table_path, df=aligned_df, mode=\"merge\")" in materialization
+    assert 'aligned_df.write.mode("overwrite").insertInto(table_path)' in materialization
     assert "DeltaTable.forName" not in materialization
     assert "partition_columns = []" in create_tables
 
@@ -832,6 +859,7 @@ def test_feature_store_quality_checks_use_single_aggregate_per_table():
 
     assert "def _quality_counts" in source
     assert "dataframe.agg(" in source
-    assert "F.countDistinct(*primary_keys)" in source
+    assert "F.countDistinct(key_struct)" in source
+    assert "valid_distinct_key_count" in source
     assert "row_count = dataframe.count()" not in source
     assert "distinct().count()" not in source

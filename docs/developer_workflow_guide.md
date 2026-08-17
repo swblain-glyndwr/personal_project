@@ -187,7 +187,7 @@ After the feature-store route has merged to `develop`, run the deployment pipeli
 
 The shared feature-store job writes reusable model-building features to `marketingdata_dev.nextads_feature_store` and reads stable Theme Affinity source outputs from `marketingdata_prod.warehouse`. It is scheduled daily at 21:00 Europe/London; run it manually after deployment when immediate validation or repair evidence is needed.
 
-Use `DEV_FEATURE_STORE` for feature-store deployment validation. Personal `DEV` deployments should not carry the shared feature-store job.
+Feature branches can deploy a separate personal Feature Store job through `git deploy-dev`. That copy has no schedule, permits one run at a time and writes only to the last commit author's DEV schema. Use it for branch-level runtime validation. `DEV_FEATURE_STORE` remains the sole scheduled shared copy and is deployed only from `develop`.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 

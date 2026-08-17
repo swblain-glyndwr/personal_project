@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from functools import reduce
 from operator import or_
 
@@ -36,6 +37,37 @@ from pyspark.sql import functions as F
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def expected_preflight_table_names(registry) -> tuple[str, ...]:
+    """Return daily implemented contracts that require source-frame preflight."""
+    return tuple(
+        feature.name
+        for feature in registry.implemented_features
+        if feature.freshness == "daily"
+    )
+
+
+def validate_planned_feature_frames(
+    planned_frames: Mapping[str, object],
+    registry,
+) -> tuple[str, ...]:
+    """Require planned frames to match daily registry contracts exactly."""
+    expected = expected_preflight_table_names(registry)
+    actual = tuple(planned_frames)
+    missing = sorted(set(expected) - set(actual))
+    unexpected = sorted(set(actual) - set(expected))
+    if missing or unexpected:
+        details = []
+        if missing:
+            details.append("missing=" + ",".join(missing))
+        if unexpected:
+            details.append("unexpected=" + ",".join(unexpected))
+        raise ValueError(
+            "Feature-store preflight frames do not match the registry: "
+            + " ".join(details)
+        )
+    return expected
 
 
 def _null_key_condition(primary_keys: tuple[str, ...]):
@@ -177,12 +209,15 @@ def main() -> None:
         reference_date,
     )
 
-    results = []
-    for table_name, dataframe in _planned_feature_frames(
+    planned_frames = _planned_feature_frames(
         spark,
         args,
         reference_date,
-    ).items():
+    )
+    table_names = validate_planned_feature_frames(planned_frames, registry)
+    results = []
+    for table_name in table_names:
+        dataframe = planned_frames[table_name]
         result = _validate_frame(table_name, dataframe, registry)
         LOGGER.info("Preflight passed: %s", result)
         results.append(result)

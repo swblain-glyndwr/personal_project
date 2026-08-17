@@ -4,6 +4,25 @@ feature_store:
   default_catalog: marketingdata_dev
   default_schema: nextads_feature_store
   table_root: sql/features/nextads
+  store_bindings:
+    - environment: DEV
+      catalog: marketingdata_dev
+      schema: nextads_feature_store
+      bundle_target: DEV_FEATURE_STORE
+      repository_declared: true
+      table_name_template: "{feature_id}"
+    - environment: PREPROD
+      catalog: marketingdata_prod
+      schema: ds_sandbox
+      bundle_target: PREPROD
+      repository_declared: false
+      table_name_template: "{release_id}__{feature_id}"
+    - environment: PROD
+      catalog: marketingdata_prod
+      schema: nextads_feature_store
+      bundle_target: PROD
+      repository_declared: false
+      table_name_template: "{feature_id}"
   physical_tables:
     - name: next_uk_nextads_fs_account_profile
       entity: account
@@ -13,6 +32,7 @@ feature_store:
       source_job: build_account_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [theme_affinity, pctr, ltr]
     - name: next_uk_nextads_fs_account_web_activity_90d
@@ -23,6 +43,7 @@ feature_store:
       source_job: build_account_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_item_attributes_latest
@@ -32,6 +53,8 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: daily
+      write_mode: overwrite
+      state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_product_embeddings_latest
@@ -41,6 +64,8 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: weekly
+      state: SCAFFOLD
+      missing_contracts: [promoted_embedding_source, materializer]
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_advert_core_daily
@@ -51,6 +76,7 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_advert_attribute_profile_daily
@@ -61,6 +87,7 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_advert_semantic_profile_daily
@@ -71,6 +98,8 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: daily
+      state: SCAFFOLD
+      missing_contracts: [promoted_embedding_source, materializer]
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_advert_product_profile_daily
@@ -81,6 +110,8 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: daily
+      state: SCAFFOLD
+      missing_contracts: [promoted_embedding_source, materializer]
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_seasonal_product_demand_daily
@@ -91,6 +122,8 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: daily
+      state: SCAFFOLD
+      missing_contracts: [approved_source_contract, materializer]
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_account_theme_interactions_daily
@@ -101,6 +134,7 @@ feature_store:
       source_job: build_theme_affinity_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_account_theme_affinity_daily
@@ -111,6 +145,7 @@ feature_store:
       source_job: build_theme_affinity_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_theme_popularity_daily
@@ -121,6 +156,7 @@ feature_store:
       source_job: build_theme_affinity_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_account_advert_affinity_daily
@@ -131,6 +167,8 @@ feature_store:
       source_job: build_pctr_affinity_features
       owner: marketing_data
       freshness: daily
+      state: SCAFFOLD
+      missing_contracts: [approved_shopping_bag_pctr_source, materializer]
       training_safe: true
       consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_session_context_daily
@@ -141,6 +179,8 @@ feature_store:
       source_job: build_pctr_affinity_features
       owner: marketing_data
       freshness: daily
+      state: SCAFFOLD
+      missing_contracts: [approved_shopping_bag_pctr_source, materializer]
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_theme_affinity_model_input
@@ -151,6 +191,7 @@ feature_store:
       source_job: build_model_inputs
       owner: marketing_data
       freshness: daily
+      state: COMPATIBILITY
       training_safe: true
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_theme_affinity_training_input
@@ -161,6 +202,7 @@ feature_store:
       source_job: build_theme_affinity_training_input
       owner: marketing_data
       freshness: on_demand
+      state: COMPATIBILITY
       training_safe: true
       consumers: [theme_affinity]
     - name: next_uk_nextads_fs_pctr_model_input
@@ -171,6 +213,8 @@ feature_store:
       source_job: build_model_inputs
       owner: marketing_data
       freshness: daily
+      state: SCAFFOLD
+      missing_contracts: [approved_shopping_bag_pctr_source, materializer]
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_labels_clicks
@@ -181,6 +225,7 @@ feature_store:
       source_job: build_model_inputs
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_labels_theme_response
@@ -189,8 +234,10 @@ feature_store:
       primary_keys: [account_number, theme, reference_date, label_name]
       timestamp_key: reference_date
       source_job: build_model_inputs
+      builder: build_theme_affinity_features
       owner: marketing_data
       freshness: daily
+      state: ACTIVE
       training_safe: true
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_feature_quality_events
@@ -201,12 +248,15 @@ feature_store:
       source_job: quality_checks
       owner: marketing_data
       freshness: per_run
+      state: ACTIVE
       training_safe: false
       consumers: [feature_store_ops]
   compatibility_views:
     - name: next_uk_nextads_theme_affinity_features_latest
       source_job: build_model_inputs
+      source_feature: next_uk_nextads_fs_theme_affinity_model_input
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_pctr_features_latest
       source_job: build_model_inputs
+      source_feature: next_uk_nextads_fs_pctr_model_input
       consumers: [pctr]

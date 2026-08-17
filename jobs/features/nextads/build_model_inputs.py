@@ -2,7 +2,12 @@
 
 import logging
 
-from _registry_job import configure_job_logging, log_owned_tables, parse_common_args
+from _registry_job import (
+    configure_job_logging,
+    log_owned_tables,
+    parse_common_args,
+    validate_builder_output_tables,
+)
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
 from next_ads.features.materialization import (
@@ -45,6 +50,12 @@ def main() -> None:
         args.theme_table_prefix,
         reference_date,
     )
+
+    writes = (
+        "next_uk_nextads_fs_theme_affinity_model_input",
+        "next_uk_nextads_fs_labels_clicks",
+    )
+    validate_builder_output_tables("build_model_inputs", writes, registry)
 
     feature_engineering_client = create_feature_engineering_client()
     model_input_df = build_theme_affinity_model_input_df(
