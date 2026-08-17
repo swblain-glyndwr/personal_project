@@ -20,27 +20,6 @@ SOURCE_RUN_ID = "a" * 32
 ARTIFACT_SHA256 = "b" * 64
 
 
-@pytest.fixture(scope="module")
-def local_spark():
-    try:
-        from pyspark.sql import SparkSession
-    except ImportError as exc:
-        pytest.skip(f"PySpark unavailable: {exc}")
-
-    try:
-        spark = (
-            SparkSession.builder.master("local[1]")
-            .appName("product-embedding-inference-tests")
-            .config("spark.ui.enabled", "false")
-            .config("spark.driver.bindAddress", "127.0.0.1")
-            .getOrCreate()
-        )
-    except Exception as exc:
-        pytest.skip(f"Local Spark unavailable: {exc}")
-    yield spark
-    spark.stop()
-
-
 def _binding():
     return SimpleNamespace(
         purpose="shared_dev_materialization",
@@ -62,8 +41,8 @@ def _vector():
     return [1.0] + [0.0] * 383
 
 
-def _existing_frame(local_spark, rows):
-    return local_spark.createDataFrame(
+def _existing_frame(spark, rows):
+    return spark.createDataFrame(
         rows,
         "item_id string, embedding_model_name string, "
         "embedding_model_version string, embedding_model_uri string, "
@@ -108,11 +87,11 @@ def _install_fake_encoder(monkeypatch):
 
 
 def test_complete_snapshot_reuses_exact_rows_generates_changes_and_drops_deletes(
-    local_spark,
+    spark,
     monkeypatch,
 ):
     _install_fake_encoder(monkeypatch)
-    source = local_spark.createDataFrame(
+    source = spark.createDataFrame(
         [
             ("item-a", "text a", "a" * 64),
             ("item-b", "text b", "b" * 64),
@@ -120,7 +99,7 @@ def test_complete_snapshot_reuses_exact_rows_generates_changes_and_drops_deletes
         "item_id string, embedding_text string, embedding_text_hash string",
     )
     existing = _existing_frame(
-        local_spark,
+        spark,
         [
             _existing_row("item-a", "a" * 64),
             _existing_row("deleted-item", "d" * 64),
@@ -145,14 +124,14 @@ def test_complete_snapshot_reuses_exact_rows_generates_changes_and_drops_deletes
     assert evidence.output_row_count == 2
 
 
-def test_cache_row_with_wrong_provenance_is_regenerated(local_spark, monkeypatch):
+def test_cache_row_with_wrong_provenance_is_regenerated(spark, monkeypatch):
     _install_fake_encoder(monkeypatch)
-    source = local_spark.createDataFrame(
+    source = spark.createDataFrame(
         [("item-a", "text a", "a" * 64)],
         "item_id string, embedding_text string, embedding_text_hash string",
     )
     existing = _existing_frame(
-        local_spark,
+        spark,
         [_existing_row("item-a", "a" * 64, run_id="c" * 32)],
     )
 
@@ -168,13 +147,13 @@ def test_cache_row_with_wrong_provenance_is_regenerated(local_spark, monkeypatch
     assert evidence.generated_row_count == 1
 
 
-def test_duplicate_exact_cache_keys_are_rejected(local_spark):
-    source = local_spark.createDataFrame(
+def test_duplicate_exact_cache_keys_are_rejected(spark):
+    source = spark.createDataFrame(
         [("item-a", "text a", "a" * 64)],
         "item_id string, embedding_text string, embedding_text_hash string",
     )
     row = _existing_row("item-a", "a" * 64)
-    existing = _existing_frame(local_spark, [row, row])
+    existing = _existing_frame(spark, [row, row])
 
     with pytest.raises(ValueError, match="duplicate exact model key"):
         build_product_embeddings_frame(
