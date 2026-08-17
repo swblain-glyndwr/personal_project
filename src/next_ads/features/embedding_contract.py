@@ -65,12 +65,14 @@ _SMOKE_BINDING_FIELDS = {
     "registered_model_version",
     "model_uri",
     "source_run_id",
+    "artifact_sha256",
 }
 _MODEL_URI_PATTERN = re.compile(
     r"models:/(?P<name>[^/@\s]+)/(?P<version>[1-9][0-9]*)"
 )
 _MODEL_VERSION_PATTERN = re.compile(r"[1-9][0-9]*")
 _RUN_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 def _required_mapping(raw: Any, context: str) -> Mapping[str, Any]:
@@ -457,6 +459,61 @@ class ApprovedEmbeddingSmokeBinding:
     purpose: str
     model: EmbeddingModelBinding
     source_run_id: str
+    artifact_sha256: str
+
+    def __post_init__(self) -> None:
+        """Prevent direct construction from bypassing the approved binding."""
+        environment = _required_text(
+            self.environment,
+            "environment",
+            "Product embedding smoke binding",
+        )
+        purpose = _required_text(
+            self.purpose,
+            "purpose",
+            "Product embedding smoke binding",
+        )
+        _require_value(
+            environment,
+            "DEV",
+            "environment",
+            "Product embedding smoke binding",
+        )
+        _require_value(
+            purpose,
+            "compatibility_smoke_only",
+            "purpose",
+            "Product embedding smoke binding",
+        )
+        if not isinstance(self.model, EmbeddingModelBinding):
+            raise ValueError(
+                "Product embedding smoke binding model must be an "
+                "EmbeddingModelBinding"
+            )
+        source_run_id = _required_text(
+            self.source_run_id,
+            "source_run_id",
+            "Product embedding smoke binding",
+        )
+        if _RUN_ID_PATTERN.fullmatch(source_run_id) is None:
+            raise ValueError(
+                "Product embedding smoke binding source_run_id must be a "
+                "32-character lowercase hexadecimal MLflow run ID"
+            )
+        artifact_sha256 = _required_text(
+            self.artifact_sha256,
+            "artifact_sha256",
+            "Product embedding smoke binding",
+        )
+        if _SHA256_PATTERN.fullmatch(artifact_sha256) is None:
+            raise ValueError(
+                "Product embedding smoke binding artifact_sha256 must be a "
+                "64-character lowercase hexadecimal SHA-256 digest"
+            )
+        object.__setattr__(self, "environment", environment)
+        object.__setattr__(self, "purpose", purpose)
+        object.__setattr__(self, "source_run_id", source_run_id)
+        object.__setattr__(self, "artifact_sha256", artifact_sha256)
 
     @classmethod
     def from_dict(
@@ -501,6 +558,16 @@ class ApprovedEmbeddingSmokeBinding:
                 "Product embedding smoke binding source_run_id must be a "
                 "32-character lowercase hexadecimal MLflow run ID"
             )
+        artifact_sha256 = _required_text(
+            values["artifact_sha256"],
+            "artifact_sha256",
+            "Product embedding smoke binding",
+        )
+        if _SHA256_PATTERN.fullmatch(artifact_sha256) is None:
+            raise ValueError(
+                "Product embedding smoke binding artifact_sha256 must be a "
+                "64-character lowercase hexadecimal SHA-256 digest"
+            )
         model = EmbeddingModelBinding(
             registered_model_name=values["registered_model_name"],
             registered_model_version=values["registered_model_version"],
@@ -511,6 +578,7 @@ class ApprovedEmbeddingSmokeBinding:
             purpose=purpose,
             model=model,
             source_run_id=source_run_id,
+            artifact_sha256=artifact_sha256,
         )
 
 

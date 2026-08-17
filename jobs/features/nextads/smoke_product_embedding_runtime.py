@@ -401,6 +401,12 @@ def load_approved_sentence_transformer(
             "SentenceTransformers model_data resolves outside the artifact"
         )
     artifact_evidence = validate_safe_model_artifacts(model_data_path)
+    if artifact_evidence["artifact_sha256"] != binding.artifact_sha256:
+        raise ValueError(
+            "Registered embedding model artifact digest does not match the "
+            f"approved SHA-256: expected {binding.artifact_sha256}, found "
+            f"{artifact_evidence['artifact_sha256']}"
+        )
     model = SentenceTransformer(
         str(model_data_path),
         device="cpu",
@@ -409,6 +415,7 @@ def load_approved_sentence_transformer(
     return model, {
         **metadata_evidence,
         **artifact_evidence,
+        "approved_artifact_sha256": binding.artifact_sha256,
         "approved_source_run_id": binding.source_run_id,
         "custom_model_code": False,
     }

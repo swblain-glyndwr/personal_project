@@ -127,6 +127,9 @@ def test_dev_smoke_binding_is_fixed_to_recorded_model_provenance():
     )
     assert binding.model.registered_model_version == 11
     assert binding.source_run_id == "95be978bd9e24783afe4e68def0c9845"
+    assert binding.artifact_sha256 == (
+        "bc4daec2a2647ce42ad35df49181c762187cd4e1fed008915ce4f76ac89ca384"
+    )
 
 
 def test_dev_smoke_binding_rejects_changed_provenance(tmp_path):
@@ -139,6 +142,7 @@ def test_dev_smoke_binding_rejects_changed_provenance(tmp_path):
         "  registered_model_version: 1\n"
         "  model_uri: models:/catalog.schema.model/1\n"
         "  source_run_id: not-a-run-id\n"
+        f"  artifact_sha256: {'0' * 64}\n"
     )
 
     with pytest.raises(ValueError, match="source_run_id"):

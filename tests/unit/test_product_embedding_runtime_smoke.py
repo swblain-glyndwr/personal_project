@@ -1,5 +1,6 @@
 import json
 import sys
+from dataclasses import replace
 from types import ModuleType
 from types import SimpleNamespace
 
@@ -247,6 +248,10 @@ def test_approved_loader_checks_and_loads_the_exact_safe_artifact(
         },
     }
     fake_mlflow = _fake_mlflow_artifact(binding, artifact_root, flavors)
+    artifact_sha256 = validate_safe_model_artifacts(model_data_path)[
+        "artifact_sha256"
+    ]
+    binding = replace(binding, artifact_sha256=artifact_sha256)
     constructor_calls = []
 
     class FakeSentenceTransformer:
@@ -278,6 +283,49 @@ def test_approved_loader_checks_and_loads_the_exact_safe_artifact(
     ]
     assert evidence["module_graph_verified"] is True
     assert evidence["custom_model_code"] is False
+    assert evidence["approved_artifact_sha256"] == artifact_sha256
+
+
+def test_approved_loader_rejects_an_unapproved_artifact_digest(
+    tmp_path,
+    monkeypatch,
+):
+    definition = load_product_embedding_definition()
+    binding = load_approved_dev_smoke_binding()
+    artifact_root = tmp_path / "artifact"
+    model_data_path = artifact_root / "model.sentence_transformer"
+    _write_safe_model_artifact(model_data_path)
+    flavors = {
+        "sentence_transformers": {
+            "sentence_transformers_version": "2.4.0"
+        },
+        "python_function": {
+            "data": "model.sentence_transformer",
+            "loader_module": "mlflow.sentence_transformers",
+        },
+    }
+    fake_mlflow = _fake_mlflow_artifact(binding, artifact_root, flavors)
+
+    class UnexpectedSentenceTransformer:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Unapproved artifact must not be loaded")
+
+    sentence_transformers_module = ModuleType("sentence_transformers")
+    sentence_transformers_module.SentenceTransformer = (
+        UnexpectedSentenceTransformer
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        sentence_transformers_module,
+    )
+
+    with pytest.raises(ValueError, match="artifact digest does not match"):
+        smoke_module.load_approved_sentence_transformer(
+            fake_mlflow,
+            binding,
+            definition,
+        )
 
 
 @pytest.mark.parametrize(
