@@ -56,7 +56,7 @@ class SparkAccountAdvertScoreProvider:
             predictions,
             provider_build_id=model_build.model_build_id,
             provider_id=definition.provider_id,
-            entity_type="advert",
+            entity_type="ad",
             run_date=self.run_date,
             account_column=self.account_column,
             entity_column=self.advert_column,

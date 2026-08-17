@@ -111,7 +111,7 @@ def test_analytics_adapter_uses_the_existing_canonical_contract(monkeypatch):
         "frame": "predictions",
         "provider_build_id": "build-123",
         "provider_id": "analytics_pctr",
-        "entity_type": "advert",
+        "entity_type": "ad",
         "run_date": RUN_DATE,
         "account_column": "account_number",
         "entity_column": "UniqueAdID",

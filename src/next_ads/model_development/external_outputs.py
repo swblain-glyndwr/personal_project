@@ -207,7 +207,7 @@ def adapt_external_advert_scores(
         frame,
         provider_build_id=provider_build_id,
         provider_id=receipt.provider_id,
-        entity_type="advert",
+        entity_type="ad",
         run_date=receipt.run_date,
         account_column=account_column,
         entity_column=advert_column,
