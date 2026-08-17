@@ -665,10 +665,6 @@ def build_advert_product_profile_frame(
     _raise_for_invalid_embedding_rows(embeddings)
 
     joined = bridge.join(embeddings, on="item_id", how="left")
-    weighted_l2 = F.udf(
-        _weighted_l2_embedding,
-        T.ArrayType(T.DoubleType(), containsNull=False),
-    )
     profiles = joined.groupBy("advert_id", "feature_date").agg(
         F.count(F.lit(1)).cast("long").alias("advert_product_item_count"),
         F.sum(
@@ -678,17 +674,66 @@ def build_advert_product_profile_frame(
         )
         .cast("long")
         .alias("advert_product_embedded_item_count"),
-        weighted_l2(
-            F.sort_array(
-                F.collect_list(
-                    F.struct(
-                        F.col("item_id").alias("item_id"),
-                        F.col("item_weight").alias("weight"),
-                        F.col("embedding").alias("embedding"),
-                    )
-                )
+        F.expr(
+            "aggregate("
+            "sort_array(collect_list(named_struct("
+            "'item_id', item_id, "
+            "'weight', item_weight, "
+            "'embedding', embedding))), "
+            f"array_repeat(CAST(0.0 AS DOUBLE), "
+            f"{EXPECTED_EMBEDDING_DIMENSION}), "
+            "(accumulator, product) -> "
+            "IF(product.embedding IS NULL, accumulator, "
+            "zip_with(accumulator, product.embedding, "
+            "(total, value) -> total + (product.weight * value))))"
+        ).alias("_weighted_embedding_sum"),
+    )
+    profiles = profiles.withColumn(
+        "_weighted_embedding_norm",
+        F.sqrt(
+            F.expr(
+                "aggregate(_weighted_embedding_sum, "
+                "CAST(0.0 AS DOUBLE), "
+                "(total, value) -> total + (value * value))"
             )
-        ).alias("advert_product_embedding"),
+        ),
+    )
+    cancelled = (
+        profiles.where(F.col("advert_product_embedded_item_count") > 0)
+        .where(
+            F.col("_weighted_embedding_norm").isNull()
+            | F.isnan(F.col("_weighted_embedding_norm"))
+            | (
+                F.abs(F.col("_weighted_embedding_norm"))
+                == F.lit(float("inf"))
+            )
+            | (
+                F.col("_weighted_embedding_norm")
+                <= F.lit(_ZERO_VECTOR_TOLERANCE)
+            )
+        )
+        .limit(1)
+        .collect()
+    )
+    if cancelled:
+        raise ValueError(
+            "weighted product embeddings cancel to a zero-norm vector"
+        )
+    embedding_array_type = T.ArrayType(
+        T.DoubleType(),
+        containsNull=False,
+    )
+    profiles = profiles.withColumn(
+        "advert_product_embedding",
+        F.when(
+            F.col("advert_product_embedded_item_count") == 0,
+            F.lit(None).cast(embedding_array_type),
+        ).otherwise(
+            F.expr(
+                "transform(_weighted_embedding_sum, "
+                "value -> value / _weighted_embedding_norm)"
+            )
+        ),
     )
     build_time = F.current_timestamp()
     return (

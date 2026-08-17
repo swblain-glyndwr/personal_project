@@ -370,6 +370,14 @@ def test_advert_product_profile_matches_the_revised_contract(local_spark):
     assert row.created_at == row.updated_at
 
 
+def test_advert_product_profile_uses_spark_native_vector_aggregation():
+    source = inspect.getsource(build_advert_product_profile_frame)
+
+    assert "F.udf" not in source
+    assert "aggregate(" in source
+    assert "zip_with(" in source
+
+
 def test_advert_product_profile_rejects_bad_weight_sums(local_spark):
     bridge, embeddings = _profile_frames(local_spark)
     invalid_bridge = bridge.withColumn("item_weight", bridge.item_weight / 2)
