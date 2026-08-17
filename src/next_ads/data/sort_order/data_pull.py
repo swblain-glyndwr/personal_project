@@ -456,7 +456,7 @@ def parse_and_prep_data(data):
 @dp.view(name="control_sheet")
 def control_sheet():
     s_control_sheet = spark.table(
-        config.tables_write.control_sheet_raw_latest_v2
+        config.tables_write.control_sheet_latest_v2
     )
     return s_control_sheet
 
