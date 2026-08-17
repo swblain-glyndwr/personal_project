@@ -162,6 +162,7 @@ class ModelDefinition:
     prediction_entity: str
     prediction_time: str
     label: str
+    observation_keys: tuple[str, ...]
     success_metrics: tuple[str, ...]
     runtime_profile: str
     feature_lookups: tuple[FeatureLookupSpec, ...]
@@ -190,6 +191,11 @@ class ModelDefinition:
             )
         metrics = _names(self.success_metrics, "success_metrics")
         object.__setattr__(self, "success_metrics", metrics)
+        observation_keys = _names(
+            self.observation_keys,
+            "observation_keys",
+        )
+        object.__setattr__(self, "observation_keys", observation_keys)
         if self.runtime_profile not in ALLOWED_RUNTIME_PROFILES:
             raise ValueError(
                 f"Unsupported model runtime profile: {self.runtime_profile}"
@@ -215,6 +221,7 @@ class ModelDefinition:
             "prediction_entity": self.prediction_entity,
             "prediction_time": self.prediction_time,
             "label": self.label,
+            "observation_keys": self.observation_keys,
             "success_metrics": self.success_metrics,
             "runtime_profile": self.runtime_profile,
             "feature_lookups": tuple(

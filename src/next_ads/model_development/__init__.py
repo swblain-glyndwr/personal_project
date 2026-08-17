@@ -17,6 +17,11 @@ from next_ads.model_development.registry import (
     load_model_definition,
     load_model_definitions,
 )
+from next_ads.model_development.training_sets import (
+    TrainingSetBuildResult,
+    build_training_set,
+    validate_snapshot_time_boundary,
+)
 
 __all__ = [
     "ALLOWED_RUNTIME_PROFILES",
@@ -30,6 +35,9 @@ __all__ = [
     "Trainer",
     "TrainingFeatureBinding",
     "TrainingSetReceipt",
+    "TrainingSetBuildResult",
+    "build_training_set",
     "load_model_definition",
     "load_model_definitions",
+    "validate_snapshot_time_boundary",
 ]

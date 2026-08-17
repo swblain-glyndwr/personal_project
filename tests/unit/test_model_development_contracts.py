@@ -37,6 +37,11 @@ def _definition(**overrides):
         "prediction_entity": "account, advert and session",
         "prediction_time": "session start",
         "label": "advert click within the session",
+        "observation_keys": (
+            "account_number",
+            "advert_id",
+            "reference_date",
+        ),
         "success_metrics": ("log_loss", "calibration"),
         "runtime_profile": DBR_15_4_SPARK_CPU,
         "feature_lookups": (_lookup(),),
