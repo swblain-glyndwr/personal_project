@@ -87,6 +87,12 @@ def test_v2_staging_adds_build_identity_to_public_assignment_shape():
     assert "primary key ( buildrunid, accountnumber, pagetype, rank)" in sql
     assert "primary key ( buildrunid, taskrunid" not in sql
     assert " check (" not in sql
+    assert " check (" not in _normalised_sql(
+        "sql/adsv2/create_table_assignments_v2.sql"
+    )
+    assert " check (" not in _normalised_sql(
+        "sql/adsv2/create_table_assignments_v2_latest.sql"
+    )
 
 
 def test_assignment_build_events_has_validated_retention_compatible_contract():

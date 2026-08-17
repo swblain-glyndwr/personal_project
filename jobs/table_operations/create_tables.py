@@ -68,7 +68,7 @@ RECREATE_ONLY_MANIFEST_TABLE_SUFFIXES = frozenset(
     }
 )
 
-IN_PLACE_ONLY_CANONICAL_TABLE_SUFFIXES = frozenset(
+IN_PLACE_ONLY_LARGE_TABLE_SUFFIXES = frozenset(
     {
         "_nextads_scoring_input_item_themes",
         "_nextads_account_theme_foundation_ranked",
@@ -82,7 +82,7 @@ IN_PLACE_ONLY_CANONICAL_TABLE_SUFFIXES = frozenset(
     }
 )
 
-CANONICAL_CHECK_CONSTRAINTS = {
+OUTPUT_TABLE_CHECK_CONSTRAINTS = {
     "_nextads_score_provider_signals": {
         "nextads_provider_raw_score_finite": (
             "RawScore between -1.7976931348623157E308 "
@@ -491,29 +491,32 @@ def build_repair_table_statements(
     ]
 
 
-def ensure_canonical_check_constraints(
+def ensure_output_table_check_constraints(
     spark,
     *,
     table: str,
     dry_run: bool,
     logger,
+    assume_constraints_missing: bool = False,
 ) -> list[str]:
-    """Add cheap row-level guards to large canonical tables in place."""
+    """Add the registered row-level guards to a shared output table."""
     table_name = table.split(".")[-1]
     required = next(
         (
             constraints
-            for suffix, constraints in CANONICAL_CHECK_CONSTRAINTS.items()
+            for suffix, constraints in OUTPUT_TABLE_CHECK_CONSTRAINTS.items()
             if table_name.endswith(suffix)
         ),
         None,
     )
     if not required:
         return []
-    properties = {
-        str(row["key"]).lower(): str(row["value"])
-        for row in spark.sql(f"SHOW TBLPROPERTIES {table}").collect()
-    }
+    properties = {}
+    if not assume_constraints_missing:
+        properties = {
+            str(row["key"]).lower(): str(row["value"])
+            for row in spark.sql(f"SHOW TBLPROPERTIES {table}").collect()
+        }
     statements = []
     for name, expression in required.items():
         if f"delta.constraints.{name}" in properties:
@@ -522,11 +525,38 @@ def ensure_canonical_check_constraints(
             f"ALTER TABLE {table} ADD CONSTRAINT `{name}` CHECK ({expression})"
         )
         statements.append(statement)
-        logger.info("Adding canonical constraint to %s: %s", table, name)
+        logger.info("Adding output-table constraint to %s: %s", table, name)
         logger.info("Running: %s", statement)
         if not dry_run:
             spark.sql(statement)
     return statements
+
+
+def create_table_with_output_constraints(
+    spark,
+    *,
+    table_ref: str,
+    table: str,
+    create_table_sql: str,
+    dry_run: bool,
+    logger,
+) -> list[str]:
+    """Create one table and apply its registered checks in the same operation."""
+    logger.info("Creating %s table as: %s", table_ref, table)
+    logger.info("Running: %s", create_table_sql)
+    if dry_run:
+        logger.info("Dry run enabled; not creating %s", table)
+    else:
+        spark.sql(create_table_sql)
+
+    constraint_statements = ensure_output_table_check_constraints(
+        spark,
+        table=table,
+        dry_run=dry_run,
+        logger=logger,
+        assume_constraints_missing=True,
+    )
+    return [create_table_sql, *constraint_statements]
 
 
 def requires_assignment_build_state_recreation(
@@ -581,10 +611,10 @@ def repair_table_to_contract(
 
     if any(
         table.split(".")[-1].endswith(suffix)
-        for suffix in IN_PLACE_ONLY_CANONICAL_TABLE_SUFFIXES
+        for suffix in IN_PLACE_ONLY_LARGE_TABLE_SUFFIXES
     ):
         raise ValueError(
-            f"Large canonical table {table} requires an explicit migration; "
+            f"Large output table {table} requires an explicit migration; "
             "table_operations will not create a backup copy or rebuild it. "
             "Apply additive columns and constraints in place only."
         )
@@ -837,7 +867,15 @@ def main(
 
         if spark.catalog.tableExists(table):
             if not ALTER_TABLES:
-                logger.debug(f"Table {table} already exists - skipping")
+                logger.debug(
+                    "Table %s already exists - skipping schema changes", table
+                )
+                ensure_output_table_check_constraints(
+                    spark,
+                    table=table,
+                    dry_run=DRY_RUN,
+                    logger=logger,
+                )
                 continue
 
             logger.info(f"Checking {table} against SQL contract")
@@ -850,7 +888,7 @@ def main(
             drift = compare_table_schema(expected_columns, actual_columns)
             if not drift.has_drift:
                 logger.info(f"Table {table} matches SQL contract")
-                ensure_canonical_check_constraints(
+                ensure_output_table_check_constraints(
                     spark,
                     table=table,
                     dry_run=DRY_RUN,
@@ -903,7 +941,7 @@ def main(
                                 dry_run=DRY_RUN,
                                 logger=logger,
                             )
-                ensure_canonical_check_constraints(
+                ensure_output_table_check_constraints(
                     spark,
                     table=table,
                     dry_run=DRY_RUN,
@@ -921,7 +959,7 @@ def main(
                 dry_run=DRY_RUN,
                 logger=logger,
             )
-            ensure_canonical_check_constraints(
+            ensure_output_table_check_constraints(
                 spark,
                 table=table,
                 dry_run=DRY_RUN,
@@ -929,12 +967,14 @@ def main(
             )
             continue
 
-        logger.info(f"Creating {table_ref} table as: {table}")
-        logger.info(f"Running: {query}")
-        if DRY_RUN:
-            logger.info("Dry run enabled; not creating %s", table)
-        else:
-            spark.sql(query)
+        create_table_with_output_constraints(
+            spark,
+            table_ref=table_ref,
+            table=table,
+            create_table_sql=query,
+            dry_run=DRY_RUN,
+            logger=logger,
+        )
 
     logger.info("Run complete")
 
