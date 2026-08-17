@@ -111,6 +111,8 @@ A future-dated lookup must fail without creating a READY receipt or model build.
 
 ## 6. Train And Compare Models In DEV
 
+First run `mktg_next_uk_nextads_model_development_runtime_smoke`. It proves that the job is using DBR 15.4 with the pinned Feature Engineering, Dynaconf and MLflow versions. It also proves that the training guard rejects a future-dated feature binding without writing a receipt or model.
+
 Run the manual job on the approved runtime in the definition: DBR 15.4 Spark/CPU or the existing Theme Affinity DBR 18.1 GPU profile. The Shopping Bag example compares a Spark logistic-regression baseline with a Spark gradient-boosted-tree candidate, using the same deterministic validation split and selecting by PR-AUC.
 
 The resulting `ModelBuild` records the training receipt, MLflow run, registered model name and version, artifact URI and digest, parameters, metrics, runtime and final status. Retrying the same definition and receipt reuses the existing build instead of registering a duplicate version.
