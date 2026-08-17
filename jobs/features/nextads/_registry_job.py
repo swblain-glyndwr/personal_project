@@ -44,6 +44,9 @@ def parse_common_args() -> argparse.Namespace:
         default="next_uk_nextads_account_theme_foundation",
     )
     parser.add_argument("--replace_reference_date", default="true")
+    parser.add_argument("--feature_build_id", default=None)
+    parser.add_argument("--feature_build_attempt_id", default=None)
+    parser.add_argument("--git_commit", default=None)
     parser.add_argument("--job_env", default="dev")
     parser.add_argument("--client", default="next_uk")
     parser.add_argument("--theme_training_reference_date", default="skip")
@@ -57,6 +60,23 @@ def parse_common_args() -> argparse.Namespace:
     )
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
+
+
+def feature_write_kwargs(args: argparse.Namespace) -> dict[str, str]:
+    """Return a complete build identity for exact Delta write receipts."""
+    values = {
+        "build_id": getattr(args, "feature_build_id", None),
+        "attempt_id": getattr(args, "feature_build_attempt_id", None),
+        "git_commit": getattr(args, "git_commit", None),
+    }
+    supplied = {name: value for name, value in values.items() if value}
+    if supplied and len(supplied) != len(values):
+        missing = sorted(set(values).difference(supplied))
+        raise ValueError(
+            "Feature write identity is incomplete; missing "
+            + ", ".join(missing)
+        )
+    return supplied
 
 
 def _builder_table_names(

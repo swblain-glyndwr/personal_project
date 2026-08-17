@@ -8,6 +8,7 @@ import logging
 
 from _registry_job import (
     configure_job_logging,
+    feature_write_kwargs,
     log_owned_tables,
     validate_builder_output_tables,
 )
@@ -71,6 +72,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--country_mapping_schema", default="search")
     parser.add_argument("--replace_reference_date", default="true")
+    parser.add_argument("--feature_build_id", default=None)
+    parser.add_argument("--feature_build_attempt_id", default=None)
+    parser.add_argument("--git_commit", default=None)
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -187,6 +191,7 @@ def main() -> None:
             mode=table.write_mode,
             registry=registry,
             feature_engineering_client=feature_engineering_client,
+            **feature_write_kwargs(args),
         )
         LOGGER.info("Wrote pCTR feature table: %s", table_path)
 

@@ -141,6 +141,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -170,6 +176,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_table_prefix}}"
           - --product_embedding_binding
           - ${var.feature_store_product_embedding_binding}
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D16ads_v5_2_2
@@ -201,6 +213,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_product_embedding_binding}
           - --replace_reference_date
           - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -248,6 +266,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_theme_training_table_prefix}
           - --replace_reference_date
           - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -275,6 +299,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -307,6 +337,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_product_embedding_binding}
           - --replace_reference_date
           - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D16ads_v5_2_2
@@ -339,6 +375,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_product_embedding_binding}
           - --replace_reference_date
           - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -367,6 +409,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -403,6 +451,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.analytics_pctr_source_schema}}"
           - --analytics_pctr_receipt_correlation_id
           - "{{job.run_id}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -431,6 +485,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -464,6 +524,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_table_prefix}}"
           - --theme_training_reference_date
           - "{{job.parameters.theme_training_reference_date}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

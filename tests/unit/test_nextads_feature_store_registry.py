@@ -1165,6 +1165,23 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     assert refresh_task["run_job_task"]["job_parameters"][
         "receipt_correlation_id"
     ] == "{{job.run_id}}"
+    receipt_tasks = [
+        task
+        for task in job["tasks"]
+        if task["task_key"].startswith("build_")
+        or task["task_key"] == "quality_checks"
+    ]
+    for task in receipt_tasks:
+        parameters = task["spark_python_task"]["parameters"]
+        assert parameters[parameters.index("--feature_build_id") + 1] == (
+            "{{job.run_id}}"
+        )
+        assert parameters[
+            parameters.index("--feature_build_attempt_id") + 1
+        ] == "{{job.run_id}}"
+        assert parameters[parameters.index("--git_commit") + 1] == (
+            "${var.git_commit_sha}"
+        )
 
 
 def test_analytics_pctr_feature_source_is_source_only_and_uses_dbr_15_4():

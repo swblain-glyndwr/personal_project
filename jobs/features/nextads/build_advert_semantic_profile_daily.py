@@ -9,6 +9,7 @@ import logging
 
 from _registry_job import (
     configure_job_logging,
+    feature_write_kwargs,
     log_owned_tables,
     parse_common_args,
     validate_builder_output_tables,
@@ -267,6 +268,7 @@ def main() -> None:
         mode=table.write_mode,
         registry=registry,
         feature_engineering_client=feature_engineering_client,
+        **feature_write_kwargs(args),
     )
     manifest = {
         "status": "PASS",

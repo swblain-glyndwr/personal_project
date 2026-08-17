@@ -13,6 +13,7 @@ from typing import Any
 
 from _registry_job import (
     configure_job_logging,
+    feature_write_kwargs,
     log_owned_tables,
     parse_common_args,
     validate_builder_output_tables,
@@ -1167,6 +1168,7 @@ def main() -> None:
             reference_date=reference_date,
             replace_reference_date=False,
             feature_engineering_client=feature_engineering_client,
+            **feature_write_kwargs(args),
         )
         quality_entry["physical_path"] = written_table_path
         written_quality_df = spark.table(written_table_path)
@@ -1226,6 +1228,7 @@ def main() -> None:
             reference_date=reference_date,
             replace_reference_date=False,
             feature_engineering_client=feature_engineering_client,
+            **feature_write_kwargs(args),
         )
 
         (

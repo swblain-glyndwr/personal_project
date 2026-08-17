@@ -6,6 +6,28 @@ from jobs.features.nextads import _registry_job
 from next_ads.features import load_feature_store_registry
 
 
+def test_feature_write_identity_is_all_or_nothing():
+    args = Namespace(
+        feature_build_id="build-1",
+        feature_build_attempt_id="attempt-1",
+        git_commit="abc123",
+    )
+
+    assert _registry_job.feature_write_kwargs(args) == {
+        "build_id": "build-1",
+        "attempt_id": "attempt-1",
+        "git_commit": "abc123",
+    }
+    with pytest.raises(ValueError, match="missing git_commit"):
+        _registry_job.feature_write_kwargs(
+            Namespace(
+                feature_build_id="build-1",
+                feature_build_attempt_id="attempt-1",
+                git_commit=None,
+            )
+        )
+
+
 def test_registry_selects_implemented_features_by_logical_builder():
     registry = load_feature_store_registry()
 
