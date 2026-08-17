@@ -53,6 +53,7 @@ feature_store:
       source_job: build_advert_features
       owner: marketing_data
       freshness: daily
+      write_mode: overwrite
       state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]

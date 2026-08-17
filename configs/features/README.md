@@ -38,6 +38,19 @@
 | Legacy `source_job` | Existing ownership metadata used by current jobs. | Retained unchanged for compatibility. |
 | Logical `builder` | Task that currently writes the feature. | Defaults to `source_job`; use an override only when the actual writer differs. |
 
+## Product Embedding Foundation
+
+| Artifact | Responsibility | Operational status |
+| --- | --- | --- |
+| `product_embeddings.yaml` | Logical model identity, 384-value normalized output, DBR 15.4 Standard CPU profile and exact direct package versions. | Reusable contract only; it does not select an environment or activate a Feature Store table. |
+| `product_embedding_smoke_dev.yaml` | Fixed personal DEV registered-model version, source run and approved artifact digest. | Compatibility-test binding only; it must not become a shared DEV or PROD dependency. |
+| `../../requirements-feature-store-embeddings.txt` | Exact direct runtime pins, including the CPU-only PyTorch index and thread-pool compatibility version. | Installed only on the isolated manual smoke task in this change. |
+| `../../src/next_ads/features/advert_items.py` | Pure point-in-time transform from advert sort, representative-item and control inputs to deterministic weighted advert-item rows. | No table reads or writes; live materialisation remains outstanding. |
+| `../../pipelines/databricks/jobs/mktg_next_uk_nextads_product_embedding_runtime_smoke.yml` | Manual personal DEV bridge and embedding compatibility checks on separate DBR 15.4 clusters. | Unscheduled and read-only; unavailable in shared Feature Store, PREPROD and PROD targets. |
+
+- The existing registry entries remain `SCAFFOLD` until their source, materialiser and runtime evidence are complete.
+- Runtime callers cannot replace the fixed personal model version, source run or approved artifact digest.
+
 ## Environment Bindings
 
 | Environment | Namespace | Bundle target | Repository state | Table naming |
@@ -75,3 +88,11 @@ One release-isolated PREPROD plan:
 | `RELEASE_ID_REQUIRED` | An exact PREPROD location needs `--release-id`. |
 
 - None of these terms is evidence of a deployed job, populated table or READY immutable snapshot.
+
+## Inspect Runtime Evidence
+
+The Feature Store quality task audits registry-defined implemented contracts rather than a separate hand-maintained table list. Search its Databricks task output for `FEATURE_STORE_DEV_AUDIT_MANIFEST=` to retrieve the stable JSON evidence for physical paths, row/key checks, ordered schema hashes, Feature Engineering keys, table/reference-date commit tags, exact final Delta versions, skipped on-demand contracts and compatibility views.
+
+`CURRENT_IMPLEMENTED_PASS` is not `DEV_COMPLETE`. The manifest keeps `dev_complete=false` while any scaffold remains, any implemented contract is skipped or either compatibility view is not ready.
+
+`write_mode` is part of the logical definition. Daily point-in-time tables default to keyed `merge`; `next_uk_nextads_fs_item_attributes_latest` uses an atomic whole-table `overwrite` so removed source items cannot survive as stale current features.

@@ -122,6 +122,7 @@ class OfflineFeatureDefinition:
     state: OfflineFeatureState = OfflineFeatureState.ACTIVE
     missing_contracts: tuple[str, ...] = ()
     builder: str | None = None
+    write_mode: str = "merge"
 
     def __post_init__(self) -> None:
         """Default the logical builder to the legacy source-job metadata."""
@@ -180,6 +181,12 @@ class OfflineFeatureDefinition:
             timestamp_key = _required_text(
                 timestamp_key, "timestamp_key", context
             )
+        write_mode = str(raw.get("write_mode", "merge")).lower()
+        if write_mode not in {"merge", "overwrite"}:
+            raise ValueError(
+                f"{context} has unsupported write_mode {write_mode!r}; "
+                "expected merge or overwrite"
+            )
 
         return cls(
             name=_required_text(raw["name"], "name", context),
@@ -201,6 +208,7 @@ class OfflineFeatureDefinition:
                 if "builder" in raw
                 else None
             ),
+            write_mode=write_mode,
         )
 
     @property
@@ -389,6 +397,21 @@ class FeatureStoreRegistry:
         return tuple(
             table for table in self.physical_tables if table.implemented
         )
+
+    def features_for_builder(
+        self,
+        builder: str,
+        *,
+        include_scaffolds: bool = False,
+    ) -> tuple[OfflineFeatureDefinition, ...]:
+        """Return definitions owned by one logical builder in registry order."""
+        selected = tuple(
+            table
+            for table in self.physical_tables
+            if table.builder == builder
+            and (include_scaffolds or table.implemented)
+        )
+        return selected
 
     def table_names(self) -> list[str]:
         return [table.name for table in self.physical_tables]

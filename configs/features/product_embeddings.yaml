@@ -1,0 +1,22 @@
+product_embeddings:
+  contract_version: 1
+  source_model_name: sentence-transformers/all-MiniLM-L12-v2
+  embedding_dimension: 384
+  normalize_embeddings: true
+  allow_runtime_registration: false
+  runtime_profile:
+    spark_version: 15.4.x-scala2.12
+    runtime_engine: STANDARD
+    accelerator: CPU
+    python_version: "3.11"
+    requirements_file: requirements-feature-store-embeddings.txt
+    pip_options:
+      - --extra-index-url https://download.pytorch.org/whl/cpu
+    package_versions:
+      mlflow: "3.11.1"
+      numpy: "1.26.4"
+      protobuf: "4.24.1"
+      sentence-transformers: "2.4.0"
+      threadpoolctl: "3.6.0"
+      torch: "2.10.0+cpu"
+      transformers: "4.41.2"

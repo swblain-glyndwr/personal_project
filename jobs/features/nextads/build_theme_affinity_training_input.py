@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import replace
 import logging
 
-from _registry_job import configure_job_logging, log_owned_tables, parse_common_args
+from _registry_job import (
+    configure_job_logging,
+    log_owned_tables,
+    parse_common_args,
+    validate_builder_output_tables,
+)
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
 from next_ads.features.materialization import (
@@ -65,6 +70,11 @@ def main() -> None:
 
     spark = configure_spark()
     registry = load_feature_store_registry()
+    validate_builder_output_tables(
+        "build_theme_affinity_training_input",
+        (TRAINING_TABLE_NAME,),
+        registry,
+    )
     target_catalog = args.catalog or registry.default_catalog
     target_schema = args.schema or registry.default_schema
     replace_reference_date = args.replace_reference_date.lower() == "true"

@@ -238,6 +238,7 @@ def build_offline_feature_store_plan(
                     "grain": feature.grain,
                     "primary_keys": list(feature.primary_keys),
                     "timestamp_key": feature.timestamp_key,
+                    "write_mode": feature.write_mode,
                     "freshness": feature.freshness,
                     "owner": feature.owner,
                     "missing_contracts": list(feature.missing_contracts),

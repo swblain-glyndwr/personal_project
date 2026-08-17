@@ -97,6 +97,63 @@ One release-isolated PREPROD plan:
 
 - Planner states do not prove that a job is deployed, a table is populated or an immutable snapshot is READY.
 
+### Runtime Audit
+
+The final quality task derives its coverage from the same registry and writes one event for every implemented physical contract. It also logs one deterministic line beginning `FEATURE_STORE_DEV_AUDIT_MANIFEST=` with physical paths, audit scope, row/key results, ordered schema hashes, live Feature Engineering keys, table/reference-date commit tags, exact final Delta versions and compatibility-view status.
+
+| Audit field | Meaning |
+| --- | --- |
+| `CURRENT_IMPLEMENTED_PASS` | Every non-skipped implemented contract passed physical schema, Feature Engineering key, scoped commit-recency and row/key checks, and every implemented-source compatibility view matched its declared source and row/key evidence. |
+| `current_implemented_complete` | `true` only when none of the 13 implemented contracts was skipped and every implemented-source view is ready. |
+| `dev_complete` | `true` only when current implemented coverage is complete, every intended feature is implemented, no scaffolds remain and both views are ready. |
+| `BLOCKED` | The compatibility view resolves a source that is still a scaffold; the job does not present it as operational. |
+
+The normal daily job keeps the on-demand Theme Affinity training build at `skip`, so its manifest must report that table in `skipped_current_contracts` and keep `current_implemented_complete=false`. Supply an explicit historical `theme_training_reference_date` to build and audit that exact partition.
+
+The quality table's own persisted event uses `MANIFEST_ONLY` because a row cannot truthfully contain the Delta version created by writing itself. The deterministic manifest is emitted after that final merge and contains the exact resulting quality-table version.
+
+The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mode: overwrite`. Its builder uses one atomic whole-table replacement, while dated tables retain keyed merge behaviour; this prevents items absent from the latest source from remaining in the current feature snapshot.
+
+#### Personal DEV runtime evidence
+
+| Evidence | Result |
+| --- | --- |
+| Revision and deployment | Revision `e96485e931576695205787227eaa20297c76d0d5` deployed through pipeline `2071583`; the pipeline succeeded and selected only the bounded personal DEV deployment. The job used DBR 15.4 and Feature Engineering 0.12.1. |
+| Failure and fix sequence | Run `64488519593329` exposed the first live timestamp-key metadata shape. Run `439768216959422` then completed every build but showed that Feature Engineering appends the timestamp key after entity keys for the two composite label contracts. Revisions `55408db` and `e96485e` accept those exact live shapes while retaining strict entity-key order, timestamp metadata and missing/extra-key checks. |
+| Exact-revision proof | Run `373370623960025` completed `SUCCESS` in 152.8 minutes from revision `e96485e931576695205787227eaa20297c76d0d5`. One worker was lost to a cloud communication health check during the click-label shuffle; Databricks restored the cluster to four workers and the task completed without a code retry. |
+| Audit manifest | `CURRENT_IMPLEMENTED_PASS`; 13 implemented contracts, two compatibility views, seven scaffolds, no failed current contracts and one intentionally skipped Theme Affinity training-input contract. `current_implemented_complete=false` and `dev_complete=false` remain truthful. |
+| Label evidence | Click labels: 407,436 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 17. Theme response labels: 3,971,236,814 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 16. |
+| Compatibility views | `next_uk_nextads_theme_affinity_features_latest` is `READY` with 1,264,725,100 rows. `next_uk_nextads_pctr_features_latest` remains `BLOCKED` until its approved Shopping Bag pCTR source and materializer exist. |
+| Environment boundary | All writes were limited to `marketingdata_dev.stephen_blain`. This evidence does not activate shared DEV, DEV Integration, PREPROD, PROD or realtime resources. |
+
+| Remaining boundary | Evidence and required follow-up |
+| --- | --- |
+| Optional training input | The normal route keeps `next_uk_nextads_fs_theme_affinity_training_input` at `skip`; an explicit historical date is still required to prove that contract. |
+| Scaffold coverage | Seven registered feature groups are still scaffolds and are not presented as operational. They must be implemented and proven in DEV before the shared DEV/PREPROD/PROD sequence. |
+| Source reproducibility | The latest item source changed from 639,124 to 639,388 rows between attempts for the same reference date. The immutable-snapshot work must record and consume exact source Delta versions rather than relying on a moving latest source. |
+| Failure-safe publication | Dated tables still remove the requested partition before their Feature Engineering merge. This run proves the current contracts but does not prove atomic multi-table snapshots; the `FeatureBuild` and `FeatureSnapshot` work must remove that exposure gap. |
+
+#### Product embedding foundation evidence
+
+| Evidence | Result |
+| --- | --- |
+| Revision and deployment | Revision `74db4f1149a488d67a0f98e884014fa50af5f50a` deployed through pipeline `2071889`; 1,044 tests passed and 13 skipped. Only the personal DEV route deployed. Destroy, DEV Integration, shared Feature Store, PREPROD and PROD stages were skipped. |
+| Failure and repair sequence | Run `1096436449658921` passed the bridge but exposed an incorrect `model_data` assumption in the registered model's MLflow flavour. Revision `44e8c92` read the actual pyfunc data path and run `1089941215576212` passed, allowing the exact artifact digest to be recorded. Revision `800ae62` pinned that digest and run `533832210189819` proved the approved and downloaded artifacts matched. |
+| Final compatibility fix | Run `533832210189819` also exposed a suppressed callback traceback from the base image's thread-pool inspection library. Revision `74db4f1` pins `threadpoolctl==3.6.0` and checks the runtime library controllers explicitly. |
+| Exact-revision proof | Parent run `334271287452983` completed `SUCCESS` from revision `74db4f1149a488d67a0f98e884014fa50af5f50a`. Bridge task `661018763219592` and embedding task `446396556326604` both completed `SUCCESS`; both outputs were complete rather than truncated. |
+| Bridge manifest | Nine fixture rows across five adverts; zero duplicate keys and zero future rows consumed. Source precedence, weighting and conflicting-position rejection passed; `writes_performed=false`. |
+| Embedding manifest | DBR 15.4, Python 3.11 and Standard CPU execution passed with MLflow 3.11.1, NumPy 1.26.4, protobuf 4.24.1, Sentence Transformers 2.4.0, threadpoolctl 3.6.0, CPU-only PyTorch 2.10.0 and Transformers 4.41.2. The three-module graph and safetensor artifact passed validation, and the output contained 384 values with norm `0.999999976604877`. |
+| Artifact provenance | The fixed personal DEV binding resolves registered model version 11 and source run `95be978bd9e24783afe4e68def0c9845`. The approved and observed artifact SHA-256 values both equal `bc4daec2a2647ce42ad35df49181c762187cd4e1fed008915ce4f76ac89ca384`; custom model code and runtime registration are disabled. |
+| Clean-log gate | All 1,381 embedding log lines were checked. `Exception ignored`, `threadpoolctl.py`, the earlier `NoneType.split` callback error and `Traceback` each occurred zero times. |
+| Environment boundary | The manual job is unscheduled and read-only. It did not create a model run, register a model, move an alias, write a feature table or alter shared data. Model artifacts were downloaded only to ephemeral task storage. |
+
+| Remaining boundary | Required follow-up |
+| --- | --- |
+| Registry state | Product embeddings, advert semantic profiles and advert product profiles remain `SCAFFOLD`. This foundation does not present any of those feature tables as operational. |
+| Materialisation | The personal binding proves one fixed artifact is compatible with DBR 15.4; it is not a shared feature dependency or a production materialiser. A separate change must define the reusable product source, build semantics, keys, freshness and publication evidence. |
+| Live advert inputs | The bridge run used in-memory fixtures. Live source metadata matches the expected shapes, but live row quality, historical coverage and full-volume scan cost remain unproven. |
+| Higher environments | No shared DEV, DEV Integration, PREPROD, PROD or realtime resource was changed or exercised. |
+
 ## Feature Catalogue
 
 | Feature group | Physical table/view | Entity/grain | Primary consumers |
@@ -128,7 +185,7 @@ One release-isolated PREPROD plan:
 
 Initial owner is `marketing_data` for all feature tables. Most feature groups are daily refreshes keyed by `reference_date`, `feature_date` or `session_date`; product embeddings are weekly/latest until a source-change-driven refresh is introduced; quality events are per run.
 
-The first development deployments target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema normalised to the repo's lower-case user schema convention, DEV_INTEGRATION uses `nextads_integration`, and DEV_FEATURE_STORE uses the shared `nextads_feature_store` schema.
+The first development deployments target `marketingdata_dev` with explicit target-specific schemas: SANDBOX uses the current user's schema, DEV uses the last commit author's schema normalised to the repo's lower-case user schema convention, DEV_INTEGRATION uses `nextads_integration`, and DEV_FEATURE_STORE uses the shared `nextads_feature_store` schema. The DEV target includes a manual Feature Store copy for branch validation; it has no schedule and permits one run at a time.
 
 `DEV_FEATURE_STORE` is scheduled daily at 21:00 Europe/London and reads latest Theme Affinity source tables from `marketingdata_prod.warehouse`. It writes reusable latest features to `marketingdata_dev.nextads_feature_store`. Theme Affinity training jobs read `marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input`, which is populated only from an explicit historical run where the existing Theme Affinity prep builds a 31-day future-window basket target via `2_target.sql` and joins it back through `6_master_assoc.sql`.
 
