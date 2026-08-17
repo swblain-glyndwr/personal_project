@@ -28,6 +28,42 @@ def test_feature_write_identity_is_all_or_nothing():
         )
 
 
+def test_feature_group_identity_is_unique_within_one_job_run():
+    args = Namespace(
+        feature_build_id="run-1",
+        feature_build_attempt_id="attempt-1",
+        git_commit="abc123",
+    )
+
+    account = _registry_job.feature_group_identity(
+        args,
+        "build_account_features",
+    )
+    advert = _registry_job.feature_group_identity(
+        args,
+        "build_advert_features",
+    )
+
+    assert account == {
+        "feature_build_id": "run-1:build_account_features",
+        "feature_build_attempt_id": "attempt-1:build_account_features",
+        "git_commit": "abc123",
+    }
+    assert account["feature_build_id"] != advert["feature_build_id"]
+
+
+def test_feature_group_identity_requires_a_complete_job_identity():
+    with pytest.raises(ValueError, match="READY feature publication"):
+        _registry_job.feature_group_identity(
+            Namespace(
+                feature_build_id=None,
+                feature_build_attempt_id=None,
+                git_commit=None,
+            ),
+            "build_account_features",
+        )
+
+
 def test_registry_selects_implemented_features_by_logical_builder():
     registry = load_feature_store_registry()
 

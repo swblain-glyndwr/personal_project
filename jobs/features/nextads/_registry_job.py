@@ -79,6 +79,26 @@ def feature_write_kwargs(args: argparse.Namespace) -> dict[str, str]:
     return supplied
 
 
+def feature_group_identity(
+    args: argparse.Namespace,
+    group_id: str,
+) -> dict[str, str]:
+    """Give each group in one job run its own immutable build identity."""
+    identity = feature_write_kwargs(args)
+    if not identity:
+        raise ValueError(
+            "READY feature publication requires build ID, attempt ID and Git SHA"
+        )
+    group = group_id.strip()
+    if not group:
+        raise ValueError("Feature group ID must not be blank")
+    return {
+        "feature_build_id": f"{identity['build_id']}:{group}",
+        "feature_build_attempt_id": f"{identity['attempt_id']}:{group}",
+        "git_commit": identity["git_commit"],
+    }
+
+
 def _builder_table_names(
     builder: str,
     registry: FeatureStoreRegistry,
