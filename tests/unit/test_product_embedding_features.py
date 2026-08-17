@@ -28,26 +28,6 @@ ARTIFACT_SHA256 = "a" * 64
 FEATURE_DATE = date(2026, 8, 1)
 
 
-@pytest.fixture(scope="module")
-def local_spark():
-    try:
-        from pyspark.sql import SparkSession
-    except ImportError as exc:
-        pytest.skip(f"PySpark unavailable: {exc}")
-    try:
-        spark = (
-            SparkSession.builder.master("local[1]")
-            .appName("product-embedding-feature-guard-tests")
-            .config("spark.ui.enabled", "false")
-            .config("spark.driver.bindAddress", "127.0.0.1")
-            .getOrCreate()
-        )
-    except Exception as exc:
-        pytest.skip(f"Local Spark unavailable: {exc}")
-    yield spark
-    spark.stop()
-
-
 def _key(item_id: str, version: str = MODEL_VERSION) -> ProductEmbeddingKey:
     return ProductEmbeddingKey(item_id, MODEL_NAME, version)
 
@@ -364,8 +344,8 @@ def test_runtime_weighted_profile_rejects_non_unit_and_cancelled_vectors():
         )
 
 
-def test_product_text_rejects_malformed_non_null_catalog_dates(local_spark):
-    history = local_spark.createDataFrame(
+def test_product_text_rejects_malformed_non_null_catalog_dates(spark):
+    history = spark.createDataFrame(
         [("item-a", "not-a-date", "2026-12-31", "shoe")],
         "pid string, start_date string, end_date string, title string",
     )
@@ -377,7 +357,7 @@ def test_product_text_rejects_malformed_non_null_catalog_dates(local_spark):
         )
 
 
-def test_advert_profile_requires_the_approved_model_lineage(local_spark):
+def test_advert_profile_requires_the_approved_model_lineage(spark):
     source_run_id = "b" * 32
     model_uri = f"models:/{MODEL_NAME}/{MODEL_VERSION}"
     approved_binding = SimpleNamespace(
@@ -389,7 +369,7 @@ def test_advert_profile_requires_the_approved_model_lineage(local_spark):
         source_run_id=source_run_id,
         artifact_sha256=ARTIFACT_SHA256,
     )
-    bridge = local_spark.createDataFrame(
+    bridge = spark.createDataFrame(
         [
             (
                 "advert-a",
@@ -404,7 +384,7 @@ def test_advert_profile_requires_the_approved_model_lineage(local_spark):
         "advert_id string, feature_date date, item_id string, item_rank int, "
         "item_weight double, item_source string, source_rundate date",
     )
-    embeddings = local_spark.createDataFrame(
+    embeddings = spark.createDataFrame(
         [
             (
                 "item-a",
@@ -431,8 +411,8 @@ def test_advert_profile_requires_the_approved_model_lineage(local_spark):
         )
 
 
-def test_advert_profile_rejects_a_non_unit_product_vector(local_spark):
-    bridge = local_spark.createDataFrame(
+def test_advert_profile_rejects_a_non_unit_product_vector(spark):
+    bridge = spark.createDataFrame(
         [
             (
                 "advert-a",
@@ -447,7 +427,7 @@ def test_advert_profile_rejects_a_non_unit_product_vector(local_spark):
         "advert_id string, feature_date date, item_id string, item_rank int, "
         "item_weight double, item_source string, source_rundate date",
     )
-    embeddings = local_spark.createDataFrame(
+    embeddings = spark.createDataFrame(
         [
             (
                 "item-a",

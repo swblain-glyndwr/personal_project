@@ -99,11 +99,11 @@ def _stub_readable_view_checks(monkeypatch, *, row_count=10):
     return _ViewSpark()
 
 
-def test_quality_audit_inventory_contains_all_thirteen_implemented_contracts():
+def test_quality_audit_inventory_matches_the_registered_implemented_contracts():
     registry = load_feature_store_registry()
     features = quality_checks.quality_audit_features(registry)
 
-    assert len(features) == 13
+    assert len(features) == len(registry.implemented_features)
     assert {feature.name for feature in features} == {
         feature.name for feature in registry.implemented_features
     }
@@ -201,7 +201,7 @@ def test_quality_event_uses_audit_date_for_whole_table_and_skipped_scopes():
     assert skipped_event["freshness_timestamp"] is None
 
 
-def test_manifest_reports_current_coverage_without_claiming_dev_complete(
+def test_manifest_reports_registry_coverage_without_claiming_dev_complete(
     monkeypatch,
 ):
     registry = load_feature_store_registry()
@@ -216,16 +216,22 @@ def test_manifest_reports_current_coverage_without_claiming_dev_complete(
         RUN_TIMESTAMP,
     )
 
-    assert manifest["implemented_count"] == 13
-    assert manifest["compatibility_view_count"] == 2
-    assert manifest["scaffold_count"] == 7
+    assert manifest["implemented_count"] == len(registry.implemented_features)
+    assert manifest["compatibility_view_count"] == len(
+        registry.compatibility_views
+    )
+    assert manifest["scaffold_count"] == (
+        len(registry.offline_features) - len(registry.implemented_features)
+    )
     assert manifest["overall_status"] == "CURRENT_IMPLEMENTED_PASS"
     assert manifest["skipped_current_contracts"] == [
         "next_uk_nextads_fs_theme_affinity_training_input"
     ]
     assert manifest["current_implemented_complete"] is False
     assert manifest["dev_complete"] is False
-    assert len(manifest["contracts"]) == 15
+    assert len(manifest["contracts"]) == (
+        len(registry.implemented_features) + len(registry.compatibility_views)
+    )
 
     contracts = {entry["name"]: entry for entry in manifest["contracts"]}
     theme_view = contracts["next_uk_nextads_theme_affinity_features_latest"]
