@@ -49,7 +49,7 @@ For each selected feature, record its logical name, selected columns, entity-key
 | Training safety | `training_safe=true`. |
 | Keys | Match the model observation grain. |
 | Timestamp | Supports a point-in-time lookup when the feature changes over time. |
-| Snapshot | Resolves through one complete `READY` Feature Snapshot. |
+| Snapshot | Resolves through the exact `READY` feature-group snapshot for that logical input. |
 | Quality | Schema, null-key, duplicate-key, freshness and row-drift checks passed. |
 
 In a DBR 15.4 model-development notebook, read the logical feature through its READY receipt:
@@ -93,14 +93,15 @@ Deploy the model-development branch to personal DEV, then open the manual `mktg_
 | `label_end` | The last date labels are allowed to use. It cannot precede the observations or permit a future feature lookup. |
 | `registered_model_name` | The personal DEV Unity Catalog model name. |
 | `experiment_path` | The DEV MLflow experiment used for the research comparison. |
-| `evaluation_scores_table` | A personal DEV table; never the live assignment output. |
+| `provider_signals_table` | Keep the personal DEV canonical provider-signals default; never point it at an assignment output. |
+| `provider_builds_table` | Keep the personal DEV canonical provider-build default. |
 | `promotion_model_name` | Leave blank during research. Supply an Integration model name only when the exact DEV build has passed review. |
 
 The job resolves the requested READY snapshots, applies the declared point-in-time lookups and writes a `TrainingSetReceipt` before training begins.
 
 | Receipt evidence | Why it matters |
 | --- | --- |
-| Feature Snapshot ID | Identifies the complete feature set used. |
+| Feature Snapshot IDs | Identify the exact accepted feature groups used. |
 | Exact Delta versions | Makes the joined data reproducible after tables change. |
 | Observation and label windows | Proves the intended time boundary. |
 | Leakage result | Blocks future feature values. |
