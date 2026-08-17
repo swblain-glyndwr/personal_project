@@ -169,3 +169,104 @@ def test_same_date_row_drift_stops_snapshot_publication(monkeypatch):
             receipts=_receipts(),
             registry=registry,
         )
+
+
+def test_group_writer_marks_ready_only_after_every_output(monkeypatch):
+    operations = []
+    monkeypatch.setattr(
+        publication,
+        "begin_feature_build",
+        lambda *_a, **_k: operations.append("begin") or _build(),
+    )
+    monkeypatch.setattr(
+        publication,
+        "write_feature_table",
+        lambda _spark, feature_id, *_a, **_k: operations.append(feature_id)
+        or SimpleNamespace(receipt=f"receipt:{feature_id}"),
+    )
+    monkeypatch.setattr(
+        publication,
+        "FeatureMaterializationResult",
+        SimpleNamespace,
+    )
+    monkeypatch.setattr(
+        publication,
+        "publish_ready_feature_group",
+        lambda *_a, **_k: operations.append("ready")
+        or ("ready-build", "ready-snapshot"),
+    )
+    registry = SimpleNamespace(
+        table_spec=lambda _feature_id: SimpleNamespace(
+            timestamp_key="reference_date", write_mode="merge"
+        )
+    )
+
+    result = publication.write_and_publish_feature_group(
+        object(),
+        catalog="catalog",
+        schema="schema",
+        group_id="group",
+        feature_build_id=BUILD_ID,
+        feature_build_attempt_id=ATTEMPT_ID,
+        reference_date=REFERENCE_DATE,
+        git_commit="abc123",
+        frames={"feature_a": object(), "feature_b": object()},
+        sources=(),
+        registry=registry,
+    )
+
+    assert result == ("ready-build", "ready-snapshot")
+    assert operations == ["begin", "feature_a", "feature_b", "ready"]
+
+
+def test_group_writer_records_failure_without_publishing_ready(monkeypatch):
+    operations = []
+    monkeypatch.setattr(
+        publication,
+        "begin_feature_build",
+        lambda *_a, **_k: operations.append("begin") or _build(),
+    )
+    monkeypatch.setattr(
+        publication,
+        "write_feature_table",
+        lambda _spark, feature_id, *_a, **_k: operations.append(feature_id)
+        or SimpleNamespace(receipt=f"receipt:{feature_id}"),
+    )
+    monkeypatch.setattr(
+        publication,
+        "FeatureMaterializationResult",
+        SimpleNamespace,
+    )
+    monkeypatch.setattr(
+        publication,
+        "persist_feature_build",
+        lambda *_a, **kwargs: operations.append(kwargs["build"].status),
+    )
+    monkeypatch.setattr(
+        publication,
+        "publish_ready_feature_group",
+        lambda *_a, **_k: pytest.fail("failed group must not become READY"),
+    )
+    registry = SimpleNamespace(
+        table_spec=lambda _feature_id: SimpleNamespace(
+            timestamp_key="reference_date", write_mode="merge"
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="Intentional personal DEV failure"):
+        publication.write_and_publish_feature_group(
+            object(),
+            catalog="catalog",
+            schema="schema",
+            group_id="group",
+            feature_build_id=BUILD_ID,
+            feature_build_attempt_id=ATTEMPT_ID,
+            reference_date=REFERENCE_DATE,
+            git_commit="abc123",
+            frames={"feature_a": object(), "feature_b": object()},
+            sources=(),
+            registry=registry,
+            fail_after_writes=1,
+        )
+
+    assert operations == ["begin", "feature_a", "FAILED"]
