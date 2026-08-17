@@ -41,7 +41,9 @@ LOGGER = logging.getLogger(__name__)
 DEV_EMPTY_SCAFFOLD_MIGRATIONS = frozenset(
     {
         "next_uk_nextads_fs_product_embeddings_latest",
+        "next_uk_nextads_fs_advert_semantic_profile_daily",
         "next_uk_nextads_fs_advert_product_profile_daily",
+        "next_uk_nextads_fs_seasonal_product_demand_daily",
     }
 )
 

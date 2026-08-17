@@ -876,6 +876,8 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         {"task_key": "build_model_inputs"},
         {"task_key": "build_theme_affinity_training_input"},
         {"task_key": "build_advert_product_profile_daily"},
+        {"task_key": "build_advert_semantic_profile_daily"},
+        {"task_key": "build_seasonal_product_demand_daily"},
     ]
     quality_parameters = quality_task["spark_python_task"]["parameters"]
     assert (
@@ -919,25 +921,64 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         ]
         == "${var.feature_store_product_embedding_binding}"
     )
+    semantic_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "build_advert_semantic_profile_daily"
+    )
+    seasonal_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "build_seasonal_product_demand_daily"
+    )
+    assert semantic_task["depends_on"] == [
+        {"task_key": "build_advert_features"},
+        {"task_key": "build_product_embeddings_latest"},
+    ]
+    assert seasonal_task["depends_on"] == [
+        {"task_key": "build_advert_features"},
+        {"task_key": "build_product_embeddings_latest"},
+    ]
+    for task in (semantic_task, seasonal_task):
+        parameters = task["spark_python_task"]["parameters"]
+        assert (
+            parameters[parameters.index("--product_embedding_binding") + 1]
+            == "${var.feature_store_product_embedding_binding}"
+        )
+    embedding_task_keys = {
+        "build_product_embeddings_latest",
+        "build_advert_semantic_profile_daily",
+    }
     assert all(
         task["libraries"] == "${var.feature_store_libraries}"
         for task in job["tasks"]
-        if task["task_key"] != "build_product_embeddings_latest"
+        if task["task_key"] not in embedding_task_keys
     )
-    assert embedding_task["timeout_seconds"] == 14400
+    assert all(
+        task["libraries"] == "${var.feature_store_embedding_libraries}"
+        for task in job["tasks"]
+        if task["task_key"] in embedding_task_keys
+    )
+    assert all(
+        task["timeout_seconds"] == 14400
+        for task in job["tasks"]
+        if task["task_key"] in embedding_task_keys
+    )
     assert all(
         task["timeout_seconds"] == 7200
         for task in job["tasks"]
-        if task["task_key"] != "build_product_embeddings_latest"
+        if task["task_key"] not in embedding_task_keys
     )
-    assert embedding_task["job_cluster_key"] == (
-        "next_ads_job_cluster_D16ads_v5_2_2"
+    assert all(
+        task["job_cluster_key"] == "next_ads_job_cluster_D16ads_v5_2_2"
+        for task in job["tasks"]
+        if task["task_key"] in embedding_task_keys
     )
     assert all(
         task["job_cluster_key"]
         == "next_ads_job_cluster_D32ads_v5_1_4"
         for task in job["tasks"]
-        if task["task_key"] != "build_product_embeddings_latest"
+        if task["task_key"] not in embedding_task_keys
     )
     assert all(
         task["spark_python_task"]["python_file"].startswith(

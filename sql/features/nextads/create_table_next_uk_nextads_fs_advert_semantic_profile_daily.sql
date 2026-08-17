@@ -3,6 +3,9 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_advert_semantic
   feature_date DATE NOT NULL,
   embedding_model_name STRING NOT NULL,
   embedding_model_version STRING NOT NULL,
+  embedding_model_uri STRING NOT NULL,
+  embedding_source_run_id STRING NOT NULL,
+  embedding_artifact_sha256 STRING NOT NULL,
   advert_text_corpus STRING,
   advert_text_hash STRING,
   advert_embedding ARRAY<DOUBLE>,
@@ -23,4 +26,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_advert_semantic
   )
 )
 USING delta
-PARTITIONED BY (feature_date)

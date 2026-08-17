@@ -96,11 +96,11 @@ feature_store:
       grain: one row per advert, feature date, and embedding model
       primary_keys: [advert_id, feature_date, embedding_model_name, embedding_model_version]
       timestamp_key: feature_date
-      source_job: build_advert_features
+      source_job: build_advert_semantic_profile_daily
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [promoted_embedding_source, materializer]
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_advert_product_profile_daily
@@ -120,11 +120,11 @@ feature_store:
       grain: one row per entity, product, and feature date
       primary_keys: [entity_type, entity_id, item_id, feature_date]
       timestamp_key: feature_date
-      source_job: build_advert_features
+      source_job: build_seasonal_product_demand_daily
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [approved_source_contract, materializer]
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_account_theme_interactions_daily
