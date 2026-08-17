@@ -226,22 +226,59 @@ def test_pctr_model_input_carries_analytics_pctr_compatibility_columns():
     assert {
         "account_number",
         "advert_id",
-        "location",
-        "session_date",
         "reference_date",
-        "device_simple",
-        "channel_simple",
-        "geocountry_simple",
-        "all_ctr",
+        "ad_clicked",
+        "treatment_type",
+        "location",
+        "age",
+        "cash_acc",
+        "advert_ctr",
         "device_ctr",
-        "channel_ctr",
         "geo_ctr",
-        "viewed_latest_advert_catid_affinity",
-        "purchased_latest_advert_catid_affinity",
-        "customer_advert_impressions_30d",
-        "rules_based_pctr",
+        "gender_ctr",
+        "number_pages_viewed",
+        "customer_total_clicks",
+        "view_theme_score",
+        "view_lift_adjusted",
+        "purchase_lift_adjusted",
+        "purchase_theme_affinity",
     }.issubset(columns)
-    assert "customer_ad_product_cosine_similarity" not in columns
+    feature = load_feature_store_registry().table_spec(
+        "next_uk_nextads_fs_pctr_model_input"
+    )
+    assert feature.primary_keys == (
+        "account_number",
+        "advert_id",
+        "reference_date",
+    )
+    assert feature.consumers == ("analytics_pctr",)
+
+
+def test_pctr_model_input_covers_the_existing_analytics_training_features():
+    training_notebook = PROJECT_ROOT / "experiments" / "analytics_pctr" / (
+        "train_model.py"
+    )
+    tree = ast.parse(training_notebook.read_text())
+    assignments = {
+        target.id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+        and target.id
+        in {"popularity_feature_columns", "affinity_feature_columns"}
+    }
+    training_features = set(assignments["popularity_feature_columns"])
+    training_features.update(assignments["affinity_feature_columns"])
+    training_features.remove("age_imputed")
+    training_features.add("age")
+
+    contract_columns = _sql_columns("next_uk_nextads_fs_pctr_model_input")
+
+    assert training_features.issubset(contract_columns)
+    assert {"ad_clicked", "treatment_type", "location"}.issubset(
+        contract_columns
+    )
 
 
 def test_account_advert_affinity_matches_the_location_independent_source():
@@ -446,7 +483,7 @@ def test_empty_dev_scaffold_migration_dry_run_does_not_drop_table():
     assert spark.sql_calls == []
 
 
-def test_account_affinity_is_the_only_new_empty_scaffold_migration():
+def test_account_affinity_and_analytics_pctr_allow_empty_dev_migration():
     from pyspark.sql import types as T
 
     spark = _ExistingSpark(
@@ -470,6 +507,14 @@ def test_account_affinity_is_the_only_new_empty_scaffold_migration():
     assert migrated == [
         f"marketingdata_dev.feature_schema.{account_affinity}"
     ]
+    pctr_model_input = "next_uk_nextads_fs_pctr_model_input"
+    assert migrate_empty_dev_scaffolds(
+        spark,
+        "marketingdata_dev",
+        "feature_schema",
+        [pctr_model_input],
+        dry_run=True,
+    ) == [f"marketingdata_dev.feature_schema.{pctr_model_input}"]
     with pytest.raises(ValueError, match="Unsupported empty scaffold"):
         migrate_empty_dev_scaffolds(
             spark,
@@ -905,6 +950,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     assert "next_uk_nextads_fs_account_advert_affinity_daily" in (
         migrated_scaffolds
     )
+    assert "next_uk_nextads_fs_pctr_model_input" in migrated_scaffolds
     assert "next_uk_nextads_fs_session_context_daily" not in (
         migrated_scaffolds
     )

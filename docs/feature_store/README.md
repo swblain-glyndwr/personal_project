@@ -59,8 +59,8 @@
 | State | Count | Current coverage |
 | --- | ---: | --- |
 | `ACTIVE` | 17 | Account, web activity, advert, item, embedding, affinity, session, Theme Affinity, labels and quality tables with implemented builders. |
-| `COMPATIBILITY` | 2 | Theme Affinity model and training inputs retained during migration. |
-| `SCAFFOLD` | 1 | The assembled pCTR model input still needs its approved session-level training source and materialiser. |
+| `COMPATIBILITY` | 3 | Theme Affinity inputs and the Analytics pCTR model input retained while their model routes move onto shared contracts. |
+| `SCAFFOLD` | 0 | Every registered physical contract now has a repository builder. Live DEV proof is still required before calling the store complete. |
 
 - These counts describe repository contracts, not live DEV completion. `DEV_COMPLETE` requires every intended physical contract and both compatibility views to meet the migration-backlog exit gate.
 
@@ -107,7 +107,7 @@ The final quality task derives its coverage from the same registry and writes on
 | `CURRENT_IMPLEMENTED_PASS` | Every non-skipped implemented contract passed physical schema, Feature Engineering key, scoped commit-recency and row/key checks, and every implemented-source compatibility view matched its declared source and row/key evidence. |
 | `current_implemented_complete` | `true` only when none of the 13 implemented contracts was skipped and every implemented-source view is ready. |
 | `dev_complete` | `true` only when current implemented coverage is complete, every intended feature is implemented, no scaffolds remain and both views are ready. |
-| `BLOCKED` | The compatibility view resolves a source that is still a scaffold; the job does not present it as operational. |
+| `BLOCKED` | The compatibility view resolves a source with missing contracts; the job does not present it as operational. |
 
 The normal daily job keeps the on-demand Theme Affinity training build at `skip`, so its manifest must report that table in `skipped_current_contracts` and keep `current_implemented_complete=false`. Supply an explicit historical `theme_training_reference_date` to build and audit that exact partition.
 
@@ -124,7 +124,7 @@ The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mo
 | Exact-revision proof | Run `373370623960025` completed `SUCCESS` in 152.8 minutes from revision `e96485e931576695205787227eaa20297c76d0d5`. One worker was lost to a cloud communication health check during the click-label shuffle; Databricks restored the cluster to four workers and the task completed without a code retry. |
 | Audit manifest | `CURRENT_IMPLEMENTED_PASS`; 13 implemented contracts, two compatibility views, seven scaffolds, no failed current contracts and one intentionally skipped Theme Affinity training-input contract. `current_implemented_complete=false` and `dev_complete=false` remain truthful. |
 | Label evidence | Click labels: 407,436 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 17. Theme response labels: 3,971,236,814 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 16. |
-| Compatibility views | `next_uk_nextads_theme_affinity_features_latest` is `READY` with 1,264,725,100 rows. `next_uk_nextads_pctr_features_latest` remains `BLOCKED` until its approved Shopping Bag pCTR source and materializer exist. |
+| Compatibility views | At revision `e96485e`, `next_uk_nextads_theme_affinity_features_latest` was `READY` with 1,264,725,100 rows and the pCTR view was still blocked. The current Analytics pCTR contract removes that repository blocker but needs a fresh linked DEV run before it can be claimed as live. |
 | Environment boundary | All writes were limited to `marketingdata_dev.stephen_blain`. This evidence does not activate shared DEV, DEV Integration, PREPROD, PROD or realtime resources. |
 
 | Remaining boundary | Evidence and required follow-up |
@@ -175,12 +175,12 @@ The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mo
 | Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | pCTR |
 | Theme latest model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity, LTR |
 | Theme labelled training input | `next_uk_nextads_fs_theme_affinity_training_input` | Account/theme/reference date | Theme Affinity |
-| pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/location/session/reference date | pCTR |
+| Analytics pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/reference date | Analytics pCTR |
 | Click labels | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | pCTR, LTR |
 | Theme labels | `next_uk_nextads_fs_labels_theme_response` | Account/theme/reference date/label | Theme Affinity, LTR |
 | Quality events | `next_uk_nextads_fs_feature_quality_events` | Table/check/run timestamp | Feature-store operations |
 | Theme compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Current Theme Affinity model shape | Theme Affinity, LTR |
-| pCTR compatibility view | `next_uk_nextads_pctr_features_latest` | Current pCTR model shape | pCTR |
+| Analytics pCTR compatibility view | `next_uk_nextads_pctr_features_latest` | Current Analytics pCTR model shape | Analytics pCTR |
 
 ## Ownership and Refresh
 

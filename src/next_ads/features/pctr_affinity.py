@@ -16,11 +16,54 @@ from next_ads.features.analytics_pctr_source import (
 
 __all__ = [
     "DeltaSourceBinding",
+    "ANALYTICS_PCTR_MODEL_INPUT_COLUMNS",
     "bind_analytics_pctr_source",
+    "build_analytics_pctr_model_input_frame",
     "parse_optional_delta_version",
     "parse_reference_date",
     "serialise_source_binding",
 ]
+
+
+ANALYTICS_PCTR_MODEL_INPUT_COLUMNS = (
+    "account_number",
+    "advert_id",
+    "reference_date",
+    "ad_clicked",
+    "treatment_type",
+    "location",
+    "age",
+    "cash_acc",
+    "advert_ctr",
+    "device_ctr",
+    "geo_ctr",
+    "gender_ctr",
+    "dod_ctr_change",
+    "wow_ctr_change",
+    "number_pages_viewed",
+    "prior_30_day_order_value",
+    "customer_total_clicks",
+    "customer_total_unique_adverts_clicked",
+    "customer_advert_previous_click_number",
+    "number_clicks_same_algodivision",
+    "advert_impressions",
+    "device_impressions",
+    "geo_impressions",
+    "gender_impressions",
+    "day_impressions",
+    "prior_day_impressions",
+    "view_theme_score",
+    "perc_order_value_cat_affinity",
+    "perc_30_day_order_value_cat_affinity",
+    "perc_order_qty_cat_affinity",
+    "view_highest_catid_weight",
+    "view_lift_adjusted",
+    "purchase_highest_catid_weight",
+    "purchase_lift_adjusted",
+    "purchase_theme_affinity",
+    "created_at",
+    "updated_at",
+)
 
 
 ACCOUNT_ADVERT_AFFINITY_COLUMNS = (
@@ -268,6 +311,93 @@ def build_account_advert_affinity_frame(
         description="Account-advert affinity output",
     )
     return output.select(*ACCOUNT_ADVERT_AFFINITY_COLUMNS)
+
+
+def build_analytics_pctr_model_input_frame(
+    analytics_pctr_output: Any,
+    reference_date: str | date,
+):
+    """Publish the exact inputs used by the existing Analytics pCTR models."""
+    from pyspark.sql import functions as F
+
+    resolved_date = parse_reference_date(reference_date)
+    lookup = _column_lookup(analytics_pctr_output, "Analytics pCTR output")
+    account_column = _resolve_column(
+        lookup,
+        ("account_number",),
+        description="Analytics pCTR account number",
+    )
+    advert_column = _resolve_column(
+        lookup,
+        ("uniqueadid", "unique_ad_id", "advert_id"),
+        description="Analytics pCTR advert ID",
+    )
+    source_date_column = _resolve_column(
+        lookup,
+        ("rundate", "reference_date"),
+        description="Analytics pCTR reference date",
+    )
+
+    typed_source_columns = {
+        "ad_clicked": "int",
+        "treatment_type": "string",
+        "location": "int",
+        "age": "int",
+        "cash_acc": "int",
+        "advert_ctr": "double",
+        "device_ctr": "double",
+        "geo_ctr": "double",
+        "gender_ctr": "double",
+        "dod_ctr_change": "double",
+        "wow_ctr_change": "double",
+        "number_pages_viewed": "int",
+        "prior_30_day_order_value": "double",
+        "customer_total_clicks": "int",
+        "customer_total_unique_adverts_clicked": "int",
+        "customer_advert_previous_click_number": "int",
+        "number_clicks_same_algodivision": "int",
+        "advert_impressions": "int",
+        "device_impressions": "int",
+        "geo_impressions": "int",
+        "gender_impressions": "int",
+        "day_impressions": "int",
+        "prior_day_impressions": "int",
+        "view_theme_score": "double",
+        "perc_order_value_cat_affinity": "double",
+        "perc_30_day_order_value_cat_affinity": "double",
+        "perc_order_qty_cat_affinity": "double",
+        "view_highest_catid_weight": "double",
+        "view_lift_adjusted": "double",
+        "purchase_highest_catid_weight": "double",
+        "purchase_lift_adjusted": "double",
+        "purchase_theme_affinity": "double",
+    }
+    output = analytics_pctr_output.where(
+        F.to_date(F.col(source_date_column)) == F.lit(resolved_date)
+    ).select(
+        F.trim(F.col(account_column).cast("string")).alias("account_number"),
+        F.trim(F.col(advert_column).cast("string")).alias("advert_id"),
+        F.lit(resolved_date).cast("date").alias("reference_date"),
+        *(
+            _required_cast(lookup, (column_name,), spark_type).alias(
+                column_name
+            )
+            for column_name, spark_type in typed_source_columns.items()
+        ),
+        F.current_timestamp().alias("created_at"),
+        F.current_timestamp().alias("updated_at"),
+    )
+
+    _validate_non_empty(
+        output,
+        f"Analytics pCTR model input for {resolved_date.isoformat()}",
+    )
+    _validate_keys(
+        output,
+        ("account_number", "advert_id", "reference_date"),
+        description="Analytics pCTR model input",
+    )
+    return output.select(*ANALYTICS_PCTR_MODEL_INPUT_COLUMNS)
 
 
 def _validate_country_mapping(country_mapping: Any) -> Any:

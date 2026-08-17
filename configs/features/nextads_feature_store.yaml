@@ -208,16 +208,17 @@ feature_store:
       consumers: [theme_affinity]
     - name: next_uk_nextads_fs_pctr_model_input
       entity: account_advert
-      grain: one row per account, advert, location, session date, and reference date
-      primary_keys: [account_number, advert_id, location, session_date, reference_date]
+      grain: one Analytics pCTR feature row per account, advert, and reference date
+      primary_keys: [account_number, advert_id, reference_date]
       timestamp_key: reference_date
-      source_job: build_model_inputs
+      source_job: build_pctr_affinity_features
+      builder: build_pctr_affinity_features
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [approved_shopping_bag_pctr_source, materializer]
+      state: COMPATIBILITY
+      preflight_mode: BUILDER
       training_safe: true
-      consumers: [pctr]
+      consumers: [analytics_pctr]
     - name: next_uk_nextads_fs_labels_clicks
       entity: label
       grain: one row per account, advert, location, session date, and label horizon
@@ -258,6 +259,6 @@ feature_store:
       source_feature: next_uk_nextads_fs_theme_affinity_model_input
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_pctr_features_latest
-      source_job: build_model_inputs
+      source_job: build_pctr_affinity_features
       source_feature: next_uk_nextads_fs_pctr_model_input
-      consumers: [pctr]
+      consumers: [analytics_pctr]

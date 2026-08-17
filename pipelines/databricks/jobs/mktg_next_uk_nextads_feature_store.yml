@@ -86,6 +86,8 @@ nextads_feature_store_job: &nextads_feature_store_job
           - next_uk_nextads_fs_seasonal_product_demand_daily
           - --empty_scaffold_migration
           - next_uk_nextads_fs_account_advert_affinity_daily
+          - --empty_scaffold_migration
+          - next_uk_nextads_fs_pctr_model_input
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

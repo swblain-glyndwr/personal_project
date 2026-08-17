@@ -2,6 +2,8 @@
 
 This is the route a NextAds model author will follow. It starts with the decision the model should improve and ends with a challenger that can be evaluated without changing the current customer route.
 
+The existing Analytics pCTR is the first model being brought onto this route and will remain its own `EVALUATE` provider. The Shopping Bag pCTR example below is a separate model that will be rebuilt afterwards to demonstrate how a new author starts from the reusable Feature Store contracts.
+
 ## 1. Write Down The Decision
 
 Complete this short brief before choosing an algorithm or opening a training notebook.
@@ -114,7 +116,7 @@ The author should be able to show the following links in order.
 
 | Capability | Current position |
 | --- | --- |
-| Named offline features and contracts | Implemented for 19 of 20 physical contracts; the assembled pCTR model input remains a scaffold. |
+| Named offline features and contracts | All 20 physical contracts have builders. The Analytics pCTR model input is populated from the exact versioned Analytics feature output. |
 | Exact build identity and Delta write receipts | Being completed in the offline DEV PR. |
 | READY Feature Snapshot resolution | Persistence contracts exist; full DEV job finalisation and evidence are still required. |
 | Declarative training set and receipt | Model-development-kit PR. |

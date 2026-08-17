@@ -96,10 +96,6 @@ def main() -> None:
         **feature_write_kwargs(args),
     )
     LOGGER.info("Wrote click-label feature table: %s", table_path)
-    LOGGER.info(
-        "pCTR model input remains dependency-only until CWB analytics pCTR "
-        "source contracts are wired into this branch."
-    )
 
 
 if __name__ == "__main__":

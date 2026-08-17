@@ -64,6 +64,7 @@ def test_registry_selects_active_builder_outputs_and_excludes_scaffolds():
     ] == [
         "next_uk_nextads_fs_account_advert_affinity_daily",
         "next_uk_nextads_fs_session_context_daily",
+        "next_uk_nextads_fs_pctr_model_input",
     ]
     assert [
         feature.name

@@ -14,12 +14,14 @@ from next_ads.features.analytics_pctr_source import (
 )
 from next_ads.features.pctr_affinity import (
     ACCOUNT_ADVERT_AFFINITY_COLUMNS,
+    ANALYTICS_PCTR_MODEL_INPUT_COLUMNS,
     CUSTOMER_ADVERT_IMPRESSIONS_30D_SOURCE_COLUMNS,
     RULES_BASED_PCTR_SOURCE_COLUMNS,
     SESSION_CONTEXT_COLUMNS,
     DeltaSourceBinding,
     bind_analytics_pctr_source,
     build_account_advert_affinity_frame,
+    build_analytics_pctr_model_input_frame,
     build_session_context_frame,
     parse_optional_delta_version,
     serialise_source_binding,
@@ -382,6 +384,77 @@ def test_account_advert_adapter_requires_the_approved_affinity_fields(
         ValueError, match="viewed_latest_advert_catid_affinity"
     ):
         build_account_advert_affinity_frame(source, REFERENCE_DATE)
+
+
+def _analytics_model_input(local_spark):
+    from pyspark.sql import functions as F
+
+    source = _analytics_output(local_spark)
+    typed_values = {
+        "ad_clicked": (1, "int"),
+        "treatment_type": ("Best", "string"),
+        "age": (42, "int"),
+        "cash_acc": (1, "int"),
+        "advert_ctr": (0.11, "double"),
+        "device_ctr": (0.12, "double"),
+        "geo_ctr": (0.13, "double"),
+        "gender_ctr": (0.14, "double"),
+        "dod_ctr_change": (0.01, "double"),
+        "wow_ctr_change": (0.02, "double"),
+        "number_pages_viewed": (8, "int"),
+        "prior_30_day_order_value": (75.5, "double"),
+        "customer_total_clicks": (3, "int"),
+        "customer_total_unique_adverts_clicked": (2, "int"),
+        "customer_advert_previous_click_number": (1, "int"),
+        "number_clicks_same_algodivision": (2, "int"),
+        "advert_impressions": (120, "int"),
+        "device_impressions": (80, "int"),
+        "geo_impressions": (70, "int"),
+        "gender_impressions": (60, "int"),
+        "day_impressions": (15, "int"),
+        "prior_day_impressions": (12, "int"),
+        "view_theme_score": (0.2, "double"),
+        "perc_order_value_cat_affinity": (0.3, "double"),
+        "perc_30_day_order_value_cat_affinity": (0.4, "double"),
+        "perc_order_qty_cat_affinity": (0.5, "double"),
+        "view_highest_catid_weight": (0.6, "double"),
+        "purchase_highest_catid_weight": (0.7, "double"),
+        "purchase_theme_affinity": (0.8, "double"),
+    }
+    for column_name, (value, spark_type) in typed_values.items():
+        source = source.withColumn(
+            column_name,
+            F.lit(value).cast(spark_type),
+        )
+    return source
+
+
+def test_analytics_model_input_preserves_the_existing_model_features(
+    local_spark,
+):
+    result = build_analytics_pctr_model_input_frame(
+        _analytics_model_input(local_spark),
+        REFERENCE_DATE,
+    )
+    row = result.collect()[0]
+
+    assert tuple(result.columns) == ANALYTICS_PCTR_MODEL_INPUT_COLUMNS
+    assert row.account_number == "A-1"
+    assert row.advert_id == "P1_C1_V1"
+    assert row.reference_date == REFERENCE_DATE
+    assert row.ad_clicked == 1
+    assert row.advert_ctr == pytest.approx(0.11)
+    assert row.view_lift_adjusted == pytest.approx(1.25)
+    assert row.purchase_lift_adjusted == pytest.approx(0.75)
+
+
+def test_analytics_model_input_requires_every_existing_model_feature(
+    local_spark,
+):
+    source = _analytics_model_input(local_spark).drop("advert_ctr")
+
+    with pytest.raises(ValueError, match="advert_ctr"):
+        build_analytics_pctr_model_input_frame(source, REFERENCE_DATE)
 
 
 def _session_sources(local_spark, *, ambiguous=False):

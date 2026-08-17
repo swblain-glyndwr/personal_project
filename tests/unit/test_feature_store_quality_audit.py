@@ -72,13 +72,18 @@ class _ViewSpark:
         self.sql_calls.append(query)
         if self.error:
             raise self.error
+        source_table = (
+            "next_uk_nextads_fs_pctr_model_input"
+            if "next_uk_nextads_pctr_features_latest" in query
+            else "next_uk_nextads_fs_theme_affinity_model_input"
+        )
         return _HistoryResult(
             [
                 {
                     "createtab_stmt": (
                         "CREATE VIEW example AS SELECT * FROM "
                         "marketingdata_dev.nextads_feature_store."
-                        "next_uk_nextads_fs_theme_affinity_model_input"
+                        + source_table
                     )
                 }
             ]
@@ -238,9 +243,9 @@ def test_manifest_reports_registry_coverage_without_claiming_dev_complete(
     pctr_view = contracts["next_uk_nextads_pctr_features_latest"]
     assert theme_view["status"] == "READY"
     assert theme_view["row_count"] == 10
-    assert pctr_view["status"] == "BLOCKED"
-    assert pctr_view["source_state"] == "SCAFFOLD"
-    assert pctr_view["row_count"] is None
+    assert pctr_view["status"] == "READY"
+    assert pctr_view["source_state"] == "COMPATIBILITY"
+    assert pctr_view["row_count"] == 10
 
     required_fields = {
         "physical_path",
@@ -340,18 +345,22 @@ def test_implemented_view_is_physically_read_and_counted(monkeypatch):
 
     assert spark.table_calls == [
         "marketingdata_dev.nextads_feature_store."
-        "next_uk_nextads_theme_affinity_features_latest"
+        "next_uk_nextads_theme_affinity_features_latest",
+        "marketingdata_dev.nextads_feature_store."
+        "next_uk_nextads_pctr_features_latest",
     ]
     assert spark.sql_calls == [
         "SHOW CREATE TABLE marketingdata_dev.nextads_feature_store."
-        "next_uk_nextads_theme_affinity_features_latest"
+        "next_uk_nextads_theme_affinity_features_latest",
+        "SHOW CREATE TABLE marketingdata_dev.nextads_feature_store."
+        "next_uk_nextads_pctr_features_latest",
     ]
     assert entries[0]["status"] == "READY"
     assert entries[0]["row_count"] == 10
-    assert entries[1]["status"] == "BLOCKED"
+    assert entries[1]["status"] == "READY"
 
 
-def test_unreadable_implemented_view_fails_without_reading_scaffold_view(
+def test_unreadable_implemented_views_are_each_reported_as_failed(
     monkeypatch,
 ):
     registry = load_feature_store_registry()
@@ -365,11 +374,12 @@ def test_unreadable_implemented_view_fails_without_reading_scaffold_view(
         "nextads_feature_store",
     )
 
-    assert len(spark.table_calls) == 1
+    assert len(spark.table_calls) == 2
     assert not spark.sql_calls
     assert entries[0]["status"] == "FAIL"
     assert "view missing" in entries[0]["error"]
-    assert entries[1]["status"] == "BLOCKED"
+    assert entries[1]["status"] == "FAIL"
+    assert "view missing" in entries[1]["error"]
 
 
 def test_implemented_view_requires_source_row_and_key_parity(monkeypatch):

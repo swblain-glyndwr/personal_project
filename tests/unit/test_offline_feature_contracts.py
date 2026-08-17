@@ -42,10 +42,9 @@ ACTIVE_FEATURES = {
 COMPATIBILITY_FEATURES = {
     "next_uk_nextads_fs_theme_affinity_model_input",
     "next_uk_nextads_fs_theme_affinity_training_input",
-}
-SCAFFOLD_FEATURES = {
     "next_uk_nextads_fs_pctr_model_input",
 }
+SCAFFOLD_FEATURES = set()
 IMPLEMENTED_BUILDERS = {
     "next_uk_nextads_fs_account_profile": "build_account_features",
     "next_uk_nextads_fs_account_web_activity_90d": "build_account_features",
@@ -79,6 +78,9 @@ IMPLEMENTED_BUILDERS = {
         "build_pctr_affinity_features"
     ),
     "next_uk_nextads_fs_session_context_daily": (
+        "build_pctr_affinity_features"
+    ),
+    "next_uk_nextads_fs_pctr_model_input": (
         "build_pctr_affinity_features"
     ),
     "next_uk_nextads_fs_theme_affinity_model_input": "build_model_inputs",
@@ -282,12 +284,8 @@ def test_unknown_feature_states_are_rejected(tmp_path):
 
 def test_scaffold_missing_contracts_are_required(tmp_path):
     raw_registry = _registry_config()
-    scaffold = next(
-        feature
-        for feature in raw_registry["feature_store"]["physical_tables"]
-        if feature["state"] == "SCAFFOLD"
-    )
-    scaffold.pop("missing_contracts")
+    scaffold = raw_registry["feature_store"]["physical_tables"][0]
+    scaffold["state"] = "SCAFFOLD"
 
     with pytest.raises(ValueError, match="must declare missing_contracts"):
         load_feature_store_registry(_write_registry(tmp_path, raw_registry))
@@ -318,11 +316,8 @@ def test_feature_contract_lists_reject_scalars_blanks_and_duplicates(
 ):
     raw_registry = _registry_config()
     if field_name == "missing_contracts":
-        feature = next(
-            item
-            for item in raw_registry["feature_store"]["physical_tables"]
-            if item["state"] == "SCAFFOLD"
-        )
+        feature = raw_registry["feature_store"]["physical_tables"][0]
+        feature["state"] = "SCAFFOLD"
     else:
         feature = raw_registry["feature_store"]["physical_tables"][0]
     feature[field_name] = invalid_value

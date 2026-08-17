@@ -116,9 +116,9 @@ def test_main_pins_analytics_output_and_writes_both_registered_tables(
         default_schema="unused",
         table_spec=lambda table_name: SimpleNamespace(
             timestamp_key=(
-                "reference_date"
-                if table_name == job.AFFINITY_TABLE
-                else "session_date"
+                "session_date"
+                if table_name == job.SESSION_TABLE
+                else "reference_date"
             ),
             write_mode="merge",
         ),
@@ -192,6 +192,11 @@ def test_main_pins_analytics_output_and_writes_both_registered_tables(
         "build_account_advert_affinity_frame",
         lambda frame, run_date: "affinity-output",
     )
+    monkeypatch.setattr(
+        job,
+        "build_analytics_pctr_model_input_frame",
+        lambda frame, run_date: "pctr-model-input",
+    )
 
     def build_sessions(*frames):
         calls["session_builder"] = frames
@@ -240,15 +245,21 @@ def test_main_pins_analytics_output_and_writes_both_registered_tables(
     )
     assert calls["ownership"] == (
         job.BUILDER,
-        (job.AFFINITY_TABLE, job.SESSION_TABLE),
+        (
+            job.AFFINITY_TABLE,
+            job.PCTR_MODEL_INPUT_TABLE,
+            job.SESSION_TABLE,
+        ),
         registry,
     )
     assert [write[0][1:3] for write in calls["writes"]] == [
         (job.AFFINITY_TABLE, "affinity-output"),
+        (job.PCTR_MODEL_INPUT_TABLE, "pctr-model-input"),
         (job.SESSION_TABLE, "session-output"),
     ]
     assert calls["writes"][0][1]["reference_date_column"] == ("reference_date")
-    assert calls["writes"][1][1]["reference_date_column"] == "session_date"
+    assert calls["writes"][1][1]["reference_date_column"] == "reference_date"
+    assert calls["writes"][2][1]["reference_date_column"] == "session_date"
     assert all(
         write[1]["feature_engineering_client"] is client
         for write in calls["writes"]

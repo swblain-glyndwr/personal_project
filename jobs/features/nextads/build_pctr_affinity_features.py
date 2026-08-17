@@ -1,4 +1,4 @@
-"""Build account-advert affinity and session-context feature tables."""
+"""Build Analytics pCTR, account-advert, and session feature tables."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from next_ads.features.materialization import (
 )
 from next_ads.features.nextads_core import resolve_reference_date_from_theme
 from next_ads.features.pctr_affinity import (
+    build_analytics_pctr_model_input_frame,
     build_account_advert_affinity_frame,
     build_session_context_frame,
 )
@@ -35,6 +36,7 @@ LOGGER = logging.getLogger(__name__)
 BUILDER = "build_pctr_affinity_features"
 AFFINITY_TABLE = "next_uk_nextads_fs_account_advert_affinity_daily"
 SESSION_TABLE = "next_uk_nextads_fs_session_context_daily"
+PCTR_MODEL_INPUT_TABLE = "next_uk_nextads_fs_pctr_model_input"
 
 
 @dataclass(frozen=True)
@@ -163,6 +165,12 @@ def main() -> None:
         AFFINITY_TABLE: build_account_advert_affinity_frame(
             analytics_output,
             reference_date,
+        ),
+        PCTR_MODEL_INPUT_TABLE: (
+            build_analytics_pctr_model_input_frame(
+                analytics_output,
+                reference_date,
+            )
         ),
         SESSION_TABLE: build_session_context_frame(
             session_sources["web_sessions"],
