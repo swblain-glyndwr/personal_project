@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_advert_advert_association (
     ViewUniqueAdID STRING NOT NULL,
-    ViewCMSPageID STRING , 
+    ViewCMSPageID STRING ,
     AtbUniqueAdID STRING NOT NULL,
-    AtbCMSPageID STRING , 
-    number_views_atbs double, 
+    AtbCMSPageID STRING ,
+    number_views_atbs double,
     number_views double,
     number_atbs double,
     support_views double,
@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_advert_advert_ass
     lift_adjusted_ranking int,
     intersection_count int,
     overlap_proportion double NOT NULL,
-    HomePage boolean not null, 
+    HomePage boolean not null,
     CheckoutPage boolean not null,
     ProductListingPage boolean not null,
-    ShoppingBagPage boolean not null, 
+    ShoppingBagPage boolean not null,
     rundate date not null,
     constraint pk_{client}_nextads_advert_advert_association primary key (
         ViewUniqueAdID,
@@ -29,4 +29,3 @@ USING DELTA
 PARTITIONED BY (viewuniqueadid, rundate)
 TBLPROPERTIES('delta.enableChangeDataFeed'= 'true' )
 ;
-

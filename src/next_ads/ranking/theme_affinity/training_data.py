@@ -3,6 +3,8 @@ from dataclasses import asdict, dataclass
 from pyspark.sql import Window
 from pyspark.sql import functions as F
 
+from next_ads.common.determinism import stable_fraction, stable_hash
+
 
 ACCOUNT_COL = "account_number"
 LABEL_COL = "label"
@@ -155,9 +157,12 @@ def split_training_frame(base_df, train_ratio: float, test_ratio: float):
     account_metadata = (
         base_df.groupBy(ACCOUNT_COL)
         .agg(F.max(LABEL_COL).alias("stratify_label"))
-        .withColumn("rand", F.rand(seed=42))
+        .withColumn("_split_hash", stable_hash(ACCOUNT_COL, seed=42))
     )
-    stratify_window = Window.partitionBy("stratify_label").orderBy("rand")
+    stratify_window = Window.partitionBy("stratify_label").orderBy(
+        F.col("_split_hash").asc(),
+        F.col(ACCOUNT_COL).asc(),
+    )
     total_window = Window.partitionBy("stratify_label")
     account_splits = (
         account_metadata.withColumn(
@@ -337,10 +342,10 @@ def _build_group_metadata(df, frame_config: TrainingFrameConfig, group_keys: lis
     ]
     if "repurchase_stage" in df.columns:
         aggregations.append(
-            F.first("repurchase_stage", ignorenulls=True).alias("repurchase_stage")
+            F.min("repurchase_stage").alias("repurchase_stage")
         )
     if "GmaName" in df.columns:
-        aggregations.append(F.first("GmaName", ignorenulls=True).alias("GmaName"))
+        aggregations.append(F.min("GmaName").alias("GmaName"))
     if "user_total_views" in df.columns:
         aggregations.append(
             F.avg(F.col("user_total_views").cast("double")).alias("user_total_views")
@@ -364,12 +369,14 @@ def _build_group_metadata(df, frame_config: TrainingFrameConfig, group_keys: lis
         "user_total_views",
         ACTIVITY_BUCKET_COL,
         frame_config.activity_bucket_count,
+        group_keys,
     )
     metadata = _with_ntile_bucket(
         metadata,
         "num_retrieval_methods",
         RETRIEVAL_BUCKET_COL,
         frame_config.retrieval_bucket_count,
+        group_keys,
     )
     return _with_group_stratum(metadata, frame_config)
 
@@ -395,10 +402,19 @@ def _sample_groups(group_metadata, frame_config: TrainingFrameConfig, group_keys
             fraction = max(fraction, frame_config.min_positive_group_fraction)
         fractions[stratum] = min(1.0, fraction)
 
-    sampled = group_metadata.sampleBy(
-        GROUP_STRATUM_COL,
-        fractions=fractions,
-        seed=frame_config.random_seed,
+    sampled = (
+        group_metadata.withColumn(
+            "_sample_fraction",
+            _fraction_lookup(F.col(GROUP_STRATUM_COL), fractions),
+        )
+        .where(
+            stable_fraction(
+                *group_keys,
+                seed=frame_config.random_seed,
+            )
+            < F.col("_sample_fraction")
+        )
+        .drop("_sample_fraction")
     )
     sampled_count = sampled.count()
     if sampled_count > frame_config.max_accounts:
@@ -423,15 +439,33 @@ def _sample_candidates(df, frame_config: TrainingFrameConfig, group_keys: list[s
         frame_config.candidate_rank_band_fractions
         or DEFAULT_CANDIDATE_RANK_BAND_FRACTIONS,
     )
-    sampled_negatives = negatives.sampleBy(
-        CANDIDATE_STRATUM_COL,
-        fractions=candidate_fractions,
-        seed=frame_config.random_seed,
+    candidate_hash_columns = _candidate_hash_columns(negatives)
+    sampled_negatives = (
+        negatives.withColumn(
+            "_sample_fraction",
+            _fraction_lookup(
+                F.col(CANDIDATE_STRATUM_COL),
+                candidate_fractions,
+            ),
+        )
+        .where(
+            stable_fraction(
+                *candidate_hash_columns,
+                seed=frame_config.random_seed,
+            )
+            < F.col("_sample_fraction")
+        )
+        .drop("_sample_fraction")
     )
     sampled = positives.unionByName(sampled_negatives)
+    sample_key_columns = _candidate_hash_columns(sampled)
     candidate_window = Window.partitionBy(*group_keys).orderBy(
         F.when(F.col(LABEL_COL) > F.lit(0), F.lit(0)).otherwise(F.lit(1)).asc(),
-        _stable_hash_expr(_candidate_hash_columns(sampled), frame_config.random_seed),
+        stable_hash(
+            *sample_key_columns,
+            seed=frame_config.random_seed,
+        ).asc(),
+        *[F.col(column).asc_nulls_first() for column in sample_key_columns],
     )
     return (
         sampled.withColumn("candidate_sample_row", F.row_number().over(candidate_window))
@@ -455,6 +489,15 @@ def _candidate_sample_fractions(negative_df, rank_band_fractions: dict[str, floa
         )
         for row in rows
     }
+
+
+def _fraction_lookup(stratum, fractions: dict[str, float]):
+    entries = []
+    for key in sorted(fractions):
+        entries.extend([F.lit(key), F.lit(float(fractions[key]))])
+    if not entries:
+        raise ValueError("At least one sampling fraction is required")
+    return F.element_at(F.create_map(*entries), stratum)
 
 
 def _with_group_stratum(df, frame_config: TrainingFrameConfig):
@@ -495,10 +538,20 @@ def _with_rank_band(df, frame_config: TrainingFrameConfig):
     return df.withColumn(RANK_BAND_COL, expr.otherwise(F.lit(f"rank_gt_{edges[-1]}")))
 
 
-def _with_ntile_bucket(df, source_col: str, bucket_col: str, bucket_count: int):
+def _with_ntile_bucket(
+    df,
+    source_col: str,
+    bucket_col: str,
+    bucket_count: int,
+    group_keys: list[str],
+):
     if source_col not in df.columns:
         return df.withColumn(bucket_col, F.lit("missing"))
-    bucket_window = Window.orderBy(F.col(source_col).asc_nulls_first())
+    bucket_window = Window.orderBy(
+        F.col(source_col).asc_nulls_first(),
+        stable_hash(*group_keys, seed=0).asc(),
+        *[F.col(column).asc_nulls_first() for column in group_keys],
+    )
     return df.withColumn(
         bucket_col,
         F.when(F.col(source_col).isNull(), F.lit("missing")).otherwise(
@@ -512,7 +565,8 @@ def _with_ntile_bucket(df, source_col: str, bucket_col: str, bucket_count: int):
 
 def _cap_groups(sampled_groups, frame_config: TrainingFrameConfig, group_keys: list[str]):
     cap_window = Window.orderBy(
-        _stable_hash_expr(group_keys, frame_config.random_seed),
+        stable_hash(*group_keys, seed=frame_config.random_seed).asc(),
+        *[F.col(column).asc_nulls_first() for column in group_keys],
     )
     return (
         sampled_groups.withColumn("group_sample_row", F.row_number().over(cap_window))
@@ -558,13 +612,6 @@ def _candidate_hash_columns(df) -> list[str]:
     if RANK_COL in df.columns:
         columns.append(RANK_COL)
     return columns
-
-
-def _stable_hash_expr(columns: list[str], seed: int):
-    return F.pmod(
-        F.xxhash64(*[F.col(column) for column in columns], F.lit(seed)),
-        F.lit(9223372036854775807),
-    ).asc()
 
 
 def _top_distribution(df, column: str, limit: int):

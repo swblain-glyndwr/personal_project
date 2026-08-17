@@ -157,7 +157,7 @@ def test_drop_tables_does_not_load_create_tables_module(monkeypatch):
         FakeSpark(),
         catalog="marketingdata_prod",
         schema="warehouse",
-        tables="next_uk_nextads_theme_affinity_predict_ranked",
+        tables="next_uk_nextads_account_theme_foundation_ranked",
         confirm_destructive=True,
         dry_run=False,
     )

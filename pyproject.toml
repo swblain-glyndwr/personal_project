@@ -131,6 +131,7 @@ schema = "ds_sandbox"
 client = "next_uk"
 
 [tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
 pythonpath = ["src", "."]
 markers = [
     "abfs_integration: marks tests as ABFS integration tests (deselect with '-m \"not abfs_integration\"')",

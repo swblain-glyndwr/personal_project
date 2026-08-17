@@ -1,9 +1,24 @@
+import hashlib
+import json
+
 from pyspark.sql import functions as F
-from pyspark.sql.types import IntegerType, StructField, StructType
+from pyspark.sql.types import StringType, StructField, StructType
+
+from next_ads.ranking.scoring_inputs import read_delta_version
 
 
-def load_control_ads(spark, control_sheet_latest: str):
-    return spark.table(control_sheet_latest)
+def load_control_ads(
+    spark,
+    control_sheet_latest: str,
+    control_sheet_delta_version: int | None = None,
+):
+    if control_sheet_delta_version is None:
+        return spark.table(control_sheet_latest)
+    return read_delta_version(
+        spark,
+        control_sheet_latest,
+        control_sheet_delta_version,
+    )
 
 
 def build_theme_to_ad_mapping(df_ads):
@@ -17,7 +32,11 @@ def build_theme_to_ad_mapping(df_ads):
 
 
 def load_customer_base(spark, customer_cells_latest: str):
-    return spark.table(customer_cells_latest).select("AccountNumber")
+    return customer_base_from_cells(spark.table(customer_cells_latest))
+
+
+def customer_base_from_cells(customer_cells):
+    return customer_cells.select("AccountNumber")
 
 
 def load_theme_scores(spark, theme_scores_latest: str, customer_base_df):
@@ -28,14 +47,78 @@ def load_theme_scores(spark, theme_scores_latest: str, customer_base_df):
     )
 
 
+def load_provider_theme_scores(
+    spark,
+    *,
+    provider_signals_table: str,
+    provider_signals_delta_version: int,
+    provider_build_id: str,
+    provider_source_run_date,
+    customer_base_df,
+    allowed_themes_df=None,
+):
+    """Read one immutable provider build through the canonical score contract."""
+    source = read_delta_version(
+        spark,
+        provider_signals_table,
+        provider_signals_delta_version,
+    )
+    required_columns = {
+        "ProviderBuildID",
+        "AccountNumber",
+        "EntityType",
+        "EntityID",
+        "RunDate",
+        "RawScore",
+        "Score",
+    }
+    missing = sorted(required_columns.difference(source.columns))
+    if missing:
+        raise ValueError(
+            "Provider signal table is missing columns: " + ", ".join(missing)
+        )
+
+    selected = (
+        source.where(F.col("ProviderBuildID") == provider_build_id)
+        .where(F.col("EntityType") == "theme")
+        .where(F.col("RunDate") == F.lit(provider_source_run_date))
+        .select(
+            "AccountNumber",
+            F.col("EntityID").alias("NextTheme"),
+            F.col("RawScore").alias("ProbBase"),
+            F.col("RawScore").alias("ProbAgg"),
+            F.col("Score").alias("ProbAggRebased"),
+        )
+    )
+    if allowed_themes_df is not None:
+        if "NextTheme" not in allowed_themes_df.columns:
+            raise ValueError("Allowed provider themes must contain NextTheme")
+        selected = selected.join(
+            F.broadcast(allowed_themes_df.select("NextTheme")),
+            "NextTheme",
+            "inner",
+        )
+    customer_scores = selected.join(
+        customer_base_df,
+        on="AccountNumber",
+        how="inner",
+    )
+    return customer_scores
+
+
 def build_ad_group_mappings(
     spark,
     control_sheet_latest: str,
     logger,
     group_col: str = "Location",
+    control_ads_df=None,
 ):
     source_ad2group = (
-        spark.table(control_sheet_latest)
+        (
+            control_ads_df
+            if control_ads_df is not None
+            else spark.table(control_sheet_latest)
+        )
         .where(F.col("AudienceOnly") != 1)
         .select("UniqueAdID", group_col)
         .distinct()
@@ -66,13 +149,9 @@ def build_ad_group_mappings(
         adset = tuple(sorted(ad_ids, key=str))
         adset_to_groups.setdefault(adset, set()).add(group)
 
-    ordered_adsets = sorted(
-        adset_to_groups,
-        key=lambda adset: "|".join(str(ad_id) for ad_id in adset),
-    )
+    ordered_adsets = sorted(adset_to_groups, key=_canonical_ad_set)
     adset_ids = {
-        adset: adset_id
-        for adset_id, adset in enumerate(ordered_adsets, start=1)
+        adset: _content_stable_ad_set_id(adset) for adset in ordered_adsets
     }
 
     adset_group_rows = [
@@ -92,7 +171,7 @@ def build_ad_group_mappings(
     ad_group_schema = source_ad2group.schema
     adset_group_schema = StructType(
         [
-            StructField("AdSetID", IntegerType(), nullable=False),
+            StructField("AdSetID", StringType(), nullable=False),
             StructField(
                 group_col,
                 ad_group_schema[group_col].dataType,
@@ -107,7 +186,7 @@ def build_ad_group_mappings(
                 ad_group_schema["UniqueAdID"].dataType,
                 nullable=True,
             ),
-            StructField("AdSetID", IntegerType(), nullable=False),
+            StructField("AdSetID", StringType(), nullable=False),
         ]
     )
 
@@ -135,6 +214,21 @@ def build_ad_group_mappings(
         logger.info(f"AdSetID {adset_ids[adset]}: {group_col} [{groups}]")
 
     return df_ad2group, df_adset2group, df_ad2adset
+
+
+def _canonical_ad_set(ad_ids) -> str:
+    return json.dumps(
+        [str(ad_id) for ad_id in ad_ids],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def _content_stable_ad_set_id(ad_ids) -> str:
+    digest = hashlib.sha256(
+        _canonical_ad_set(ad_ids).encode("utf-8")
+    ).hexdigest()
+    return f"adset_{digest[:24]}"
 
 
 def build_ad_location_mappings(spark, control_sheet_latest: str, logger):

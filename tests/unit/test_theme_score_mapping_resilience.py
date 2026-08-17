@@ -36,4 +36,5 @@ def test_remaining_ranking_windows_use_deterministic_total_orders():
     assert 'F.col("AccountNumber").asc()' in eligibility_source
     assert 'F.col("AdSeen").asc_nulls_last()' in ranking_source
     assert "break lineage" not in mapping_source
-    assert "Caching deterministic final results" in mapping_source
+    assert ".cache(" not in mapping_source
+    assert ".persist(" not in mapping_source

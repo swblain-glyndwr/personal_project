@@ -7,8 +7,15 @@ import string
 from typing import Any
 
 
-def calculate_target_month(reference_date: str) -> dict[str, str]:
-    ref_date = _resolve_reference_date(reference_date)
+def calculate_target_month(
+    reference_date: str,
+    *,
+    operational: bool = False,
+) -> dict[str, str]:
+    ref_date = _resolve_reference_date(
+        reference_date,
+        operational=operational,
+    )
     target_start = ref_date + timedelta(days=1)
     target_end = ref_date + timedelta(days=31)
     return {
@@ -21,8 +28,13 @@ def calculate_custom_date_range(
     reference_date: str,
     lookback: int,
     days_lag: int = 0,
+    *,
+    operational: bool = False,
 ) -> dict[str, str]:
-    ref_date = _resolve_reference_date(reference_date)
+    ref_date = _resolve_reference_date(
+        reference_date,
+        operational=operational,
+    )
     start_date = (ref_date - timedelta(days=lookback)).strftime("%Y-%m-%d")
     today = datetime.today().date()
     if ref_date.date() == today:
@@ -32,11 +44,26 @@ def calculate_custom_date_range(
     return {"start_date": start_date, "end_date": end_date}
 
 
-def build_common_params(reference_date: str, namespace: str, table_prefix: str):
-    target_dates = calculate_target_month(reference_date)
-    start_date_views, end_date_views = _range_values(reference_date, 30)
-    start_date_atbs, end_date_atbs = _range_values(reference_date, 30)
-    start_date_baskets, end_date_baskets = _range_values(reference_date, 365)
+def build_common_params(
+    reference_date: str,
+    namespace: str,
+    table_prefix: str,
+    *,
+    operational: bool = False,
+):
+    target_dates = calculate_target_month(
+        reference_date,
+        operational=operational,
+    )
+    start_date_views, end_date_views = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_atbs, end_date_atbs = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_baskets, end_date_baskets = _range_values(
+        reference_date, 365, operational=operational
+    )
     end_date_views_ly = _offset_date(end_date_views, 365)
     start_date_views_ly = _offset_date(end_date_views_ly, 30)
     end_date_baskets_ly = _offset_date(end_date_baskets, 365)
@@ -44,9 +71,10 @@ def build_common_params(reference_date: str, namespace: str, table_prefix: str):
     return {
         "catalog": namespace,
         "schema": namespace,
-        "reference_date": _resolve_reference_date(reference_date).strftime(
-            "%Y-%m-%d"
-        ),
+        "reference_date": _resolve_reference_date(
+            reference_date,
+            operational=operational,
+        ).strftime("%Y-%m-%d"),
         "table_prefix": table_prefix,
         "start_date_views": start_date_views,
         "end_date_views": end_date_views,
@@ -62,11 +90,25 @@ def build_common_params(reference_date: str, namespace: str, table_prefix: str):
     }
 
 
-def build_sql_entries(reference_date: str, table_prefix: str):
-    target_dates = calculate_target_month(reference_date)
-    start_date_views, end_date_views = _range_values(reference_date, 30)
-    start_date_atbs, end_date_atbs = _range_values(reference_date, 30)
-    start_date_baskets, end_date_baskets = _range_values(reference_date, 365)
+def build_sql_entries(
+    reference_date: str,
+    table_prefix: str,
+    *,
+    operational: bool = False,
+):
+    target_dates = calculate_target_month(
+        reference_date,
+        operational=operational,
+    )
+    start_date_views, end_date_views = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_atbs, end_date_atbs = _range_values(
+        reference_date, 30, operational=operational
+    )
+    start_date_baskets, end_date_baskets = _range_values(
+        reference_date, 365, operational=operational
+    )
     end_date_views_ly = _offset_date(end_date_views, 365)
     start_date_views_ly = _offset_date(end_date_views_ly, 30)
     end_date_baskets_ly = _offset_date(end_date_baskets, 365)
@@ -352,8 +394,15 @@ def write_complete_table(spark, runtime):
 def rank_complete_table(spark, runtime):
     predict_complete = _runtime_table(runtime, "complete")
     predict_input_table = _runtime_table(runtime, "ranked")
-    sql = f"""
-CREATE OR REPLACE TABLE {predict_input_table} AS
+    spark.sql(
+        f"CREATE OR REPLACE TABLE {predict_input_table} AS\n"
+        + build_ranked_sql(predict_complete)
+    )
+
+
+def build_ranked_sql(predict_complete: str) -> str:
+    """Return the single deterministic account-theme ranking definition."""
+    return f"""
 WITH t0 AS (
   SELECT *,
   CASE WHEN theme_clean LIKE '%women%'
@@ -418,13 +467,10 @@ final AS (
   ELSE 'theme'
   END AS rules_rank_source
   FROM t1
-  GROUP BY ALL
 )
-SELECT DISTINCT *
+SELECT *
 FROM final
-ORDER BY account_number, simple_rules_rank
 """
-    spark.sql(sql)
 
 
 def _entry(
@@ -547,22 +593,38 @@ def apply_post_process(df, post_process_name):
     )
 
 
-def _resolve_reference_date(reference_date: str | None) -> datetime:
+def _resolve_reference_date(
+    reference_date: str | None,
+    *,
+    operational: bool = False,
+) -> datetime:
     reference_date_value = (reference_date or "").strip().lower()
     if reference_date_value == "current":
         return datetime.today()
     if not reference_date_value:
         raise ValueError("reference_date must be current or YYYY-MM-DD")
     resolved = datetime.strptime(reference_date_value, "%Y-%m-%d")
-    if (datetime.today() - resolved).days < 28:
+    now = datetime.today()
+    if resolved.date() > now.date():
+        raise ValueError("reference_date cannot be in the future")
+    if not operational and (now - resolved).days < 28:
         raise ValueError(
             "reference_date must be at least 28 days ago unless set to current"
         )
     return resolved
 
 
-def _range_values(reference_date: str, lookback: int) -> tuple[str, str]:
-    result = calculate_custom_date_range(reference_date, lookback)
+def _range_values(
+    reference_date: str,
+    lookback: int,
+    *,
+    operational: bool = False,
+) -> tuple[str, str]:
+    result = calculate_custom_date_range(
+        reference_date,
+        lookback,
+        operational=operational,
+    )
     return result["start_date"], result["end_date"]
 
 
@@ -593,80 +655,55 @@ WHERE theme_rank = 1
 
 
 def create_spine_view(spark, common_params):
-    sql = """
-CREATE OR REPLACE TEMPORARY VIEW spine AS
-WITH base AS (
-  SELECT DISTINCT account_number, itemno, theme
-  FROM marketingdata_prod.warehouse.baskets_uk_3y
-  INNER JOIN (
-    SELECT DISTINCT pid, theme
-    FROM marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest
-  )
-  ON pid = itemno
-  WHERE order_date >= date_add(date"{reference_date}", -365)
-  AND theme IS NOT NULL
-),
-base_filtered AS (
-  SELECT DISTINCT account_number FROM base
-),
-0_theme_mapping AS (
-  SELECT DISTINCT *, regexp_replace(theme, '[^a-zA-Z0-9]', '') AS theme_clean
-  FROM marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest
-  WHERE theme_rank = 1
-),
-themes AS (
-  SELECT DISTINCT *, date"{reference_date}" AS reference_date
-  FROM base_filtered
-  CROSS JOIN (SELECT DISTINCT theme_clean FROM 0_theme_mapping)
-),
-spine AS (
-  SELECT reference_date, account_number, theme_clean
-  FROM (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_atbs1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_atbs5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_baskets1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_baskets5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_views1
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean
-    FROM {schema}.{table_prefix}_algo_views5
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_atbs_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_baskets_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_views_bytheme
-    WHERE reference_date = date"{reference_date}"
-    UNION
-    SELECT reference_date, account_number, theme_clean
-    FROM {schema}.{table_prefix}_repurchase
-    WHERE reference_date = date"{reference_date}"
-  )
-)
-SELECT a.*, spine.* EXCEPT(account_number, theme_clean, reference_date)
-FROM (SELECT * FROM themes GROUP BY ALL) a
-LEFT JOIN spine
-USING(account_number, theme_clean, reference_date)
-WHERE a.account_number IS NOT NULL
-"""
-    return spark.sql(sql.format(**common_params))
+    item_themes = spark.table(
+        "marketingdata_prod.warehouse.next_uk_nextads_item_themes_latest"
+    )
+    baskets = spark.table("marketingdata_prod.warehouse.baskets_uk_3y")
+    frame = build_account_theme_spine(
+        baskets,
+        item_themes,
+        common_params["reference_date"],
+    )
+    frame.createOrReplaceTempView("spine")
+    return frame
+
+
+def build_account_theme_spine(baskets, item_themes, reference_date: str):
+    """Build the complete eligible-account by accepted-theme universe."""
+    from pyspark.sql import functions as F
+
+    item_ids = (
+        item_themes.where(F.col("theme").isNotNull())
+        .select(F.col("pid"))
+        .distinct()
+    )
+    eligible_accounts = (
+        baskets.where(
+            F.col("order_date")
+            >= F.date_add(F.lit(reference_date).cast("date"), -365)
+        )
+        .alias("baskets")
+        .join(
+            F.broadcast(item_ids).alias("item_ids"),
+            F.col("baskets.itemno") == F.col("item_ids.pid"),
+            "left_semi",
+        )
+        .where(F.col("account_number").isNotNull())
+        .select("account_number")
+        .distinct()
+    )
+    theme_catalogue = (
+        item_themes.where(F.col("theme_rank") == F.lit(1))
+        .select(
+            F.regexp_replace("theme", "[^a-zA-Z0-9]", "").alias(
+                "theme_clean"
+            )
+        )
+        .where(F.col("theme_clean").isNotNull())
+        .distinct()
+    )
+    return (
+        eligible_accounts.crossJoin(F.broadcast(theme_catalogue))
+        .withColumn("reference_date", F.lit(reference_date).cast("date"))
+        .select("reference_date", "account_number", "theme_clean")
+    )

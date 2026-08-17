@@ -3,6 +3,7 @@ mktg_next_uk_nextads_payload_export_config: &mktg_next_uk_nextads_payload_export
     name: mktg_next_uk_nextads_payload_export
     queue:
       enabled: true
+    max_concurrent_runs: 1
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
@@ -17,6 +18,25 @@ mktg_next_uk_nextads_payload_export_config: &mktg_next_uk_nextads_payload_export
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
     timeout_seconds: 3600
+    parameters:
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
+      - name: build_run_id
+        default: ""
+      - name: provider_build_id
+        default: ""
+      - name: provider_signals_table
+        default: ""
+      - name: provider_signals_delta_version
+        default: ""
+      - name: input_snapshot_id
+        default: ""
+      - name: scoring_foundation_build_id
+        default: ""
+      - name: provider_selection_status
+        default: ""
+      - name: provider_source_run_date
+        default: ""
     tasks:
       - task_key: Export_for_Bloomreach
         spark_python_task:
@@ -28,6 +48,8 @@ mktg_next_uk_nextads_payload_export_config: &mktg_next_uk_nextads_payload_export
             - ${var.job_parameter_environment_name}
             - --do_export
             - "1"
+            - --run_date
+            - "{{job.parameters.run_date}}"
         job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
         libraries: ${var.shared_libraries}
         max_retries: 2

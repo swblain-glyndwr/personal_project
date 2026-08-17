@@ -40,7 +40,7 @@ def parse_common_args() -> argparse.Namespace:
     parser.add_argument("--theme_source_schema", default="ds_sandbox")
     parser.add_argument(
         "--theme_table_prefix",
-        default="next_uk_nextads_theme_affinity_predict",
+        default="next_uk_nextads_account_theme_foundation",
     )
     parser.add_argument("--replace_reference_date", default="true")
     parser.add_argument("--job_env", default="dev")

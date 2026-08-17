@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from datetime import date
 
 # get dbutils and resolve project root for both local and databricks environments
 try:
@@ -28,7 +29,10 @@ from dsutils.dbc import get_dbutils, configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from next_ads.common import config_manager
-from dsutils.etl import delete_from_and_load
+from next_ads.common.snapshot_writes import (
+    replace_validated_scope,
+    with_run_date,
+)
 
 
 def setup_run_context(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
@@ -59,18 +63,44 @@ def write_history_table(
     table: str,
     logger,
     pk_cols: list[str],
+    *,
+    spark,
+    run_date: date,
 ):
     logger.info(f"Loading payload output to {table}")
-
-    delete_from_and_load(
+    prepared = with_run_date(
         df_output.drop("run_date").drop("rundate"),
-        table,
-        pk_cols=pk_cols,
-        del_where={"rundate": "current_date()"},
+        run_date,
+    )
+    replace_validated_scope(
+        spark,
+        prepared,
+        table=table,
+        scope={"rundate": run_date},
+        key_columns=pk_cols,
+        columns=prepared.columns,
     )
 
 
-def main(JOB_ENV, CLIENT, LOG_LEVEL):
+def resolve_run_date(run_date: str | date) -> date:
+    if isinstance(run_date, date):
+        return run_date
+    if not isinstance(run_date, str):
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    run_date_text = run_date.strip()
+    try:
+        parsed_run_date = date.fromisoformat(run_date_text)
+    except ValueError as exc:
+        raise ValueError(
+            "--run_date must use ISO format YYYY-MM-DD"
+        ) from exc
+    if parsed_run_date.isoformat() != run_date_text:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    return parsed_run_date
+
+
+def main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE):
+    run_date = resolve_run_date(RUN_DATE)
     logger, spark, CLIENT, config = setup_run_context(
         JOB_ENV, CLIENT, LOG_LEVEL
     )
@@ -83,6 +113,8 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         config.tables_write.sort_order_v2,
         logger,
         pk_cols=["UniqueAdID", "item_pos"],
+        spark=spark,
+        run_date=run_date,
     )
 
     cms_content_latest = spark.table(config.tables_write.cms_content_latest)
@@ -93,6 +125,8 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
         config.tables_write.cms_content,
         logger,
         pk_cols=["CMSPageID"],
+        spark=spark,
+        run_date=run_date,
     )
 
     logger.info("Ads Data Pull history updated successfully!")
@@ -104,4 +138,5 @@ if __name__ == "__main__":
     JOB_ENV = jobparser.get_arg("--job_env")
     CLIENT = jobparser.get_arg("--client")
     LOG_LEVEL = jobparser.get_arg("--log_level")
-    main(JOB_ENV, CLIENT, LOG_LEVEL)
+    RUN_DATE = jobparser.get_arg("--run_date")
+    main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE)

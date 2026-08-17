@@ -20,7 +20,7 @@ theme_affinity_quality_monitor_setup_config: &theme_affinity_quality_monitor_set
       - name: monitor_type
         default: time_series
       - name: table_name
-        default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_predict_ranked
+        default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_account_theme_foundation_ranked
       - name: output_schema_name
         default: ${var.mktgdata_catalog}.${var.user_schema}
       - name: assets_dir

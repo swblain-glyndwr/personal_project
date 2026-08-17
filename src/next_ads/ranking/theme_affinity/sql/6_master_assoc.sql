@@ -1,51 +1,87 @@
 WITH
   atbs1_top10 AS (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean, *
+    SELECT reference_date, account_number, theme_clean2 AS theme_clean
     FROM {schema}.{table_prefix}_algo_atbs1
     WHERE reference_date = date"{reference_date}"
   ),
   atbs5_top10 AS (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean, *
+    SELECT
+      reference_date,
+      account_number,
+      theme_clean2 AS theme_clean,
+      theme_clean2_atbs_lift
     FROM {schema}.{table_prefix}_algo_atbs5
     WHERE reference_date = date"{reference_date}"
   ),
   baskets1_top10 AS (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean, *
+    SELECT
+      reference_date,
+      account_number,
+      theme_clean2 AS theme_clean,
+      theme_clean2_baskets_cs
     FROM {schema}.{table_prefix}_algo_baskets1
     WHERE reference_date = date"{reference_date}"
   ),
   baskets5_top10 AS (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean, *
+    SELECT
+      reference_date,
+      account_number,
+      theme_clean2 AS theme_clean,
+      theme_clean2_baskets_freq12,
+      theme_clean2_baskets_lift,
+      theme_clean2_baskets_cs,
+      freq12_norm
     FROM {schema}.{table_prefix}_algo_baskets5
     WHERE reference_date = date"{reference_date}"
   ),
   views1_top10 AS (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean, *
+    SELECT reference_date, account_number, theme_clean2 AS theme_clean
     FROM {schema}.{table_prefix}_algo_views1
     WHERE reference_date = date"{reference_date}"
   ),
   views5_top10 AS (
-    SELECT reference_date, account_number, theme_clean2 AS theme_clean, *
+    SELECT
+      reference_date,
+      account_number,
+      theme_clean2 AS theme_clean,
+      theme_clean2_views_lift,
+      theme_clean2_views_cs
     FROM {schema}.{table_prefix}_algo_views5
     WHERE reference_date = date"{reference_date}"
   ),
   views_behavior AS (
-    SELECT *
+    SELECT
+      reference_date,
+      account_number,
+      theme_clean,
+      recency,
+      frequency,
+      recency_rank
     FROM {schema}.{table_prefix}_views_bytheme
     WHERE reference_date = date"{reference_date}"
   ),
   atbs_behavior AS (
-    SELECT *
+    SELECT
+      reference_date,
+      account_number,
+      theme_clean,
+      recency,
+      frequency
     FROM {schema}.{table_prefix}_atbs_bytheme
     WHERE reference_date = date"{reference_date}"
   ),
   baskets_behavior AS (
-    SELECT *
+    SELECT
+      reference_date,
+      account_number,
+      theme_clean,
+      frequency,
+      recency_rank
     FROM {schema}.{table_prefix}_baskets_bytheme
     WHERE reference_date = date"{reference_date}"
   ),
   baskets_target AS (
-    SELECT reference_date, account_number, theme_clean, *, 1 AS label
+    SELECT reference_date, account_number, theme_clean, 1 AS label
     FROM {schema}.{table_prefix}_baskets_target
     WHERE reference_date = date"{reference_date}"
   ),
@@ -55,22 +91,41 @@ WITH
     WHERE reference_date = date"{reference_date}"
   ),
   advanced_features AS (
-    SELECT *
+    SELECT
+      reference_date,
+      account_number,
+      user_total_views,
+      user_view_to_atb_rate
     FROM {schema}.{table_prefix}_advanced_features
     WHERE reference_date = date"{reference_date}"
   ),
   customer_features AS (
-    SELECT *
+    SELECT reference_date, account_number, GmaName
     FROM {schema}.{table_prefix}_customer_features
     -- WHERE reference_date = date"{reference_date}"
   ),
   customer_segments AS (
-    SELECT *
+    SELECT
+      reference_date,
+      account_number,
+      Familyconfidence_score,
+      Coupleconfidence_score,
+      Womenswearconfidence_score,
+      Menswearconfidence_score,
+      Beautyconfidence_score,
+      Homeconfidence_score
     FROM {schema}.{table_prefix}_customer_segments
     WHERE reference_date = date"{reference_date}"
   ),
   popularity_metrics AS (
-    SELECT *
+    SELECT
+      reference_date,
+      theme_clean,
+      views_ly_7,
+      views_ly_30,
+      baskets_ly_7,
+      baskets_ly_30,
+      trending_7x30
     FROM {schema}.{table_prefix}_popularity_metrics
     -- WHERE reference_date = date"{reference_date}"
   )
@@ -237,4 +292,3 @@ LEFT JOIN customer_features t12 USING(account_number, reference_date)
 LEFT JOIN customer_segments t13 USING(account_number, reference_date)
 LEFT JOIN popularity_metrics t14 USING(theme_clean, reference_date)
 LEFT JOIN baskets_target target USING (account_number, reference_date, theme_clean)
-group by all

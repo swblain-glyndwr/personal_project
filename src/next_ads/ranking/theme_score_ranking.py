@@ -5,9 +5,20 @@ from next_ads.decisioning.assignment import generate_repeat_ad_sessions
 
 
 def calculate_score_range(df_theme_scores, logger):
-    min_score = df_theme_scores.agg(F.min("ProbAggRebased")).collect()[0][0]
-    max_score = df_theme_scores.agg(F.max("ProbAggRebased")).collect()[0][0]
+    bounds = df_theme_scores.agg(
+        F.min("ProbAggRebased").alias("min_score"),
+        F.max("ProbAggRebased").alias("max_score"),
+    ).first()
+    min_score = bounds["min_score"]
+    max_score = bounds["max_score"]
+    if min_score is None or max_score is None:
+        raise ValueError("Provider theme scores are empty or all null")
     score_range = max_score - min_score
+    if score_range == 0:
+        logger.warning(
+            "Provider theme scores are constant; using a neutral score range"
+        )
+        score_range = 1.0
     logger.info(f"Norm min/max/range: {min_score}/{max_score}/{score_range}")
     return min_score, score_range
 
@@ -44,11 +55,24 @@ def build_score_components(
 
 
 def apply_multi_session_downweighting(
-    df_score_components, sessions_table, actions_table
+    df_score_components,
+    sessions_table=None,
+    actions_table=None,
+    *,
+    repeat_ad_exposure_df=None,
 ):
-    multi_session_ad_df = generate_repeat_ad_sessions(
-        sessions_table, actions_table
-    )
+    if repeat_ad_exposure_df is None:
+        if not sessions_table or not actions_table:
+            raise ValueError(
+                "sessions_table and actions_table are required without a "
+                "pinned repeat-ad exposure frame"
+            )
+        multi_session_ad_df = generate_repeat_ad_sessions(
+            sessions_table,
+            actions_table,
+        )
+    else:
+        multi_session_ad_df = repeat_ad_exposure_df
     fm_window = Window.partitionBy("RowID").orderBy(
         F.col("StringDistance").asc_nulls_last(),
         F.col("AdSeen").asc_nulls_last(),

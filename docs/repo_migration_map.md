@@ -1,12 +1,8 @@
-﻿# NextAds Repo Migration Map
+# NextAds Repo Migration Map
 
-This document is the control map for moving the current NextAds repo into the
-target production package structure. It is intentionally explicit so future PRs
-can point to a known destination, risk level, and validation expectation before
-moving code.
+This document is the control map for moving the current NextAds repo into the target production package structure. It is intentionally explicit so future PRs can point to a known destination, risk level, and validation expectation before moving code.
 
-The map supports story 5111778: map current repo components to target
-locations.
+The map supports story 5111778: map current repo components to target locations.
 
 ## Target Structure
 
@@ -92,9 +88,7 @@ src/
 
 ## Root Tooling And Dependency Map
 
-These files do not belong under the production package, but they still need an
-explicit migration decision because they control local development, CI
-behaviour, dependency installation, and Databricks bundle packaging.
+These files do not belong under the production package, but they still need an explicit migration decision because they control local development, CI behaviour, dependency installation, and Databricks bundle packaging.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -128,8 +122,7 @@ behaviour, dependency installation, and Databricks bundle packaging.
 
 ## Target Databricks Job Shape
 
-The Databricks job structure should move toward clear operational boundaries
-while preserving existing output contracts during the restructure.
+The Databricks job structure should move toward clear operational boundaries while preserving existing output contracts during the restructure.
 
 | Target job | Intended role | Current migration position |
 |---|---|---|
@@ -148,20 +141,20 @@ while preserving existing output contracts during the restructure.
 | `jobs/nextads_control/parse_attributes.py` | Compatibility wrapper for the `parse_attributes` task. | `jobs/nextads_control/parse_attributes.py` | Production | Medium | Moved in PR `246383`; keep wrapper until references are gone. | Job-path tests, DAB validate, attribute table sanity check before release. | Control metadata. The main DAB job now points at `jobs/nextads_control/parse_attributes.py`. |
 | `jobs/nextads_control/parse_theme_mapping.py` | Shared `parse_theme_mapping` task. | `jobs/nextads_control/parse_theme_mapping.py` | Production | Medium | Moved in PR `246383`; keep shared in this route-split PR. | Job-path tests, DAB validate, theme mapping table sanity check before release. | Control metadata. This parses the copied v1 product Theme Mapping tab for the shared scoring route. The v2 workbook is the source of truth and is copied to v1 by Google Sheets Apps Script; the v1 tab should be locked. Candidate mapping uses the loaded control sheet `Themes` column for ad-theme joins. |
 | `jobs/nextads_control/validate_theme_mapping_sync.py` | Hard-stop validation that the copied v1 Theme Mapping tab matches the v2 source tab. | `jobs/nextads_control/validate_theme_mapping_sync.py`; comparison logic in `src/next_ads/control/theme_mapping_sync.py`. | Production | Medium | Added with v1/v2 route split. | Unit tests, job-path tests, DAB validate, DEV Integration run before release. | Runs before `parse_theme_mapping`. Differences mean the Apps Script copy or locked-tab process has drifted and should be raised to Trade before shared theme scoring is refreshed. |
-| `jobs/nextads_candidates/build_theme_scores.py` | Shared `score_lightweight` task. | `jobs/nextads_candidates/build_theme_scores.py` | Production | High | Moved. | Job-path tests, DAB validate, DEV Integration run before release; score comparison before behavioural edits. | Ranking/scoring-affecting. This remains shared upstream work in the v1/v2 route split. |
-| `jobs/nextads_candidates/build_theme_ad_candidates.py` | `map_theme_scores_to_ads_v1` task. | `jobs/nextads_candidates/build_theme_ad_candidates.py` | Production | High | Moved. | Job-path tests, DAB validate, DEV Integration run before release; representative ranking output comparison before behavioural edits. | Uses shared Theme Affinity assignment scores plus `control_sheet_latest`, then writes `preranked_ads_from_themes_latest`. The main DAB job points here as `map_theme_scores_to_ads_v1`. |
-| `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | Warning validation that v1/v2 active ad themes exist in shared Theme Affinity customer-theme output. | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py`; comparison logic in `src/next_ads/ranking/theme_coverage.py`. | Production | High | Added with v1/v2 route split. | Unit tests, job-path tests, DAB validate, DEV Integration run before release. | Runs after both route control sheets load and before both mappers. Missing coverage means some route ads cannot become customer-ad candidates through `NextTheme = Themes` until Theme Mapping and Theme Affinity are refreshed, but the candidate build continues. |
+| `jobs/nextads_candidates/build_theme_scores.py` | `build_markov_scores` shadow-provider task. | `jobs/nextads_candidates/build_theme_scores.py` | Production | High | Moved into the independent Markov scoring job and adapted to the canonical provider contract. | Job-path tests, DAB validate, DEV Integration run before release; canonical/legacy score parity before behavioural edits. | Ranking/scoring-affecting. It stages one exact canonical build; the shared publisher validates it and derives the legacy output without gating the candidate route. |
+| `jobs/nextads_candidates/build_theme_ad_candidates.py` | `map_theme_scores_to_ads_v1` task. | `jobs/nextads_candidates/build_theme_ad_candidates.py` | Production | High | Moved. | Job-path tests, DAB validate, DEV Integration run before release; representative ranking output comparison before behavioural edits. | Reads the exact portfolio attempt, captures the control Delta version, reuses identical serving-provider computation, publishes top-20 internal candidates manifest-last, and retains `preranked_ads_from_themes_latest` as the `best` compatibility output. |
+| `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | Route-specific warning validation that active ad themes exist in the serving portfolio output. | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py`; comparison logic in `src/next_ads/ranking/theme_coverage.py`. | Production | High | Added with v1/v2 route split. | Unit tests, job-path tests, DAB validate, DEV Integration run before release. | Each route reads the exact portfolio-bound provider attempt and Delta version after its own control audit, applying the same changed-theme quarantine as mapping. Missing business coverage is reported without hiding technical read or schema failures. |
 | `jobs/nextads_assignment/build_page.py` | Compatibility wrapper for `build_page_primary` and `build_page_secondary`. | `jobs/nextads_assignment/build_page.py` | Production | High | Moved; keep wrapper until references are gone. | Job-path tests, DAB validate, DEV Integration run before release; page output comparison before behavioural edits. | Final assignment output-affecting. The page-build DAB job now points at `jobs/nextads_assignment/build_page.py`. |
-| `jobs/orchestration/trigger_databricks_job.py` | Compatibility wrapper for asynchronous downstream job submission. | `jobs/orchestration/trigger_databricks_job.py` | Production | Medium | Moved as an entrypoint-only path change in `feature/SWB/5128910-main-job-entrypoint-move`; keep wrapper until references are gone. | Trigger unit tests and DAB validate. | The main and page-build DAB jobs now point trigger tasks at `jobs/orchestration/trigger_databricks_job.py`. |
+| `jobs/orchestration/trigger_databricks_job.py` | Obsolete asynchronous downstream-job wrapper. | Removed. | Deprecated | Medium | Removed after all deployed callers moved to native `run_job_task`. | Orchestration tests, reference audit and DAB validate. | Candidate-to-page and page-to-delivery jobs now wait for child completion and propagate failures through their own route. |
 | `jobs/nextads_delivery/plp_gs.py` | `nextads_plp_gs` task. | `jobs/nextads_delivery/plp_gs.py` | Production | Medium | Moved. | PLP GS tests and run evidence. | External/sheet integration. |
 | `jobs/nextads_reporting/assignment_validation.py` | Assignment validation guardrail job. | `jobs/nextads_reporting/assignment_validation.py` | Production | Medium | Moved from legacy QA naming. | Assignment validation run evidence and DAB validate. | Validation/guardrail logic has its own run history and notification route without controlling the main generation job result. |
 | `jobs/realtime/viewed_bought.py` | Compatibility wrapper for the realtime input `viewed_bought` task. | `jobs/realtime/viewed_bought.py` | Production | Medium | Moved with realtime/reporting branch; keep wrapper until references are gone. | Viewed-bought output sanity. | Feeds realtime/recommendation logic; table and config contracts unchanged. |
 | `jobs/nextads_v2/build_page.py` | Alternative/v2 page build entrypoint. | `jobs/nextads_v2/build_page.py`; reusable output logic can later move to `src/next_ads/delivery/adsv2/` or `src/next_ads/decisioning/adsv2/` depending on final ownership. | Operational-transition | High | Keep current route path until behavioural productisation is agreed. | Import checks, v1/v2 output comparison, DEV Integration run, PREPROD validation if retained. | V2 output changes are production-transition work rather than experiment. |
-| `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `map_theme_scores_to_ads_v2` task. Reads shared Theme Affinity customer-theme scores and v2 control-sheet ad themes directly, then calls the shared ranking mapper at page-type grain. | `jobs/nextads_candidates/build_page_type_candidates_v2.py`; reusable ranking/mapping logic remains in `src/next_ads/ranking/theme_score_mapping.py` until a v2-specific package split is justified. | Operational-transition | High | Active parallel route. | Output checks, ranking comparison, DEV Integration run, PREPROD validation if retained. | Reads `control_sheet_latest_v2` plus `theme_affinity_model_latest`, writes `preranked_ads_from_themes_v2_latest`, and does not depend on `preranked_ads_from_themes_latest`. |
+| `jobs/nextads_candidates/build_page_type_candidates_v2.py` | `map_theme_scores_to_ads_v2` task. Reads the exact serving portfolio and pinned v2 inputs, then calls the shared candidate runtime at page-type grain. | `jobs/nextads_candidates/build_page_type_candidates_v2.py`; reusable publication in `src/next_ads/candidates/`. | Operational-transition | High | Active parallel route. | Output checks, partition replay, DAB validate, DEV Integration run. | Publishes the same internal candidate contract as v1, retains `preranked_ads_from_themes_v2_latest` from `best`, and does not depend on the v1 output. |
 | `jobs/nextads_candidates/build_targeting_scores.py` | Targeting score build utility. | `jobs/nextads_candidates/build_targeting_scores.py` | Operational-transition | High | Moved as a route-oriented candidate/scoring utility. | Score output checks. | Uses `next_ads.ranking.scoring`. |
 | `jobs/nextads_candidates/conditional_probability_recs.py` | Compatibility wrapper for conditional-probability retrieval. | `jobs/nextads_candidates/conditional_probability_recs.py`; reusable logic can later move under `src/next_ads/retrieval/conditional_probability/`. | Dormant candidate / operational-transition | Medium | Moved as an entrypoint only. | Output checks if retained or reactivated. | No active DAB job reference found during mapping, but it writes recommender-style outputs and should not be deleted without a product/domain decision. |
 | `jobs/nextads_candidates/get_ad_items.py` | Compatibility wrapper for ad item retrieval. | `jobs/nextads_candidates/get_ad_items.py`; reusable logic can later move under `src/next_ads/retrieval/`. | Operational-transition | Medium | Moved as an entrypoint only. | Retrieval output checks. | May become package logic plus entrypoint. |
-| `jobs/table_operations/truncate_assignments_latest.py` | Truncation utility. | `jobs/table_operations/truncate_assignments_latest.py` | Production/Deployment | High | Only with explicit operational need. | Manual approval and table safety evidence. | Destructive operation. |
+| `jobs/table_operations/truncate_assignments_latest.py` | Obsolete whole-table truncation utility. | Removed. | Deprecated | High | Removed after the production DAG stopped using it. | Reference audit and bundle validation. | The runtime task was removed before this migration; complete-build publication now protects serving assignments without a separate truncate step. |
 | `deployment/databricks/start_stop_job.py` | Job utility. | `deployment/databricks/start_stop_job.py` or `jobs/admin/` | Deployment | Medium | Confirm usage. | Dry run or admin validation. | Operational admin script. |
 | `scripts/__init__.py` | Legacy scripts package marker. | Removed. | Deprecated candidate | Low | Removed after scripts retired. | No imports depend on it. | `scripts/` is no longer a job-entrypoint area. |
 
@@ -227,8 +220,7 @@ while preserving existing output contracts during the restructure.
 
 ## SQL Map
 
-The `sql/` folder remains the target home, but SQL should be grouped and owned
-by functional area before any further restructuring.
+The `sql/` folder remains the target home, but SQL should be grouped and owned by functional area before any further restructuring.
 
 | SQL family | Current examples | Target area | Status | Risk | Validation required |
 |---|---|---|---|---|---|
@@ -247,10 +239,7 @@ by functional area before any further restructuring.
 
 ## Response Model / pCTR Map
 
-pCTR is not just ranking. The current retained work includes feature/data prep,
-model training, model scoring, ranking, and output-table definitions. Keep
-experiment SQL with the experiment until the feature/model contracts are ready
-to split into production package and SQL domains.
+pCTR is not just ranking. The current retained work includes feature/data prep, model training, model scoring, ranking, and output-table definitions. Keep experiment SQL with the experiment until the feature/model contracts are ready to split into production package and SQL domains.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -268,16 +257,9 @@ to split into production package and SQL domains.
 
 ## Theme Affinity Model Map
 
-The retained `experiments/hackathon_theme_affinity_model/` folder is the
-legacy reference home of the Theme Affinity model. The model scores or ranks account-to-theme affinity
-using theme interaction, views, baskets, add-to-bag, repurchase, popularity,
-trending, and customer feature signals. It was created during a hackathon, but
-the target production domain name should be `theme_affinity`.
+The retained `experiments/hackathon_theme_affinity_model/` folder is the legacy reference home of the Theme Affinity model. The model scores or ranks account-to-theme affinity using theme interaction, views, baskets, add-to-bag, repurchase, popularity, trending, and customer feature signals. It was created during a hackathon, but the target production domain name should be `theme_affinity`.
 
-This work is operational-transition work. It is not safe to delete or ignore
-because current outputs are used by downstream NextAds assignment logic.
-During migration, keep existing table names and config keys working as legacy
-contracts until a separate output migration is agreed.
+This work is operational-transition work. It is not safe to delete or ignore because current outputs are used by downstream NextAds assignment logic. During migration, keep existing table names and config keys working as legacy contracts until a separate output migration is agreed.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -285,7 +267,7 @@ contracts until a separate output migration is agreed.
 | `experiments/hackathon_theme_affinity_model/` | Retained legacy Theme Affinity model folder. | `experiments/hackathon_theme_affinity_model/` for retained notebooks/assets, then productised code split across `src/next_ads/*/theme_affinity/` and `jobs/model/theme_affinity/`. | Operational-transition | High | After consumers and output tables are documented. | Current output contract check. | Production domain naming is Theme Affinity; keep legacy contract strings only where compatibility requires them. |
 | `experiments/hackathon_theme_affinity_model/config.py` | Model URI and feature list config. | `configs/model/theme_affinity.yaml` for durable config. Temporary notebook-only config remains under `experiments/hackathon_theme_affinity_model/config.py` during transition. | Operational-transition | High | With MLflow route. | Model URI load test and feature-list compatibility check. | Current model URI points to a UC model whose name still contains `hackathon`; do not rename the registered model without a separate migration. |
 | `experiments/hackathon_theme_affinity_model/predict_model.ipynb` | Prediction notebook for scoring account/theme affinity. | Productised entrypoint to `jobs/model/theme_affinity/predict.py`; reusable logic to `src/next_ads/ranking/theme_affinity/predict.py`. | Operational-transition | High | After MLflow predict job exists. | Prediction job run and output contract check. | Retain notebook until job replacement is proven. |
-| `experiments/hackathon_theme_affinity_model/clean_output.ipynb` | Cleans and writes the Theme Affinity output currently known by legacy hackathon table names. | Productised entrypoint to `jobs/model/theme_affinity/clean_output.py`; reusable output shaping to `src/next_ads/delivery/theme_affinity/clean_output.py`. | Operational-transition | High | After output contract is documented. | Output table shape and consumer check. | Preserve legacy output table names until a separate table rename/alias migration is agreed. |
+| `experiments/hackathon_theme_affinity_model/clean_output.ipynb` | Cleans and writes the Theme Affinity output currently known by legacy hackathon table names. | Prediction and output shaping run together in `jobs/model/theme_affinity/model_predict.py`; reusable shaping remains in `src/next_ads/ranking/theme_affinity/clean_output.py`. | Operational-transition | High | After output contract is documented. | Output table shape and consumer check. | Preserve legacy accepted output table names until a separate table rename or alias migration is agreed. |
 | `experiments/hackathon_theme_affinity_model/run_pipeline_predict.ipynb` | Pipeline prediction orchestration notebook. | Productised orchestration to DAB job resources and `jobs/model/theme_affinity/`. | Operational-transition | High | With MLflow operationalisation. | Databricks run evidence. | Candidate for job replacement. |
 | `experiments/hackathon_theme_affinity_model/simple_rules_rank.ipynb` | Simple rules/ranking notebook, likely fallback or comparison logic for theme ranking. | Reusable fallback logic, if operational, to `src/next_ads/ranking/theme_affinity/rules.py`. | Operational-transition | Medium | Move with folder, then assess whether logic is operational. | Notebook context retained; output comparison if productised. | Do not assume this is disposable without owner review. |
 | `experiments/hackathon_theme_affinity_model/ranking_encoders.joblib` | Model encoder artifact. | Keep initially under `experiments/hackathon_theme_affinity_model/`; later move to MLflow artifact or Databricks volume. | Operational-transition | High | Only after artifact strategy is agreed. | Artifact load test. | Do not lose binary artifact; do not rely on repo binary long term if MLflow can own it. |
@@ -295,23 +277,11 @@ contracts until a separate output migration is agreed.
 
 ## Ads V2 Map
 
-The old `adsv2/` folder has been folded into the current route-oriented repo
-layout because the v2 route is becoming a major part of NextAds. V2 entrypoints
-can live in the route folder that describes what they do, for example
-`jobs/nextads_control`, `jobs/nextads_candidates`, `jobs/nextads_v2`, or
-`jobs/nextads_delivery`. Do not force every v2 file into `jobs/nextads_v2/`
-when the current route folder is clearer.
+The old `adsv2/` folder has been folded into the current route-oriented repo layout because the v2 route is becoming a major part of NextAds. V2 entrypoints can live in the route folder that describes what they do, for example `jobs/nextads_control`, `jobs/nextads_candidates`, `jobs/nextads_v2`, or `jobs/nextads_delivery`. Do not force every v2 file into `jobs/nextads_v2/` when the current route folder is clearer.
 
-Ads v2 is a candidate production route that affects how outputs
-are shaped and consumed by downstream systems. That makes it high-risk
-operational-transition work requiring explicit output contract checks and
-parallel-run evidence.
+Ads v2 is a candidate production route that affects how outputs are shaped and consumed by downstream systems. That makes it high-risk operational-transition work requiring explicit output contract checks and parallel-run evidence.
 
-CMS/data-pull work was reconciled through completed PR `249403`
-(`feature/TL/cmsdata`). The current data-pull route now lives in the
-Databricks data-pull job/pipeline resources plus `src/next_ads/data/sort_order/`
-and `jobs/nextads_data/archive_sort_order_data.py`; do not treat it as deferred
-Ads v2 cleanup.
+CMS/data-pull work was reconciled through completed PR `249403` (`feature/TL/cmsdata`). The current data-pull route now lives in the Databricks data-pull job/pipeline resources plus `src/next_ads/data/sort_order/` and `jobs/nextads_data/archive_sort_order_data.py`; do not treat it as deferred Ads v2 cleanup.
 
 | Current path | Current role | Target path | Status | Risk | Move timing | Validation required | Notes |
 |---|---|---|---|---|---|---|---|
@@ -322,6 +292,8 @@ Ads v2 cleanup.
 | `adsv2/__test_load_control_sheet_config.py` | Ads v2 config/prototype test. | `tests/unit/adsv2/test_load_control_sheet_config.py` if it is a unit/config test, or `tests/integration/adsv2/` if it needs Databricks/Sheets. | Operational-transition | Medium | Before moving the loader. | Test collection check and CI validation. | Rename from double-underscore form so pytest ownership is clear. |
 | `sql/adsv2/create_table_sort_order_v2*.sql` | Ads v2 sort-order table DDL. | `sql/adsv2/` | Operational-transition | Medium | Moved from root SQL as an Ads v2 table-contract file. | SQL resolver tests, table setup checks before run. | File move only; table names and contracts remain unchanged. |
 | Candidate-build v2 tasks | Databricks task definitions for v2 control-sheet loading, page-type candidate mapping, validation, and v2 page-build trigger. | Keep in `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` while shared upstream inputs are bundled with v1; later extract only if scheduling or ownership needs diverge. | Operational-transition | High | Active parallel route. Separate only after the shared input boundary and trigger contract are stable. | DAB validate, DEV Integration deployment, PREPROD validation, no production overwrite unless approved. | V2 runs beside v1 in candidate build. It must not depend on v1 mapping output. V2 owns the Theme Mapping tab, with Apps Script copying it to the locked v1 tab before the shared parser runs. |
+| `jobs/nextads_assignment/bulk_build.py` | Shared-cluster route runner for v1 primary, v1 secondary and v2 all-page-type assignment phases. | Keep as assignment orchestration; scope-level decision rules remain in the existing v1/v2 builders. | Operational-transition | High | Active bulk route. | Unit orchestration checks, exact candidate-attempt tests, DAB validate and DEV output comparison. | Removes per-scope cluster starts without changing public assignment grain. |
+| `src/next_ads/decisioning/candidate_inputs.py` | Loads one ready candidate attempt and resolves separate public serving slots. | Keep as the assignment-side canonical candidate adapter. | Operational-transition | High | Active immutable assignment boundary. | Missing/ambiguous-slot tests, partial-build rejection and DEV `EXCEPT ALL` evidence. | Never falls back to preranked `_latest` tables. |
 
 ## Azure DevOps And Deployment Map
 
@@ -369,57 +341,29 @@ Ads v2 cleanup.
 
 ## Recommended Move Order
 
-The migration used domain-by-domain moves so package code and Databricks
-entrypoints could move together while output contracts remained stable.
+The migration used domain-by-domain moves so package code and Databricks entrypoints could move together while output contracts remained stable.
 
-1. `feature/SWB/5128910-control-domain-move`
-   Move control sheet, attribute parsing, theme mapping, control helpers, and
-   matching entrypoints. This is draft PR `246383`.
-2. `feature/SWB/5128910-main-job-entrypoint-move`
-   Move remaining core main-job scripts into route-oriented `jobs/nextads_*`
-   folders and update DAB job paths in the same branch.
-3. `feature/SWB/5128910-ranking-domain-move`
-   Move scoring, theme-score mapping, Theme Affinity ranking pieces, and
-   ranking scripts into `src/next_ads/ranking` plus relevant job entrypoints.
-4. `feature/SWB/5128910-decisioning-domain-move`
-   Move assignment, customer-cell, and build-page logic into
-   `src/next_ads/decisioning` and update entrypoints.
-5. `feature/SWB/5128910-delivery-domain-move`
-   Move PLP GS, MASID handoff, Bloomreach/v2 payload, and export logic into
-   `src/next_ads/delivery` plus delivery job entrypoints.
-6. `feature/SWB/5128910-features-models-foundation`
-   Move feature generation, Theme Affinity DLT/Lakeflow feature prep, pCTR
-   feature prep, and MLflow train/promote/scoring routes into
-   `src/next_ads/features`, `src/next_ads/ranking/*`, and `jobs/model`. This is
-   already active through the Feature Store foundation and Theme Affinity
-   MLflow lifecycle PRs.
-7. `feature/SWB/5128910-adsv2-domain-move`
-   Keep v2 entrypoints in clear route folders, move reusable logic into Ads v2
-   package subdomains after active v2 PRs and contracts are clear. CMS/data
-   pull has already been reconciled through PR `249403`; its archive
-   entrypoint now lives in `jobs/nextads_data`.
-8. `feature/SWB/5128910-realtime-reporting-move`
-   Move realtime and reporting/results helpers into `src/next_ads/realtime`
-   and `src/next_ads/reporting`.
-9. `feature/SWB/5128910-config-sql-layout`
-   Move config and SQL into domain folders, update config loader/path
-   resolution, and update tests without renaming live table contracts.
-10. `feature/SWB/5128910-cleanup-legacy-paths`
-    Remove old wrappers, stale scripts, empty folders, dead imports, and update
-    docs once references are gone.
+1. `feature/SWB/5128910-control-domain-move` Move control sheet, attribute parsing, theme mapping, control helpers, and matching entrypoints. This is draft PR `246383`.
+2. `feature/SWB/5128910-main-job-entrypoint-move` Move remaining core main-job scripts into route-oriented `jobs/nextads_*` folders and update DAB job paths in the same branch.
+3. `feature/SWB/5128910-ranking-domain-move` Move scoring, theme-score mapping, Theme Affinity ranking pieces, and ranking scripts into `src/next_ads/ranking` plus relevant job entrypoints.
+4. `feature/SWB/5128910-decisioning-domain-move` Move assignment, customer-cell, and build-page logic into `src/next_ads/decisioning` and update entrypoints.
+5. `feature/SWB/5128910-delivery-domain-move` Move PLP GS, MASID handoff, Bloomreach/v2 payload, and export logic into `src/next_ads/delivery` plus delivery job entrypoints.
+6. `feature/SWB/5128910-features-models-foundation` Move feature generation, Theme Affinity DLT/Lakeflow feature prep, pCTR feature prep, and MLflow train/promote/scoring routes into `src/next_ads/features`, `src/next_ads/ranking/*`, and `jobs/model`. This is already active through the Feature Store foundation and Theme Affinity MLflow lifecycle PRs.
+7. `feature/SWB/5128910-adsv2-domain-move` Keep v2 entrypoints in clear route folders, move reusable logic into Ads v2 package subdomains after active v2 PRs and contracts are clear. CMS/data pull has already been reconciled through PR `249403`; its archive entrypoint now lives in `jobs/nextads_data`.
+8. `feature/SWB/5128910-realtime-reporting-move` Move realtime and reporting/results helpers into `src/next_ads/realtime` and `src/next_ads/reporting`.
+9. `feature/SWB/5128910-config-sql-layout` Move config and SQL into domain folders, update config loader/path resolution, and update tests without renaming live table contracts.
+10. `feature/SWB/5128910-cleanup-legacy-paths` Remove old wrappers, stale scripts, empty folders, dead imports, and update docs once references are gone.
 
 ## High-Risk Items Requiring Separate Stories
 
-Do not change the behaviour of these until their contracts and validation are
-agreed:
+Do not change the behaviour of these until their contracts and validation are agreed:
 
 - `src/next_ads/decisioning/assignment.py`
 - `src/next_ads/ranking/scoring.py`
 - `jobs/nextads_cells/assign_customer_cells.py`
 - `jobs/nextads_assignment/build_page.py`
 - `jobs/nextads_candidates/build_theme_ad_candidates.py`
-- future control-sheet logic or output changes beyond the PR `246383` entrypoint
-  move
+- future control-sheet logic or output changes beyond the PR `246383` entrypoint move
 - `jobs/nextads_candidates/conditional_probability_recs.py` and `sql/create_table_conditional_probability*.sql`
 - behavioural or downstream-contract changes to `jobs/nextads_reporting/results_to_bigquery.py`
 - `jobs/table_operations/create_tables.py`
@@ -440,26 +384,15 @@ agreed:
 
 ## Coverage Notes
 
-This map is intentionally a control map, not a line-by-line manifest. Some
-folders are mapped by family because listing every file would make the document
-harder to use:
+This map is intentionally a control map, not a line-by-line manifest. Some folders are mapped by family because listing every file would make the document harder to use:
 
 - SQL files under `sql/` are mapped by table family in the SQL Map.
-- Theme Affinity SQL files under `experiments/hackathon_theme_affinity_model/sql/` are mapped as a single
-  model-support SQL family because they should move together after the model
-  contract is documented.
-- Unit and integration tests are mapped by test folder, with imports updated as
-  corresponding production modules move.
-- Local/generated folders such as `.venv/`, `.pytest_cache/`, `.ruff_cache/`,
-  and `.databricks/` are explicitly not migration targets.
-- LLM context docs are part of the target structure. They should be maintained
-  alongside human docs so tools such as GitHub Copilot, Claude, Codex, and other
-  assistants can follow the repo structure, release route, and production safety
-  boundaries without guessing.
+- Theme Affinity SQL files under `experiments/hackathon_theme_affinity_model/sql/` are mapped as a single model-support SQL family because they should move together after the model contract is documented.
+- Unit and integration tests are mapped by test folder, with imports updated as corresponding production modules move.
+- Local/generated folders such as `.venv/`, `.pytest_cache/`, `.ruff_cache/`, and `.databricks/` are explicitly not migration targets.
+- LLM context docs are part of the target structure. They should be maintained alongside human docs so tools such as GitHub Copilot, Claude, Codex, and other assistants can follow the repo structure, release route, and production safety boundaries without guessing.
 
-If a future PR moves a file that is only covered by a family row, that PR should
-name the exact file in its own PR description and provide the validation listed
-for that family.
+If a future PR moves a file that is only covered by a family row, that PR should name the exact file in its own PR description and provide the validation listed for that family.
 
 ## PR Evidence Required By Move Type
 

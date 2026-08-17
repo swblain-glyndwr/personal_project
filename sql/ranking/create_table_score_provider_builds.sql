@@ -1,0 +1,35 @@
+create table {catalog}.{schema}.{client}_nextads_score_provider_builds (
+    ProviderBuildID string not null,
+    ProviderBuildAttemptID string not null,
+    InputSnapshotID string not null,
+    RunDate date not null,
+    Capability string not null,
+    UseCase string not null,
+    ProviderID string not null,
+    ProviderVersion string not null,
+    ContractVersion string not null,
+    ModelName string,
+    ModelVersion string,
+    ModelURI string,
+    PipelineUpdateID string,
+    OutputSnapshotID string,
+    OutputTable string,
+    OutputDeltaVersion bigint,
+    RowCount bigint not null,
+    OutputSchemaChecksum string,
+    WriteReceiptID string,
+    GitCommit string not null,
+    WriteDurationMs bigint not null,
+    RetryCount int not null,
+    WarningCount bigint not null,
+    Status string not null,
+    TaskRunID bigint not null,
+    ExecutionCount int not null,
+    CompletedAt timestamp not null,
+    ScoringFoundationBuildID string,
+    ScoringFoundationBuildAttemptID string,
+  constraint pk_{client}_nextads_score_provider_builds primary key (
+    ProviderBuildAttemptID
+    )
+)
+partitioned by (RunDate)

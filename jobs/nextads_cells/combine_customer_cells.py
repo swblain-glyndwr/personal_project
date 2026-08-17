@@ -1,4 +1,5 @@
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 try:
@@ -22,13 +23,26 @@ finally:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 import pyspark.sql.functions as F
-from dsutils.dbc import configure_spark
+from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import create_table_from_df
 from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager, etl
+from next_ads.common.delta_writes import validate_target_columns
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    replace_validated_snapshot,
+    with_run_date,
+)
+from next_ads.candidates.foundation import (
+    FALLBACK_PREVIOUS,
+    READY_FOR_NEXTADS,
+    schema_checksum,
+)
 from next_ads.decisioning.customer_cells import ensure_audience_column
+from next_ads.ranking.scoring_inputs import (
+    latest_delta_version,
+    read_delta_version,
+)
 
 
 jobparser = get_job_parser()
@@ -36,10 +50,19 @@ jobparser._parse_args()
 JOB_ENV = jobparser.get_arg("--job_env")
 CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
+RUN_DATE_RAW = jobparser.get_arg("--run_date")
+GIT_COMMIT = jobparser.get_arg("--git_commit")
+if not RUN_DATE_RAW:
+    raise ValueError("--run_date is required")
+try:
+    RUN_DATE = date.fromisoformat(RUN_DATE_RAW)
+except ValueError as exc:
+    raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
+logger.info(f"Run date set to: {RUN_DATE}")
 
 if not CLIENT:
     assert JOB_ENV.lower() == "dev", (
@@ -83,13 +106,19 @@ df_cells_transient = (
     .groupBy("AccountNumber")
     .pivot("Cell")
     .agg(F.max("CellValue"))
-    .where(F.col("AlgoDivision").isNotNull())
 )
 
 # Inner join will remove customers that don't have AlgoDivision
 # TODO: Will this bias the results? Address when reviewing AlgoDivision.
 
-if df_cells_transient.count() > 0:
+transient_is_usable = "AlgoDivision" in df_cells_transient.columns
+if transient_is_usable:
+    df_cells_transient = df_cells_transient.where(
+        F.col("AlgoDivision").isNotNull()
+    ).cache()
+    transient_is_usable = not df_cells_transient.isEmpty()
+
+if transient_is_usable:
     df_cells = df_cells_fixed.join(
         df_cells_transient, on="AccountNumber", how="inner"
     )
@@ -118,18 +147,96 @@ if df_cells_transient.count() > 0:
     )
     df_cells = df_cells.fillna(0, subset=["IsPremium"])
 else:
-    df_cells = df_cells_fixed
+    logger.warning(
+        "No usable AlgoDivision assignments found; preserving the last "
+        "accepted combined-cell snapshot"
+    )
+    df_cells = None
 
-df_cells = ensure_audience_column(df_cells)
+publish_new_snapshot = df_cells is not None and not df_cells.isEmpty()
+try:
+    if publish_new_snapshot:
+        df_cells = ensure_audience_column(df_cells)
+        df_selected = with_run_date(df_cells, RUN_DATE)
+        target_columns = validate_target_columns(
+            spark,
+            CELLS_TABLE_LATEST,
+            df_selected.columns,
+        )
+        df_selected = df_selected.select(*target_columns)
+        logger.info(
+            f"Atomically replacing combined cells: {CELLS_TABLE_LATEST}"
+        )
+        result = replace_validated_snapshot(
+            spark,
+            df_selected,
+            table=CELLS_TABLE_LATEST,
+            key_columns=["AccountNumber"],
+            build_id=f"customer_cells_{RUN_DATE.isoformat()}",
+            attempt_id=f"customer_cells_{RUN_DATE.isoformat()}",
+            git_commit=GIT_COMMIT,
+        )
+        selected_version = result.write.delta_version
+        selected_row_count = result.validation.row_count
+        selected_receipt_id = result.write.receipt_id
+        selected_run_date = RUN_DATE
+        selection_status = READY_FOR_NEXTADS
+        warning_count = 0
+    else:
+        selected_version = latest_delta_version(spark, CELLS_TABLE_LATEST)
+        df_selected = read_delta_version(
+            spark,
+            CELLS_TABLE_LATEST,
+            selected_version,
+        )
+        date_bounds = df_selected.agg(
+            F.min("rundate").alias("min_rundate"),
+            F.max("rundate").alias("max_rundate"),
+        ).first()
+        if (
+            date_bounds["min_rundate"] is None
+            or date_bounds["min_rundate"] != date_bounds["max_rundate"]
+        ):
+            raise ValueError(
+                "Accepted combined customer cells must contain one rundate"
+            )
+        selected_run_date = date_bounds["min_rundate"]
+        if not (RUN_DATE - timedelta(days=1) <= selected_run_date <= RUN_DATE):
+            raise ValueError(
+                "Accepted combined customer cells are more than one day old"
+            )
+        selection_status = FALLBACK_PREVIOUS
+        warning_count = 1
+        selected_row_count = 0
+        selected_receipt_id = f"delta-version:{selected_version}"
+        logger.warning(
+            "Using combined customer cells from %s at Delta version %s",
+            selected_run_date,
+            selected_version,
+        )
 
-logger.info(f"Writing combined cells to {CELLS_TABLE_LATEST}")
-create_table_from_df(
-    df=df_cells,
-    table=CELLS_TABLE_LATEST,
-    partitioned_by=["FallowControl"],
-    pk_cols=["AccountNumber"],
-    drop_if_exists=True,
-    append_rundate=True,
-)
+    task_values = get_dbutils().jobs.taskValues
+    task_values.set(key="customer_cells_table", value=CELLS_TABLE_LATEST)
+    task_values.set(key="customer_cells_delta_version", value=selected_version)
+    task_values.set(
+        key="customer_cells_source_run_date",
+        value=selected_run_date.isoformat(),
+    )
+    task_values.set(
+        key="customer_cells_selection_status", value=selection_status
+    )
+    task_values.set(key="customer_cells_row_count", value=selected_row_count)
+    task_values.set(
+        key="customer_cells_write_receipt_id",
+        value=selected_receipt_id,
+    )
+    task_values.set(
+        key="customer_cells_schema_checksum",
+        value=schema_checksum(df_selected),
+    )
+    task_values.set(key="customer_cells_warning_count", value=warning_count)
+finally:
+    if "AlgoDivision" in df_cells_transient.columns:
+        df_cells_transient.unpersist()
 
 logger.info("Run complete")

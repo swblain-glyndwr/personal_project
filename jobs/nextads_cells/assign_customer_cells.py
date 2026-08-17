@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -22,15 +23,11 @@ finally:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 from pyspark.sql import functions as F
-from datetime import date
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.etl import (
     assert_pk,
-    create_table_from_df,
-    delete_from_and_load,
     chain_when_thens,
-    truncate_and_load,
 )
 from dsutils.argparser import get_job_parser
 from next_ads.decisioning.assignment import (
@@ -39,7 +36,14 @@ from next_ads.decisioning.assignment import (
     melt_transient_cells,
 )
 from next_ads.common import config_manager, etl
+from next_ads.common.determinism import stable_fraction
 from next_ads.common.paths import load_client_config, resolve_sql_path
+from next_ads.common.snapshot_writes import (
+    publish_history_and_latest,
+    replace_validated_scope,
+    replace_validated_snapshot,
+    with_run_date,
+)
 
 
 jobparser = get_job_parser()
@@ -49,10 +53,18 @@ CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
 SAMPLE_MODE = jobparser.get_arg("--sample_mode")  # True/False
 REFRESH_CONTROL_DATE = jobparser.get_arg("--refresh_control_date")
+RUN_DATE_RAW = jobparser.get_arg("--run_date")
+if not RUN_DATE_RAW:
+    raise ValueError("--run_date is required")
+try:
+    RUN_DATE = date.fromisoformat(RUN_DATE_RAW)
+except ValueError as exc:
+    raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
+logger.info(f"Run date set to: {RUN_DATE}")
 if SAMPLE_MODE:
     SAMPLE_FRACTION = 0.0001
     logger.warning(
@@ -114,46 +126,59 @@ FALLOW_TRUE_LABEL = cfg["fallow_control"]["true_label"]
 FALLOW_FALSE_LABEL = cfg["fallow_control"]["false_label"]
 FIXED_CELLS = cfg["fixed_cells"]
 
-TODAY = date.today().strftime(format="%Y-%m-%d")
-if REFRESH_CONTROL_DATE == TODAY:
+TODAY = RUN_DATE.isoformat()
+REFRESH_REQUESTED = REFRESH_CONTROL_DATE == TODAY
+FULL_REFRESH_REQUIRED = False
+df_fixed_latest_existing = spark.table(FIXED_CELLS_TABLE)
+
+if REFRESH_REQUESTED:
     logger.info(f"Control refresh requested on today's date: {TODAY}")
     logger.info(
         "Archiving existing fixed cells table from: "
         + f"{FIXED_CELLS_TABLE} to {FIXED_CELLS_HISTORY_TABLE}"
     )
-    df_to_archive = spark.table(FIXED_CELLS_TABLE).withColumnRenamed(
-        "rundate", "RunDateEnd"
+    archive_dates = [
+        row["rundate"]
+        for row in (
+            df_fixed_latest_existing.select("rundate").distinct().collect()
+        )
+    ]
+    archive_date_count_error = (
+        "Fixed cells latest must contain exactly one rundate before refresh"
     )
-    df_to_archive.createOrReplaceTempView("tbl_to_archive")
-    spark.sql(f"""
-              insert into {FIXED_CELLS_HISTORY_TABLE}
-              select * from tbl_to_archive
-              """)
-    logger.info("Checking that fixed cells have been archived")
-    df_date_check_from = (
-        spark.table(FIXED_CELLS_TABLE).select("rundate").distinct()
-    )
-    assert df_date_check_from.count() == 1
-    date_check_from = df_date_check_from.collect()[0][0]
-    df_archived = (
-        spark.table(FIXED_CELLS_HISTORY_TABLE)
-        .where(F.col("RunDateEnd") == date_check_from)
-        .drop("RunDateEnd")
-    )
-    archive_count_error = (
-        "Dataframe to archive and dataframe archived"
-        + " have different row counts"
-    )
-    assert df_to_archive.count() == df_archived.count(), archive_count_error
-    logger.info("Fixed cells table archived successfully")
-    logger.info("Truncating fixed cells table for full refresh")
-    spark.sql(f"truncate table {FIXED_CELLS_TABLE}")
-    logger.info("Archiving of fixed cells complete")
+    assert len(archive_dates) == 1, archive_date_count_error
+    archive_date = archive_dates[0]
+    if archive_date == RUN_DATE:
+        logger.info(
+            "Fixed cells were already refreshed for this run date; "
+            "preserving the published assignment on retry"
+        )
+    else:
+        FULL_REFRESH_REQUIRED = True
+        df_to_archive = with_run_date(
+            df_fixed_latest_existing.drop("rundate"),
+            archive_date,
+            column="RunDateEnd",
+        )
+        replace_validated_scope(
+            spark,
+            df_to_archive,
+            table=FIXED_CELLS_HISTORY_TABLE,
+            scope={"RunDateEnd": archive_date},
+            key_columns=["AccountNumber"],
+        )
+        logger.info(
+            "Fixed cells archived successfully for RunDateEnd: "
+            + f"{archive_date}"
+        )
 
 # Checking how many times the control group has been refreshed to increment
 # the fallow seed for different deterministic random assignments
 refresh_count = (
-    spark.table(FIXED_CELLS_HISTORY_TABLE).select("RunDateEnd").distinct()
+    spark.table(FIXED_CELLS_HISTORY_TABLE)
+    .where(F.col("RunDateEnd") < F.lit(RUN_DATE))
+    .select("RunDateEnd")
+    .distinct()
 ).count()
 logger.info(f"Times control has been refreshed: {refresh_count}")
 FALLOW_SEED += refresh_count
@@ -180,7 +205,16 @@ df_cust = (
         & (F.col("AccountIsCurrent") == "Y")
         & (F.col("LatestAccountKeyIndicator") == 1)
     )
-    .sample(withReplacement=False, fraction=SAMPLE_FRACTION, seed=42)
+    .withColumn(
+        "_sample_fraction",
+        stable_fraction(
+            "account_number",
+            seed=42,
+            namespace="customer-cells-dev-sample",
+        ),
+    )
+    .filter(F.col("_sample_fraction") < F.lit(SAMPLE_FRACTION))
+    .drop("_sample_fraction")
 )
 df_cust = (
     df_cust.join(df_rpid_w_acc, on="account_number")
@@ -196,8 +230,14 @@ df_cust.cache()
 logger.info(f"Customer base: {df_cust.count():,}")
 
 df_fallow = (
-    df_cust.orderBy(F.col("AccountNumber"))
-    .withColumn("RandomFallow", F.rand(seed=FALLOW_SEED))
+    df_cust.withColumn(
+        "RandomFallow",
+        stable_fraction(
+            "AccountNumber",
+            seed=FALLOW_SEED,
+            namespace="customer-cells-fallow",
+        ),
+    )
     .withColumn("FallowControl", F.col("RandomFallow") <= FALLOW_PC)
 )
 df_fallow.cache()
@@ -207,9 +247,13 @@ df_fc = df_fallow.select("AccountNumber")
 
 for fixed_cell in FIXED_CELLS:
     df_fc = (
-        df_fc.orderBy(F.col("AccountNumber"))
-        .withColumn(
-            f"Random{fixed_cell}", F.rand(seed=FIXED_CELLS[fixed_cell]["seed"])
+        df_fc.withColumn(
+            f"Random{fixed_cell}",
+            stable_fraction(
+                "AccountNumber",
+                seed=FIXED_CELLS[fixed_cell]["seed"],
+                namespace=f"customer-cells-{fixed_cell}",
+            ),
         )
         .withColumn(
             fixed_cell, chain_when_thens(FIXED_CELLS[fixed_cell]["cells"])
@@ -282,7 +326,12 @@ df_cells = (
     )
 )
 
-df_cells_existing = spark.table(FIXED_CELLS_TABLE).drop("rundate")
+if FULL_REFRESH_REQUIRED:
+    logger.info("Using an empty existing-cell snapshot for full refresh")
+    fixed_cells_schema = df_fixed_latest_existing.drop("rundate").schema
+    df_cells_existing = spark.createDataFrame([], schema=fixed_cells_schema)
+else:
+    df_cells_existing = df_fixed_latest_existing.drop("rundate")
 df_cells_existing.cache()
 
 n_cust_existing = df_cells_existing.count()
@@ -345,26 +394,16 @@ for ncol in new_cols:
     n_null = df_cells_full.where(F.col(ncol).isNull()).count()
     logger.warning(f"{n_null:,} existing customers not assigned {ncol}")
 
-logger.info("Backing up fixed cells table")
-create_table_from_df(
-    df=df_cells_existing,
-    table=FIXED_CELLS_TABLE + "_backup",
-    partitioned_by=["FallowControl"],
-    pk_cols=["AccountNumber"],
-    drop_if_exists=True,
-    append_rundate=True,
-)
-
-logger.info("Dropping and recreating fixed cells table")
-create_table_from_df(
-    df=df_cells_full,
+logger.info(f"Atomically replacing fixed cells snapshot: {FIXED_CELLS_TABLE}")
+df_cells_full_with_date = with_run_date(df_cells_full, RUN_DATE)
+replace_validated_snapshot(
+    spark,
+    df_cells_full_with_date,
     table=FIXED_CELLS_TABLE,
-    partitioned_by=["FallowControl"],
-    pk_cols=["AccountNumber"],
-    drop_if_exists=True,
-    append_rundate=True,
+    key_columns=["AccountNumber"],
 )
 
+df_cells_transient = None
 if transient_cells:
     logger.info("Transient Cells requested")
     transient_cell_dfs = []
@@ -385,30 +424,32 @@ if transient_cells:
         )
         transient_cell_dfs.append(df_audiences)
 
-    df_cells_transient = transient_cell_dfs.pop()
-    df_cells_transient = melt_transient_cells(df_cells_transient)
-
     if transient_cell_dfs:
+        df_cells_transient = melt_transient_cells(transient_cell_dfs.pop())
         for df_tc in transient_cell_dfs:
             df_tc_long = melt_transient_cells(df_tc)
             df_cells_transient = df_cells_transient.unionByName(df_tc_long)
-
-    df_cells_transient.cache()
-    delete_from_and_load(
-        df_cells_transient,
-        TRANSIENT_CELLS_TABLE,
-        pk_cols=["AccountNumber", "Cell"],
-        del_where={"rundate": "current_date()"},
-    )
-
-    truncate_and_load(
-        df_cells_transient,
-        TRANSIENT_CELLS_TABLE_LATEST,
-        pk_cols=["AccountNumber", "Cell"],
-    )
 else:
-    logger.info("No Transient Cells requested - truncating latest table")
-    spark.sql(f"truncate table {TRANSIENT_CELLS_TABLE_LATEST}")
+    logger.info("No Transient Cells requested")
+
+if df_cells_transient is None:
+    logger.info("Publishing a valid empty transient-cell snapshot")
+    transient_schema = (
+        spark.table(TRANSIENT_CELLS_TABLE_LATEST).drop("rundate").schema
+    )
+    df_cells_transient = spark.createDataFrame([], schema=transient_schema)
+
+logger.info(
+    "Publishing transient-cell history before atomically replacing latest"
+)
+publish_history_and_latest(
+    spark,
+    df_cells_transient,
+    history_table=TRANSIENT_CELLS_TABLE,
+    latest_table=TRANSIENT_CELLS_TABLE_LATEST,
+    key_columns=["AccountNumber", "Cell"],
+    run_date=RUN_DATE,
+)
 
 df_cust.unpersist()
 df_fallow.unpersist()
@@ -416,6 +457,5 @@ df_fc.unpersist()
 df_cells.unpersist()
 df_cells_existing.unpersist()
 df_cells_full.unpersist()
-df_cells_transient.unpersist()
 
 logger.info("Run complete")

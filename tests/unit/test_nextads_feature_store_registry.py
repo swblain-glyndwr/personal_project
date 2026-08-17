@@ -475,7 +475,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         bundle_config["variables"]["feature_store_theme_table_prefix"][
             "default"
         ]
-        == "next_uk_nextads_theme_affinity_predict"
+        == "next_uk_nextads_account_theme_foundation"
     )
     assert (
         bundle_config["variables"]["feature_store_theme_training_reference_date"][
@@ -772,6 +772,8 @@ def test_account_feature_task_uses_theme_affinity_source_outputs():
     assert '"customer_features"' in theme_source
     assert '"customer_segments"' in theme_source
     assert '"ranked"' in theme_source
+    assert "next_uk_nextads_theme_affinity_model_latest" in theme_source
+    assert 'table_prefix, "half"' not in theme_source
 
 
 def test_theme_affinity_feature_builders_filter_null_feature_keys():

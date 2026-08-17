@@ -142,9 +142,20 @@ def read_theme_source_tables(
         "predict",
     )
     if reference_date == latest_reference_date:
-        prediction = spark.table(
-            theme_source_table(source_catalog, source_schema, table_prefix, "half")
-        ).withColumnRenamed("theme", "theme_clean")
+        prediction = (
+            spark.table(
+                f"{source_catalog}.{source_schema}."
+                "next_uk_nextads_theme_affinity_model_latest"
+            )
+            .where(F.col("rundate") == F.lit(reference_date).cast("date"))
+            .select(
+                F.col("AccountNumber").alias("account_number"),
+                F.regexp_replace("NextTheme", "[^a-zA-Z0-9]", "").alias(
+                    "theme_clean"
+                ),
+                F.col("ProbAggRebased").cast("double").alias("prediction"),
+            )
+        )
     else:
         prediction = (
             ranked.select("account_number", "theme_clean")

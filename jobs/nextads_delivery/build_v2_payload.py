@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 from time import sleep
 
@@ -33,11 +34,14 @@ import pyspark.sql.functions as F
 from pyspark.sql.window import Window
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import delete_from_and_load, truncate_and_load
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+)
 from next_ads.delivery.export import generate_experimentid
 
 
@@ -486,7 +490,12 @@ def make_payload(df_combined):
             "fragmentIds",
             "enableAdFatigueRotation",
         )
-        .agg(F.collect_list("pageType").alias("pageTypes"))
+        .agg(
+            F.sort_array(
+                F.collect_list("pageType"),
+                asc=True,
+            ).alias("pageTypes")
+        )
     )
 
     # build structs that associate the list of page types with
@@ -498,12 +507,15 @@ def make_payload(df_combined):
         "triggers",
         "control",
     ).agg(
-        F.collect_list(
-            F.struct(
-                F.col("pageTypes"),
-                F.col("enableAdFatigueRotation"),
-                F.col("fragmentIds"),
-            )
+        F.sort_array(
+            F.collect_list(
+                F.struct(
+                    F.col("pageTypes"),
+                    F.col("enableAdFatigueRotation"),
+                    F.col("fragmentIds"),
+                )
+            ),
+            asc=True,
         ).alias("fragments")
     )
 
@@ -552,21 +564,23 @@ def set_rpid(df_payload, df_roaming_profile):
 
 
 def write_payload_tables(
-    df_output, payload_table: str, payload_latest_table: str, logger
+    df_output,
+    payload_table: str,
+    payload_latest_table: str,
+    logger,
+    *,
+    spark,
+    run_date,
 ):
     logger.info(f"Loading payload output to {payload_table}")
-    delete_from_and_load(
-        df_output,
-        payload_table,
-        pk_cols=["roamingprofileid"],
-        del_where={"rundate": "current_date()"},
-    )
-
     logger.info(f"Loading payload output to {payload_latest_table}")
-    truncate_and_load(
+    publish_history_and_latest(
+        spark,
         df_output,
-        payload_latest_table,
-        pk_cols=["roamingprofileid"],
+        history_table=payload_table,
+        latest_table=payload_latest_table,
+        key_columns=["roamingprofileid"],
+        run_date=run_date,
     )
 
 
@@ -612,11 +626,40 @@ def setup_run_context(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     return logger, spark, CLIENT, config
 
 
-def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
+def resolve_run_date(spark, run_date: str | date | None) -> date:
+    """Resolve the logical build date, with Spark as an interactive fallback."""
+    if run_date is None or (
+        isinstance(run_date, str) and not run_date.strip()
+    ):
+        return capture_run_date(spark)
+    if isinstance(run_date, date):
+        return run_date
+    if not isinstance(run_date, str):
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    run_date_text = run_date.strip()
+    try:
+        parsed_run_date = date.fromisoformat(run_date_text)
+    except ValueError as exc:
+        raise ValueError(
+            "--run_date must use ISO format YYYY-MM-DD"
+        ) from exc
+    if parsed_run_date.isoformat() != run_date_text:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD")
+    return parsed_run_date
+
+
+def main(
+    JOB_ENV: str,
+    CLIENT: str,
+    LOG_LEVEL: str,
+    DO_EXPORT: bool,
+    RUN_DATE: str | date | None = None,
+):
     # load configuration
     logger, spark, CLIENT, config = setup_run_context(
         JOB_ENV, CLIENT, LOG_LEVEL
     )
+    run_date = resolve_run_date(spark, RUN_DATE)
 
     logger.info("Loading data...")
     payload_experiment_settings = get_payload_experiment_settings(CLIENT)
@@ -655,6 +698,8 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str, DO_EXPORT: bool):
         config.tables_write.nextads_payload,
         config.tables_write.nextads_payload_latest,
         logger,
+        spark=spark,
+        run_date=run_date,
     )
 
     df_latest_payload = spark.table(config.tables_write.nextads_payload_latest)
@@ -702,4 +747,5 @@ if __name__ == "__main__":
     CLIENT = jobparser.get_arg("--client")
     LOG_LEVEL = jobparser.get_arg("--log_level")
     DO_EXPORT = jobparser.get_typed_arg("--do_export", bool)
-    main(JOB_ENV, CLIENT, LOG_LEVEL, DO_EXPORT)
+    RUN_DATE = jobparser.get_arg("--run_date")
+    main(JOB_ENV, CLIENT, LOG_LEVEL, DO_EXPORT, RUN_DATE)

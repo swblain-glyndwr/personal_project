@@ -68,7 +68,12 @@ def test_ranking_is_stable_across_repartitioning_and_duplicate_preferences(
         ["AccountNumber", "customer_age_order", "customer_rank"],
     )
     ad_to_adset = spark.createDataFrame(
-        [("ad-1", 1), ("ad-2", 1), ("ad-3", 1), ("ad-4", 1)],
+        [
+            ("ad-1", "adset-a"),
+            ("ad-2", "adset-a"),
+            ("ad-3", "adset-a"),
+            ("ad-4", "adset-a"),
+        ],
         ["UniqueAdID", "AdSetID"],
     )
 
@@ -124,11 +129,15 @@ def test_location_expansion_preserves_primary_key_uniqueness(spark):
         ["AccountNumber", "customer_age_order", "customer_rank"],
     )
     ad_to_adset = spark.createDataFrame(
-        [("ad-1", 1), ("ad-2", 1), ("ad-3", 1)],
+        [
+            ("ad-1", "adset-a"),
+            ("ad-2", "adset-a"),
+            ("ad-3", "adset-a"),
+        ],
         ["UniqueAdID", "AdSetID"],
     )
     adset_to_location = spark.createDataFrame(
-        [(1, "PL1"), (1, "PL2")],
+        [("adset-a", "PL1"), ("adset-a", "PL2")],
         ["AdSetID", "Location"],
     )
 
@@ -173,7 +182,7 @@ def test_age_and_customer_preferences_remain_first_ranking_priorities(spark):
         ["AccountNumber", "customer_age_order", "customer_rank"],
     )
     ad_to_adset = spark.createDataFrame(
-        [("ad-newborn", 1), ("ad-toddler", 1)],
+        [("ad-newborn", "adset-a"), ("ad-toddler", "adset-a")],
         ["UniqueAdID", "AdSetID"],
     )
 

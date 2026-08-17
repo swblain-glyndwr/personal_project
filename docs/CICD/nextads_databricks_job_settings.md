@@ -2,9 +2,7 @@
 
 Status: Working reference
 
-This page explains the runtime settings declared in `pipelines/databricks/jobs/*.yml`.
-For target availability and release-route rules, see
-`docs/CICD/nextads_databricks_job_environment_matrix.md`.
+This page explains the runtime settings declared in `pipelines/databricks/jobs/*.yml`. For target availability and release-route rules, see `docs/CICD/nextads_databricks_job_environment_matrix.md`.
 
 ## Common Settings
 
@@ -20,32 +18,99 @@ For target availability and release-route rules, see
 
 ## Job Settings
 
-### `mktg_next_uk_nextads_candidate_build`
+### `mktg_next_uk_nextads_theme_inputs`
 
-Main NextAds candidate-generation graph. Customer cells, item attributes, product Theme Mapping, and lightweight theme scoring are shared. V1 and v2 split at the loaded control-sheet join layer. Theme Affinity is not a task in this graph; its 09:00 scheduled job writes the shared customer-theme score source used by both candidate mappers.
-
-The v2 workbook is the source of truth for the `Theme Mapping` tab. An external Google Sheets Apps Script copies it to the v1 workbook, where the tab should be locked. The candidate-build job validates that copy before parsing the shared product Theme Mapping.
+Scheduled at 12:15 Europe/London. It lands the agreed theme mapping and refreshes item attributes in parallel, builds the authoritative item-theme table, then accepts one scoring-input snapshot after the physical inputs have succeeded. `run_date` defaults to `{{job.start_time.iso_date}}`; use an explicit `YYYY-MM-DD` only for a controlled historical run.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
-| `assign_customer_cells` | `client`, `job_env`, `refresh_control_date` | `refresh_control_date` is date-gated; use a current `YYYY-MM-DD` only when deliberately refreshing control assignments. |
-| `combine_customer_cells` | `client`, `job_env` | Combines outputs from assignment. |
-| `load_control_sheet_v1` | `client`, `job_env` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
-| `load_control_sheet_v2` | `client`, `job_env` | Loads v2 page-type control-sheet data and writes `control_sheet_latest_v2`. |
-| `parse_attributes` | `client`, `job_env`, `refresh_attributes_date` | Refreshes the attribute set only when the date is today; otherwise remaps using latest attributes. |
-| `validate_theme_mapping_sync` | `client`, `job_env`, optional `warn-only` flag | Compares the v2 source Theme Mapping tab with the copied v1 Theme Mapping tab. The default is a hard stop on differences. |
-| `parse_theme_mapping` | `client`, `job_env`, `refresh_theme_mapping`, `refresh_themes_date` | Reads the copied v1 product Theme Mapping tab and writes `theme_mapping_latest` / `item_themes_latest`. Set `refresh_theme_mapping=true` to refresh the Theme Mapping snapshot; the old date trigger remains for compatibility. |
-| `score_lightweight` | `client`, `job_env`, `refresh_model_date` | Runs Markov scoring. Refreshes transition probabilities only when the date is today. This remains a shared upstream task dependency, but the candidate mapper's customer-theme source is Theme Affinity model latest. |
-| `validate_theme_affinity_theme_coverage` | `client`, `job_env`, `warn-only` flag | Checks active v1/v2 ad `Themes` from the loaded control sheets exist in shared `theme_affinity_model_latest.NextTheme`. Candidate build passes `warn-only`, so missing coverage is reported but does not block the route mappers. |
-| `map_theme_scores_to_ads_v1` | `client`, `job_env`, `apply-ad-feedback`, `top-ads-per-location` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest`, joins `NextTheme` to ad `Themes`, ranks by `Location`, and writes `preranked_ads_from_themes_latest`. `apply-ad-feedback` is a flag. |
-| `map_theme_scores_to_ads_v2` | `client`, `job_env`, `top-ads-per-page-type` | Reads shared Theme Affinity customer-theme scores plus `control_sheet_latest_v2`, joins `NextTheme` to ad `Themes`, ranks by `PageType`, and writes `preranked_ads_from_themes_v2_latest`; it does not read v1 preranked output. |
-| `trigger_page_build_v1_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build` job id. `fail-on-submit-error` is a flag. |
-| `trigger_page_build_v2_job` | `job-id`, `job-name`, `fail-on-submit-error` | Uses the target-local `mktg_next_uk_nextads_page_build_v2` job id. `fail-on-submit-error` is a flag. |
+| `land_authoritative_theme_mapping` | `client`, `job_env`, `run_date`, Git/task identity | Lands the configured theme mapping and returns its exact landing ID and Delta version. |
+| `refresh_item_attributes` | `client`, `job_env`, date-gated attribute refresh, `run_date` | Refreshes item attributes independently of theme-mapping landing. |
+| `build_authoritative_item_themes` | `client`, `job_env`, date-gated theme refresh, mapping config and exact landing values | Runs only after both input branches and builds the item-theme source used by providers. |
+| `accept_scoring_inputs` | `client`, `job_env`, `run_date`, exact landing values and Git/task identity | Writes the accepted scoring-input snapshot after its source bindings are available. |
+
+### `mktg_next_uk_nextads_candidate_foundation`
+
+Scheduled at 16:00 Europe/London. It prepares the shared customer inputs before candidate build. Customer-cell assignment/combine, repeat-ad exposure and advert feedback remain separate calculations; publication records their exact table versions in one accepted foundation only after all three branches succeed.
+
+| Task | Settings | Notes / options |
+| --- | --- | --- |
+| `assign_customer_cells` | `client`, `job_env`, date-gated control refresh and `run_date` | Builds the fixed and transient cell assignments. |
+| `combine_customer_cells` | `client`, `job_env`, `run_date`, Git commit | Runs after cell assignment and atomically replaces the accepted combined customer-cell table. |
+| `build_repeat_ad_exposure` | `client`, `job_env`, `run_date`, foundation identity and Git commit | Builds repeat-ad exposure independently of the customer-cell branch. |
+| `build_ad_feedback` | `client`, `job_env`, `run_date`, foundation identity and Git commit | Builds advert feedback independently of the customer-cell branch. |
+| `publish_candidate_foundation` | Exact table/version/receipt values from all three outputs plus run/task identity | Records the accepted foundation last; it does not recalculate the source data. |
+
+### `mktg_next_uk_nextads_candidate_build`
+
+Main NextAds candidate-generation graph. It selects the accepted Candidate Foundation produced by the separate 16:00 job, loads and audits the independent v1/v2 control sheets, resolves the configured provider selection for each route, maps the selected scores to adverts, and waits for the route-specific page-build jobs. Candidate rows are accepted through an internal manifest before the page job receives their exact attempt ID. Theme Inputs and Theme Affinity are separate upstream jobs. Markov is an independently runnable shadow provider and candidate publication does not wait for it.
+
+The candidate job parameter `run_date` defaults to `{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. The `v1_portfolio_policy_id` and `v2_portfolio_policy_id` parameters default to the declared route policies. The parameters cannot name an undeclared policy or override a higher-precedence matching policy. A v1 control or required-provider failure cannot block the v2 route, and the reverse is also true. Business coverage findings remain warning-only; technical inability to run an audit or read the pinned provider output fails only that route.
+
+| Task | Settings | Notes / options |
+| --- | --- | --- |
+| `select_candidate_foundation` | `client`, `job_env`, `run_date`, foundation snapshot selection and task attempt | Selects one accepted Candidate Foundation for the run and passes its exact table/version bindings to both routes. |
+| `load_control_sheet_v1` | `client`, `job_env`, `run_date` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
+| `audit_control_sheet_v1` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Reports business findings as warnings. A technical audit failure stops v1 before mapping. |
+| `load_control_sheet_v2` | `client`, `job_env`, `run_date`, `phase=land` | Reads the current v2 Google Sheet and exclusions, then replaces their dated raw and latest tables before any CMS request is made. |
+| `trigger_data_pull_for_CMS_pull` | Native child job with `run_date` | Runs after the raw v2 control sheet is landed, so CMS and sort-order acquisition use the advert IDs from that exact sheet. |
+| `process_control_sheet_v2` | `client`, `job_env`, `run_date`, `phase=process` | Runs after CMS acquisition, reads the same-date landed inputs, checks them against the refreshed CMS and sort-order data, then writes `control_sheet_latest_v2`. |
+| `audit_control_sheet_v2` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Runs after v2 processing and reports business findings as warnings. A technical audit failure stops v2 before mapping. |
+| `resolve_scoring_portfolio_v1/v2` | policy id, capability, use case, route, run date, task attempt | Applies priority then stable policy-ID precedence. Required serving providers wait until the fixed 18:30 Europe/London deadline and select same-day readiness or an accepted fallback no more than 24 hours old. Shadow providers never block the route. Each entry pins the exact provider attempt, table, Delta version, input snapshot, experiment and variant; entries publish before the ready portfolio header. |
+| `validate_score_provider_theme_coverage_v1/v2` | route plus serving portfolio entry, provider/current input snapshots, `warn-only` | Compares active ad themes with the exact serving output. When fallback uses an older input snapshot, themes whose accepted definition changed are excluded. Missing business coverage warns; an unreadable or invalid provider version fails the route. |
+| `map_theme_scores_to_ads_v1` | run date, exact portfolio attempt, current input snapshot, candidate-foundation bindings, task attempt, compatibility limit | Captures the control-table Delta version once, calculates each unique serving provider once, writes the canonical ad sets and up to 20 candidate rows per account/ad set/provider entry, then marks the candidate build ready. |
+| `map_theme_scores_to_ads_v2` | run date, exact portfolio attempt, current input snapshot, candidate-foundation bindings, task attempt, compatibility limit | Applies the same accepted-candidate contract at page-type grain and marks the v2 candidate build ready only after its canonical tables are written. |
+| `run_page_build_v1` | Native child job plus accepted candidate attempt and existing provenance | Waits for the complete v1 page build, publication, validation and delivery result. |
+| `run_page_build_v2` | Native child job plus accepted candidate attempt and existing provenance | Waits for the complete v2 page build, publication and payload result. |
+
+Candidate publication uses three internal tables. `candidate_ad_sets` records content-stable ad-set membership and route scopes. `candidate_scores` records the compact top-20 account/ad-set rows for every serving portfolio entry. `candidate_builds` is written last and is the only readiness signal. Rows from a failed or interrupted attempt are therefore not selectable. Shadow entries are not materialised on the nightly candidate path. The separate 21:00 compatibility job reads the exact accepted v1/v2 attempts and publishes the existing `preranked_ads_from_themes_latest` and `preranked_ads_from_themes_v2_latest` table shapes.
+
+The page-build jobs read only that accepted attempt. They resolve `best` and `best_challenger` from separate portfolio entries, even when both entries bind to the same provider today. Candidate, portfolio and candidate-foundation IDs are copied into assignment staging and completion events; the public assignment tables retain their existing columns.
+
+### `mktg_next_uk_nextads_candidate_compatibility`
+
+Independent 21:00 compatibility and monitoring job. Its v1 and v2 branches select the exact same-date READY candidate build for their route and publish the existing preranked table shapes. After both compatibility branches succeed, it starts the assignment-quality job for the same run date. Failure here alerts separately and does not revoke an accepted candidate build or live assignment snapshot.
+
+| Task | Settings | Notes / options |
+| --- | --- | --- |
+| `publish_v1_compatibility` | `client`, `job_env`, `run_date`, `route=v1` | Publishes `preranked_ads_from_themes_latest` from the exact accepted v1 attempt for that date. |
+| `publish_v2_compatibility` | `client`, `job_env`, `run_date`, `route=v2` | Publishes `preranked_ads_from_themes_v2_latest` from the exact accepted v2 attempt for that date. |
+| `assignment_quality_monitor` | Child job with `run_date` | Starts only after both compatibility tasks succeed and waits for the assignment-quality result. |
+
+### `mktg_next_uk_nextads_markov_scoring`
+
+Independent Markov score-provider graph. It starts at 13:00 Europe/London and waits for the same accepted daily scoring input for up to 90 minutes. That accepted input carries the item-theme mapping produced by the separate theme input job; Markov does not refresh the mapping itself. It has its own failure alert and a 26,100-second job deadline, so a delayed run cannot continue beyond 20:15. A Markov failure remains outside the candidate-build failure domain because Markov is registered as a shadow provider, not selected for serving.
+
+Before a non-training run starts, Markov resolves the existing transition matrix from the production read catalog, rejects an empty model, and records its exact Delta table and version in the provider context and build identity. DEV scoring therefore uses the same immutable transition model as the current route while every scoring event, provider signal, receipt and compatibility output continues to write only to the named DEV schema.
+
+`build_and_publish_markov` pins the scoring input and transition-model versions, calculates the model output, converts it to the shared account/theme score shape, writes the provider signals once, and records `READY_FOR_NEXTADS` last. It closes the provider context within the same task. The following compatibility task reads that exact accepted build and updates the legacy Markov table shapes without changing whether the provider build is ready.
+
+| Task | Settings | Notes / options |
+| --- | --- | --- |
+| `build_and_publish_markov` | `client`, `job_env`, `refresh_model_date`, `run_date`, `input_snapshot_id`, context/orchestration/task identity and Git commit | Waits up to 90 minutes for the accepted scoring input, pins that input and the transition-model version, calculates and publishes the canonical provider output, writes readiness last and closes the context. |
+| `publish_markov_compatibility` | `client`, `job_env`, `run_date`, `provider_id=markov` | Reads the exact same-date READY Markov provider build and publishes the legacy compatibility tables. A compatibility failure does not revoke the canonical READY build. |
+
+### Adding another score provider
+
+A new challenger follows the same route whether it is theme-based, ad-based, or uses another registered account/entity capability:
+
+1. Register the provider, capability, entity type and source-column mapping in `configs/scoring/scoring_settings.yaml`.
+2. Build the model and emit one row per account/entity with its raw and final score.
+3. Use `adapt_configured_provider_scores` to convert those configured columns to the canonical contract, then use `stage_provider_signals` to write the exact build.
+4. Complete the build through the shared provider publication contract, which records readiness last.
+5. Add the provider to a portfolio as `SHADOW`/`EVALUATE` first. Promotion to a serving challenger or champion is a separate reviewed configuration change.
+
+The portfolio entry is the plug-in point: it declares the capability and serving or evaluation slot, then binds the exact validated model build. The candidate route depends on that contract, not on how the model produced its scores. The current default keeps Theme Affinity in both `best` and `best_challenger` and records Markov as non-blocking shadow evidence.
+
+The full job and table hand-off is shown in [`nextads_databricks_runtime_map.md`](nextads_databricks_runtime_map.md).
+
+When two serving entries bind the same provider build, candidate scoring is computed once and published under both entry identities. A different compatible provider uses the same canonical adapter without a provider-specific branch.
+
+No model-specific code belongs in the shared adapter or publisher. A compatibility publisher is configured only where an existing consumer still needs a legacy table shape. The consuming route must already support the provider capability; the current theme-ranking route consumes `account_theme`, while `account_ad` is accepted by the contract for a route that supports ad scores.
 
 ### `mktg_next_uk_nextads_dev_setup`
 
-Personal DEV table bootstrap. This job prepares tables only; it does not run
-candidate scoring.
+Personal DEV table bootstrap. This job prepares tables only; it does not run candidate scoring.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
@@ -81,6 +146,18 @@ To copy PROD source tables into a personal DEV schema, run `mktg_next_uk_nextads
 
 To repair stale DEV table layouts before running candidate/page-build jobs, run the same job with `run_alter_tables=true`, `job_env=dev`, `client=next_uk`, `tables` blank, `confirm_mutating=true`, and `dry_run=false`. This checks all configured write tables against the repo SQL contracts. For the known control-sheet drift, it rebuilds the stale table from a backup using column names rather than positional writes, so `IsUnderperforming` sits before `rundate` as expected. For `customer_cells_latest`, missing `Audience` is repaired with the literal string value `"false"`.
 
+For a clean end-to-end run in a disposable personal DEV schema, recreate all feature-owned derived tables in one operation. Set `run_recreate_tables=true`, `confirm_destructive=true`, `dry_run=false`, and set `tables` to this comma-separated list:
+
+```text
+scoring_input_theme_mapping_raw,scoring_input_snapshots,scoring_input_snapshot_sources,scoring_input_item_themes,scoring_foundation_builds,scoring_foundation_outputs,scoring_foundation_run_contexts,account_theme_foundation_ranked,score_provider_builds,score_provider_signals,score_provider_run_contexts,scoring_portfolios,scoring_portfolio_entries,candidate_foundation_builds,candidate_foundation_sources,candidate_repeat_ad_exposure,candidate_ad_feedback,candidate_builds,candidate_scores,candidate_ad_sets,assignments_build_staging,assignments_v2_build_staging,assignment_build_events
+```
+
+This deliberately starts the modular input, foundation, provider, portfolio, candidate and internal assignment state empty. The acceptance job sequence fills them in dependency order. The operation drops and recreates only these named tables and does not make backup copies. Follow it with `run_create_missing_tables=true`, `tables` blank, `confirm_mutating=true`, and `dry_run=false` to create any other configured table that is absent without changing an existing table.
+
+Do not run a blank `run_alter_tables` pass as part of this clean personal-schema bootstrap. None of the preserved public assignment, delivery, control-sheet or customer-cell tables requires alteration for the modular migration. Those tables retain useful history and input context and are updated by their normal jobs. Diagnose and target any unrelated legacy drift separately rather than allowing a broad repair to backup-copy large tables during this acceptance run.
+
+In a non-disposable environment where the wider modular state must be retained, the minimum mandatory migration is still to recreate `assignments_build_staging`, `assignments_v2_build_staging`, and `assignment_build_events` when they lack candidate, portfolio and foundation provenance. Broad `alter_tables` intentionally refuses to backup-copy this transient data because doing so can exceed the one-hour table-operations timeout.
+
 ### DEV Integration And PREPROD Table Setup Jobs
 
 These are fixed-parameter wrappers around `table_operations.py`.
@@ -101,26 +178,33 @@ Shared DEV feature-store build.
 | `reference_date` | Feature snapshot date. | `current` or `YYYY-MM-DD`. |
 | `source_catalog`, `source_schema` | Primary source namespace. | Existing Unity Catalog catalog/schema. |
 | `theme_source_catalog`, `theme_source_schema` | Theme source namespace. | Existing Unity Catalog catalog/schema. |
-| `theme_table_prefix` | Prefix for theme source tables. | Table-name prefix, for example `next_uk_nextads_theme_affinity_predict`. |
+| `theme_table_prefix` | Prefix for theme source tables. | Physical Delta prefix, for example `next_uk_nextads_account_theme_foundation`. |
 | `theme_training_reference_date` | Reference date for theme-affinity training input. | `current` or `YYYY-MM-DD`. |
 | `recreate_feature_tables` | Recreate feature-store tables before building. | `false` by default; use `true` only for intentional table rebuilds. |
 | Fixed task settings | `catalog`, `schema`, `manage_principal`, `all_privileges_principal`, `replace_reference_date`, `log_level` | Set by bundle variables/job definition; only change with feature-store ownership review. |
 
 ### `mktg_next_uk_nextads_theme_affinity`
 
-Operational Theme Affinity publish, predict, clean, and sense-check graph.
-This job is a shared upstream producer for candidate mapping. It does not depend
-on either v1 or v2 control sheets; the route split happens later inside
-`mktg_next_uk_nextads_candidate_build`.
+Operational Theme Affinity preparation and scoring graph. It contains three tasks: prepare the pinned foundation context, run the Lakeflow preparation, then publish the ranked foundation and provider signals on one Spark task. The accepted provider build is recorded READY last. This job is a shared upstream producer for candidate mapping and does not depend on either v1 or v2 control sheets; the route split happens later inside `mktg_next_uk_nextads_candidate_build`.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
-| `publish_source_namespace`, `publish_target_namespace` | Source and target namespaces for Lakeflow/DLT outputs. | `catalog.schema`. |
-| `publish_source_table_prefix`, `publish_target_table_prefix` | Table prefix for source/target publish. | Prefix string without suffix. |
-| `publish_table_suffixes` | Tables to publish by suffix. | Comma-separated suffix list from bundle variable. |
+| `run_date` | Logical date for the foundation and provider build. | Defaults to `{{job.start_time.iso_date}}`; use `YYYY-MM-DD` for a controlled rerun. |
+| `input_snapshot_id` | Accepted Theme Inputs snapshot to use. | `same_day` by default, or an explicit accepted snapshot ID for a pinned rerun. |
+| `publish_source_namespace`, `publish_target_namespace` | Source Lakeflow and target canonical namespaces. | `catalog.schema`. |
+| `publish_source_table_prefix`, `publish_target_table_prefix` | Source staging and target canonical table prefixes. | Prefix string without suffix. |
 | `model_uri` | Model used for prediction. | Job parameter defaulting to `${var.theme_affinity_model_uri}`; override per validation run with the reviewed MLflow model URI or alias. |
-| `check_scope` | Sense-check scope. | `data` or `model_outputs`. |
-| Baseline/candidate settings | Baseline namespaces, prefixes, final table, and summary table. | Fully qualified namespaces/tables used for comparison evidence. |
+
+### `mktg_next_uk_nextads_theme_feature_compatibility`
+
+Independent 17:00 compatibility and monitoring graph. One branch reads the exact READY Theme Affinity provider build for the requested date and publishes the existing model-output table shapes before its model-output sense check. The other branch publishes the four Lakeflow feature table shapes before its foundation sense check. Failures alert independently and do not revoke or delay the accepted provider build.
+
+| Setting | Meaning | Options / format |
+| --- | --- | --- |
+| `run_date` | Exact provider and feature date to publish. | Defaults to `{{job.start_time.iso_date}}`; use the original build date for a controlled repair. |
+| `source_namespace`, `target_namespace` | Lakeflow source and compatibility target namespaces. | `catalog.schema`. |
+| `source_table_prefix`, `target_table_prefix` | Staging source and compatibility target prefixes. | Prefix string without suffix. |
+| `table_suffixes` | Lakeflow feature outputs copied by the feature branch. | Bundle variable containing the four required suffixes. |
 
 ### Theme Affinity Model Lifecycle Jobs
 
@@ -158,8 +242,8 @@ Databricks quality monitor configuration for Theme Affinity ranked outputs.
 
 | Job | Settings | Notes / options |
 | --- | --- | --- |
-| `mktg_next_uk_nextads_page_build` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
-| `mktg_next_uk_nextads_page_build_v2` | `page_type`, `location`, `inherit_basic_from`, downstream trigger job ids/names | Iterates over configured page types and locations. `inherit_basic_from` is optional inheritance for secondary locations. |
+| `mktg_next_uk_nextads_page_build` | `run_date`, `build_run_id`, accepted candidate attempt, provider/foundation provenance and pinned customer cells | `build_and_publish_v1` calculates all 77 primary locations plus SB2/OC2 in one Spark graph, validates the complete 79-scope output, writes history and then live latest. MASID and PLP child jobs start only after that task succeeds. |
+| `mktg_next_uk_nextads_page_build_v2` | `run_date`, `build_run_id`, accepted candidate attempt, provider/foundation provenance and pinned customer cells | `build_and_publish_v2` calculates and validates all five page types in one Spark graph, writes history and then live latest. Payload export starts only after that task succeeds. |
 | `mktg_next_uk_nextads_qa` | `client`, `job_env` | Runs operational QA in the target environment. |
 | `mktg_next_uk_nextads_masid_handoff` | `client`, `job_env` | Runs MASID handoff checks. |
 | `mktg_next_uk_nextads_payload_export` | `client`, `job_env`, `do_export` | `do_export=1` enables export. |

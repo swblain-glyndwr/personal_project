@@ -27,20 +27,106 @@ finally:
 
 from pyspark.sql import functions as F
 from pyspark.sql import Window
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from dsutils.dbc import configure_spark
 from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import delete_from_and_load, truncate_and_load
 from next_ads.common import config_manager
+from next_ads.common.delta_writes import find_delta_write_receipt
+from next_ads.common.spark_runtime import configure_lean_spark
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+    replace_validated_snapshot,
+    with_run_date,
+)
 from next_ads.common import etl
+from next_ads.ranking.theme_score_generation import (
+    merge_and_rank_theme_scores,
+    select_global_top_themes,
+    select_latest_view_themes,
+)
+from next_ads.ranking.provider_context import (
+    load_active_provider_context,
+    pinned_item_themes,
+    pinned_provider_model,
+    transition_provider_context,
+)
+from next_ads.ranking.provider_publication import (
+    publish_provider_build,
+    stage_provider_signals,
+    validate_provider_publication_contract,
+)
+from next_ads.ranking.provider_signals import (
+    adapt_configured_provider_scores,
+)
+from next_ads.ranking.scoring_inputs import (
+    latest_delta_version,
+    read_delta_version,
+    schema_checksum,
+)
+from jobs.orchestration.prepare_score_provider_context import (
+    main as prepare_provider_context,
+)
 
 from next_ads.reporting.plotting import DirectedGraphPlotter
 
 
-def main(
+MARKOV_MODEL_COLUMNS = frozenset(
+    {
+        "theme",
+        "next_theme",
+        "probability",
+        "transition_freq",
+        "theme_total",
+        "base_probability",
+        "probability_rebased",
+    }
+)
+
+
+def _resolve_markov_model_binding(spark, table):
+    """Pin one non-empty transition model before the scoring build starts."""
+    version = latest_delta_version(spark, table)
+    frame = read_delta_version(spark, table, version)
+    missing = sorted(MARKOV_MODEL_COLUMNS.difference(frame.columns))
+    if missing:
+        raise ValueError(
+            "Markov transition model is missing columns: "
+            + ", ".join(missing)
+        )
+    if frame.select("theme").limit(1).isEmpty():
+        raise ValueError(f"Markov transition model is empty: {table}")
+    return {
+        "table": table,
+        "delta_version": version,
+        "schema_version": "markov_transitions/v1",
+        "schema_checksum": schema_checksum(frame),
+    }
+
+
+def _markov_model_uri(binding):
+    return (
+        f"delta:{binding['table']}?version={binding['delta_version']}"
+        "#markov/v1"
+    )
+
+
+def _has_pinned_provider_attempt(
+    provider_build_id,
+    provider_build_attempt_id,
+):
+    pinned_values = (provider_build_id, provider_build_attempt_id)
+    if any(pinned_values) and not all(pinned_values):
+        raise ValueError(
+            "Pinned Markov scoring requires both provider build IDs"
+        )
+    return all(pinned_values)
+
+
+def _run_markov(
     JOB_ENV,
     CLIENT,
     LOG_LEVEL,
@@ -50,14 +136,26 @@ def main(
     PLOT_GRAPH=False,
     MIN_EDGE_WEIGHT=0.03,
     MIN_NODE_WEIGHT=1000,
+    RUN_DATE=None,
+    INPUT_SNAPSHOT_ID=None,
+    PROVIDER_BUILD_ID=None,
+    PROVIDER_BUILD_ATTEMPT_ID=None,
+    CONTEXT_SLOT=None,
+    ORCHESTRATION_RUN_ID=None,
+    GIT_COMMIT=None,
+    TASK_RUN_ID=None,
+    EXECUTION_COUNT=None,
+    CONTEXT_STATE=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
-    spark.conf.set("spark.sql.shuffle.partitions", "auto")
-    spark.conf.set("spark.sql.adaptive.enabled", "true")
+    configure_lean_spark(spark)
+    run_date = (
+        date.fromisoformat(RUN_DATE) if RUN_DATE else capture_run_date(spark)
+    )
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -69,8 +167,172 @@ def main(
 
     # load configuration
     config = config_manager.load_config(JOB_ENV, client=CLIENT)
+    if not TEST_ACCOUNT:
+        validate_provider_publication_contract(
+            spark,
+            signals_table=config.tables_write.score_provider_signals,
+            builds_table=config.tables_write.score_provider_builds,
+        )
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
+
+    ACTIONS_END = ACTIONS_END or (run_date - timedelta(days=1))
+    if isinstance(ACTIONS_END, str):
+        ACTIONS_END = date.fromisoformat(ACTIONS_END)
+    ACTIONS_START = ACTIONS_END - timedelta(days=364)
+    TODAY = run_date.isoformat()
+    TRAIN = REFRESH_MODEL_DATE == TODAY or False
+
+    tbls = cfg["tables"]["write"]
+    markov_model_table = etl.map_tbl(
+        tbls["theme_transitions_latest"],
+        catalog=config.catalog_read,
+        schema=config.schema_read,
+        client=CLIENT,
+    )
+
+    has_pinned_provider_attempt = _has_pinned_provider_attempt(
+        PROVIDER_BUILD_ID,
+        PROVIDER_BUILD_ATTEMPT_ID,
+    )
+    provider_context = None
+    if has_pinned_provider_attempt:
+        required_pinned_values = {
+            "INPUT_SNAPSHOT_ID": INPUT_SNAPSHOT_ID,
+            "CONTEXT_SLOT": CONTEXT_SLOT,
+            "ORCHESTRATION_RUN_ID": ORCHESTRATION_RUN_ID,
+            "GIT_COMMIT": GIT_COMMIT,
+            "TASK_RUN_ID": TASK_RUN_ID,
+            "EXECUTION_COUNT": EXECUTION_COUNT,
+        }
+        missing = [
+            name
+            for name, value in required_pinned_values.items()
+            if value is None
+        ]
+        if missing:
+            raise ValueError(
+                "Pinned Markov scoring is missing: " + ", ".join(missing)
+            )
+        provider_context = load_active_provider_context(
+            spark,
+            context_table=config.tables_write.score_provider_run_contexts,
+            context_slot=CONTEXT_SLOT,
+        )
+        expected_context = {
+            "provider_id": "markov",
+            "provider_build_id": PROVIDER_BUILD_ID,
+            "provider_build_attempt_id": PROVIDER_BUILD_ATTEMPT_ID,
+            "input_snapshot_id": INPUT_SNAPSHOT_ID,
+            "run_date": run_date,
+            "orchestration_run_id": int(ORCHESTRATION_RUN_ID),
+        }
+        mismatched = [
+            field
+            for field, expected in expected_context.items()
+            if getattr(provider_context, field) != expected
+        ]
+        if mismatched:
+            raise ValueError(
+                "Markov provider context does not match this scorer: "
+                + ", ".join(mismatched)
+            )
+        if provider_context.scoring_foundation_build_id is not None:
+            raise ValueError("Markov must not consume a scoring foundation")
+        logger.info(
+            "Using provider build %s with pinned input %s",
+            PROVIDER_BUILD_ID,
+            INPUT_SNAPSHOT_ID,
+        )
+    elif not TEST_ACCOUNT:
+        required_runtime_values = {
+            "INPUT_SNAPSHOT_ID": INPUT_SNAPSHOT_ID,
+            "CONTEXT_SLOT": CONTEXT_SLOT,
+            "ORCHESTRATION_RUN_ID": ORCHESTRATION_RUN_ID,
+            "GIT_COMMIT": GIT_COMMIT,
+            "TASK_RUN_ID": TASK_RUN_ID,
+            "EXECUTION_COUNT": EXECUTION_COUNT,
+        }
+        missing = [
+            name
+            for name, value in required_runtime_values.items()
+            if value is None
+        ]
+        if missing:
+            raise ValueError(
+                "Markov build-and-publish is missing: " + ", ".join(missing)
+            )
+        model_binding = None
+        model_uri = f"code:/markov/v1#train={run_date.isoformat()}"
+        if not TRAIN:
+            model_binding = _resolve_markov_model_binding(
+                spark,
+                markov_model_table,
+            )
+            model_uri = _markov_model_uri(model_binding)
+        provider_context = prepare_provider_context(
+            JOB_ENV,
+            CLIENT,
+            LOG_LEVEL,
+            run_date.isoformat(),
+            INPUT_SNAPSHOT_ID,
+            model_uri,
+            CONTEXT_SLOT,
+            TASK_RUN_ID,
+            EXECUTION_COUNT,
+            "5400",
+            "30",
+            "markov",
+            "theme_ranking",
+            ORCHESTRATION_RUN_ID,
+            None,
+            None,
+            ALLOW_SERIAL_RUN_TAKEOVER=True,
+            ACTIVATE_CONTEXT=True,
+            EMIT_TASK_VALUES=False,
+            REUSE_INCOMPLETE_ATTEMPT=True,
+            MODEL_BINDING=model_binding,
+        )
+        INPUT_SNAPSHOT_ID = provider_context.input_snapshot_id
+        PROVIDER_BUILD_ID = provider_context.provider_build_id
+        PROVIDER_BUILD_ATTEMPT_ID = provider_context.provider_build_attempt_id
+
+    if provider_context is not None and CONTEXT_STATE is not None:
+        CONTEXT_STATE.update(
+            spark=spark,
+            config=config,
+            context=provider_context,
+            logger=logger,
+        )
+
+    if provider_context is not None and not TEST_ACCOUNT:
+        existing_receipt = find_delta_write_receipt(
+            spark,
+            target_table=config.tables_write.score_provider_signals,
+            build_id=provider_context.provider_build_id,
+            attempt_id=provider_context.provider_build_attempt_id,
+        )
+        if existing_receipt is not None:
+            logger.info(
+                "Reusing Markov signals receipt %s at Delta version %s",
+                existing_receipt.receipt_id,
+                existing_receipt.delta_version,
+            )
+            provider = config.scoring.providers[provider_context.provider_id]
+            publish_provider_build(
+                spark,
+                context=provider_context,
+                signals_table=config.tables_write.score_provider_signals,
+                signals_delta_version=existing_receipt.delta_version,
+                write_receipt=existing_receipt,
+                builds_table=config.tables_write.score_provider_builds,
+                provider_config=provider,
+                contract_version=config.scoring.contract_version,
+                git_commit=GIT_COMMIT,
+                task_run_id=int(TASK_RUN_ID),
+                execution_count=int(EXECUTION_COUNT),
+            )
+            return
 
     PRODUCT_CATALOG = cfg["tables"]["read"]["product_catalog"]
     BASKETS = cfg["tables"]["read"]["baskets"]
@@ -82,7 +344,6 @@ def main(
     VIEWS_APP = cfg["tables"]["read"]["bq_views_app"]
     VIEWS_ENABLED = all([SESSIONS, VIEWS])
 
-    tbls = cfg["tables"]["write"]
     SCHEMA = config.schema_write
     logger.info(f"Write schema set to {SCHEMA}")
 
@@ -93,29 +354,21 @@ def main(
         "schema": SCHEMA,
         "client": CLIENT,
     }
-    ITEM_THEMES = etl.map_tbl(tbls["item_themes_latest"], **tbl_args)
+    ITEM_THEMES = etl.map_tbl(
+        (
+            tbls["scoring_input_item_themes"]
+            if INPUT_SNAPSHOT_ID
+            else tbls["item_themes_latest"]
+        ),
+        **tbl_args,
+    )
     THEME_TRANSITIONS_LATEST = etl.map_tbl(
         tbls["theme_transitions_latest"], **tbl_args
     )  # noqa
     THEME_TRANSITIONS = etl.map_tbl(tbls["theme_transitions"], **tbl_args)
-    NEXT_THEME_SCORES_LATEST = etl.map_tbl(
-        tbls["next_theme_scores_latest"], **tbl_args
-    )  # noqa
-    NEXT_THEME_SCORES = etl.map_tbl(tbls["next_theme_scores"], **tbl_args)
     THEME_SCORING_EVENTS_LATEST = etl.map_tbl(
         tbls["theme_scoring_events_latest"], **tbl_args
     )  # noqa
-
-    ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
-
-    ACTIONS_END = ACTIONS_END or (date.today() - timedelta(days=1))
-
-    if isinstance(ACTIONS_END, str):
-        ACTIONS_END = date.fromisoformat(ACTIONS_END)
-    ACTIONS_START = ACTIONS_END - timedelta(days=364)
-
-    TODAY = date.today().strftime(format="%Y-%m-%d")
-    TRAIN = REFRESH_MODEL_DATE == TODAY or False
 
     w_item_by_modified = Window.partitionBy("pid").orderBy(
         F.desc("date_modified"), "title"
@@ -127,14 +380,17 @@ def main(
         .where(F.col("modified_rank") == 1)
         .select("pid", "title")
     )
-    msg = "Duplicate PIDs found when retrieving item titles"
-    assert (
-        item_titles.count() == item_titles.select("pid").distinct().count()
-    ), msg
-
+    item_themes_source = (
+        pinned_item_themes(
+            spark,
+            provider_context,
+            input_table=ITEM_THEMES,
+        )
+        if provider_context is not None
+        else spark.table(ITEM_THEMES)
+    )
     item_themes = (
-        spark.table(ITEM_THEMES)
-        .where(F.col("theme_rank") == 1)
+        item_themes_source.where(F.col("theme_rank") == 1)
         .select("pid", "theme")
         .distinct()
     )
@@ -186,10 +442,17 @@ def main(
     logger.info(
         f"Loading baskets to scoring events table {THEME_SCORING_EVENTS_LATEST}"
     )
-    truncate_and_load(
-        baskets_with_themes_export,
-        THEME_SCORING_EVENTS_LATEST,
-        pk_cols=["AccountNumber", "EventDate", "EventType", "PID", "Theme"],
+    replace_validated_snapshot(
+        spark,
+        with_run_date(baskets_with_themes_export, run_date),
+        table=THEME_SCORING_EVENTS_LATEST,
+        key_columns=[
+            "AccountNumber",
+            "EventDate",
+            "EventType",
+            "PID",
+            "Theme",
+        ],
     )
 
     if TEST_ACCOUNT:
@@ -301,39 +564,39 @@ def main(
         )
         assert bad_total_probs.isEmpty(), "Total probabilities found != 1.0"
 
-        logger.info(f"Loading theme transition to {THEME_TRANSITIONS_LATEST}")
-        truncate_and_load(
-            transition_probs,
-            THEME_TRANSITIONS_LATEST,
-            pk_cols=["theme", "next_theme"],
-        )
-
         logger.info(f"Loading theme transition to {THEME_TRANSITIONS}")
-        delete_from_and_load(
+        logger.info(f"Loading theme transition to {THEME_TRANSITIONS_LATEST}")
+        publish_history_and_latest(
+            spark,
             transition_probs,
-            THEME_TRANSITIONS,
-            pk_cols=["theme", "next_theme"],
-            del_where={"rundate": "current_date()"},
+            history_table=THEME_TRANSITIONS,
+            latest_table=THEME_TRANSITIONS_LATEST,
+            key_columns=["theme", "next_theme"],
+            run_date=run_date,
         )
 
-    # Get recent purchase themes for each account (baseline interest)
+    # Read the materialised scoring events from this run. This keeps the
+    # downstream scoring lineage independent from the cached basket build.
     account_themes = (
-        baskets_with_themes.where(F.col("order_no") < 10)
-        .select("account_number", "theme")
+        spark.table(THEME_SCORING_EVENTS_LATEST)
+        .where(F.col("EventType") == "order")
+        .where(F.col("EventWeight") == 1.0)
+        .select(
+            F.col("AccountNumber").alias("account_number"),
+            F.col("Theme").alias("theme"),
+        )
         .distinct()
     )
-
-    baskets_with_themes.unpersist()
 
     if TEST_ACCOUNT:
         logger.info("Recent themes for test account:")
         (
-            baskets_with_themes.where(F.col("account_number") == TEST_ACCOUNT)
-            .where(F.col("order_no") < 10)
-            .select("account_number", "order_no", "theme")
-            .orderBy("account_number", "order_no")
+            account_themes.where(F.col("account_number") == TEST_ACCOUNT)
+            .orderBy("account_number", "theme")
             .show(100, truncate=False)
         )
+
+    baskets_with_themes.unpersist()
 
     # --- View history (immediate intent signal) ---
     if VIEWS_ENABLED:
@@ -360,8 +623,6 @@ def main(
             )
         rpid_lookup = rpid_lookup.distinct()
 
-        w_view = Window.partitionBy("account_number").orderBy(F.desc("date"))
-
         views_raw = (
             spark.table(VIEWS)
             .where(F.col("date").between(ACTIONS_START, ACTIONS_END))
@@ -376,13 +637,10 @@ def main(
                 )
             )
 
-        account_view_themes = (
+        account_view_themes = select_latest_view_themes(
             views_raw.join(rpid_lookup, on="UniqueVisitID", how="inner")
             .join(F.broadcast(item_themes), on="pid", how="inner")
             .select("account_number", "theme", "date")
-            .withColumn("rank", F.row_number().over(w_view))
-            .where(F.col("rank") <= 1)
-            .select("account_number", "theme")
         )
 
         if TEST_ACCOUNT:
@@ -398,9 +656,17 @@ def main(
 
     if not TRAIN:
         logger.info(
-            f"Reading transition probabilities from {THEME_TRANSITIONS_LATEST}"
+            "Reading the exact transition model bound to this provider build"
         )
-        transition_probs = spark.table(THEME_TRANSITIONS_LATEST)
+        transition_probs = (
+            pinned_provider_model(
+                spark,
+                provider_context,
+                required_columns=MARKOV_MODEL_COLUMNS,
+            )
+            if provider_context is not None
+            else spark.table(THEME_TRANSITIONS_LATEST)
+        )
 
     # --- Blended scoring (purchase baseline + view boost) ---
     logger.info("Scoring purchase history against transition matrix")
@@ -453,51 +719,19 @@ def main(
 
     # --- Safety net: backfill with global best sellers ---
     logger.info("Building safety net from top 25 recent themes")
-    global_top_themes = (
+    global_top_themes = select_global_top_themes(
         spark.table(BASKETS)
-        .where(F.col("ordertakendate") >= F.date_sub(F.current_date(), 30))
+        .where(F.col("ordertakendate") >= F.date_sub(F.lit(ACTIONS_END), 30))
+        .where(F.col("ordertakendate") <= F.lit(ACTIONS_END))
         .withColumnRenamed("itemno", "pid")
         .join(F.broadcast(item_themes), on="pid", how="inner")
         .groupBy("theme")
         .agg(F.count("*").alias("sales_count"))
-        .orderBy(F.desc("sales_count"))
-        .limit(25)
-        .select(F.col("theme").alias("next_theme"))
-        .withColumn("prob_agg", F.lit(0.0))
-        .withColumn("prob_base", F.lit(0.0))
-        .withColumn("prob_agg_rebased", F.lit(-999.0))
     )
 
-    unique_users = next_theme_probs.select("account_number").distinct()
-    backfill_block = unique_users.crossJoin(F.broadcast(global_top_themes))
-
-    next_theme_probs = (
-        next_theme_probs.unionByName(backfill_block)
-        .withColumn("tiebreak", F.hash("account_number", "next_theme"))
-        .withColumn(
-            "_dedup_rank",
-            F.row_number().over(
-                Window.partitionBy("account_number", "next_theme").orderBy(
-                    F.desc("prob_agg_rebased"), F.desc("prob_agg"), "tiebreak"
-                )
-            ),
-        )
-        .where(F.col("_dedup_rank") == 1)
-        .drop("_dedup_rank", "tiebreak")
-    )
-
-    # --- Rank output ---
-    next_theme_probs = (
-        next_theme_probs.withColumn(
-            "rank",
-            F.row_number().over(
-                Window.partitionBy("account_number").orderBy(
-                    F.desc("prob_agg_rebased"), F.desc("prob_agg")
-                )
-            ),
-        )
-        .where(F.col("rank") <= 100)
-        .drop("rank")
+    next_theme_probs = merge_and_rank_theme_scores(
+        next_theme_probs,
+        global_top_themes,
     )
 
     if TEST_ACCOUNT:
@@ -508,6 +742,10 @@ def main(
             .show(100, truncate=False)
         )
     else:
+        if provider_context is None:
+            raise ValueError(
+                "Markov publication requires an active provider context"
+            )
         next_theme_probs = next_theme_probs.withColumnsRenamed(
             {
                 "account_number": "AccountNumber",
@@ -518,38 +756,21 @@ def main(
             }
         )
 
-        logger.info("Materialising customer next-theme scores to temp table")
-        temp_table_name = f"{SCHEMA}.temp_next_theme_probs"
-        # materialse the table before insert/upsert to avoid long-running transactions during truncate-and-load and delete-and-load
-        # TODO: in runtime 18.1, checkpointing works with unity catalog, so we could consider using that instead of a temp table
-        # https://learn.microsoft.com/en-us/azure/databricks/release-notes/runtime/18.1#dataframe-checkpoints-in-volume-paths
-        next_theme_probs.write.saveAsTable(temp_table_name, mode="overwrite")
-
-        logger.info("Materialising customer next-theme scores to temp table")
-
-        temp_next_theme_probs = spark.table(temp_table_name)
-
-        logger.info(
-            "Loading customer next-theme scores to"
-            + f" {NEXT_THEME_SCORES_LATEST}"
+        provider = config.scoring.providers[provider_context.provider_id]
+        signals = adapt_configured_provider_scores(
+            next_theme_probs,
+            context=provider_context,
+            provider_config=provider,
         )
-        truncate_and_load(
-            temp_next_theme_probs,
-            NEXT_THEME_SCORES_LATEST,
-            pk_cols=["AccountNumber", "NextTheme"],
+        if not GIT_COMMIT:
+            raise ValueError("Markov publication requires a Git commit")
+        receipt = stage_provider_signals(
+            spark,
+            signals,
+            context=provider_context,
+            table=config.tables_write.score_provider_signals,
+            git_commit=GIT_COMMIT,
         )
-
-        logger.info(
-            "Loading customer next-theme scores to" + f" {NEXT_THEME_SCORES}"
-        )
-        delete_from_and_load(
-            temp_next_theme_probs,
-            NEXT_THEME_SCORES,
-            pk_cols=["AccountNumber", "NextTheme"],
-            del_where={"rundate": "current_date()"},
-        )
-
-        spark.sql(f"DROP TABLE IF EXISTS {temp_table_name}")
 
     if PLOT_GRAPH:
         logger.info("Creating theme transition graph")
@@ -569,7 +790,53 @@ def main(
         logger.info(f"Writing graph to {graph_filename}")
         graph.fig.write_html(graph_filename)
 
-    logger.info("Run complete")
+    if provider_context is not None:
+        provider = config.scoring.providers[provider_context.provider_id]
+        publish_provider_build(
+            spark,
+            context=provider_context,
+            signals_table=config.tables_write.score_provider_signals,
+            signals_delta_version=receipt.delta_version,
+            write_receipt=receipt,
+            builds_table=config.tables_write.score_provider_builds,
+            provider_config=provider,
+            contract_version=config.scoring.contract_version,
+            git_commit=GIT_COMMIT,
+            task_run_id=int(TASK_RUN_ID),
+            execution_count=int(EXECUTION_COUNT),
+        )
+    else:
+        logger.info("Run complete")
+
+
+def _transition_markov_context(state, status):
+    context = state.get("context")
+    if context is None:
+        return
+    config = state["config"]
+    transition_provider_context(
+        state["spark"],
+        context_table=config.tables_write.score_provider_run_contexts,
+        context=context,
+        status=status,
+        completed_at=datetime.now(timezone.utc),
+    )
+
+
+def main(*args, **kwargs):
+    context_state = {}
+    try:
+        result = _run_markov(*args, CONTEXT_STATE=context_state, **kwargs)
+    except Exception:
+        try:
+            _transition_markov_context(context_state, "FAILED")
+        except Exception:
+            logger = context_state.get("logger")
+            if logger is not None:
+                logger.exception("Unable to release failed provider context")
+        raise
+    _transition_markov_context(context_state, "CONSUMED")
+    return result
 
 
 if __name__ == "__main__":
@@ -588,4 +855,15 @@ if __name__ == "__main__":
         PLOT_GRAPH=jobparser.has_arg("--plot-graph"),
         MIN_EDGE_WEIGHT=jobparser.get_arg("--min-edge-weight") or 0.03,
         MIN_NODE_WEIGHT=jobparser.get_arg("--min-node-weight") or 1000,
+        RUN_DATE=jobparser.get_arg("--run_date"),
+        INPUT_SNAPSHOT_ID=jobparser.get_arg("--input_snapshot_id"),
+        PROVIDER_BUILD_ID=jobparser.get_arg("--provider_build_id"),
+        PROVIDER_BUILD_ATTEMPT_ID=jobparser.get_arg(
+            "--provider_build_attempt_id"
+        ),
+        CONTEXT_SLOT=jobparser.get_arg("--context_slot"),
+        ORCHESTRATION_RUN_ID=jobparser.get_arg("--orchestration_run_id"),
+        GIT_COMMIT=jobparser.get_arg("--git_commit"),
+        TASK_RUN_ID=jobparser.get_arg("--task_run_id"),
+        EXECUTION_COUNT=jobparser.get_arg("--execution_count"),
     )
