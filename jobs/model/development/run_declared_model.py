@@ -147,8 +147,8 @@ def main() -> None:
     publication = publish_evaluation_provider(
         spark,
         scores,
-        provider_id=definition.model_name,
-        provider_version=f"{definition.model_name}/v1",
+        provider_id=definition.provider_id,
+        provider_version=f"{definition.provider_id}/v1",
         provider_build_id=build.model_build_id,
         provider_build_attempt_id=training.receipt.receipt_id,
         input_snapshot_id=training.receipt.receipt_id,

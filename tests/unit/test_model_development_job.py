@@ -22,6 +22,7 @@ def test_model_job_uses_receipts_plugins_and_exact_promotion():
     assert "persist_training_set_receipt" in source
     assert "train_or_reuse_model" in source
     assert "promote_exact_model_build" in source
+    assert "provider_id=definition.provider_id" in source
     assert "ModelPluginRegistry" in source
     assert "MODEL_DEVELOPMENT_EVIDENCE=" in source
     assert "mktg_next_uk_nextads.yml" not in source
