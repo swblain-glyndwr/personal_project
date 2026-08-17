@@ -29,6 +29,10 @@ from next_ads.model_development.store import (
     persist_model_build,
     persist_training_set_receipt,
 )
+from next_ads.model_development.runtime import (
+    model_build_id,
+    train_or_reuse_model,
+)
 
 __all__ = [
     "ALLOWED_RUNTIME_PROFILES",
@@ -49,7 +53,9 @@ __all__ = [
     "load_ready_training_set_receipt",
     "load_model_definition",
     "load_model_definitions",
+    "model_build_id",
     "persist_model_build",
     "persist_training_set_receipt",
+    "train_or_reuse_model",
     "validate_snapshot_time_boundary",
 ]
