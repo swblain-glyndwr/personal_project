@@ -459,11 +459,14 @@ def _freshness_evidence(
         else "FAIL"
     )
     metadata = commit_metadata or {}
+    evidence = metadata.get("details", metadata)
+    if not isinstance(evidence, dict):
+        evidence = metadata
     commit_evidence_status = (
         "PASS"
-        if metadata.get("contract") == "nextads_feature_build/v1"
-        and metadata.get("table_name") == expected_table_name
-        and metadata.get("reference_date") == expected_reference_date
+        if evidence.get("contract") == "nextads_feature_build/v1"
+        and evidence.get("table_name") == expected_table_name
+        and evidence.get("reference_date") == expected_reference_date
         else "FAIL"
     )
     status = (

@@ -10,6 +10,7 @@ from next_ads.features.theme_affinity import (
     THEME_AFFINITY_MODEL_FEATURE_COLUMNS,
 )
 from jobs.table_operations.create_feature_store_tables import (
+    create_feature_metadata_tables,
     create_feature_store_tables,
     create_databricks_feature_table,
     migrate_empty_dev_scaffolds,
@@ -48,6 +49,7 @@ class _FakeSpark:
                 "CREATE SCHEMA",
                 "GRANT ",
                 "CREATE OR REPLACE VIEW",
+                "CREATE TABLE IF NOT EXISTS",
                 "DROP VIEW",
                 "DROP TABLE",
             )
@@ -210,7 +212,7 @@ def test_feature_store_write_helpers_validate_required_key_values_before_write()
         "validate_required_column_values(aligned_df, table.primary_keys, table_name)"
         in materialization
     )
-    assert "client.write_table(name=table_path, df=aligned_df, mode=\"merge\")" in (
+    assert "receipt = replace_scope_by_name(" in (
         materialization.split(
             "validate_required_column_values(aligned_df, table.primary_keys, table_name)",
             maxsplit=1,
@@ -306,7 +308,12 @@ def test_feature_store_setup_uses_databricks_feature_engineering_client():
     assert first_call["tags"]["nextads_feature_store"] == (
         "nextads_feature_store"
     )
-    assert not any("CREATE TABLE" in query for query in fake_spark.sql_calls)
+    metadata_calls = [
+        query
+        for query in fake_spark.sql_calls
+        if query.startswith("CREATE TABLE IF NOT EXISTS")
+    ]
+    assert len(metadata_calls) == 5
     assert any(
         query.startswith("CREATE OR REPLACE VIEW")
         for query in fake_spark.sql_calls
@@ -337,6 +344,23 @@ def test_feature_store_setup_can_recreate_registered_objects():
     assert drop_table_calls[0] == (
         "DROP TABLE IF EXISTS "
         "marketingdata_dev.feature_schema.next_uk_nextads_fs_account_profile"
+    )
+
+
+def test_feature_metadata_tables_are_created_from_repo_contracts():
+    fake_spark = _FakeSpark()
+
+    paths = create_feature_metadata_tables(
+        fake_spark,
+        "marketingdata_dev",
+        "feature_schema",
+    )
+
+    assert len(paths) == 5
+    assert all(path.startswith("marketingdata_dev.feature_schema.") for path in paths)
+    assert all(
+        query.startswith("CREATE TABLE IF NOT EXISTS")
+        for query in fake_spark.sql_calls
     )
 
 
@@ -1247,8 +1271,9 @@ def test_feature_store_creation_avoids_timestamp_partition_conflict():
         / "create_feature_store_tables.py"
     ).read_text()
 
-    assert "client.write_table(name=table_path, df=aligned_df, mode=\"merge\")" in materialization
-    assert 'aligned_df.write.mode("overwrite").insertInto(table_path)' in materialization
+    assert "receipt = replace_scope_by_name(" in materialization
+    assert "receipt = replace_table_by_name(" in materialization
+    assert "delete_reference_date_partition" not in materialization
     assert "DeltaTable.forName" not in materialization
     assert "partition_columns = []" in create_tables
 

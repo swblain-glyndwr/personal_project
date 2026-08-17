@@ -33,6 +33,7 @@ finally:
 
 from next_ads.features import load_feature_store_registry
 from next_ads.features.feature_store_registry import normalize_schema_name
+from next_ads.features.feature_build_store import METADATA_TABLES
 from next_ads.features.sql_contracts import extract_create_table_columns
 
 
@@ -47,6 +48,31 @@ DEV_EMPTY_SCAFFOLD_MIGRATIONS = frozenset(
         "next_uk_nextads_fs_account_advert_affinity_daily",
     }
 )
+
+
+def create_feature_metadata_tables(
+    spark,
+    catalog: str,
+    schema: str,
+    *,
+    dry_run: bool = False,
+) -> list[str]:
+    """Create the build and READY-snapshot evidence tables."""
+    contract_root = PROJECT_ROOT / "sql" / "features" / "nextads"
+    created = []
+    for table_name in METADATA_TABLES:
+        table_path = f"{catalog}.{schema}.{table_name}"
+        contract_path = contract_root / f"create_table_{table_name}.sql"
+        statement = contract_path.read_text().format(
+            catalog=catalog,
+            schema=schema,
+        )
+        if dry_run:
+            LOGGER.info("Dry run CREATE TABLE IF NOT EXISTS %s", table_path)
+        else:
+            spark.sql(statement)
+        created.append(table_path)
+    return created
 
 
 def configure_job_logging(log_level: str) -> None:
@@ -347,6 +373,13 @@ def create_feature_store_tables(
         empty_scaffold_migrations or (),
         dry_run=dry_run,
     )
+    metadata_tables = create_feature_metadata_tables(
+        spark,
+        target_catalog,
+        target_schema,
+        dry_run=dry_run,
+    )
+    LOGGER.info("Feature build metadata tables: %s", metadata_tables)
     if not dry_run and fe_client is None:
         fe_client = create_feature_engineering_client()
 
