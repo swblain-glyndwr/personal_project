@@ -48,19 +48,29 @@ from next_ads.model_development.external_outputs import (
     adapt_external_advert_scores,
     bind_external_score_output,
 )
+from next_ads.model_development.plugins import (
+    AccountAdvertCandidateAdapter,
+    ExternalAnalyticsScoreProvider,
+    ModelPluginRegistry,
+    SparkAccountAdvertScoreProvider,
+)
 
 __all__ = [
     "ALLOWED_RUNTIME_PROFILES",
+    "AccountAdvertCandidateAdapter",
     "DBR_15_4_SPARK_CPU",
     "DBR_18_1_THEME_GPU",
     "ExternalModelComponent",
     "ExternalScoreOutputReceipt",
+    "ExternalAnalyticsScoreProvider",
     "CandidateAdapter",
     "FeatureLookupSpec",
     "ModelBuild",
     "ModelDefinition",
+    "ModelPluginRegistry",
     "ScoreProvider",
     "SparkBinaryClassifierTrainer",
+    "SparkAccountAdvertScoreProvider",
     "Trainer",
     "TrainingFeatureBinding",
     "TrainingObservationSpec",
