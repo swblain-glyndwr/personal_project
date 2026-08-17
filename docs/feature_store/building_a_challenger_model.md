@@ -52,6 +52,22 @@ For each selected feature, record its logical name, selected columns, entity-key
 | Snapshot | Resolves through one complete `READY` Feature Snapshot. |
 | Quality | Schema, null-key, duplicate-key, freshness and row-drift checks passed. |
 
+In a DBR 15.4 model-development notebook, read the logical feature through its READY receipt:
+
+```python
+from next_ads.features import read_ready_feature
+
+pctr_features, feature_receipt = read_ready_feature(
+    spark,
+    "next_uk_nextads_fs_pctr_model_input",
+    catalog="marketingdata_dev",
+    schema="nextads_feature_store",
+    reference_date="2026-08-01",
+)
+```
+
+Keep `feature_receipt.feature_snapshot_id`, `feature_receipt.delta_version` and `feature_receipt.value_checksum` with the research run. Do not replace this call with `spark.table(...)`: that would read a moving physical table and would not prove which accepted feature build was used.
+
 ## 4. Declare The Model
 
 The model-development-kit PR will make this a repository object rather than bespoke orchestration.
@@ -118,7 +134,7 @@ The author should be able to show the following links in order.
 | --- | --- |
 | Named offline features and contracts | All 20 physical contracts have builders. The Analytics pCTR model input is populated from the exact versioned Analytics feature output. |
 | Exact build identity and Delta write receipts | Implemented for the Analytics pCTR feature group; the remaining feature groups still need to publish through the same contract. |
-| READY Feature Snapshot resolution | The Analytics pCTR builder records exact READY Delta bindings after its source, table and retry checks pass. The generic model reader and linked DEV proof are still required. |
+| READY Feature Snapshot resolution | The Analytics pCTR builder records exact READY Delta bindings after its source, table and retry checks pass. `read_ready_feature` opens that exact version and fails rather than falling back to a moving latest table. Linked DEV proof is still required. |
 | Declarative training set and receipt | Model-development-kit PR. |
 | Exact MLflow promotion without retraining | Model-development-kit PR, built on the existing lifecycle. |
 | Generic challenger provider and candidate adapter | Model-development-kit PR. |

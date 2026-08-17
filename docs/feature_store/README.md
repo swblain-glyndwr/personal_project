@@ -64,7 +64,7 @@
 | 4 | The builder checks contract schema, non-null and unique keys, a value fingerprint and same-date row stability. |
 | 5 | The build and snapshot are recorded `READY` only after every check passes. The snapshot binds the exact Delta version for each Analytics-derived table. |
 
-A failed first attempt has no READY snapshot. A failed retry leaves the preceding READY snapshot selectable. Direct reads of the physical latest table and the legacy compatibility view do not provide that guarantee; the supported model-development route will read the exact versions in the READY snapshot.
+A failed first attempt has no READY snapshot. A failed retry leaves the preceding READY snapshot selectable. Direct reads of the physical latest table and the legacy compatibility view do not provide that guarantee. Model-development code uses `read_ready_feature`, which opens the exact Delta version in the READY snapshot and fails when no accepted binding exists.
 
 ### Current Contract Status
 
