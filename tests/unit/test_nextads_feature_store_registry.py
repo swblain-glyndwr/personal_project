@@ -1388,13 +1388,18 @@ def test_account_feature_task_uses_theme_affinity_source_outputs():
 @pytest.mark.parametrize(
     "builder",
     [
+        "build_account_features",
+        "build_advert_features",
         "build_product_embeddings_latest",
         "build_advert_semantic_profile_daily",
         "build_advert_product_profile_daily",
         "build_seasonal_product_demand_daily",
+        "build_theme_affinity_features",
+        "build_model_inputs",
+        "build_theme_affinity_training_input",
     ],
 )
-def test_embedding_and_product_builders_publish_only_complete_snapshots(
+def test_feature_builders_publish_only_complete_snapshots(
     builder,
 ):
     source = (
