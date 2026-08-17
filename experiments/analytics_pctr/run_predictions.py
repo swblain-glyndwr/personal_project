@@ -51,6 +51,13 @@ def optional_first_value(rows):
     return rows[0][0] if rows else None
 
 
+def require_non_empty(frame, stage):
+    """Stop before publication when a model stage produces no rows."""
+    if not frame.limit(1).collect():
+        raise ValueError(f"Analytics pCTR {stage} contains no rows")
+    return frame
+
+
 # COMMAND ----------
 dbutils.widgets.text(
     name="catalog_schema_prefix",
@@ -169,6 +176,7 @@ baskets_table = spark.table(
 # pctr_prediction_features
 predictions_input = spark.table(FEATURE_TABLE)
 predictions_input = predictions_input.fillna(fill_zeros_columns)
+require_non_empty(predictions_input, "feature input")
 
 # COMMAND ----------
 mlflow.set_registry_uri("databricks-uc")
@@ -182,7 +190,9 @@ except Exception as e:
 
 # COMMAND ----------
 popularity_scored_df = popularity_model.transform(predictions_input)
+require_non_empty(popularity_scored_df, "popularity output")
 affinity_scored_df = affinity_model.transform(popularity_scored_df)
+require_non_empty(affinity_scored_df, "affinity output")
 
 # COMMAND ----------
 # Addition of advert click data over the last 30 days
@@ -332,6 +342,7 @@ predictions = (
         ),
     )
 )
+require_non_empty(predictions, "ranked output")
 
 # COMMAND ----------
 print("Loading output to table (latest)")
@@ -443,15 +454,20 @@ except AssertionError as e:
 
 # max coverage percentage - does this meet the threshold
 
-rank1_coverage_perc = aggregated_advert_rank1_distribution.select(
-    "perc_total"
-).collect()[0][0]
-try:
-    assert rank1_coverage_perc <= rank1_advert_coverage_threshold, (
-        "Top ranked advert covers 25% or more of all rank 1 & 2 positions"
-    )
-except AssertionError as e:
-    errors.append(str(e))
+rank1_coverage_perc = optional_first_value(
+    aggregated_advert_rank1_distribution.select("perc_total")
+    .limit(1)
+    .collect()
+)
+if rank1_coverage_perc is None:
+    errors.append("No rank 1 or 2 Analytics pCTR predictions were produced")
+else:
+    try:
+        assert rank1_coverage_perc <= rank1_advert_coverage_threshold, (
+            "Top ranked advert covers 25% or more of all rank 1 & 2 positions"
+        )
+    except AssertionError as e:
+        errors.append(str(e))
 
 # COMMAND ----------
 if errors:

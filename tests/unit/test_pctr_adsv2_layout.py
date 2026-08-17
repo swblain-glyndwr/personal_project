@@ -1,6 +1,8 @@
 import ast
 from pathlib import Path
 
+import pytest
+
 from next_ads.common import paths as common_paths
 from tests.job_resource_helpers import load_job, load_yaml
 
@@ -97,6 +99,47 @@ def test_prediction_route_handles_empty_impression_history():
     assert namespace["optional_first_value"]([]) is None
     assert namespace["optional_first_value"]([(12.5,)]) == 12.5
     assert "median_impressions = optional_first_value" in source
+
+
+def test_prediction_route_rejects_empty_model_stages_before_publication():
+    source_path = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    )
+    source = source_path.read_text()
+    tree = ast.parse(source)
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "require_non_empty"
+    )
+    namespace = {}
+    exec(
+        compile(
+            ast.Module(body=[helper], type_ignores=[]),
+            str(source_path),
+            "exec",
+        ),
+        namespace,
+    )
+
+    class Frame:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def limit(self, _value):
+            return self
+
+        def collect(self):
+            return self.rows
+
+    with pytest.raises(ValueError, match="affinity output contains no rows"):
+        namespace["require_non_empty"](Frame([]), "affinity output")
+    non_empty = Frame([(1,)])
+    assert namespace["require_non_empty"](non_empty, "ranked output") is non_empty
+    assert source.index("require_non_empty(predictions") < source.index(
+        'print("Loading output to table (latest)")'
+    )
 
 
 def test_adsv2_entrypoints_remain_in_current_route_folders():
