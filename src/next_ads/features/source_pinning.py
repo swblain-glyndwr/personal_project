@@ -13,6 +13,11 @@ from next_ads.common.delta_writes import (
 )
 from next_ads.features.analytics_pctr_source import latest_delta_version
 from next_ads.features.feature_builds import FeatureSourceBinding
+from next_ads.features.feature_store_registry import (
+    FeatureStoreRegistry,
+    load_feature_store_registry,
+)
+from next_ads.features.snapshot_reader import read_ready_feature
 from next_ads.features.snapshot_publication import external_delta_source
 
 
@@ -81,6 +86,8 @@ class PinnedSourceSession:
         target_catalog: str,
         target_schema: str,
         captured_at: datetime | None = None,
+        registry: FeatureStoreRegistry | None = None,
+        allow_unready_feature_ids: tuple[str, ...] = (),
     ) -> None:
         self._spark = spark
         self._feature_build_id = feature_build_id
@@ -89,7 +96,20 @@ class PinnedSourceSession:
         self._target_catalog = target_catalog
         self._target_schema = target_schema
         self._captured_at = captured_at or datetime.now(timezone.utc)
+        self._registry = registry or load_feature_store_registry()
+        self._allow_unready_feature_ids = frozenset(
+            allow_unready_feature_ids
+        )
         self._bindings: dict[str, FeatureSourceBinding] = {}
+        self._frames: dict[str, Any] = {}
+        self._feature_ids_by_path = {
+            self._registry.resolved_table_path(
+                feature.name,
+                catalog=target_catalog,
+                schema=target_schema,
+            ).lower(): feature.name
+            for feature in self._registry.physical_tables
+        }
 
     def __getattr__(self, name: str) -> Any:
         """Delegate non-table Spark operations to the active session."""
@@ -97,11 +117,38 @@ class PinnedSourceSession:
 
     def table(self, table_path: str) -> Any:
         """Return one exact source version and record its lineage once."""
-        if table_path in self._bindings:
-            binding = self._bindings[table_path]
-            return self._spark.read.option(
-                "versionAsOf", binding.delta_version
-            ).table(binding.source_table)
+        if table_path in self._frames:
+            return self._frames[table_path]
+
+        feature_id = self._feature_ids_by_path.get(table_path.lower())
+        if feature_id not in self._allow_unready_feature_ids and feature_id:
+            frame, ready = read_ready_feature(
+                self._spark,
+                feature_id,
+                catalog=self._target_catalog,
+                schema=self._target_schema,
+                reference_date=self._reference_date,
+                registry=self._registry,
+            )
+            self._bindings[table_path] = FeatureSourceBinding(
+                feature_build_id=self._feature_build_id,
+                feature_build_attempt_id=self._feature_build_attempt_id,
+                reference_date=ready.reference_date,
+                source_name=table_path,
+                source_table=ready.backing_table,
+                delta_version=ready.delta_version,
+                schema_checksum=ready.backing_schema_checksum,
+                captured_at=self._captured_at,
+                row_count=ready.row_count,
+                source_feature_id=ready.feature_id,
+                source_feature_build_id=ready.feature_build_id,
+                source_feature_build_attempt_id=(
+                    ready.feature_build_attempt_id
+                ),
+                source_write_receipt_id=ready.write_receipt_id,
+            )
+            self._frames[table_path] = frame
+            return frame
 
         table_type = self._spark.catalog.getTable(table_path).tableType.upper()
         pinned_table = table_path
@@ -128,6 +175,7 @@ class PinnedSourceSession:
             schema_checksum_value=schema_checksum(frame),
             captured_at=self._captured_at,
         )
+        self._frames[table_path] = frame
         return frame
 
     @property

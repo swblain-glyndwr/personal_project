@@ -52,10 +52,7 @@ def test_delta_source_is_read_at_one_version_and_reused(monkeypatch):
     second = session.table("catalog.schema.source")
 
     assert first == second
-    assert spark.read.reads == [
-        ("catalog.schema.source", 12),
-        ("catalog.schema.source", 12),
-    ]
+    assert spark.read.reads == [("catalog.schema.source", 12)]
     assert len(session.source_bindings) == 1
     assert session.source_bindings[0].delta_version == 12
 
@@ -84,6 +81,49 @@ def test_view_source_is_snapshotted_before_its_version_is_recorded(monkeypatch):
     assert session.source_bindings[0].source_table == (
         "catalog.schema.view_snapshot"
     )
+
+
+def test_registered_feature_source_uses_its_ready_snapshot(monkeypatch):
+    spark = _session()
+    ready = SimpleNamespace(
+        reference_date=date(2026, 8, 11),
+        backing_table="catalog.schema.retained_feature",
+        delta_version=7,
+        backing_schema_checksum="b" * 64,
+        row_count=20,
+        feature_id="feature_one",
+        feature_build_id="upstream-build",
+        feature_build_attempt_id="upstream-attempt",
+        write_receipt_id="receipt-1",
+    )
+    registry = SimpleNamespace(
+        physical_tables=(SimpleNamespace(name="feature_one"),),
+        resolved_table_path=lambda *_args, **_kwargs: (
+            "catalog.schema.feature_one"
+        ),
+    )
+    monkeypatch.setattr(
+        pinning,
+        "read_ready_feature",
+        lambda *_args, **_kwargs: ("ready-frame", ready),
+    )
+    session = pinning.PinnedSourceSession(
+        spark,
+        feature_build_id="consumer-build",
+        feature_build_attempt_id="consumer-attempt",
+        reference_date=date(2026, 8, 11),
+        target_catalog="catalog",
+        target_schema="schema",
+        captured_at=NOW,
+        registry=registry,
+    )
+
+    assert session.table("catalog.schema.feature_one") == "ready-frame"
+    binding = session.source_bindings[0]
+    assert binding.source_feature_id == "feature_one"
+    assert binding.source_feature_build_id == "upstream-build"
+    assert binding.source_table == "catalog.schema.retained_feature"
+    assert spark.read.reads == []
 
 
 def test_view_snapshot_retry_never_rewrites_the_same_attempt():
