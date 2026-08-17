@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from _registry_job import configure_job_logging
 from dsutils.dbc import configure_spark, get_dbutils
 from next_ads.features.analytics_pctr_source import (
     bind_analytics_pctr_source,
@@ -13,8 +14,6 @@ from next_ads.features.analytics_pctr_source import (
     serialise_source_binding,
     with_producing_run_id,
 )
-
-from _registry_job import configure_job_logging
 
 
 LOGGER = logging.getLogger(__name__)

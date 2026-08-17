@@ -5,10 +5,9 @@ from __future__ import annotations
 import argparse
 import logging
 
+from _registry_job import configure_job_logging
 from dsutils.dbc import configure_spark, get_dbutils
 from next_ads.features.theme_affinity import resolve_theme_reference_date
-
-from _registry_job import configure_job_logging
 
 
 LOGGER = logging.getLogger(__name__)
