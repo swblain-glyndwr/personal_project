@@ -51,6 +51,10 @@ def test_main_validates_runtime_and_model_before_replacing_complete_snapshot(
     definition = object()
     binding = object()
     calls = {}
+    pinned_spark = SimpleNamespace(
+        table=spark.table,
+        source_bindings=("source-binding",),
+    )
 
     monkeypatch.setattr(job, "parse_common_args", lambda: args)
     monkeypatch.setattr(job, "configure_job_logging", lambda _level: None)
@@ -62,6 +66,16 @@ def test_main_validates_runtime_and_model_before_replacing_complete_snapshot(
         "resolve_reference_date_from_theme",
         lambda *_args: "2026-08-01",
     )
+    monkeypatch.setattr(
+        job,
+        "feature_group_identity",
+        lambda *_args: {
+            "feature_build_id": "build:embeddings",
+            "feature_build_attempt_id": "attempt:embeddings",
+            "git_commit": "revision",
+        },
+    )
+    monkeypatch.setattr(job, "PinnedSourceSession", lambda *_args, **_kwargs: pinned_spark)
     monkeypatch.setattr(
         job,
         "load_product_embedding_definition",
@@ -126,12 +140,14 @@ def test_main_validates_runtime_and_model_before_replacing_complete_snapshot(
     )
     monkeypatch.setattr(
         job,
-        "write_feature_table",
-        lambda *positional, **kwargs: calls.setdefault(
-            "write",
-            (positional, kwargs),
-        )
-        and target_path,
+        "write_and_publish_feature_group",
+        lambda *positional, **kwargs: (
+            calls.setdefault("write", (positional, kwargs)) and object(),
+            SimpleNamespace(
+                feature_snapshot_id="snapshot",
+                feature_snapshot_attempt_id="attempt:embeddings",
+            ),
+        ),
     )
     monkeypatch.setitem(sys.modules, "mlflow", object())
 
@@ -157,10 +173,7 @@ def test_main_validates_runtime_and_model_before_replacing_complete_snapshot(
         {"binding": binding, "model_path": Path("approved-model")},
     )
     positional, keyword = calls["write"]
-    assert positional == (
-        spark,
-        job.OUTPUT_TABLE,
-        "complete-snapshot",
-    )
-    assert keyword["mode"] == "overwrite"
-    assert keyword["reference_date"] == "2026-08-01"
+    assert positional == (spark,)
+    assert keyword["frames"] == {job.OUTPUT_TABLE: "complete-snapshot"}
+    assert keyword["sources"] == ("source-binding",)
+    assert keyword["reference_date"] == job.parse_reference_date("2026-08-01")

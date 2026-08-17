@@ -111,7 +111,7 @@ def test_main_builds_bridge_and_registered_seasonal_output(monkeypatch):
         log_level="INFO",
     )
     spark = object()
-    client = object()
+    pinned_spark = SimpleNamespace(source_bindings=("source-binding",))
     registry = SimpleNamespace(
         default_catalog="unused",
         default_schema="unused",
@@ -158,9 +158,14 @@ def test_main_builds_bridge_and_registered_seasonal_output(monkeypatch):
     )
     monkeypatch.setattr(
         job,
-        "create_feature_engineering_client",
-        lambda: client,
+        "feature_group_identity",
+        lambda *_args: {
+            "feature_build_id": "build:seasonal",
+            "feature_build_attempt_id": "attempt:seasonal",
+            "git_commit": "revision",
+        },
     )
+    monkeypatch.setattr(job, "PinnedSourceSession", lambda *_args, **_kwargs: pinned_spark)
 
     def validate(builder, outputs, actual_registry):
         calls["ownership"] = (builder, outputs, actual_registry)
@@ -193,11 +198,14 @@ def test_main_builds_bridge_and_registered_seasonal_output(monkeypatch):
         build_demand,
     )
 
-    def write_table(*positional, **kwargs):
+    def write_group(*positional, **kwargs):
         calls["write"] = (positional, kwargs)
-        return "target-table"
+        return object(), SimpleNamespace(
+            feature_snapshot_id="snapshot",
+            feature_snapshot_attempt_id="attempt:seasonal",
+        )
 
-    monkeypatch.setattr(job, "write_feature_table", write_table)
+    monkeypatch.setattr(job, "write_and_publish_feature_group", write_group)
 
     job.main()
 
@@ -212,7 +220,7 @@ def test_main_builds_bridge_and_registered_seasonal_output(monkeypatch):
         registry,
     )
     assert calls["read"] == (
-        spark,
+        pinned_spark,
         {
             "source_catalog": SOURCE_CATALOG,
             "source_schema": SOURCE_SCHEMA,
@@ -238,14 +246,17 @@ def test_main_builds_bridge_and_registered_seasonal_output(monkeypatch):
         "reference_date": REFERENCE_DATE,
     }
     positional, keyword = calls["write"]
-    assert positional == (spark, job.OUTPUT_TABLE, "seasonal-demand")
+    assert positional == (spark,)
     assert keyword == {
         "catalog": TARGET_CATALOG,
         "schema": TARGET_SCHEMA,
-        "reference_date": REFERENCE_DATE,
-        "reference_date_column": "feature_date",
+        "group_id": job.BUILDER,
+        "reference_date": job.parse_reference_date(REFERENCE_DATE),
+        "frames": {job.OUTPUT_TABLE: "seasonal-demand"},
+        "sources": ("source-binding",),
         "replace_reference_date": True,
-        "mode": "merge",
         "registry": registry,
-        "feature_engineering_client": client,
+        "feature_build_id": "build:seasonal",
+        "feature_build_attempt_id": "attempt:seasonal",
+        "git_commit": "revision",
     }

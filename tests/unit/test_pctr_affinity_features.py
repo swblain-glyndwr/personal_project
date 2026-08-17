@@ -613,7 +613,15 @@ def test_session_context_chooses_one_deterministic_context_for_one_account(
         "session_id = 'visit-a'"
     ).first()
 
-    assert first == second
+    stable_columns = [
+        column
+        for column in SESSION_CONTEXT_COLUMNS
+        if column not in {"created_at", "updated_at"}
+    ]
+    assert first.asDict() | {"created_at": None, "updated_at": None} == (
+        second.asDict() | {"created_at": None, "updated_at": None}
+    )
+    assert set(stable_columns).issubset(first.asDict())
     assert first.device_simple == "Mobile"
     assert first.channel_simple == "Paid Search"
     assert first.session_hour == 10

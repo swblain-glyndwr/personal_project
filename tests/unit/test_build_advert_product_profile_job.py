@@ -114,7 +114,7 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
         log_level="INFO",
     )
     spark = object()
-    client = object()
+    pinned_spark = SimpleNamespace(source_bindings=("source-binding",))
     embedding_binding = object()
     registry = SimpleNamespace(
         default_catalog="unused",
@@ -159,9 +159,14 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
     )
     monkeypatch.setattr(
         job,
-        "create_feature_engineering_client",
-        lambda: client,
+        "feature_group_identity",
+        lambda *_args: {
+            "feature_build_id": "build:product-profile",
+            "feature_build_attempt_id": "attempt:product-profile",
+            "git_commit": "revision",
+        },
     )
+    monkeypatch.setattr(job, "PinnedSourceSession", lambda *_args, **_kwargs: pinned_spark)
 
     def validate(builder, outputs, actual_registry):
         calls["ownership"] = (builder, outputs, actual_registry)
@@ -203,11 +208,14 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
         lambda profiles: calls.setdefault("non_empty", profiles) or profiles,
     )
 
-    def write_table(*positional, **kwargs):
+    def write_group(*positional, **kwargs):
         calls["write"] = (positional, kwargs)
-        return "target-table"
+        return object(), SimpleNamespace(
+            feature_snapshot_id="snapshot",
+            feature_snapshot_attempt_id="attempt:product-profile",
+        )
 
-    monkeypatch.setattr(job, "write_feature_table", write_table)
+    monkeypatch.setattr(job, "write_and_publish_feature_group", write_group)
 
     job.main()
 
@@ -222,7 +230,7 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
         registry,
     )
     assert calls["read"] == (
-        spark,
+        pinned_spark,
         {
             "source_catalog": SOURCE_CATALOG,
             "source_schema": SOURCE_SCHEMA,
@@ -246,16 +254,19 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
     )
     assert calls["non_empty"] == "profiles"
     positional, keyword = calls["write"]
-    assert positional == (spark, job.OUTPUT_TABLE, "profiles")
+    assert positional == (spark,)
     assert keyword == {
         "catalog": TARGET_CATALOG,
         "schema": TARGET_SCHEMA,
-        "reference_date": REFERENCE_DATE,
-        "reference_date_column": "feature_date",
+        "group_id": job.BUILDER,
+        "reference_date": job.parse_reference_date(REFERENCE_DATE),
+        "frames": {job.OUTPUT_TABLE: "profiles"},
+        "sources": ("source-binding",),
         "replace_reference_date": True,
-        "mode": "merge",
         "registry": registry,
-        "feature_engineering_client": client,
+        "feature_build_id": "build:product-profile",
+        "feature_build_attempt_id": "attempt:product-profile",
+        "git_commit": "revision",
     }
 
 
