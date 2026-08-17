@@ -465,7 +465,12 @@ def build_session_context_frame(
     from pyspark.sql import functions as F
 
     resolved_date = parse_reference_date(session_date)
-    def select_session_rows(sessions: Any, source_name: str, default_device: str):
+    def select_session_rows(
+        sessions: Any,
+        source_name: str,
+        default_device: str,
+        source_priority: int,
+    ):
         session_lookup = _column_lookup(sessions, source_name)
         session_id_column = _resolve_column(
             session_lookup,
@@ -528,6 +533,7 @@ def build_session_context_frame(
                 if hour_column is not None
                 else F.lit(None).cast("int")
             ).alias("session_hour"),
+            F.lit(source_priority).alias("_source_priority"),
         )
 
     account_lookup = _column_lookup(account_mappings, "RPID account mapping")
@@ -546,11 +552,13 @@ def build_session_context_frame(
         web_sessions,
         "BQ web sessions",
         "Other",
+        1,
     ).unionByName(
         select_session_rows(
             app_sessions,
             "BQ app sessions",
             "App",
+            0,
         )
     )
     mapped_accounts = account_mappings.select(
@@ -677,30 +685,26 @@ def build_session_context_frame(
         )
     )
 
-    context_conflicts = (
-        enriched.groupBy("account_number", "session_id", "session_date")
-        .agg(
-            F.countDistinct(
-                F.struct(
-                    "device_simple",
-                    "channel_simple",
-                    "geocountry_simple",
-                    "session_hour",
-                )
-            ).alias("context_count")
-        )
-        .where(F.col("context_count") > 1)
-        .orderBy("session_id")
-        .limit(1)
-        .collect()
-    )
-    if context_conflicts:
-        raise ValueError(
-            "BQ sessions contain conflicting context for UniqueVisitID: "
-            f"{context_conflicts[0]['session_id']}"
-        )
+    from pyspark.sql import Window
 
-    canonical_sessions = enriched.select(
+    context_order = Window.partitionBy(
+        "account_number",
+        "session_id",
+        "session_date",
+    ).orderBy(
+        F.col("_source_priority").asc(),
+        F.when(F.col("device_simple") == "Other", 1).otherwise(0).asc(),
+        F.when(F.col("channel_simple") == "Other", 1).otherwise(0).asc(),
+        F.when(F.col("geocountry_simple") == "Other", 1).otherwise(0).asc(),
+        F.col("session_hour").asc_nulls_last(),
+        F.col("device_simple").asc(),
+        F.col("channel_simple").asc(),
+        F.col("geocountry_simple").asc(),
+    )
+    canonical_sessions = enriched.withColumn(
+        "_context_rank",
+        F.row_number().over(context_order),
+    ).where(F.col("_context_rank") == 1).select(
         "account_number",
         "session_id",
         "session_date",
@@ -708,7 +712,7 @@ def build_session_context_frame(
         "channel_simple",
         "geocountry_simple",
         "session_hour",
-    ).dropDuplicates(["account_number", "session_id", "session_date"])
+    )
 
     page_lookup = _column_lookup(page_events, "BQ page events")
     page_session_column = _resolve_column(

@@ -582,3 +582,38 @@ def test_session_context_rejects_unique_visit_id_with_two_accounts(
             *_session_sources(local_spark, ambiguous=True),
             REFERENCE_DATE,
         )
+
+
+def test_session_context_chooses_one_deterministic_context_for_one_account(
+    local_spark,
+):
+    sources = list(_session_sources(local_spark))
+    sources[0] = sources[0].unionByName(
+        local_spark.createDataFrame(
+            [
+                (
+                    "visit-a",
+                    REFERENCE_DATE,
+                    "rpid-a",
+                    "Desktop",
+                    "Other",
+                    "France",
+                    11,
+                )
+            ],
+            "UniqueVisitID string, date date, RPID string, Device string, "
+            "Channel string, GeoCountry string, VisitStartHour int",
+        )
+    )
+
+    first = build_session_context_frame(*sources, REFERENCE_DATE).where(
+        "session_id = 'visit-a'"
+    ).first()
+    second = build_session_context_frame(*sources, REFERENCE_DATE).where(
+        "session_id = 'visit-a'"
+    ).first()
+
+    assert first == second
+    assert first.device_simple == "Mobile"
+    assert first.channel_simple == "Paid Search"
+    assert first.session_hour == 10
