@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from importlib.metadata import version
 import json
 import logging
 from pathlib import Path
@@ -19,6 +18,10 @@ sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from dsutils.dbc import configure_spark
+from next_ads.features.embedding_runtime import (
+    installed_package_versions,
+    resolve_runtime_version,
+)
 from next_ads.features.snapshot_reader import ReadyFeatureBinding
 from next_ads.model_development import validate_snapshot_time_boundary
 
@@ -86,12 +89,8 @@ def prove_future_binding_rejection() -> str:
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     spark = configure_spark()
-    runtime_version = spark.conf.get(
-        "spark.databricks.clusterUsageTags.sparkVersion"
-    )
-    package_versions = {
-        package: version(package) for package in EXPECTED_PACKAGES
-    }
+    runtime_version = resolve_runtime_version(spark)
+    package_versions = installed_package_versions(EXPECTED_PACKAGES)
     validate_runtime_versions(runtime_version, package_versions)
 
     import mlflow  # noqa: F401
