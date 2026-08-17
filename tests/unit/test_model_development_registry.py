@@ -62,6 +62,25 @@ def test_analytics_pctr_is_a_separate_evaluate_model_adopter():
     assert lookup.observation_timestamp == "reference_date"
 
 
+def test_shopping_bag_pctr_uses_feature_store_labels_and_reusable_features():
+    definition = load_model_definition("shopping_bag_pctr")
+
+    assert definition.provider_id == "shopping_bag_pctr"
+    assert definition.activation_mode == "EVALUATE"
+    assert definition.training_observation.feature_id == (
+        "next_uk_nextads_fs_labels_clicks"
+    )
+    assert dict(definition.training_observation.filters) == {
+        "label_horizon_days": 7
+    }
+    assert {lookup.feature_id for lookup in definition.feature_lookups} == {
+        "next_uk_nextads_fs_account_profile",
+        "next_uk_nextads_fs_account_web_activity_90d",
+        "next_uk_nextads_fs_advert_core_daily",
+        "next_uk_nextads_fs_account_advert_affinity_daily",
+    }
+
+
 def test_registry_rejects_duplicate_model_or_provider(tmp_path):
     path = tmp_path / "models.yaml"
     source = (
@@ -76,4 +95,4 @@ def test_registry_rejects_duplicate_model_or_provider(tmp_path):
 
 def test_unknown_model_does_not_fall_back_to_another_definition():
     with pytest.raises(KeyError, match="Unknown model definition"):
-        load_model_definition("shopping_bag_pctr")
+        load_model_definition("unknown_pctr")

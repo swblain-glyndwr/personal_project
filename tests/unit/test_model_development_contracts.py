@@ -8,6 +8,7 @@ from next_ads.model_development import (
     ModelBuild,
     ModelDefinition,
     TrainingFeatureBinding,
+    TrainingObservationSpec,
     TrainingSetReceipt,
 )
 
@@ -44,6 +45,16 @@ def _definition(**overrides):
         ),
         "success_metrics": ("log_loss", "calibration"),
         "runtime_profile": DBR_15_4_SPARK_CPU,
+        "training_observation": TrainingObservationSpec(
+            feature_id="next_uk_nextads_fs_labels_clicks",
+            selected_columns=(
+                "account_number",
+                "advert_id",
+                "reference_date",
+                "advert click within the session",
+            ),
+            observation_timestamp="reference_date",
+        ),
         "feature_lookups": (_lookup(),),
         "trainer": "spark_logistic_regression",
         "score_provider": "shopping_bag_pctr_scores",

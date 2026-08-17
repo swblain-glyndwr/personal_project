@@ -10,6 +10,7 @@ import yaml
 from next_ads.model_development.contracts import (
     FeatureLookupSpec,
     ModelDefinition,
+    TrainingObservationSpec,
 )
 
 
@@ -47,6 +48,15 @@ def _lookup(raw: dict[str, Any]) -> FeatureLookupSpec:
     )
 
 
+def _observation(raw: dict[str, Any]) -> TrainingObservationSpec:
+    return TrainingObservationSpec(
+        feature_id=raw["feature_id"],
+        selected_columns=tuple(raw["selected_columns"]),
+        observation_timestamp=raw["observation_timestamp"],
+        filters=_pairs(raw.get("filters"), "filters"),
+    )
+
+
 def _definition(raw: dict[str, Any]) -> ModelDefinition:
     return ModelDefinition(
         model_name=raw["model_name"],
@@ -58,6 +68,7 @@ def _definition(raw: dict[str, Any]) -> ModelDefinition:
         observation_keys=tuple(raw["observation_keys"]),
         success_metrics=tuple(raw["success_metrics"]),
         runtime_profile=raw["runtime_profile"],
+        training_observation=_observation(raw["training_observation"]),
         feature_lookups=tuple(
             _lookup(item) for item in raw["feature_lookups"]
         ),

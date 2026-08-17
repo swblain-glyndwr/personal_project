@@ -278,6 +278,7 @@ def build_training_set(
     schema: str,
     feature_reference_date: str | date | None = None,
     feature_reference_dates: tuple[str | date, ...] | None = None,
+    observation_bindings: tuple[ReadyFeatureBinding, ...] = (),
     label_end: date,
     code_sha: str,
 ) -> TrainingSetBuildResult:
@@ -311,7 +312,11 @@ def build_training_set(
 
     registry = load_feature_store_registry()
     training_frame = observations
-    bindings = []
+    bindings = [
+        _training_feature_binding(binding) for binding in observation_bindings
+    ]
+    for binding in observation_bindings:
+        validate_snapshot_time_boundary(binding, observation_end)
     for lookup in definition.feature_lookups:
         feature_frame, ready_bindings = _read_feature_history(
             spark,
@@ -341,7 +346,15 @@ def build_training_set(
         )
 
     completed_at = datetime.now(timezone.utc)
-    binding_tuple = tuple(bindings)
+    unique_bindings = {}
+    for binding in bindings:
+        identity = (
+            binding.feature_id,
+            binding.feature_snapshot_id,
+            binding.feature_snapshot_attempt_id,
+        )
+        unique_bindings[identity] = binding
+    binding_tuple = tuple(unique_bindings.values())
     receipt = TrainingSetReceipt(
         receipt_id=_receipt_id(
             definition,
@@ -368,8 +381,66 @@ def build_training_set(
     return TrainingSetBuildResult(training_frame, receipt)
 
 
+def build_training_set_from_feature_store(
+    spark: Any,
+    definition: ModelDefinition,
+    *,
+    catalog: str,
+    schema: str,
+    feature_reference_dates: tuple[str | date, ...],
+    label_end: date,
+    code_sha: str,
+) -> TrainingSetBuildResult:
+    """Load declared modelling rows and features from READY snapshots."""
+    from pyspark.sql import functions as F
+    from next_ads.features import load_feature_store_registry
+
+    reference_dates = _normalise_feature_reference_dates(
+        feature_reference_date=None,
+        feature_reference_dates=feature_reference_dates,
+    )
+    registry = load_feature_store_registry()
+    observation_spec = definition.training_observation
+    observations, bindings = _read_feature_history(
+        spark,
+        feature_id=observation_spec.feature_id,
+        catalog=catalog,
+        schema=schema,
+        reference_dates=reference_dates,
+        registry=registry,
+    )
+    feature = registry.table_spec(observation_spec.feature_id)
+    if feature.timestamp_key != observation_spec.observation_timestamp:
+        raise ValueError(
+            "Training observation timestamp does not match its feature contract"
+        )
+    missing = sorted(
+        set(observation_spec.selected_columns).difference(observations.columns)
+    )
+    if missing:
+        raise ValueError(
+            "Training observation feature is missing columns: "
+            + ", ".join(missing)
+        )
+    for column, value in observation_spec.filters:
+        observations = observations.where(F.col(column) == F.lit(value))
+    observations = observations.select(*observation_spec.selected_columns)
+    return build_training_set(
+        spark,
+        definition,
+        observations,
+        catalog=catalog,
+        schema=schema,
+        feature_reference_dates=reference_dates,
+        observation_bindings=bindings,
+        label_end=label_end,
+        code_sha=code_sha,
+    )
+
+
 __all__ = [
     "TrainingSetBuildResult",
     "build_training_set",
+    "build_training_set_from_feature_store",
     "validate_snapshot_time_boundary",
 ]

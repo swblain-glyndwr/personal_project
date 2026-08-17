@@ -14,6 +14,14 @@ models:
       - log_loss
       - calibration
     runtime_profile: dbr_15_4_spark_cpu
+    training_observation:
+      feature_id: next_uk_nextads_fs_pctr_model_input
+      observation_timestamp: reference_date
+      selected_columns:
+        - account_number
+        - advert_id
+        - reference_date
+        - ad_clicked
     trainer: analytics_pctr_two_stage_xgboost
     score_provider: analytics_pctr_two_stage_scores
     candidate_adapter: account_advert_ranked_candidates
@@ -70,3 +78,113 @@ models:
           purchase_highest_catid_weight: 0.0
           purchase_lift_adjusted: 0.0
           purchase_theme_affinity: 0.0
+  - model_name: shopping_bag_pctr
+    provider_id: shopping_bag_pctr
+    problem_statement: Rank eligible Shopping Bag adverts by seven-day click likelihood.
+    prediction_entity: account and advert
+    prediction_time: Shopping Bag session date
+    label: clicked
+    observation_keys:
+      - account_number
+      - advert_id
+      - location
+      - session_date
+      - label_horizon_days
+    success_metrics:
+      - auc_pr
+      - log_loss
+      - calibration
+      - lift_at_5_percent
+    runtime_profile: dbr_15_4_spark_cpu
+    training_observation:
+      feature_id: next_uk_nextads_fs_labels_clicks
+      observation_timestamp: session_date
+      selected_columns:
+        - account_number
+        - advert_id
+        - location
+        - session_date
+        - label_horizon_days
+        - impression_count
+        - clicked
+      filters:
+        label_horizon_days: 7
+    trainer: shopping_bag_pctr_spark
+    score_provider: shopping_bag_pctr_scores
+    candidate_adapter: account_advert_ranked_candidates
+    activation_mode: EVALUATE
+    feature_lookups:
+      - feature_id: next_uk_nextads_fs_account_profile
+        observation_timestamp: session_date
+        key_mapping:
+          account_number: account_number
+        selected_columns:
+          - account_age_days
+          - gender
+          - credit_type
+          - latest_known_activity_recency_days
+          - online_orders_lifetime
+          - online_spend_lifetime
+          - retail_orders_lifetime
+          - retail_spend_lifetime
+        defaults:
+          account_age_days: 0
+          latest_known_activity_recency_days: 0
+          online_orders_lifetime: 0.0
+          online_spend_lifetime: 0.0
+          retail_orders_lifetime: 0.0
+          retail_spend_lifetime: 0.0
+      - feature_id: next_uk_nextads_fs_account_web_activity_90d
+        observation_timestamp: session_date
+        key_mapping:
+          account_number: account_number
+        selected_columns:
+          - browse_sessions_90d
+          - browse_active_days_90d
+          - page_events_90d
+          - shopping_bag_page_events_90d
+          - avg_pages_per_session_90d
+          - action_events_90d
+          - add_to_bag_actions_90d
+          - browse_session_recency_days
+          - action_recency_days
+        defaults:
+          browse_sessions_90d: 0
+          browse_active_days_90d: 0
+          page_events_90d: 0
+          shopping_bag_page_events_90d: 0
+          avg_pages_per_session_90d: 0.0
+          action_events_90d: 0
+          add_to_bag_actions_90d: 0
+          browse_session_recency_days: 0
+          action_recency_days: 0
+      - feature_id: next_uk_nextads_fs_advert_core_daily
+        observation_timestamp: session_date
+        key_mapping:
+          advert_id: advert_id
+          location: location
+        selected_columns:
+          - campaign_id
+          - advert_theme
+          - advert_category
+          - advert_brand_name
+          - template_name
+      - feature_id: next_uk_nextads_fs_account_advert_affinity_daily
+        observation_timestamp: session_date
+        key_mapping:
+          account_number: account_number
+          advert_id: advert_id
+        selected_columns:
+          - viewed_latest_advert_catid_affinity
+          - purchased_latest_advert_catid_affinity
+          - customer_advert_impressions_7d
+          - customer_advert_impressions_30d
+          - rules_based_pctr
+          - advert_algodivision_impressions
+        defaults:
+          viewed_latest_advert_catid_affinity: 0.0
+          purchased_latest_advert_catid_affinity: 0.0
+          customer_advert_impressions_7d: 0
+          customer_advert_impressions_30d: 0
+          rules_based_pctr: 0.0
+          advert_algodivision_impressions: 0

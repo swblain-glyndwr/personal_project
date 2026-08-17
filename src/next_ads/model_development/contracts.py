@@ -153,6 +153,47 @@ class FeatureLookupSpec:
 
 
 @dataclass(frozen=True)
+class TrainingObservationSpec:
+    """Feature Store table that supplies modelling rows and labels."""
+
+    feature_id: str
+    selected_columns: tuple[str, ...]
+    observation_timestamp: str
+    filters: tuple[tuple[str, str | int | float | bool], ...] = ()
+
+    def __post_init__(self) -> None:
+        """Require explicit modelling columns and scalar row filters."""
+        object.__setattr__(self, "feature_id", _text(self.feature_id, "feature_id"))
+        selected = _names(self.selected_columns, "selected_columns")
+        object.__setattr__(self, "selected_columns", selected)
+        timestamp = _text(self.observation_timestamp, "observation_timestamp")
+        if timestamp not in selected:
+            raise ValueError("Observation timestamp must be a selected column")
+        object.__setattr__(self, "observation_timestamp", timestamp)
+        filters = _pairs(self.filters, "filters")
+        unknown = sorted(set(name for name, _value in filters).difference(selected))
+        if unknown:
+            raise ValueError(
+                "Observation filters reference unselected columns: "
+                + ", ".join(unknown)
+            )
+        if any(
+            not isinstance(value, _DEFAULT_VALUE_TYPES[:-1])
+            for _name, value in filters
+        ):
+            raise ValueError("Observation filters must be JSON scalar values")
+        object.__setattr__(self, "filters", filters)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "feature_id": self.feature_id,
+            "selected_columns": self.selected_columns,
+            "observation_timestamp": self.observation_timestamp,
+            "filters": self.filters,
+        }
+
+
+@dataclass(frozen=True)
 class ModelDefinition:
     """The author-owned declaration for one evaluation model."""
 
@@ -165,6 +206,7 @@ class ModelDefinition:
     observation_keys: tuple[str, ...]
     success_metrics: tuple[str, ...]
     runtime_profile: str
+    training_observation: TrainingObservationSpec
     feature_lookups: tuple[FeatureLookupSpec, ...]
     trainer: str
     score_provider: str
@@ -196,6 +238,17 @@ class ModelDefinition:
             "observation_keys",
         )
         object.__setattr__(self, "observation_keys", observation_keys)
+        observation_columns = set(self.training_observation.selected_columns)
+        missing_observation_columns = sorted(
+            set(observation_keys)
+            .union({self.label})
+            .difference(observation_columns)
+        )
+        if missing_observation_columns:
+            raise ValueError(
+                "Training observations are missing declared keys or label: "
+                + ", ".join(missing_observation_columns)
+            )
         if self.runtime_profile not in ALLOWED_RUNTIME_PROFILES:
             raise ValueError(
                 f"Unsupported model runtime profile: {self.runtime_profile}"
@@ -224,6 +277,7 @@ class ModelDefinition:
             "observation_keys": self.observation_keys,
             "success_metrics": self.success_metrics,
             "runtime_profile": self.runtime_profile,
+            "training_observation": self.training_observation.as_dict(),
             "feature_lookups": tuple(
                 lookup.as_dict() for lookup in self.feature_lookups
             ),
@@ -476,5 +530,6 @@ __all__ = [
     "ScoreProvider",
     "Trainer",
     "TrainingFeatureBinding",
+    "TrainingObservationSpec",
     "TrainingSetReceipt",
 ]

@@ -11,6 +11,7 @@ from next_ads.model_development.contracts import (
     ScoreProvider,
     Trainer,
     TrainingFeatureBinding,
+    TrainingObservationSpec,
     TrainingSetReceipt,
 )
 from next_ads.model_development.registry import (
@@ -20,6 +21,7 @@ from next_ads.model_development.registry import (
 from next_ads.model_development.training_sets import (
     TrainingSetBuildResult,
     build_training_set,
+    build_training_set_from_feature_store,
     validate_snapshot_time_boundary,
 )
 from next_ads.model_development.store import (
@@ -55,9 +57,11 @@ __all__ = [
     "ScoreProvider",
     "Trainer",
     "TrainingFeatureBinding",
+    "TrainingObservationSpec",
     "TrainingSetReceipt",
     "TrainingSetBuildResult",
     "build_training_set",
+    "build_training_set_from_feature_store",
     "adapt_external_advert_scores",
     "bind_external_score_output",
     "create_model_development_tables",
