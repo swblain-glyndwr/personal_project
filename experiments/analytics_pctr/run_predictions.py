@@ -2,6 +2,9 @@
 #!pip install "/Workspace/Users/claire_wilsonbarnes@next.co.uk/next-ads/wheels/dsutils-0.1.13-py3-none-any.whl"
 
 # COMMAND ----------
+import hashlib
+import json
+
 import mlflow
 import mlflow.spark
 
@@ -443,3 +446,32 @@ if errors:
     final_errors = "\n".join(errors)
     print(final_errors)
     raise AssertionError(final_errors)
+
+# COMMAND ----------
+latest_history = spark.sql(
+    f"DESCRIBE HISTORY {TARGET_TABLE_LATEST} LIMIT 1"
+).first()
+accepted_dates = [
+    row["rundate"].isoformat()
+    for row in prediction_scores.select("rundate").distinct().collect()
+]
+try:
+    producing_run_id = spark.conf.get("spark.databricks.job.runId")
+except Exception:
+    producing_run_id = "unknown"
+prediction_receipt = {
+    "classifier_model_uri": classifier_model_uri,
+    "output_delta_version": int(latest_history["version"]),
+    "output_row_count": prediction_scores.count(),
+    "output_schema_sha256": hashlib.sha256(
+        prediction_scores.schema.json().encode("utf-8")
+    ).hexdigest(),
+    "output_table": TARGET_TABLE_LATEST,
+    "producing_run_id": producing_run_id,
+    "regressor_model_uri": regressor_model_uri,
+    "run_dates": sorted(accepted_dates),
+}
+print(
+    "ANALYTICS_PCTR_PREDICTION_RECEIPT="
+    + json.dumps(prediction_receipt, sort_keys=True, separators=(",", ":"))
+)
