@@ -456,7 +456,7 @@ def parse_and_prep_data(data):
 @dp.view(name="control_sheet")
 def control_sheet():
     s_control_sheet = spark.table(
-        config.tables_write.control_sheet_latest_v2
+        config.tables_write.control_sheet_raw_latest_v2
     )
     return s_control_sheet
 
@@ -505,7 +505,7 @@ def query_prep():
 
     data = (
         s_control_sheet.filter(
-            "MASIDToken IS NOT NULL AND URL IS NOT NULL AND URL != 'TBC'"
+            "Status = 'Active' AND MASIDToken IS NOT NULL AND URL IS NOT NULL AND URL != 'TBC'"
         )
         .select("UniqueAdID", "URL", "MASIDToken")
         .distinct()
@@ -608,7 +608,10 @@ def sort_order_latest():
     s_control_sheet = spark.table("control_sheet")
 
     output = p_result.join(
-        s_control_sheet.drop("URL", "MASIDToken"),
+        s_control_sheet.withColumn("Themes",
+            F.when(
+                F.col("Themes").isNotNull(), F.trim(F.lower(F.col("Themes")))
+            ).otherwise(F.col("Themes"))).drop("URL", "MASIDToken"),
         on=["UniqueAdID"],
         how="inner",
     ).select(
