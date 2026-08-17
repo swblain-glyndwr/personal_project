@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import logging
+import re
 
 from _registry_job import (
     configure_job_logging,
@@ -14,7 +16,10 @@ from _registry_job import (
     validate_builder_output_tables,
 )
 from dsutils.dbc import configure_spark
-from next_ads.common.delta_writes import schema_checksum
+from next_ads.common.delta_writes import (
+    quote_qualified_identifier,
+    schema_checksum,
+)
 from next_ads.features import load_feature_store_registry
 from next_ads.features.analytics_pctr_source import (
     latest_delta_version,
@@ -149,8 +154,10 @@ def read_pinned_session_sources(
     feature_build_attempt_id: str,
     reference_date,
     captured_at: datetime,
+    target_catalog: str,
+    target_schema: str,
 ):
-    """Read every session input at one recorded Delta version."""
+    """Read every session input from one immutable Delta version."""
     path_by_role = {
         "web_sessions": paths.web_sessions,
         "app_sessions": paths.app_sessions,
@@ -162,9 +169,20 @@ def read_pinned_session_sources(
     frames = {}
     sources = []
     for source_name, table_path in path_by_role.items():
-        delta_version = latest_delta_version(spark, table_path)
+        source_type = spark.catalog.getTable(table_path).tableType.upper()
+        pinned_table = table_path
+        if source_type in {"VIEW", "TEMPORARY"}:
+            pinned_table = snapshot_view_source(
+                spark,
+                source_name=source_name,
+                source_view=table_path,
+                feature_build_attempt_id=feature_build_attempt_id,
+                target_catalog=target_catalog,
+                target_schema=target_schema,
+            )
+        delta_version = latest_delta_version(spark, pinned_table)
         frame = spark.read.option("versionAsOf", delta_version).table(
-            table_path
+            pinned_table
         )
         frames[source_name] = frame
         sources.append(
@@ -173,13 +191,46 @@ def read_pinned_session_sources(
                 feature_build_attempt_id=feature_build_attempt_id,
                 reference_date=reference_date,
                 source_name=source_name,
-                source_table=table_path,
+                source_table=pinned_table,
                 delta_version=delta_version,
                 schema_checksum_value=schema_checksum(frame),
                 captured_at=captured_at,
             )
         )
     return frames, tuple(sources)
+
+
+def snapshot_view_source(
+    spark,
+    *,
+    source_name: str,
+    source_view: str,
+    feature_build_attempt_id: str,
+    target_catalog: str,
+    target_schema: str,
+) -> str:
+    """Materialise a view once so a build can retain its exact input."""
+    safe_source_name = re.sub(r"[^a-z0-9_]", "_", source_name.lower())
+    identity = hashlib.sha256(
+        f"{source_view}:{feature_build_attempt_id}".encode("utf-8")
+    ).hexdigest()[:16]
+    table_name = f"next_uk_nextads_fs_source_{safe_source_name}_{identity}"
+    target = f"{target_catalog}.{target_schema}.{table_name}"
+    if spark.catalog.tableExists(target):
+        return target
+    (
+        spark.table(source_view)
+        .write.format("delta")
+        .mode("errorifexists")
+        .saveAsTable(target)
+    )
+    escaped_source_view = source_view.replace("'", "''")
+    spark.sql(
+        "ALTER TABLE "
+        f"{quote_qualified_identifier(target)} SET TBLPROPERTIES "
+        f"('nextads.source_view' = '{escaped_source_view}')"
+    )
+    return target
 
 
 def validate_failure_injection(
@@ -278,6 +329,8 @@ def main() -> None:
             feature_build_attempt_id=write_identity["attempt_id"],
             reference_date=resolved_date,
             captured_at=captured_at,
+            target_catalog=target_catalog,
+            target_schema=target_schema,
         )
     else:
         session_sources = read_session_source_frames(spark, source_paths)

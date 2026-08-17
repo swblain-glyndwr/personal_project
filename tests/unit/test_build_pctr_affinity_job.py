@@ -123,7 +123,13 @@ def test_session_publication_pins_every_delta_source(monkeypatch):
             self.reads.append((table_path, self.version))
             return f"frame:{table_path}:{self.version}"
 
-    spark = SimpleNamespace(read=Reader())
+    spark = SimpleNamespace(
+        read=Reader(),
+        catalog=SimpleNamespace(
+            getTable=lambda _table_path: SimpleNamespace(tableType="MANAGED"),
+            tableExists=lambda _table_path: False,
+        ),
+    )
     monkeypatch.setattr(job, "latest_delta_version", lambda *_args: 17)
     monkeypatch.setattr(job, "schema_checksum", lambda _frame: "a" * 64)
 
@@ -134,6 +140,8 @@ def test_session_publication_pins_every_delta_source(monkeypatch):
         feature_build_attempt_id="101",
         reference_date=date.fromisoformat(REFERENCE_DATE),
         captured_at=job.datetime.now(job.timezone.utc),
+        target_catalog="marketingdata_dev",
+        target_schema="Stephen_Blain",
     )
 
     assert len(frames) == 6
@@ -141,6 +149,131 @@ def test_session_publication_pins_every_delta_source(monkeypatch):
     assert all(binding.delta_version == 17 for binding in bindings)
     assert {binding.source_name for binding in bindings} == set(frames)
     assert all(version == 17 for _, version in spark.read.reads)
+
+
+def test_session_publication_snapshots_a_view_before_pinning(monkeypatch):
+    paths = job.resolve_source_paths(_args())
+    snapshotted = []
+
+    class Reader:
+        def option(self, _name, _value):
+            return self
+
+        def table(self, table_path):
+            return f"frame:{table_path}"
+
+    spark = SimpleNamespace(
+        read=Reader(),
+        catalog=SimpleNamespace(
+            getTable=lambda table_path: SimpleNamespace(
+                tableType=("VIEW" if table_path == paths.rpid_accounts else "MANAGED")
+            ),
+            tableExists=lambda _table_path: False,
+        ),
+    )
+    monkeypatch.setattr(job, "latest_delta_version", lambda *_args: 17)
+    monkeypatch.setattr(job, "schema_checksum", lambda _frame: "a" * 64)
+    monkeypatch.setattr(
+        job,
+        "snapshot_view_source",
+        lambda _spark, **kwargs: (
+            snapshotted.append(kwargs)
+            or "marketingdata_dev.Stephen_Blain.account_mapping_snapshot"
+        ),
+    )
+
+    _frames, bindings = job.read_pinned_session_sources(
+        spark,
+        paths,
+        feature_build_id="100",
+        feature_build_attempt_id="101",
+        reference_date=date.fromisoformat(REFERENCE_DATE),
+        captured_at=job.datetime.now(job.timezone.utc),
+        target_catalog="marketingdata_dev",
+        target_schema="Stephen_Blain",
+    )
+
+    assert snapshotted == [
+        {
+            "source_name": "account_mappings",
+            "source_view": paths.rpid_accounts,
+            "feature_build_attempt_id": "101",
+            "target_catalog": "marketingdata_dev",
+            "target_schema": "Stephen_Blain",
+        }
+    ]
+    account_binding = next(
+        binding for binding in bindings if binding.source_name == "account_mappings"
+    )
+    assert account_binding.source_table.endswith("account_mapping_snapshot")
+
+
+def test_view_snapshot_is_build_scoped_and_records_its_source():
+    calls = []
+
+    class Writer:
+        def format(self, value):
+            calls.append(("format", value))
+            return self
+
+        def mode(self, value):
+            calls.append(("mode", value))
+            return self
+
+        def saveAsTable(self, value):  # noqa: N802 - mirrors Spark writer API
+            calls.append(("save", value))
+
+    spark = SimpleNamespace(
+        table=lambda table_path: SimpleNamespace(write=Writer()),
+        sql=lambda statement: calls.append(("sql", statement)),
+        catalog=SimpleNamespace(tableExists=lambda _table_path: False),
+    )
+
+    target = job.snapshot_view_source(
+        spark,
+        source_name="account_mappings",
+        source_view="marketingdata_prod.warehouse.rpid_with_accounts",
+        feature_build_attempt_id="101",
+        target_catalog="marketingdata_dev",
+        target_schema="Stephen_Blain",
+    )
+
+    assert target.startswith(
+        "marketingdata_dev.Stephen_Blain."
+        "next_uk_nextads_fs_source_account_mappings_"
+    )
+    assert ("mode", "errorifexists") in calls
+    assert any(
+        kind == "sql" and "nextads.source_view" in value
+        for kind, value in calls
+    )
+
+
+def test_view_snapshot_retry_reuses_the_same_build_scoped_table():
+    spark = SimpleNamespace(
+        catalog=SimpleNamespace(tableExists=lambda _table_path: True),
+        table=lambda _table_path: pytest.fail("retry must not rewrite source"),
+        sql=lambda _statement: pytest.fail("retry must not alter source"),
+    )
+
+    first = job.snapshot_view_source(
+        spark,
+        source_name="account_mappings",
+        source_view="marketingdata_prod.warehouse.rpid_with_accounts",
+        feature_build_attempt_id="101",
+        target_catalog="marketingdata_dev",
+        target_schema="Stephen_Blain",
+    )
+    retry = job.snapshot_view_source(
+        spark,
+        source_name="account_mappings",
+        source_view="marketingdata_prod.warehouse.rpid_with_accounts",
+        feature_build_attempt_id="101",
+        target_catalog="marketingdata_dev",
+        target_schema="Stephen_Blain",
+    )
+
+    assert retry == first
 
 
 @pytest.mark.parametrize(
