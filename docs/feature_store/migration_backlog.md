@@ -37,7 +37,7 @@
 | 4 | Seasonal demand contract and materializer | Reconcile the declared entity/item grain with the existing experiment, populate `next_uk_nextads_fs_seasonal_product_demand_daily`, and prove that no future events enter any feature window. |
 | 5 | Analytics pCTR external adapter | Populate `next_uk_nextads_fs_account_advert_affinity_daily` with explicit source provenance and documented mappings for affinity, impression and rule-based fields. |
 | 6 | Shopping Bag/BQ session builder | Populate `next_uk_nextads_fs_session_context_daily` with an explicit stable session ID, device/channel/geo semantics and page-count rules. |
-| 7 | Analytics pCTR model input | Publish the exact model columns from the pinned Analytics pCTR feature output, then prove `next_uk_nextads_fs_pctr_model_input` and `next_uk_nextads_pctr_features_latest` in DEV. |
+| 7 | Analytics pCTR model input | Publish the exact model columns from the pinned Analytics pCTR feature output. Record the exact source and output Delta versions in a READY snapshot only after account-advert affinity, model input and session work completes. Prove the physical table, compatibility view, failed retry and previous READY fallback in DEV. |
 | 8 | Shared DEV closure evidence | Record a table-by-table manifest for all 20 physical contracts and both views, with fully qualified location, build/reference date, row count, key/null/duplicate result, schema hash, source/output Delta versions and build ID; require `SCAFFOLD=0`. |
 
 - `SCAFFOLD=0` must be reached by implementing the named contracts, not by relabelling empty shells.

@@ -117,8 +117,8 @@ The author should be able to show the following links in order.
 | Capability | Current position |
 | --- | --- |
 | Named offline features and contracts | All 20 physical contracts have builders. The Analytics pCTR model input is populated from the exact versioned Analytics feature output. |
-| Exact build identity and Delta write receipts | Being completed in the offline DEV PR. |
-| READY Feature Snapshot resolution | Persistence contracts exist; full DEV job finalisation and evidence are still required. |
+| Exact build identity and Delta write receipts | Implemented for the Analytics pCTR feature group; the remaining feature groups still need to publish through the same contract. |
+| READY Feature Snapshot resolution | The Analytics pCTR builder records exact READY Delta bindings after its source, table and retry checks pass. The generic model reader and linked DEV proof are still required. |
 | Declarative training set and receipt | Model-development-kit PR. |
 | Exact MLflow promotion without retraining | Model-development-kit PR, built on the existing lifecycle. |
 | Generic challenger provider and candidate adapter | Model-development-kit PR. |
