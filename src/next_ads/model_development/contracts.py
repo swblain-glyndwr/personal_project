@@ -313,8 +313,15 @@ class TrainingSetReceipt:
         bindings = tuple(self.feature_bindings)
         if not bindings:
             raise ValueError("A training receipt needs feature bindings")
-        feature_ids = [binding.feature_id for binding in bindings]
-        if len(feature_ids) != len(set(feature_ids)):
+        identities = [
+            (
+                binding.feature_id,
+                binding.feature_snapshot_id,
+                binding.feature_snapshot_attempt_id,
+            )
+            for binding in bindings
+        ]
+        if len(identities) != len(set(identities)):
             raise ValueError("Training receipt feature bindings must be unique")
         object.__setattr__(self, "feature_bindings", bindings)
         for field_name in ("observation_start", "observation_end", "label_end"):

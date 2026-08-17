@@ -69,3 +69,50 @@ def test_training_receipt_id_pins_definition_versions_and_windows():
 
     assert first == second
     assert first != changed
+
+
+def test_feature_history_reads_and_unions_every_ready_snapshot(monkeypatch):
+    class Frame:
+        def __init__(self, names):
+            self.names = tuple(names)
+
+        def unionByName(self, other, *, allowMissingColumns):  # noqa: N802
+            assert allowMissingColumns is False
+            return Frame(self.names + other.names)
+
+    requested = []
+
+    def read(_spark, feature_id, **kwargs):
+        requested.append((feature_id, kwargs["reference_date"]))
+        reference_date = date.fromisoformat(kwargs["reference_date"])
+        return Frame((kwargs["reference_date"],)), _binding(reference_date)
+
+    monkeypatch.setattr(training_sets, "read_ready_feature", read)
+    frame, bindings = training_sets._read_feature_history(
+        object(),
+        feature_id="next_uk_nextads_fs_pctr_model_input",
+        catalog="catalog",
+        schema="schema",
+        reference_dates=("2026-07-01", "2026-08-01"),
+        registry=object(),
+    )
+
+    assert frame.names == ("2026-07-01", "2026-08-01")
+    assert [binding.reference_date for binding in bindings] == [
+        date(2026, 7, 1),
+        date(2026, 8, 1),
+    ]
+    assert len(requested) == 2
+
+
+def test_feature_reference_dates_reject_ambiguous_or_duplicate_inputs():
+    with pytest.raises(ValueError, match="not both"):
+        training_sets._normalise_feature_reference_dates(
+            feature_reference_date="2026-08-01",
+            feature_reference_dates=("2026-07-01",),
+        )
+    with pytest.raises(ValueError, match="must be unique"):
+        training_sets._normalise_feature_reference_dates(
+            feature_reference_date=None,
+            feature_reference_dates=("2026-08-01", "2026-08-01"),
+        )

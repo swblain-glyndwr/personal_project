@@ -209,6 +209,66 @@ def _receipt_id(
     ).hexdigest()
 
 
+def _normalise_feature_reference_dates(
+    *,
+    feature_reference_date: str | date | None,
+    feature_reference_dates: tuple[str | date, ...] | None,
+) -> tuple[str | date, ...]:
+    if feature_reference_date is not None and feature_reference_dates is not None:
+        raise ValueError(
+            "Supply feature_reference_date or feature_reference_dates, not both"
+        )
+    values = (
+        tuple(feature_reference_dates)
+        if feature_reference_dates is not None
+        else ((feature_reference_date,) if feature_reference_date is not None else ())
+    )
+    if not values:
+        raise ValueError("At least one feature reference date is required")
+    try:
+        normalised = tuple(
+            date.fromisoformat(
+                value.isoformat()
+                if isinstance(value, date)
+                else str(value).strip()
+            ).isoformat()
+            for value in values
+        )
+    except ValueError as exc:
+        raise ValueError("Feature reference dates must be YYYY-MM-DD") from exc
+    if len(normalised) != len(set(normalised)):
+        raise ValueError("Feature reference dates must be unique")
+    return tuple(sorted(normalised))
+
+
+def _read_feature_history(
+    spark: Any,
+    *,
+    feature_id: str,
+    catalog: str,
+    schema: str,
+    reference_dates: tuple[str | date, ...],
+    registry: Any,
+) -> tuple[Any, tuple[ReadyFeatureBinding, ...]]:
+    frames = []
+    bindings = []
+    for reference_date in reference_dates:
+        frame, binding = read_ready_feature(
+            spark,
+            feature_id,
+            catalog=catalog,
+            schema=schema,
+            reference_date=reference_date,
+            registry=registry,
+        )
+        frames.append(frame)
+        bindings.append(binding)
+    history = frames[0]
+    for frame in frames[1:]:
+        history = history.unionByName(frame, allowMissingColumns=False)
+    return history, tuple(bindings)
+
+
 def build_training_set(
     spark: Any,
     definition: ModelDefinition,
@@ -216,7 +276,8 @@ def build_training_set(
     *,
     catalog: str,
     schema: str,
-    feature_reference_date: str | date,
+    feature_reference_date: str | date | None = None,
+    feature_reference_dates: tuple[str | date, ...] | None = None,
     label_end: date,
     code_sha: str,
 ) -> TrainingSetBuildResult:
@@ -241,24 +302,27 @@ def build_training_set(
     )
     if label_end < observation_end:
         raise ValueError("label_end cannot predate the observation window")
+    reference_dates = _normalise_feature_reference_dates(
+        feature_reference_date=feature_reference_date,
+        feature_reference_dates=feature_reference_dates,
+    )
 
-    registry = None
+    from next_ads.features import load_feature_store_registry
+
+    registry = load_feature_store_registry()
     training_frame = observations
     bindings = []
     for lookup in definition.feature_lookups:
-        feature_frame, ready_binding = read_ready_feature(
+        feature_frame, ready_bindings = _read_feature_history(
             spark,
-            lookup.feature_id,
+            feature_id=lookup.feature_id,
             catalog=catalog,
             schema=schema,
-            reference_date=feature_reference_date,
+            reference_dates=reference_dates,
             registry=registry,
         )
-        validate_snapshot_time_boundary(ready_binding, observation_end)
-        if registry is None:
-            from next_ads.features import load_feature_store_registry
-
-            registry = load_feature_store_registry()
+        for ready_binding in ready_bindings:
+            validate_snapshot_time_boundary(ready_binding, observation_end)
         feature = registry.table_spec(lookup.feature_id)
         if not feature.timestamp_key:
             raise ValueError(
@@ -271,7 +335,10 @@ def build_training_set(
             feature_timestamp_key=feature.timestamp_key,
             observation_keys=definition.observation_keys,
         )
-        bindings.append(_training_feature_binding(ready_binding))
+        bindings.extend(
+            _training_feature_binding(ready_binding)
+            for ready_binding in ready_bindings
+        )
 
     completed_at = datetime.now(timezone.utc)
     binding_tuple = tuple(bindings)

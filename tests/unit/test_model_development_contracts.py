@@ -122,6 +122,36 @@ def test_ready_training_receipt_cannot_contain_future_feature_failure():
         )
 
 
+def test_training_receipt_can_pin_several_dates_of_one_feature():
+    first = _feature_binding()
+    second = TrainingFeatureBinding(
+        **{
+            **first.__dict__,
+            "feature_snapshot_id": "snapshot-2",
+            "feature_snapshot_attempt_id": "attempt-2",
+            "delta_version": 4,
+        }
+    )
+    receipt = TrainingSetReceipt(
+        receipt_id="receipt",
+        model_name="shopping_bag_pctr",
+        model_definition_checksum=DIGEST,
+        feature_bindings=(first, second),
+        observation_start=date(2026, 1, 1),
+        observation_end=date(2026, 6, 30),
+        label_end=date(2026, 7, 7),
+        schema_checksum="c" * 64,
+        data_checksum="d" * 64,
+        code_sha="abc123",
+        leakage_status="PASS",
+        status="READY",
+        created_at=NOW,
+        completed_at=NOW,
+    )
+
+    assert len(receipt.feature_bindings) == 2
+
+
 def test_ready_model_build_requires_exact_registered_artifact():
     definition = _definition()
     with pytest.raises(ValueError, match="exact MLflow artifact"):
