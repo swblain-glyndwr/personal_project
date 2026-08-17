@@ -17,6 +17,7 @@ from jobs.features.nextads.smoke_product_embedding_runtime import (
     validate_model_version_provenance,
     validate_runtime_environment,
     validate_safe_model_artifacts,
+    validate_threadpool_runtime,
 )
 from next_ads.features.embedding_contract import (
     load_approved_dev_smoke_binding,
@@ -154,6 +155,16 @@ def test_cpu_validation_rejects_cuda_build_or_available_device():
     )
     with pytest.raises(ValueError, match="CPU-only Torch"):
         validate_cpu_torch(cuda_torch)
+
+
+def test_threadpool_validation_exercises_the_installed_runtime():
+    runtime = SimpleNamespace(
+        threadpool_info=lambda: [{"internal_api": "openblas"}]
+    )
+
+    assert validate_threadpool_runtime(runtime) == {
+        "threadpool_library_count": 1
+    }
 
 
 def test_model_metadata_requires_exact_encoder_and_normalisation():
@@ -406,6 +417,7 @@ def test_run_smoke_uses_fixed_binding_and_emits_observed_evidence(monkeypatch):
         version=SimpleNamespace(cuda=None),
         cuda=SimpleNamespace(is_available=lambda: False),
     )
+    fake_threadpoolctl = SimpleNamespace(threadpool_info=lambda: [])
 
     class FakeModel:
         @staticmethod
@@ -428,6 +440,7 @@ def test_run_smoke_uses_fixed_binding_and_emits_observed_evidence(monkeypatch):
         object(),
         mlflow_module=fake_mlflow,
         torch_module=fake_torch,
+        threadpoolctl_module=fake_threadpoolctl,
         model_loader=fake_loader,
     )
 
@@ -438,4 +451,5 @@ def test_run_smoke_uses_fixed_binding_and_emits_observed_evidence(monkeypatch):
         "95be978bd9e24783afe4e68def0c9845"
     )
     assert manifest["observed_accelerator"] == "CPU"
+    assert manifest["threadpool_library_count"] == 0
     assert manifest["writes_performed"] is False

@@ -57,6 +57,7 @@ def test_product_embedding_definition_pins_supported_runtime_and_model():
         "numpy": "1.26.4",
         "protobuf": "4.24.1",
         "sentence-transformers": "2.4.0",
+        "threadpoolctl": "3.6.0",
         "torch": "2.10.0+cpu",
         "transformers": "4.41.2",
     }

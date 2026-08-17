@@ -147,6 +147,21 @@ def validate_cpu_torch(torch_module) -> dict[str, object]:
     }
 
 
+def validate_threadpool_runtime(threadpoolctl_module) -> dict[str, object]:
+    try:
+        libraries = threadpoolctl_module.threadpool_info()
+    except Exception as exc:
+        raise ValueError(
+            "Product embedding threadpool runtime inspection failed"
+        ) from exc
+    if not isinstance(libraries, list):
+        raise ValueError(
+            "Product embedding threadpool runtime inspection must return a "
+            "list"
+        )
+    return {"threadpool_library_count": len(libraries)}
+
+
 def validate_model_metadata(metadata, definition) -> dict[str, object]:
     values = dict(metadata or {})
     source_model_name = str(values.get("source_model_name", "")).strip()
@@ -448,12 +463,15 @@ def run_smoke(
     *,
     mlflow_module=None,
     torch_module=None,
+    threadpoolctl_module=None,
     model_loader=None,
 ):
     if mlflow_module is None:
         import mlflow as mlflow_module
     if torch_module is None:
         import torch as torch_module
+    if threadpoolctl_module is None:
+        import threadpoolctl as threadpoolctl_module
     if model_loader is None:
         model_loader = load_approved_sentence_transformer
 
@@ -471,6 +489,7 @@ def run_smoke(
         package_versions=installed_packages,
     )
     cpu_evidence = validate_cpu_torch(torch_module)
+    threadpool_evidence = validate_threadpool_runtime(threadpoolctl_module)
 
     mlflow_module.set_registry_uri("databricks-uc")
     model, model_evidence = model_loader(
@@ -512,6 +531,7 @@ def run_smoke(
             definition.allow_runtime_registration
         ),
         **cpu_evidence,
+        **threadpool_evidence,
         **model_evidence,
         "writes_performed": False,
     }
