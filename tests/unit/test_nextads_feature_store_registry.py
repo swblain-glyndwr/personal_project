@@ -242,6 +242,22 @@ def test_pctr_model_input_carries_analytics_pctr_compatibility_columns():
     assert "customer_ad_product_cosine_similarity" not in columns
 
 
+def test_account_advert_affinity_matches_the_location_independent_source():
+    registry = load_feature_store_registry()
+    feature = registry.table_spec(
+        "next_uk_nextads_fs_account_advert_affinity_daily"
+    )
+    columns = _sql_columns(feature.name)
+
+    assert feature.primary_keys == (
+        "account_number",
+        "advert_id",
+        "reference_date",
+    )
+    assert feature.preflight_mode == "BUILDER"
+    assert "location" not in columns
+
+
 def test_feature_store_views_are_contract_artifacts_not_physical_tables():
     registry = load_feature_store_registry()
     physical_names = set(registry.table_names())
@@ -404,6 +420,40 @@ def test_empty_dev_scaffold_migration_dry_run_does_not_drop_table():
         "next_uk_nextads_fs_product_embeddings_latest"
     ]
     assert spark.sql_calls == []
+
+
+def test_account_affinity_is_the_only_new_empty_scaffold_migration():
+    from pyspark.sql import types as T
+
+    spark = _ExistingSpark(
+        _ExistingFrame(
+            T.StructType([T.StructField("account_number", T.StringType())]),
+            row_count=0,
+        )
+    )
+    account_affinity = (
+        "next_uk_nextads_fs_account_advert_affinity_daily"
+    )
+
+    migrated = migrate_empty_dev_scaffolds(
+        spark,
+        "marketingdata_dev",
+        "feature_schema",
+        [account_affinity],
+        dry_run=True,
+    )
+
+    assert migrated == [
+        f"marketingdata_dev.feature_schema.{account_affinity}"
+    ]
+    with pytest.raises(ValueError, match="Unsupported empty scaffold"):
+        migrate_empty_dev_scaffolds(
+            spark,
+            "marketingdata_dev",
+            "feature_schema",
+            ["next_uk_nextads_fs_session_context_daily"],
+            dry_run=True,
+        )
 
 
 def test_empty_dev_scaffold_migration_refuses_nonempty_or_prod_tables():
@@ -615,6 +665,12 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         == "configs/features/product_embedding_materialization_dev.yaml"
     )
     assert (
+        bundle_config["variables"][
+            "feature_store_analytics_pctr_source_binding"
+        ]["default"]
+        == "configs/features/analytics_pctr_source_dev.yaml"
+    )
+    assert (
         bundle_config["targets"]["SANDBOX"]["variables"][
             "feature_store_schema"
         ]
@@ -632,6 +688,12 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
             "configs/features/"
             "product_embedding_materialization_personal_dev.yaml"
         )
+    )
+    assert (
+        bundle_config["targets"]["DEV"]["variables"][
+            "feature_store_analytics_pctr_source_binding"
+        ]
+        == "configs/features/analytics_pctr_source_personal_dev.yaml"
     )
     assert (
         "feature_store_theme_source_catalog"
@@ -698,6 +760,12 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         ]
         == "warehouse"
     )
+    assert (
+        bundle_config["targets"]["DEV_FEATURE_STORE"]["variables"][
+            "feature_store_analytics_pctr_source_schema"
+        ]
+        == "nextads_integration"
+    )
     assert "feature_store_schema" not in bundle_config["targets"]["PREPROD"][
         "variables"
     ]
@@ -727,7 +795,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         "mktg_next_uk_nextads_feature_store"
     ]
     assert "schedule" not in job
-    assert job["timeout_seconds"] == 28800
+    assert job["timeout_seconds"] == 43200
     personal_job = job_config["targets"]["DEV"]["resources"]["jobs"][
         "mktg_next_uk_nextads_feature_store"
     ]
@@ -768,10 +836,18 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
             "name": "theme_training_reference_date",
             "default": "${var.feature_store_theme_training_reference_date}",
         },
+        {
+            "name": "analytics_pctr_source_binding",
+            "default": "${var.feature_store_analytics_pctr_source_binding}",
+        },
+        {
+            "name": "analytics_pctr_source_schema",
+            "default": "${var.feature_store_analytics_pctr_source_schema}",
+        },
         {"name": "recreate_feature_tables", "default": "false"},
     ]
     assert job["tags"]["domain"] == "feature_store"
-    assert job["tasks"][0]["task_key"] == "create_feature_store_tables"
+    assert job["tasks"][0]["task_key"] == "resolve_feature_store_reference_date"
     assert any(
         task["task_key"] == "build_theme_affinity_training_input"
         for task in job["tasks"]
@@ -780,7 +856,15 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         task["task_key"] == "preflight_feature_store_sources"
         for task in job["tasks"]
     )
-    create_parameters = job["tasks"][0]["spark_python_task"]["parameters"]
+    create_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "create_feature_store_tables"
+    )
+    create_parameters = create_task["spark_python_task"]["parameters"]
+    assert create_task["depends_on"] == [
+        {"task_key": "resolve_feature_store_reference_date"}
+    ]
     assert "--manage_principal" in create_parameters
     assert "${var.run_as_SPN_name}" in create_parameters
     assert create_parameters.count("--all_privileges_principal") == 2
@@ -789,25 +873,56 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         create_parameters[create_parameters.index("--recreate_tables") + 1]
         == "{{job.parameters.recreate_feature_tables}}"
     )
+    migrated_scaffolds = {
+        create_parameters[index + 1]
+        for index, value in enumerate(create_parameters)
+        if value == "--empty_scaffold_migration"
+    }
+    assert "next_uk_nextads_fs_account_advert_affinity_daily" in (
+        migrated_scaffolds
+    )
+    assert "next_uk_nextads_fs_session_context_daily" not in (
+        migrated_scaffolds
+    )
     preflight_task = next(
         task
         for task in job["tasks"]
         if task["task_key"] == "preflight_feature_store_sources"
     )
     assert preflight_task["depends_on"] == [
-        {"task_key": "create_feature_store_tables"}
+        {"task_key": "create_feature_store_tables"},
+        {"task_key": "refresh_analytics_pctr_feature_source"},
     ]
     for task_key in ("build_account_features", "build_advert_features"):
         task = next(task for task in job["tasks"] if task["task_key"] == task_key)
         assert task["depends_on"] == [
             {"task_key": "preflight_feature_store_sources"}
         ]
-    assert any(
-        "{{job.parameters.reference_date}}"
-        in task["spark_python_task"]["parameters"]
-        for task in job["tasks"][1:]
+    resolved_reference_date = (
+        "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
     )
-    for task in job["tasks"][1:]:
+    resolver_task = job["tasks"][0]
+    resolver_parameters = resolver_task["spark_python_task"]["parameters"]
+    assert resolver_parameters[resolver_parameters.index("--reference_date") + 1] == (
+        "{{job.parameters.reference_date}}"
+    )
+    for task in job["tasks"]:
+        if (
+            "spark_python_task" not in task
+            or task["task_key"]
+            in {"create_feature_store_tables", "resolve_feature_store_reference_date"}
+        ):
+            continue
+        parameters = task["spark_python_task"]["parameters"]
+        assert parameters[parameters.index("--reference_date") + 1] == (
+            resolved_reference_date
+        )
+    for task in job["tasks"]:
+        if (
+            "spark_python_task" not in task
+            or task["task_key"] == "create_feature_store_tables"
+        ):
+            continue
         parameters = task["spark_python_task"]["parameters"]
         assert "--source_catalog" in parameters
         assert (
@@ -890,6 +1005,8 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         "${var.feature_store_schema}"
         in task["spark_python_task"]["parameters"]
         for task in job["tasks"]
+        if "spark_python_task" in task
+        if task["task_key"] != "resolve_feature_store_reference_date"
     )
     embedding_task = next(
         task
@@ -952,11 +1069,13 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     assert all(
         task["libraries"] == "${var.feature_store_libraries}"
         for task in job["tasks"]
+        if "spark_python_task" in task
         if task["task_key"] not in embedding_task_keys
     )
     assert all(
         task["libraries"] == "${var.feature_store_embedding_libraries}"
         for task in job["tasks"]
+        if "spark_python_task" in task
         if task["task_key"] in embedding_task_keys
     )
     assert all(
@@ -967,8 +1086,11 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     assert all(
         task["timeout_seconds"] == 7200
         for task in job["tasks"]
+        if "spark_python_task" in task
         if task["task_key"] not in embedding_task_keys
+        if task["task_key"] != "resolve_feature_store_reference_date"
     )
+    assert resolver_task["timeout_seconds"] == 1800
     assert all(
         task["job_cluster_key"] == "next_ads_job_cluster_D16ads_v5_2_2"
         for task in job["tasks"]
@@ -978,6 +1100,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         task["job_cluster_key"]
         == "next_ads_job_cluster_D32ads_v5_1_4"
         for task in job["tasks"]
+        if "spark_python_task" in task
         if task["task_key"] not in embedding_task_keys
     )
     assert all(
@@ -985,7 +1108,94 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
             ("../../../jobs/features/nextads/", "../../../jobs/table_operations/")
         )
         for task in job["tasks"]
+        if "spark_python_task" in task
     )
+
+    refresh_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "refresh_analytics_pctr_feature_source"
+    )
+    assert refresh_task["depends_on"] == [
+        {"task_key": "create_feature_store_tables"}
+    ]
+    assert refresh_task["run_job_task"]["job_id"] == (
+        "${resources.jobs."
+        "mktg_next_uk_nextads_analytics_pctr_feature_source.id}"
+    )
+    assert refresh_task["run_job_task"]["job_parameters"][
+        "reference_date"
+    ] == resolved_reference_date
+    affinity_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "build_pctr_affinity_features"
+    )
+    affinity_parameters = affinity_task["spark_python_task"]["parameters"]
+    assert affinity_parameters[
+        affinity_parameters.index(
+            "--analytics_pctr_receipt_correlation_id"
+        )
+        + 1
+    ] == "{{job.run_id}}"
+    assert refresh_task["run_job_task"]["job_parameters"][
+        "receipt_correlation_id"
+    ] == "{{job.run_id}}"
+
+
+def test_analytics_pctr_feature_source_is_source_only_and_uses_dbr_15_4():
+    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+    source_path = (
+        PROJECT_ROOT
+        / "pipelines"
+        / "databricks"
+        / "jobs"
+        / "mktg_next_uk_nextads_analytics_pctr_feature_source.yml"
+    )
+    source_config = yaml.safe_load(source_path.read_text())
+
+    assert (
+        "pipelines/databricks/jobs/"
+        "mktg_next_uk_nextads_analytics_pctr_feature_source.yml"
+        in bundle_config["include"]
+    )
+    assert set(source_config["targets"]) == {"DEV", "DEV_FEATURE_STORE"}
+    job = source_config["analytics_pctr_feature_source_config"][
+        "mktg_next_uk_nextads_analytics_pctr_feature_source"
+    ]
+    task_keys = [task["task_key"] for task in job["tasks"]]
+    assert task_keys == [
+        "resolve_reference_date",
+        "base_sessions",
+        "core_datasets",
+        "customer_advert_base",
+        "session_aggregation",
+        "ctr_metrics",
+        "page_views",
+        "purchases",
+        "customer_ad_exposure",
+        "view_advert_affinity",
+        "feature_build",
+        "validate_source_receipt",
+    ]
+    assert "predict" not in task_keys
+    assert all(
+        task["job_cluster_key"] == "next_ads_job_cluster_D32ads_v5_1_4"
+        for task in job["tasks"]
+    )
+    assert job["tasks"][1]["notebook_task"]["base_parameters"][
+        "start_date"
+    ] == "{{tasks.resolve_reference_date.values.reference_date}}"
+    assert job["tasks"][-1]["depends_on"] == [
+        {"task_key": "feature_build"}
+    ]
+    receipt_parameters = job["tasks"][-1]["spark_python_task"]["parameters"]
+    assert receipt_parameters[
+        receipt_parameters.index("--producing_job_run_id") + 1
+    ] == "{{job.run_id}}"
+    assert receipt_parameters[
+        receipt_parameters.index("--receipt_correlation_id") + 1
+    ] == "{{job.parameters.receipt_correlation_id}}"
 
 
 def test_account_feature_task_uses_theme_affinity_source_outputs():

@@ -23,7 +23,7 @@ def test_registry_selects_implemented_features_by_logical_builder():
     assert theme_features[-1].builder == "build_theme_affinity_features"
 
 
-def test_registry_excludes_scaffolds_from_builder_outputs_by_default():
+def test_registry_selects_active_builder_outputs_and_excludes_scaffolds():
     registry = load_feature_store_registry()
 
     assert [
@@ -34,7 +34,15 @@ def test_registry_excludes_scaffolds_from_builder_outputs_by_default():
         "next_uk_nextads_fs_advert_core_daily",
         "next_uk_nextads_fs_advert_attribute_profile_daily",
     ]
-    assert registry.features_for_builder("build_pctr_affinity_features") == ()
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_pctr_affinity_features"
+        )
+    ] == [
+        "next_uk_nextads_fs_account_advert_affinity_daily",
+        "next_uk_nextads_fs_session_context_daily",
+    ]
     assert [
         feature.name
         for feature in registry.features_for_builder(
@@ -47,16 +55,6 @@ def test_registry_excludes_scaffolds_from_builder_outputs_by_default():
             "build_advert_product_profile_daily"
         )
     ] == ["next_uk_nextads_fs_advert_product_profile_daily"]
-    assert {
-        feature.name
-        for feature in registry.features_for_builder(
-            "build_pctr_affinity_features",
-            include_scaffolds=True,
-        )
-    } == {
-        "next_uk_nextads_fs_account_advert_affinity_daily",
-        "next_uk_nextads_fs_session_context_daily",
-    }
 
 
 def test_builder_output_validation_accepts_the_exact_implemented_set():

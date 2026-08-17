@@ -33,6 +33,8 @@ ACTIVE_FEATURES = {
     "next_uk_nextads_fs_account_theme_interactions_daily",
     "next_uk_nextads_fs_account_theme_affinity_daily",
     "next_uk_nextads_fs_theme_popularity_daily",
+    "next_uk_nextads_fs_account_advert_affinity_daily",
+    "next_uk_nextads_fs_session_context_daily",
     "next_uk_nextads_fs_labels_clicks",
     "next_uk_nextads_fs_labels_theme_response",
     "next_uk_nextads_fs_feature_quality_events",
@@ -42,8 +44,6 @@ COMPATIBILITY_FEATURES = {
     "next_uk_nextads_fs_theme_affinity_training_input",
 }
 SCAFFOLD_FEATURES = {
-    "next_uk_nextads_fs_account_advert_affinity_daily",
-    "next_uk_nextads_fs_session_context_daily",
     "next_uk_nextads_fs_pctr_model_input",
 }
 IMPLEMENTED_BUILDERS = {
@@ -74,6 +74,12 @@ IMPLEMENTED_BUILDERS = {
     ),
     "next_uk_nextads_fs_theme_popularity_daily": (
         "build_theme_affinity_features"
+    ),
+    "next_uk_nextads_fs_account_advert_affinity_daily": (
+        "build_pctr_affinity_features"
+    ),
+    "next_uk_nextads_fs_session_context_daily": (
+        "build_pctr_affinity_features"
     ),
     "next_uk_nextads_fs_theme_affinity_model_input": "build_model_inputs",
     "next_uk_nextads_fs_theme_affinity_training_input": (

@@ -30,9 +30,9 @@ def test_offline_plan_resolves_the_same_logical_graph_for_every_environment():
 
     assert plan["mode"] == "READ_ONLY"
     assert plan["summary"] == {
-        "ACTIVE": 15,
+        "ACTIVE": 17,
         "COMPATIBILITY": 2,
-        "SCAFFOLD": 3,
+        "SCAFFOLD": 1,
     }
     environments = {
         environment["environment"]: environment

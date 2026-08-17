@@ -1,0 +1,11 @@
+analytics_pctr_source:
+  scope: PERSONAL_DEV
+  catalog: "{catalog}"
+  schema: "{schema}"
+  table_name: next_uk_nextads_analytics_pctr_features
+  receipt_table_name: next_uk_nextads_analytics_pctr_feature_source_receipts
+  delta_version: latest
+  fixed_reference_date: requested
+  expected_table_id:
+  expected_schema_sha256:
+  producing_run_id:
