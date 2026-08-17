@@ -84,7 +84,11 @@ The Analytics pCTR and Shopping Bag pCTR definitions are separate entries. Addin
 
 ## 5. Build A Time-Correct Training Set
 
-Deploy the model-development branch to personal DEV, then open the manual `mktg_next_uk_nextads_model_development` job. Supply the accepted Feature Store dates; do not leave either date as `REQUIRED`.
+Deploy the model-development branch to personal DEV. Before training the Shopping Bag example, use the Feature Store plan to confirm that its account, advert, label and account-advert features all have READY snapshots for the same date.
+
+If the account, advert or label groups are missing for the demonstration date, open the manual `mktg_next_uk_nextads_shopping_bag_feature_preparation` job. Set `reference_date` to that date and run it. This job runs only the existing account, advert and model-input builders; it does not start the complete 20-table Feature Store job. Wait for all three publication tasks to finish and confirm that their READY snapshots use the requested date.
+
+Then open the manual `mktg_next_uk_nextads_model_development` job. Supply the accepted Feature Store dates; do not leave either date as `REQUIRED`.
 
 | Job parameter | What the author enters |
 | --- | --- |
