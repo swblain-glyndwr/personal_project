@@ -4,17 +4,18 @@ import logging
 
 from _registry_job import (
     configure_job_logging,
-    feature_write_kwargs,
+    feature_group_identity,
     log_owned_tables,
     parse_common_args,
     validate_builder_output_tables,
 )
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
-from next_ads.features.materialization import (
-    create_feature_engineering_client,
-    write_feature_table,
+from next_ads.features.analytics_pctr_source import parse_reference_date
+from next_ads.features.snapshot_publication import (
+    write_and_publish_feature_group,
 )
+from next_ads.features.source_pinning import PinnedSourceSession
 from next_ads.features.theme_affinity import (
     build_theme_affinity_account_profile_df,
     build_theme_affinity_account_web_activity_df,
@@ -24,12 +25,13 @@ from next_ads.features.theme_affinity import (
 
 
 LOGGER = logging.getLogger(__name__)
+BUILDER = "build_account_features"
 
 
 def main() -> None:
     args = parse_common_args()
     configure_job_logging(args.log_level)
-    log_owned_tables("build_account_features", args)
+    log_owned_tables(BUILDER, args)
 
     spark = configure_spark()
     registry = load_feature_store_registry()
@@ -43,16 +45,23 @@ def main() -> None:
         args.theme_table_prefix,
         args.reference_date,
     )
+    identity = feature_group_identity(args, BUILDER)
+    pinned_spark = PinnedSourceSession(
+        spark,
+        feature_build_id=identity["feature_build_id"],
+        feature_build_attempt_id=identity["feature_build_attempt_id"],
+        reference_date=parse_reference_date(reference_date),
+        target_catalog=target_catalog,
+        target_schema=target_schema,
+    )
     replace_reference_date = args.replace_reference_date.lower() == "true"
     source_tables = read_theme_account_source_tables(
-        spark,
+        pinned_spark,
         source_catalog,
         args.theme_source_schema,
         args.theme_table_prefix,
         reference_date,
     )
-    feature_engineering_client = create_feature_engineering_client()
-
     writes = {
         "next_uk_nextads_fs_account_profile": (
             build_theme_affinity_account_profile_df(
@@ -70,24 +79,28 @@ def main() -> None:
         ),
     }
     validate_builder_output_tables(
-        "build_account_features",
+        BUILDER,
         writes,
         registry,
     )
 
-    for table_name, dataframe in writes.items():
-        table_path = write_feature_table(
-            spark,
-            table_name,
-            dataframe,
-            catalog=target_catalog,
-            schema=target_schema,
-            reference_date=reference_date,
-            replace_reference_date=replace_reference_date,
-            feature_engineering_client=feature_engineering_client,
-            **feature_write_kwargs(args),
-        )
-        LOGGER.info("Wrote account feature table: %s", table_path)
+    _ready_build, snapshot = write_and_publish_feature_group(
+        spark,
+        catalog=target_catalog,
+        schema=target_schema,
+        group_id=BUILDER,
+        reference_date=parse_reference_date(reference_date),
+        frames=writes,
+        sources=pinned_spark.source_bindings,
+        registry=registry,
+        replace_reference_date=replace_reference_date,
+        **identity,
+    )
+    LOGGER.info(
+        "Published READY account feature snapshot: %s attempt %s",
+        snapshot.feature_snapshot_id,
+        snapshot.feature_snapshot_attempt_id,
+    )
 
 
 if __name__ == "__main__":

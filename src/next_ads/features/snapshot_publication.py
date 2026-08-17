@@ -26,6 +26,7 @@ from next_ads.features.feature_builds import (
     FeatureOutputBinding,
     FeatureSourceBinding,
     feature_value_checksum,
+    mark_feature_build_failed,
     mark_feature_build_ready,
     mark_feature_snapshot_ready,
     prepare_feature_snapshot,
@@ -34,7 +35,11 @@ from next_ads.features.feature_store_registry import (
     DEFAULT_REGISTRY_PATH,
     FeatureStoreRegistry,
 )
-from next_ads.features.materialization import align_to_feature_table_contract
+from next_ads.features.materialization import (
+    FeatureMaterializationResult,
+    align_to_feature_table_contract,
+    write_feature_table,
+)
 
 
 def registry_file_checksum(
@@ -249,9 +254,110 @@ def publish_ready_feature_group(
     return ready_build, ready_snapshot
 
 
+def write_and_publish_feature_group(
+    spark: Any,
+    *,
+    catalog: str,
+    schema: str,
+    group_id: str,
+    feature_build_id: str,
+    feature_build_attempt_id: str,
+    reference_date: date,
+    git_commit: str,
+    frames: Mapping[str, Any],
+    sources: tuple[FeatureSourceBinding, ...],
+    registry: FeatureStoreRegistry,
+    replace_reference_date: bool = True,
+    write_options: Mapping[str, Mapping[str, Any]] | None = None,
+    fail_after_writes: int | None = None,
+) -> tuple[FeatureBuild, Any]:
+    """Write a complete group and publish its READY snapshot last."""
+    required_feature_ids = tuple(frames)
+    if not required_feature_ids:
+        raise ValueError("Feature publication needs at least one output")
+    if fail_after_writes is not None and not (
+        1 <= fail_after_writes <= len(required_feature_ids)
+    ):
+        raise ValueError("fail_after_writes must identify an output position")
+    build = begin_feature_build(
+        spark,
+        catalog=catalog,
+        schema=schema,
+        feature_build_id=feature_build_id,
+        feature_build_attempt_id=feature_build_attempt_id,
+        reference_date=reference_date,
+        git_commit=git_commit,
+        required_feature_ids=required_feature_ids,
+        sources=sources,
+        started_at=datetime.now(timezone.utc),
+    )
+    receipts = {}
+    options_by_feature = write_options or {}
+    try:
+        for position, (feature_id, frame) in enumerate(frames.items(), start=1):
+            feature = registry.table_spec(feature_id)
+            options = dict(options_by_feature.get(feature_id, {}))
+            result = write_feature_table(
+                spark,
+                feature_id,
+                frame,
+                catalog=catalog,
+                schema=schema,
+                reference_date=reference_date,
+                reference_date_column=options.pop(
+                    "reference_date_column",
+                    feature.timestamp_key or "reference_date",
+                ),
+                replace_reference_date=options.pop(
+                    "replace_reference_date", replace_reference_date
+                ),
+                mode=options.pop("mode", feature.write_mode),
+                registry=registry,
+                build_id=feature_build_id,
+                attempt_id=feature_build_attempt_id,
+                git_commit=git_commit,
+                return_receipt=True,
+                **options,
+            )
+            if not isinstance(result, FeatureMaterializationResult):
+                raise RuntimeError(
+                    f"Feature output {feature_id} has no Delta receipt"
+                )
+            receipts[feature_id] = result.receipt
+            if fail_after_writes == position:
+                raise RuntimeError(
+                    "Intentional personal DEV failure after feature output "
+                    f"{position}"
+                )
+        return publish_ready_feature_group(
+            spark,
+            catalog=catalog,
+            schema=schema,
+            group_id=group_id,
+            build=build,
+            frames=frames,
+            receipts=receipts,
+            registry=registry,
+        )
+    except Exception as exc:
+        failed_build = mark_feature_build_failed(
+            build,
+            failure_reason=f"{type(exc).__name__}: {exc}",
+            completed_at=datetime.now(timezone.utc),
+        )
+        persist_feature_build(
+            spark,
+            catalog=catalog,
+            schema=schema,
+            build=failed_build,
+        )
+        raise
+
+
 __all__ = [
     "begin_feature_build",
     "external_delta_source",
     "publish_ready_feature_group",
+    "write_and_publish_feature_group",
     "registry_file_checksum",
 ]

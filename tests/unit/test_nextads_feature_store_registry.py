@@ -1385,6 +1385,37 @@ def test_account_feature_task_uses_theme_affinity_source_outputs():
     assert 'table_prefix, "half"' not in theme_source
 
 
+@pytest.mark.parametrize(
+    "builder",
+    [
+        "build_account_features",
+        "build_advert_features",
+        "build_product_embeddings_latest",
+        "build_advert_semantic_profile_daily",
+        "build_advert_product_profile_daily",
+        "build_seasonal_product_demand_daily",
+        "build_theme_affinity_features",
+        "build_model_inputs",
+        "build_theme_affinity_training_input",
+    ],
+)
+def test_feature_builders_publish_only_complete_snapshots(
+    builder,
+):
+    source = (
+        PROJECT_ROOT
+        / "jobs"
+        / "features"
+        / "nextads"
+        / f"{builder}.py"
+    ).read_text()
+
+    assert "PinnedSourceSession" in source
+    assert "feature_group_identity" in source
+    assert "write_and_publish_feature_group" in source
+    assert "write_feature_table" not in source
+
+
 def test_theme_affinity_feature_builders_filter_null_feature_keys():
     theme_source = (
         PROJECT_ROOT / "src" / "next_ads" / "features" / "theme_affinity.py"

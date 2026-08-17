@@ -8,21 +8,18 @@ import logging
 
 from _registry_job import (
     configure_job_logging,
-    feature_write_kwargs,
+    feature_group_identity,
     log_owned_tables,
     parse_common_args,
     validate_builder_output_tables,
 )
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
+from next_ads.features.analytics_pctr_source import parse_reference_date
 from next_ads.features.advert_items import build_advert_item_bridge
 from next_ads.features.embedding_contract import (
     load_product_embedding_materialization_binding,
     validate_materialization_binding_target,
-)
-from next_ads.features.materialization import (
-    create_feature_engineering_client,
-    write_feature_table,
 )
 from next_ads.features.nextads_core import (
     resolve_reference_date_from_theme,
@@ -31,6 +28,10 @@ from next_ads.features.nextads_core import (
 from next_ads.features.seasonal_product_demand import (
     build_seasonal_product_demand_frame,
 )
+from next_ads.features.snapshot_publication import (
+    write_and_publish_feature_group,
+)
+from next_ads.features.source_pinning import PinnedSourceSession
 
 
 LOGGER = logging.getLogger(__name__)
@@ -164,8 +165,17 @@ def main() -> None:
         schema=target_schema,
     )
     reference_date = resolve_reference_date_from_theme(spark, args)
+    identity = feature_group_identity(args, BUILDER)
+    pinned_spark = PinnedSourceSession(
+        spark,
+        feature_build_id=identity["feature_build_id"],
+        feature_build_attempt_id=identity["feature_build_attempt_id"],
+        reference_date=parse_reference_date(reference_date),
+        target_catalog=target_catalog,
+        target_schema=target_schema,
+        registry=registry,
+    )
     replace_reference_date = args.replace_reference_date.lower() == "true"
-    feature_engineering_client = create_feature_engineering_client()
 
     validate_builder_output_tables(
         BUILDER,
@@ -173,7 +183,7 @@ def main() -> None:
         registry,
     )
     sources = read_seasonal_product_demand_source_frames(
-        spark,
+        pinned_spark,
         source_catalog=args.source_catalog,
         source_schema=args.source_schema,
         target_catalog=target_catalog,
@@ -197,22 +207,23 @@ def main() -> None:
         reference_date=reference_date,
     )
 
-    table = registry.table_spec(OUTPUT_TABLE)
-    table_path = write_feature_table(
+    _ready_build, snapshot = write_and_publish_feature_group(
         spark,
-        OUTPUT_TABLE,
-        seasonal_demand,
         catalog=target_catalog,
         schema=target_schema,
-        reference_date=reference_date,
-        reference_date_column=table.timestamp_key or "feature_date",
-        replace_reference_date=replace_reference_date,
-        mode=table.write_mode,
+        group_id=BUILDER,
+        reference_date=parse_reference_date(reference_date),
+        frames={OUTPUT_TABLE: seasonal_demand},
+        sources=pinned_spark.source_bindings,
         registry=registry,
-        feature_engineering_client=feature_engineering_client,
-        **feature_write_kwargs(args),
+        replace_reference_date=replace_reference_date,
+        **identity,
     )
-    LOGGER.info("Wrote seasonal product demand table: %s", table_path)
+    LOGGER.info(
+        "Published READY seasonal demand snapshot: %s attempt %s",
+        snapshot.feature_snapshot_id,
+        snapshot.feature_snapshot_attempt_id,
+    )
 
 
 if __name__ == "__main__":
