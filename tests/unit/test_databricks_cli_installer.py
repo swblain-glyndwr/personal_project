@@ -15,3 +15,6 @@ def test_installer_retries_transient_download_failures_and_fails_the_pipe() -> N
     assert "--retry 5" in script
     assert "--retry-all-errors" in script
     assert "--fail" in script
+    assert "databricks/cli/releases/download/v${cli_version}" in script
+    assert "databricks_cli_${cli_version}_linux_amd64.zip" in script
+    assert "raw.githubusercontent.com/databricks/setup-cli" not in script
