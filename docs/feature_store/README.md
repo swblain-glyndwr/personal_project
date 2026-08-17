@@ -51,6 +51,7 @@
 | `sql/features/nextads/` | Physical table and compatibility-view schemas. |
 | `jobs/table_operations/create_feature_store_tables.py` | Databricks Feature Engineering table creation. |
 | `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` | Personal, integration and shared DEV Feature Store jobs. |
+| `pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml` | Personal DEV proof for the three Analytics pCTR feature tables. |
 | `jobs/features/nextads/` | Feature builders, checks and the read-only plan command. |
 | `configs/features/README.md` | Contract-state, binding and planner terminology. |
 
@@ -60,11 +61,17 @@
 | ---: | --- |
 | 1 | The Analytics source job records the exact source table, Delta version, schema checksum, reference-date row count and producing run. |
 | 2 | The pCTR builder records a `BUILDING` attempt before publishing feature data. This record cannot be selected by a model author. |
-| 3 | Account-advert affinity and the Analytics pCTR model input are written with one atomic reference-date transaction per table. Session context must also finish before publication continues. |
+| 3 | Account-advert affinity, the Analytics pCTR model input and session context are each written in one reference-date transaction. |
 | 4 | The builder checks contract schema, non-null and unique keys, a value fingerprint and same-date row stability. |
-| 5 | The build and snapshot are recorded `READY` only after every check passes. The snapshot binds the exact Delta version for each Analytics-derived table. |
+| 5 | The build and snapshot are recorded `READY` only after every check passes. All three output tables and every session source are pinned to exact Delta versions. |
 
 A failed first attempt has no READY snapshot. A failed retry leaves the preceding READY snapshot selectable. Direct reads of the physical latest table and the legacy compatibility view do not provide that guarantee. Model-development code uses `read_ready_feature`, which opens the exact Delta version in the READY snapshot and fails when no accepted binding exists.
+
+### Personal DEV proof
+
+Use the `mktg_next_uk_nextads_analytics_pctr_feature_source` job to create and receipt the Analytics feature output for one historical date. Then run `mktg_next_uk_nextads_analytics_pctr_snapshot_verification` with the same date and the source job's receipt correlation ID.
+
+The verification job creates only the three required personal Feature Store tables and their metadata. It does not run the full Feature Store job, update shared DEV or change the main NextAds job. A normal run must return all three tables from its own READY attempt. A retry must produce the same value checksums. A controlled `after_first_write` failure must return the preceding READY attempt; the failure option is rejected outside a personal DEV schema.
 
 ### Current Contract Status
 
