@@ -237,8 +237,14 @@ def test_approved_loader_checks_and_loads_the_exact_safe_artifact(
     _write_safe_model_artifact(model_data_path)
     flavors = {
         "sentence_transformers": {
-            "model_data": "model.sentence_transformer"
-        }
+            "code": None,
+            "sentence_transformers_version": "2.4.0",
+        },
+        "python_function": {
+            "code": None,
+            "data": "model.sentence_transformer",
+            "loader_module": "mlflow.sentence_transformers",
+        },
     }
     fake_mlflow = _fake_mlflow_artifact(binding, artifact_root, flavors)
     constructor_calls = []
@@ -281,10 +287,26 @@ def test_approved_loader_checks_and_loads_the_exact_safe_artifact(
         (
             {
                 "sentence_transformers": {
-                    "model_data": "../outside-model"
-                }
+                    "sentence_transformers_version": "2.4.0"
+                },
+                "python_function": {
+                    "data": "../outside-model",
+                    "loader_module": "mlflow.sentence_transformers",
+                },
             },
-            "resolves outside the artifact",
+            "python_function data must be model.sentence_transformer",
+        ),
+        (
+            {
+                "sentence_transformers": {
+                    "sentence_transformers_version": "2.4.0"
+                },
+                "python_function": {
+                    "data": "model.sentence_transformer",
+                    "loader_module": "custom.loader",
+                },
+            },
+            "loader_module must be mlflow.sentence_transformers",
         ),
     ],
 )

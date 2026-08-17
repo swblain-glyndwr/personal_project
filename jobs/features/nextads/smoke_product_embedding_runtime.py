@@ -336,19 +336,64 @@ def load_approved_sentence_transformer(
         model_info.metadata,
         definition,
     )
-    flavor = dict(model_info.flavors.get("sentence_transformers") or {})
-    if not flavor:
+    sentence_transformers_flavor = dict(
+        model_info.flavors.get("sentence_transformers") or {}
+    )
+    if not sentence_transformers_flavor:
         raise ValueError(
             "Registered model does not contain a SentenceTransformers flavor"
         )
-    if flavor.get("code"):
+    if sentence_transformers_flavor.get("code"):
         raise ValueError(
             "Registered embedding model must not contain custom model code"
         )
-    model_data = str(flavor.get("model_data", "") or "").strip()
-    if not model_data:
+    logged_sentence_transformers_version = str(
+        sentence_transformers_flavor.get(
+            "sentence_transformers_version",
+            "",
+        )
+        or ""
+    ).strip()
+    expected_sentence_transformers_version = dict(
+        definition.runtime_profile.package_versions
+    )["sentence-transformers"]
+    if (
+        logged_sentence_transformers_version
+        != expected_sentence_transformers_version
+    ):
         raise ValueError(
-            "SentenceTransformers flavor does not declare model_data"
+            "Registered model SentenceTransformers flavor version must be "
+            f"{expected_sentence_transformers_version}; found "
+            f"{logged_sentence_transformers_version or 'missing'}"
+        )
+
+    python_function_flavor = dict(
+        model_info.flavors.get("python_function") or {}
+    )
+    if not python_function_flavor:
+        raise ValueError(
+            "Registered model does not contain a python_function flavor"
+        )
+    if python_function_flavor.get("code"):
+        raise ValueError(
+            "Registered embedding model python_function flavor must not "
+            "contain custom model code"
+        )
+    loader_module = str(
+        python_function_flavor.get("loader_module", "") or ""
+    ).strip()
+    if loader_module != "mlflow.sentence_transformers":
+        raise ValueError(
+            "Registered embedding model python_function loader_module must "
+            "be mlflow.sentence_transformers"
+        )
+    model_data = str(
+        python_function_flavor.get("data", "") or ""
+    ).strip()
+    if model_data != "model.sentence_transformer":
+        raise ValueError(
+            "Registered embedding model python_function data must be "
+            "model.sentence_transformer"
         )
     model_data_path = (artifact_root / model_data).resolve()
     if artifact_root not in model_data_path.parents:
