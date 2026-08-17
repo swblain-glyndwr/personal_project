@@ -70,7 +70,7 @@ Keep `feature_receipt.feature_snapshot_id`, `feature_receipt.delta_version` and 
 
 ## 4. Declare The Model
 
-The model-development-kit PR will make this a repository object rather than bespoke orchestration.
+Add one entry to `configs/models/nextads_models.yaml`. This is the part the model author owns. It explains the problem, names the Feature Store inputs and selects the training, scoring and candidate plug-ins.
 
 | Contract | What the author supplies |
 | --- | --- |
@@ -80,11 +80,23 @@ The model-development-kit PR will make this a repository object rather than besp
 | `ScoreProvider` | Conversion from model output to `account_entity_scores/v1`. |
 | `CandidateAdapter` | How canonical scores are applied to eligible NextAds candidates. |
 
-Adding a model must not require an edit to the main algorithm or its orchestration YAML.
+The Analytics pCTR and Shopping Bag pCTR definitions are separate entries. Adding either model does not require a model-specific edit to the main algorithm or its orchestration YAML.
 
 ## 5. Build A Time-Correct Training Set
 
-The training command will resolve the last complete READY snapshot, apply the declared point-in-time lookups and write a `TrainingSetReceipt` before training begins.
+Deploy the model-development branch to personal DEV, then open the manual `mktg_next_uk_nextads_model_development` job. Supply the accepted Feature Store dates; do not leave either date as `REQUIRED`.
+
+| Job parameter | What the author enters |
+| --- | --- |
+| `model_name` | The name from `nextads_models.yaml`, for example `shopping_bag_pctr`. |
+| `feature_reference_dates` | One or more comma-separated dates that have READY feature snapshots. |
+| `label_end` | The last date labels are allowed to use. It cannot precede the observations or permit a future feature lookup. |
+| `registered_model_name` | The personal DEV Unity Catalog model name. |
+| `experiment_path` | The DEV MLflow experiment used for the research comparison. |
+| `evaluation_scores_table` | A personal DEV table; never the live assignment output. |
+| `promotion_model_name` | Leave blank during research. Supply an Integration model name only when the exact DEV build has passed review. |
+
+The job resolves the requested READY snapshots, applies the declared point-in-time lookups and writes a `TrainingSetReceipt` before training begins.
 
 | Receipt evidence | Why it matters |
 | --- | --- |
@@ -99,21 +111,34 @@ A future-dated lookup must fail without creating a READY receipt or model build.
 
 ## 6. Train And Compare Models In DEV
 
-Training will run only on an approved runtime profile: DBR 15.4 Spark/CPU or the existing Theme Affinity DBR 18.1 GPU profile. Start with a simple baseline, compare the researched candidates and keep the test set fixed.
+Run the manual job on the approved runtime in the definition: DBR 15.4 Spark/CPU or the existing Theme Affinity DBR 18.1 GPU profile. The Shopping Bag example compares a Spark logistic-regression baseline with a Spark gradient-boosted-tree candidate, using the same deterministic validation split and selecting by PR-AUC.
 
 The resulting `ModelBuild` records the training receipt, MLflow run, registered model name and version, artifact URI and digest, parameters, metrics, runtime and final status. Retrying the same definition and receipt reuses the existing build instead of registering a duplicate version.
 
 ## 7. Promote The Exact Artifact
 
-Promotion copies the registered artifact through DEV, Integration, PREPROD and PROD without retraining. Each step compares the artifact digest with the original `ModelBuild`.
+Rerun the same manual job with the same definition and receipt, then supply `promotion_model_name` and `promotion_alias=integration_candidate`. The job reuses the existing `ModelBuild`, copies that exact registered artifact and compares its digest with the DEV artifact. It does not retrain the model.
 
 Promotion is evidence that the same model is available in the next environment. It does not make that model the production champion.
 
 ## 8. Produce Challenger Scores
 
-The declared `ScoreProvider` converts the exact promoted model output to `account_entity_scores/v1`. The declared `CandidateAdapter` applies those scores to eligible candidates while preserving provider build IDs, portfolios, deterministic ranking, retries and the public v1/v2 outputs.
+The same run uses the declared `ScoreProvider` to write `account_entity_scores/v1` into the personal evaluation table. The declared `CandidateAdapter` applies those scores only to eligible adverts and ranks ties by advert ID. The job runs the adapter twice and fails if the ordered result changes.
 
-The new provider is registered as `EVALUATE`. Running the same candidate input twice must return the same ordered output.
+The provider remains `EVALUATE`. This produces challenger evidence but does not change a portfolio, customer assignment, public payload or champion policy.
+
+### Bringing The Existing Analytics pCTR Onto The Route
+
+Analytics pCTR already has two trained models and a prediction job, so it follows an adoption route instead of pretending it was trained by the new Shopping Bag example.
+
+1. Run the existing Analytics prediction route for the chosen date.
+2. Record the producing Databricks run, exact prediction-table Delta version and the numeric MLflow versions for both component models.
+3. Open `mktg_next_uk_nextads_analytics_pctr_adoption` in personal DEV.
+4. Enter the exact source table, Delta version, date and producing run ID.
+5. Run the job. It checks that both registered versions still resolve to the recorded MLflow runs.
+6. Review the external score receipt and the canonical `analytics_pctr` provider output in the personal evaluation table.
+
+The adopter is manual, DEV-only and `EVALUATE`. It does not retrain Analytics pCTR and it does not change the main algorithm.
 
 ## 9. Review The Demo Evidence
 
@@ -133,9 +158,9 @@ The author should be able to show the following links in order.
 | Capability | Current position |
 | --- | --- |
 | Named offline features and contracts | All 20 physical contracts have builders. The Analytics pCTR model input is populated from the exact versioned Analytics feature output. |
-| Exact build identity and Delta write receipts | Implemented for the Analytics pCTR feature group; the remaining feature groups still need to publish through the same contract. |
-| READY Feature Snapshot resolution | The Analytics pCTR builder records exact READY Delta bindings after its source, table and retry checks pass. `read_ready_feature` opens that exact version and fails rather than falling back to a moving latest table. Linked DEV proof is still required. |
-| Declarative training set and receipt | Model-development-kit PR. |
-| Exact MLflow promotion without retraining | Model-development-kit PR, built on the existing lifecycle. |
-| Generic challenger provider and candidate adapter | Model-development-kit PR. |
+| Exact build identity and Delta write receipts | All reusable feature builders publish complete groups through exact source and output versions. The quality event remains an append-only audit output. |
+| READY Feature Snapshot resolution | Consumers use the exact Delta version in a READY snapshot and fail rather than falling back to a moving latest table. The Analytics pCTR complete-run, retry and failure-retention proof is in progress. |
+| Declarative training set and receipt | Implemented for repository model definitions, exact feature bindings and point-in-time joins. DEV job evidence is still required. |
+| Exact MLflow promotion without retraining | Implemented with source and copied-artifact digest comparison. DEV job evidence is still required. |
+| Generic challenger provider and candidate adapter | Implemented for account-advert scores. Shopping Bag trains through the generic route; Analytics uses its separate exact-output adopter. Both remain `EVALUATE`. |
 | Champion activation | Separate policy-only change after evaluation. |
