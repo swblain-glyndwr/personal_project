@@ -505,7 +505,7 @@ def query_prep():
 
     data = (
         s_control_sheet.filter(
-            "Status = 'Active' AND MASIDToken IS NOT NULL AND URL IS NOT NULL AND URL != 'TBC'"
+            "MASIDToken IS NOT NULL AND URL IS NOT NULL AND URL != 'TBC'"
         )
         .select("UniqueAdID", "URL", "MASIDToken")
         .distinct()
