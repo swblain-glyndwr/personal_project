@@ -39,11 +39,11 @@ def copy_model_alias_to_registered_model(
     target_alias: str,
 ):
     source_uri = model_uri_for_alias(source_registered_model_name, source_alias)
-    registered_model = mlflow_module.register_model(
-        model_uri=source_uri,
-        name=target_registered_model_name,
-    )
     client = mlflow_module.tracking.MlflowClient()
+    registered_model = client.copy_model_version(
+        src_model_uri=source_uri,
+        dst_name=target_registered_model_name,
+    )
     set_model_alias(
         client,
         target_registered_model_name,
@@ -64,11 +64,11 @@ def copy_model_version_to_registered_model(
         source_registered_model_name,
         source_version,
     )
-    registered_model = mlflow_module.register_model(
-        model_uri=source_uri,
-        name=target_registered_model_name,
-    )
     client = mlflow_module.tracking.MlflowClient()
+    registered_model = client.copy_model_version(
+        src_model_uri=source_uri,
+        dst_name=target_registered_model_name,
+    )
     set_model_alias(
         client,
         target_registered_model_name,

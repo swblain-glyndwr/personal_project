@@ -150,13 +150,17 @@ def test_resolve_model_version_for_alias_delegates_to_mlflow_client():
     ]
 
 
-def test_copy_model_alias_uses_native_mlflow_register_model():
+def test_copy_model_alias_uses_registry_copy_api():
     calls = []
 
     class RegisteredModel:
         version = "42"
 
     class FakeClient:
+        def copy_model_version(self, **kwargs):
+            calls.append(("copy", kwargs))
+            return RegisteredModel()
+
         def set_registered_model_alias(self, **kwargs):
             calls.append(("alias", kwargs))
 
@@ -167,11 +171,6 @@ def test_copy_model_alias_uses_native_mlflow_register_model():
 
     class FakeMlflow:
         tracking = FakeTracking()
-
-        @staticmethod
-        def register_model(model_uri, name):
-            calls.append(("register", model_uri, name))
-            return RegisteredModel()
 
     result = copy_model_alias_to_registered_model(
         FakeMlflow,
@@ -184,12 +183,17 @@ def test_copy_model_alias_uses_native_mlflow_register_model():
     assert result.version == "42"
     assert calls == [
         (
-            "register",
-            (
-                "models:/marketingdata_prod.ds_sandbox."
-                "nextads_theme_affinity_ranker@preprod"
-            ),
-            "marketingdata_prod.warehouse.nextads_theme_affinity_ranker",
+            "copy",
+            {
+                "src_model_uri": (
+                    "models:/marketingdata_prod.ds_sandbox."
+                    "nextads_theme_affinity_ranker@preprod"
+                ),
+                "dst_name": (
+                    "marketingdata_prod.warehouse."
+                    "nextads_theme_affinity_ranker"
+                ),
+            },
         ),
         (
             "alias",
@@ -205,13 +209,17 @@ def test_copy_model_alias_uses_native_mlflow_register_model():
     ]
 
 
-def test_copy_model_version_tags_source_model_details():
+def test_copy_model_version_uses_registry_copy_api_and_tags_source_details():
     calls = []
 
     class RegisteredModel:
         version = "8"
 
     class FakeClient:
+        def copy_model_version(self, **kwargs):
+            calls.append(("copy", kwargs))
+            return RegisteredModel()
+
         def set_registered_model_alias(self, **kwargs):
             calls.append(("alias", kwargs))
 
@@ -226,11 +234,6 @@ def test_copy_model_version_tags_source_model_details():
     class FakeMlflow:
         tracking = FakeTracking()
 
-        @staticmethod
-        def register_model(model_uri, name):
-            calls.append(("register", model_uri, name))
-            return RegisteredModel()
-
     result = copy_model_version_to_registered_model(
         FakeMlflow,
         "marketingdata_dev.nextads_integration.nextads_theme_affinity_ranker",
@@ -242,12 +245,17 @@ def test_copy_model_version_tags_source_model_details():
     assert result.version == "8"
     assert calls == [
         (
-            "register",
-            (
-                "models:/marketingdata_dev.nextads_integration."
-                "nextads_theme_affinity_ranker/17"
-            ),
-            "marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker",
+            "copy",
+            {
+                "src_model_uri": (
+                    "models:/marketingdata_dev.nextads_integration."
+                    "nextads_theme_affinity_ranker/17"
+                ),
+                "dst_name": (
+                    "marketingdata_prod.ds_sandbox."
+                    "nextads_theme_affinity_ranker"
+                ),
+            },
         ),
         (
             "alias",
