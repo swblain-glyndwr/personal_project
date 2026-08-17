@@ -408,27 +408,34 @@ try:
 except AssertionError as e:
     errors.append(str(e))
 
-# rank 1 & 2 have as many predictions as input customers
-rank_1_number_predictions = prediction_scores.filter(
-    F.col(weighted_ranking_col) == 1
-).count()
-rank_2_number_predictions = prediction_scores.filter(
-    F.col(weighted_ranking_col) == 2
-).count()
+# Every input customer has at least one rank 1 and rank 2 prediction. The
+# model deliberately uses dense_rank, so tied adverts can share either rank.
+rank_1_number_customers = (
+    prediction_scores.filter(F.col(weighted_ranking_col) == 1)
+    .select("account_number")
+    .distinct()
+    .count()
+)
+rank_2_number_customers = (
+    prediction_scores.filter(F.col(weighted_ranking_col) == 2)
+    .select("account_number")
+    .distinct()
+    .count()
+)
 number_customers = (
     predictions_input.select("account_number").distinct().count()
 )
 
 try:
-    assert rank_1_number_predictions == number_customers, (
-        f"Number of rank 1 predictions {rank_1_number_predictions} does not match number of customers {number_customers}"
+    assert rank_1_number_customers == number_customers, (
+        f"Number of customers with a rank 1 prediction {rank_1_number_customers} does not match number of customers {number_customers}"
     )
 except AssertionError as e:
     errors.append(str(e))
 
 try:
-    assert rank_2_number_predictions == number_customers, (
-        f"Number of rank 2 predictions {rank_2_number_predictions} does not match number of customers {number_customers}"
+    assert rank_2_number_customers == number_customers, (
+        f"Number of customers with a rank 2 prediction {rank_2_number_customers} does not match number of customers {number_customers}"
     )
 except AssertionError as e:
     errors.append(str(e))

@@ -193,6 +193,18 @@ def test_prediction_python_task_uses_its_command_line_parameters():
     assert "if name in COMMAND_LINE_VALUES" in source
 
 
+def test_prediction_qa_accepts_tied_dense_ranks_per_customer():
+    source = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    ).read_text()
+
+    assert "rank_1_number_predictions" not in source
+    assert "rank_2_number_predictions" not in source
+    assert source.count('.select("account_number")\n    .distinct()') >= 2
+    assert "rank_1_number_customers == number_customers" in source
+    assert "rank_2_number_customers == number_customers" in source
+
+
 def test_adsv2_entrypoints_remain_in_current_route_folders():
     main_job = load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
