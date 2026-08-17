@@ -114,6 +114,25 @@ The quality table's own persisted event uses `MANIFEST_ONLY` because a row canno
 
 The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mode: overwrite`. Its builder uses one atomic whole-table replacement, while dated tables retain keyed merge behaviour; this prevents items absent from the latest source from remaining in the current feature snapshot.
 
+#### Personal DEV runtime evidence
+
+| Evidence | Result |
+| --- | --- |
+| Revision and deployment | Revision `e96485e931576695205787227eaa20297c76d0d5` deployed through pipeline `2071583`; the pipeline succeeded and selected only the bounded personal DEV deployment. The job used DBR 15.4 and Feature Engineering 0.12.1. |
+| Failure and fix sequence | Run `64488519593329` exposed the first live timestamp-key metadata shape. Run `439768216959422` then completed every build but showed that Feature Engineering appends the timestamp key after entity keys for the two composite label contracts. Revisions `55408db` and `e96485e` accept those exact live shapes while retaining strict entity-key order, timestamp metadata and missing/extra-key checks. |
+| Exact-revision proof | Run `373370623960025` completed `SUCCESS` in 152.8 minutes from revision `e96485e931576695205787227eaa20297c76d0d5`. One worker was lost to a cloud communication health check during the click-label shuffle; Databricks restored the cluster to four workers and the task completed without a code retry. |
+| Audit manifest | `CURRENT_IMPLEMENTED_PASS`; 13 implemented contracts, two compatibility views, seven scaffolds, no failed current contracts and one intentionally skipped Theme Affinity training-input contract. `current_implemented_complete=false` and `dev_complete=false` remain truthful. |
+| Label evidence | Click labels: 407,436 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 17. Theme response labels: 3,971,236,814 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 16. |
+| Compatibility views | `next_uk_nextads_theme_affinity_features_latest` is `READY` with 1,264,725,100 rows. `next_uk_nextads_pctr_features_latest` remains `BLOCKED` until its approved Shopping Bag pCTR source and materializer exist. |
+| Environment boundary | All writes were limited to `marketingdata_dev.stephen_blain`. This evidence does not activate shared DEV, DEV Integration, PREPROD, PROD or realtime resources. |
+
+| Remaining boundary | Evidence and required follow-up |
+| --- | --- |
+| Optional training input | The normal route keeps `next_uk_nextads_fs_theme_affinity_training_input` at `skip`; an explicit historical date is still required to prove that contract. |
+| Scaffold coverage | Seven registered feature groups are still scaffolds and are not presented as operational. They must be implemented and proven in DEV before the shared DEV/PREPROD/PROD sequence. |
+| Source reproducibility | The latest item source changed from 639,124 to 639,388 rows between attempts for the same reference date. The immutable-snapshot work must record and consume exact source Delta versions rather than relying on a moving latest source. |
+| Failure-safe publication | Dated tables still remove the requested partition before their Feature Engineering merge. This run proves the current contracts but does not prove atomic multi-table snapshots; the `FeatureBuild` and `FeatureSnapshot` work must remove that exposure gap. |
+
 ## Feature Catalogue
 
 | Feature group | Physical table/view | Entity/grain | Primary consumers |
