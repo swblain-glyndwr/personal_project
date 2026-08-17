@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 echo "Uninstall databricks cli or config, if present"
 
 if [ -f '/usr/local/bin/databricks' ]; then
@@ -11,7 +13,21 @@ if [ -f '~/.databrickscfg' ]; then
 fi
 
 echo "Install databricks cli"
-curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/refs/tags/v0.281.1/install.sh | sh
+cli_version="0.281.1"
+cli_tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$cli_tmp_dir"' EXIT
+curl \
+    --fail \
+    --show-error \
+    --silent \
+    --location \
+    --retry 5 \
+    --retry-delay 10 \
+    --retry-all-errors \
+    --output "$cli_tmp_dir/databricks.zip" \
+    "https://github.com/databricks/cli/releases/download/v${cli_version}/databricks_cli_${cli_version}_linux_amd64.zip"
+unzip -q "$cli_tmp_dir/databricks.zip" -d "$cli_tmp_dir"
+sudo install "$cli_tmp_dir/databricks" /usr/local/bin/databricks
 
 echo "Databricks CLI version:"
 databricks --version
