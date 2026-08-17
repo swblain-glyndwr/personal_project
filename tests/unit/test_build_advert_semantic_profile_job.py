@@ -135,7 +135,7 @@ def test_main_runs_repo_text_through_exact_model_and_registered_write(
     )
     definition = object()
     binding = object()
-    client = object()
+    pinned_spark = SimpleNamespace(source_bindings=("source-binding",))
     source_frames = {
         "advert_core": "advert-core",
         "advert_attributes": "advert-attributes",
@@ -161,6 +161,16 @@ def test_main_runs_repo_text_through_exact_model_and_registered_write(
         "resolve_reference_date_from_theme",
         lambda actual_spark, actual_args: REFERENCE_DATE,
     )
+    monkeypatch.setattr(
+        job,
+        "feature_group_identity",
+        lambda *_args: {
+            "feature_build_id": "build:semantic",
+            "feature_build_attempt_id": "attempt:semantic",
+            "git_commit": "revision",
+        },
+    )
+    monkeypatch.setattr(job, "PinnedSourceSession", lambda *_args, **_kwargs: pinned_spark)
     monkeypatch.setattr(
         job,
         "load_product_embedding_definition",
@@ -257,17 +267,14 @@ def test_main_runs_repo_text_through_exact_model_and_registered_write(
         lambda text, vectors: calls.update(profile=(text, vectors))
         or "profiles",
     )
-    monkeypatch.setattr(
-        job,
-        "create_feature_engineering_client",
-        lambda: client,
-    )
-
-    def write_table(*positional, **kwargs):
+    def write_group(*positional, **kwargs):
         calls["write"] = (positional, kwargs)
-        return "target-table"
+        return object(), SimpleNamespace(
+            feature_snapshot_id="snapshot",
+            feature_snapshot_attempt_id="attempt:semantic",
+        )
 
-    monkeypatch.setattr(job, "write_feature_table", write_table)
+    monkeypatch.setattr(job, "write_and_publish_feature_group", write_group)
 
     job.main()
 
@@ -309,14 +316,17 @@ def test_main_runs_repo_text_through_exact_model_and_registered_write(
     )
     assert calls["profile"] == ("semantic-text", "vectors")
     positional, keyword = calls["write"]
-    assert positional == (spark, job.OUTPUT_TABLE, "profiles")
+    assert positional == (spark,)
     assert keyword == {
         "catalog": TARGET_CATALOG,
         "schema": TARGET_SCHEMA,
-        "reference_date": REFERENCE_DATE,
-        "reference_date_column": "feature_date",
+        "group_id": job.BUILDER,
+        "reference_date": job.parse_reference_date(REFERENCE_DATE),
+        "frames": {job.OUTPUT_TABLE: "profiles"},
+        "sources": ("source-binding",),
         "replace_reference_date": True,
-        "mode": "merge",
         "registry": registry,
-        "feature_engineering_client": client,
+        "feature_build_id": "build:semantic",
+        "feature_build_attempt_id": "attempt:semantic",
+        "git_commit": "revision",
     }
