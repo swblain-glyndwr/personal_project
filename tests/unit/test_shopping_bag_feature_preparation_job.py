@@ -38,9 +38,18 @@ def test_job_publishes_only_the_missing_shopping_bag_feature_groups():
 
 def test_job_is_manual_personal_dev_evidence_only():
     source = JOB_PATH.read_text()
+    job = yaml.safe_load(source)["shopping_bag_feature_preparation_job"]
+    parameters = {
+        parameter["name"]: parameter["default"]
+        for parameter in job["parameters"]
+    }
     bundle = (PROJECT_ROOT / "databricks.yml").read_text()
 
     assert "default: REQUIRED" in source
+    assert parameters["source_catalog"] == "${var.feature_store_source_catalog}"
+    assert parameters["source_schema"] == "${var.feature_store_source_schema}"
+    assert parameters["theme_source_catalog"] == "${var.mktgdata_catalog}"
+    assert parameters["theme_source_schema"] == "${var.user_schema}"
     assert "activation_mode: EVALUATE" in source
     assert "schedule:" not in source
     assert "DEV_FEATURE_STORE:" not in source
