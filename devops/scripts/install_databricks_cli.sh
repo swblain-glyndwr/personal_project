@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 echo "Uninstall databricks cli or config, if present"
 
 if [ -f '/usr/local/bin/databricks' ]; then
@@ -11,7 +13,16 @@ if [ -f '~/.databrickscfg' ]; then
 fi
 
 echo "Install databricks cli"
-curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/refs/tags/v0.281.1/install.sh | sh
+curl \
+    --fail \
+    --show-error \
+    --silent \
+    --location \
+    --retry 5 \
+    --retry-delay 10 \
+    --retry-all-errors \
+    https://raw.githubusercontent.com/databricks/setup-cli/refs/tags/v0.281.1/install.sh \
+    | sh
 
 echo "Databricks CLI version:"
 databricks --version
