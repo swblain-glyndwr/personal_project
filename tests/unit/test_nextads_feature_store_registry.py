@@ -12,6 +12,7 @@ from next_ads.features.theme_affinity import (
 from jobs.table_operations.create_feature_store_tables import (
     create_feature_store_tables,
     create_databricks_feature_table,
+    migrate_empty_dev_scaffolds,
     schema_from_contract,
 )
 from next_ads.features.sql_contracts import extract_create_table_columns
@@ -323,6 +324,117 @@ def test_feature_store_setup_can_recreate_registered_objects():
     )
 
 
+class _ExistingFrame:
+    def __init__(self, schema, row_count):
+        self.schema = schema
+        self.row_count = row_count
+
+    def limit(self, _count):
+        return self
+
+    def count(self):
+        return self.row_count
+
+
+class _ExistingCatalog:
+    def tableExists(self, _table_path):  # noqa: N802 - Spark API spelling
+        return True
+
+
+class _ExistingSpark:
+    def __init__(self, frame):
+        self.catalog = _ExistingCatalog()
+        self.frame = frame
+        self.sql_calls = []
+
+    def table(self, _table_path):
+        return self.frame
+
+    def sql(self, query):
+        self.sql_calls.append(query)
+
+
+def test_empty_dev_scaffold_migration_replaces_only_changed_empty_contract():
+    from pyspark.sql import types as T
+
+    spark = _ExistingSpark(
+        _ExistingFrame(
+            T.StructType([T.StructField("item_id", T.StringType())]),
+            row_count=0,
+        )
+    )
+
+    migrated = migrate_empty_dev_scaffolds(
+        spark,
+        "marketingdata_dev",
+        "feature_schema",
+        ["next_uk_nextads_fs_product_embeddings_latest"],
+    )
+
+    assert migrated == [
+        "marketingdata_dev.feature_schema."
+        "next_uk_nextads_fs_product_embeddings_latest"
+    ]
+    assert spark.sql_calls == [
+        "DROP TABLE IF EXISTS marketingdata_dev.feature_schema."
+        "next_uk_nextads_fs_product_embeddings_latest"
+    ]
+
+
+def test_empty_dev_scaffold_migration_dry_run_does_not_drop_table():
+    from pyspark.sql import types as T
+
+    spark = _ExistingSpark(
+        _ExistingFrame(
+            T.StructType([T.StructField("item_id", T.StringType())]),
+            row_count=0,
+        )
+    )
+
+    migrated = migrate_empty_dev_scaffolds(
+        spark,
+        "marketingdata_dev",
+        "feature_schema",
+        ["next_uk_nextads_fs_product_embeddings_latest"],
+        dry_run=True,
+    )
+
+    assert migrated == [
+        "marketingdata_dev.feature_schema."
+        "next_uk_nextads_fs_product_embeddings_latest"
+    ]
+    assert spark.sql_calls == []
+
+
+def test_empty_dev_scaffold_migration_refuses_nonempty_or_prod_tables():
+    from pyspark.sql import types as T
+
+    spark = _ExistingSpark(
+        _ExistingFrame(
+            T.StructType([T.StructField("item_id", T.StringType())]),
+            row_count=1,
+        )
+    )
+    table_name = "next_uk_nextads_fs_product_embeddings_latest"
+
+    with pytest.raises(ValueError, match="non-empty DEV scaffold"):
+        migrate_empty_dev_scaffolds(
+            spark,
+            "marketingdata_dev",
+            "feature_schema",
+            [table_name],
+        )
+    with pytest.raises(ValueError, match="only in marketingdata_dev"):
+        migrate_empty_dev_scaffolds(
+            spark,
+            "marketingdata_prod",
+            "feature_schema",
+            [table_name],
+        )
+
+    assert not spark.sql_calls
+
+
 def test_feature_engineering_create_table_argument_filter_supports_api_variants():
     captured = {}
 
@@ -593,13 +705,14 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     }
     assert "feature_store_job_clusters_config" not in clusters_config["variables"]
     assert "next_ads_job_cluster_D32ads_v5_1_4" in shared_cluster_keys
+    assert "next_ads_job_cluster_D16ads_v5_2_2" in shared_cluster_keys
     assert set(job_config["targets"]) == {"DEV", "DEV_FEATURE_STORE"}
 
     job = job_config["nextads_feature_store_config"][
         "mktg_next_uk_nextads_feature_store"
     ]
     assert "schedule" not in job
-    assert job["timeout_seconds"] == 14400
+    assert job["timeout_seconds"] == 28800
     personal_job = job_config["targets"]["DEV"]["resources"]["jobs"][
         "mktg_next_uk_nextads_feature_store"
     ]
@@ -747,6 +860,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     assert quality_task["depends_on"] == [
         {"task_key": "build_model_inputs"},
         {"task_key": "build_theme_affinity_training_input"},
+        {"task_key": "build_advert_product_profile_daily"},
     ]
     quality_parameters = quality_task["spark_python_task"]["parameters"]
     assert (
@@ -760,15 +874,33 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         in task["spark_python_task"]["parameters"]
         for task in job["tasks"]
     )
+    embedding_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "build_product_embeddings_latest"
+    )
+    assert embedding_task["libraries"] == (
+        "${var.feature_store_embedding_libraries}"
+    )
     assert all(
         task["libraries"] == "${var.feature_store_libraries}"
         for task in job["tasks"]
+        if task["task_key"] != "build_product_embeddings_latest"
     )
-    assert all(task["timeout_seconds"] == 7200 for task in job["tasks"])
+    assert embedding_task["timeout_seconds"] == 14400
+    assert all(
+        task["timeout_seconds"] == 7200
+        for task in job["tasks"]
+        if task["task_key"] != "build_product_embeddings_latest"
+    )
+    assert embedding_task["job_cluster_key"] == (
+        "next_ads_job_cluster_D16ads_v5_2_2"
+    )
     assert all(
         task["job_cluster_key"]
         == "next_ads_job_cluster_D32ads_v5_1_4"
         for task in job["tasks"]
+        if task["task_key"] != "build_product_embeddings_latest"
     )
     assert all(
         task["spark_python_task"]["python_file"].startswith(
@@ -831,6 +963,15 @@ def test_feature_store_creation_avoids_timestamp_partition_conflict():
     assert 'aligned_df.write.mode("overwrite").insertInto(table_path)' in materialization
     assert "DeltaTable.forName" not in materialization
     assert "partition_columns = []" in create_tables
+
+    advert_product_contract = (
+        PROJECT_ROOT
+        / "sql"
+        / "features"
+        / "nextads"
+        / "create_table_next_uk_nextads_fs_advert_product_profile_daily.sql"
+    ).read_text()
+    assert "PARTITIONED BY" not in advert_product_contract.upper()
 
 
 def test_theme_affinity_training_input_skip_path_uses_lazy_runtime_imports():

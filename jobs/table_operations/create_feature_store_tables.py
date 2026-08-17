@@ -38,6 +38,13 @@ from next_ads.features.sql_contracts import extract_create_table_columns
 
 LOGGER = logging.getLogger(__name__)
 
+DEV_EMPTY_SCAFFOLD_MIGRATIONS = frozenset(
+    {
+        "next_uk_nextads_fs_product_embeddings_latest",
+        "next_uk_nextads_fs_advert_product_profile_daily",
+    }
+)
+
 
 def configure_job_logging(log_level: str) -> None:
     """Configure job logging while keeping dependency internals quiet."""
@@ -142,6 +149,75 @@ def create_feature_engineering_client():
     return FeatureEngineeringClient()
 
 
+def _schema_signature(schema) -> tuple[tuple[str, str, bool], ...]:
+    return tuple(
+        (field.name, field.dataType.simpleString(), field.nullable)
+        for field in schema.fields
+    )
+
+
+def migrate_empty_dev_scaffolds(
+    spark,
+    catalog: str,
+    schema: str,
+    table_names: list[str] | tuple[str, ...],
+    *,
+    dry_run: bool = False,
+) -> list[str]:
+    """Replace only known empty DEV scaffolds whose contracts changed."""
+    requested = tuple(table_names)
+    unsupported = sorted(
+        set(requested).difference(DEV_EMPTY_SCAFFOLD_MIGRATIONS)
+    )
+    if unsupported:
+        raise ValueError(
+            "Unsupported empty scaffold migration: "
+            + ", ".join(unsupported)
+        )
+    if requested and catalog != "marketingdata_dev":
+        raise ValueError(
+            "Empty scaffold migrations are allowed only in marketingdata_dev"
+        )
+
+    registry = load_feature_store_registry()
+    migrated = []
+    for table_name in requested:
+        table_path = registry.resolved_table_path(
+            table_name,
+            catalog=catalog,
+            schema=schema,
+        )
+        if not spark.catalog.tableExists(table_path):
+            continue
+        expected_schema = schema_from_contract(
+            registry.sql_contract_path(table_name).read_text()
+        )
+        existing = spark.table(table_path)
+        if _schema_signature(existing.schema) == _schema_signature(
+            expected_schema
+        ):
+            LOGGER.info(
+                "Empty scaffold migration already applied: %s",
+                table_path,
+            )
+            continue
+        if existing.limit(1).count():
+            raise ValueError(
+                "Refusing to replace non-empty DEV scaffold with a changed "
+                f"contract: {table_path}"
+            )
+        if dry_run:
+            LOGGER.info(
+                "Dry run replacement of empty DEV scaffold contract: %s",
+                table_path,
+            )
+        else:
+            LOGGER.info("Replacing empty DEV scaffold contract: %s", table_path)
+            spark.sql(f"DROP TABLE IF EXISTS {table_path}")
+        migrated.append(table_path)
+    return migrated
+
+
 def _supported_kwargs(callable_obj, kwargs):
     signature = inspect.signature(callable_obj)
     return {
@@ -231,6 +307,7 @@ def create_feature_store_tables(
     recreate_tables: bool = False,
     manage_principals: list[str] | None = None,
     all_privileges_principals: list[str] | None = None,
+    empty_scaffold_migrations: list[str] | tuple[str, ...] | None = None,
 ) -> list[str]:
     """Create missing physical Databricks feature tables.
 
@@ -260,6 +337,13 @@ def create_feature_store_tables(
             dry_run=dry_run,
         )
         LOGGER.info("Recreated feature-store objects requested: %s", dropped_objects)
+    migrate_empty_dev_scaffolds(
+        spark,
+        target_catalog,
+        target_schema,
+        empty_scaffold_migrations or (),
+        dry_run=dry_run,
+    )
     if not dry_run and fe_client is None:
         fe_client = create_feature_engineering_client()
 
@@ -359,6 +443,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--recreate_tables", default="False")
     parser.add_argument("--manage_principal", action="append", default=[])
     parser.add_argument("--all_privileges_principal", action="append", default=[])
+    parser.add_argument(
+        "--empty_scaffold_migration",
+        action="append",
+        default=[],
+    )
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -379,6 +468,7 @@ def main() -> None:
         recreate_tables=args.recreate_tables.lower() == "true",
         manage_principals=args.manage_principal,
         all_privileges_principals=args.all_privileges_principal,
+        empty_scaffold_migrations=args.empty_scaffold_migration,
     )
     LOGGER.info("Feature-store table setup complete: %s", created_tables)
 

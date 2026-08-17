@@ -20,6 +20,12 @@ DEFAULT_DEV_SMOKE_BINDING_PATH = (
     / "features"
     / "product_embedding_smoke_dev.yaml"
 )
+DEFAULT_DEV_MATERIALIZATION_BINDING_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "features"
+    / "product_embedding_materialization_dev.yaml"
+)
 
 EXPECTED_CONTRACT_VERSION = 1
 EXPECTED_SOURCE_MODEL_NAME = "sentence-transformers/all-MiniLM-L12-v2"
@@ -67,6 +73,20 @@ _SMOKE_BINDING_FIELDS = {
     "model_uri",
     "source_run_id",
     "artifact_sha256",
+}
+_MATERIALIZATION_BINDING_FIELDS = {
+    "environment",
+    "purpose",
+    "registered_model_name",
+    "registered_model_version",
+    "model_uri",
+    "source_registered_model_name",
+    "source_registered_model_version",
+    "source_run_id",
+    "artifact_sha256",
+    "model_staging_root",
+    "inference_partitions",
+    "inference_batch_size",
 }
 _MODEL_URI_PATTERN = re.compile(
     r"models:/(?P<name>[^/@\s]+)/(?P<version>[1-9][0-9]*)"
@@ -583,6 +603,184 @@ class ApprovedEmbeddingSmokeBinding:
         )
 
 
+@dataclass(frozen=True)
+class ProductEmbeddingMaterializationBinding:
+    """Exact shared DEV model used for product materialisation."""
+
+    environment: str
+    purpose: str
+    model: EmbeddingModelBinding
+    source_registered_model_name: str
+    source_registered_model_version: int
+    source_run_id: str
+    artifact_sha256: str
+    model_staging_root: str
+    inference_partitions: int
+    inference_batch_size: int
+
+    def __post_init__(self) -> None:
+        """Reject personal targets, mutable versions, and unsafe paths."""
+        environment = _required_text(
+            self.environment,
+            "environment",
+            "Product embedding materialization binding",
+        )
+        purpose = _required_text(
+            self.purpose,
+            "purpose",
+            "Product embedding materialization binding",
+        )
+        _require_value(
+            environment,
+            "DEV",
+            "environment",
+            "Product embedding materialization binding",
+        )
+        _require_value(
+            purpose,
+            "shared_dev_materialization",
+            "purpose",
+            "Product embedding materialization binding",
+        )
+        if not isinstance(self.model, EmbeddingModelBinding):
+            raise ValueError(
+                "Product embedding materialization binding model must "
+                "be an EmbeddingModelBinding"
+            )
+        if not self.model.registered_model_name.startswith(
+            "marketingdata_dev.nextads_integration."
+        ):
+            raise ValueError(
+                "Product embedding materialization binding registered model "
+                "must be in marketingdata_dev.nextads_integration"
+            )
+
+        source_name = _required_text(
+            self.source_registered_model_name,
+            "source_registered_model_name",
+            "Product embedding materialization binding",
+        )
+        raw_source_version = self.source_registered_model_version
+        if isinstance(raw_source_version, bool):
+            source_version_text = ""
+        elif isinstance(raw_source_version, int):
+            source_version_text = str(raw_source_version)
+        elif isinstance(raw_source_version, str):
+            source_version_text = raw_source_version.strip()
+        else:
+            source_version_text = ""
+        if _MODEL_VERSION_PATTERN.fullmatch(source_version_text) is None:
+            raise ValueError(
+                "Product embedding materialization binding "
+                "source_registered_model_version must be a positive numeric "
+                "version"
+            )
+
+        source_run_id = _required_text(
+            self.source_run_id,
+            "source_run_id",
+            "Product embedding materialization binding",
+        )
+        if _RUN_ID_PATTERN.fullmatch(source_run_id) is None:
+            raise ValueError(
+                "Product embedding materialization binding source_run_id must "
+                "be a 32-character lowercase hexadecimal MLflow run ID"
+            )
+
+        artifact_sha256 = _required_text(
+            self.artifact_sha256,
+            "artifact_sha256",
+            "Product embedding materialization binding",
+        )
+        if _SHA256_PATTERN.fullmatch(artifact_sha256) is None:
+            raise ValueError(
+                "Product embedding materialization binding artifact_sha256 "
+                "must be a 64-character lowercase hexadecimal SHA-256 digest"
+            )
+
+        staging_root = _required_text(
+            self.model_staging_root,
+            "model_staging_root",
+            "Product embedding materialization binding",
+        ).rstrip("/")
+        if not staging_root.startswith("/Volumes/") or ".." in Path(
+            staging_root
+        ).parts:
+            raise ValueError(
+                "Product embedding materialization binding "
+                "model_staging_root must be an absolute Unity Catalog Volume "
+                "path"
+            )
+
+        for field_name, maximum in (
+            ("inference_partitions", 64),
+            ("inference_batch_size", 1024),
+        ):
+            value = getattr(self, field_name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value <= 0
+                or value > maximum
+            ):
+                raise ValueError(
+                    "Product embedding materialization binding "
+                    f"{field_name} must be between 1 and {maximum}"
+                )
+
+        object.__setattr__(self, "environment", environment)
+        object.__setattr__(self, "purpose", purpose)
+        object.__setattr__(
+            self,
+            "source_registered_model_name",
+            source_name,
+        )
+        object.__setattr__(
+            self,
+            "source_registered_model_version",
+            int(source_version_text),
+        )
+        object.__setattr__(self, "source_run_id", source_run_id)
+        object.__setattr__(self, "artifact_sha256", artifact_sha256)
+        object.__setattr__(self, "model_staging_root", staging_root)
+
+    @classmethod
+    def from_dict(
+        cls,
+        raw: Mapping[str, Any],
+    ) -> "ProductEmbeddingMaterializationBinding":
+        values = _required_mapping(
+            raw,
+            "Product embedding materialization binding",
+        )
+        _require_exact_fields(
+            values,
+            _MATERIALIZATION_BINDING_FIELDS,
+            "Product embedding materialization binding",
+        )
+        model = EmbeddingModelBinding(
+            registered_model_name=values["registered_model_name"],
+            registered_model_version=values["registered_model_version"],
+            model_uri=values["model_uri"],
+        )
+        return cls(
+            environment=values["environment"],
+            purpose=values["purpose"],
+            model=model,
+            source_registered_model_name=values[
+                "source_registered_model_name"
+            ],
+            source_registered_model_version=values[
+                "source_registered_model_version"
+            ],
+            source_run_id=values["source_run_id"],
+            artifact_sha256=values["artifact_sha256"],
+            model_staging_root=values["model_staging_root"],
+            inference_partitions=values["inference_partitions"],
+            inference_batch_size=values["inference_batch_size"],
+        )
+
+
 def load_product_embedding_definition(
     path: str | Path | None = None,
     *,
@@ -648,13 +846,40 @@ def load_approved_dev_smoke_binding(
     )
 
 
+def load_product_embedding_materialization_binding(
+    path: str | Path | None = None,
+) -> ProductEmbeddingMaterializationBinding:
+    """Load the fixed DEV promotion source and shared runtime target."""
+    binding_path = (
+        Path(path)
+        if path is not None
+        else DEFAULT_DEV_MATERIALIZATION_BINDING_PATH
+    )
+    raw_document = yaml.safe_load(binding_path.read_text())
+    document = _required_mapping(
+        raw_document,
+        "Product embedding materialization document",
+    )
+    _require_exact_fields(
+        document,
+        {"product_embedding_materialization"},
+        "Product embedding materialization document",
+    )
+    return ProductEmbeddingMaterializationBinding.from_dict(
+        document["product_embedding_materialization"]
+    )
+
+
 __all__ = [
     "ApprovedEmbeddingSmokeBinding",
     "DEFAULT_DEV_SMOKE_BINDING_PATH",
+    "DEFAULT_DEV_MATERIALIZATION_BINDING_PATH",
     "DEFAULT_PRODUCT_EMBEDDING_CONTRACT_PATH",
     "EmbeddingModelBinding",
     "EmbeddingRuntimeProfile",
     "ProductEmbeddingDefinition",
+    "ProductEmbeddingMaterializationBinding",
     "load_approved_dev_smoke_binding",
     "load_product_embedding_definition",
+    "load_product_embedding_materialization_binding",
 ]

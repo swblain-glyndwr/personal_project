@@ -35,6 +35,18 @@ def test_registry_excludes_scaffolds_from_builder_outputs_by_default():
         "next_uk_nextads_fs_advert_attribute_profile_daily",
     ]
     assert registry.features_for_builder("build_pctr_affinity_features") == ()
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_product_embeddings_latest"
+        )
+    ] == ["next_uk_nextads_fs_product_embeddings_latest"]
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_advert_product_profile_daily"
+        )
+    ] == ["next_uk_nextads_fs_advert_product_profile_daily"]
     assert {
         feature.name
         for feature in registry.features_for_builder(

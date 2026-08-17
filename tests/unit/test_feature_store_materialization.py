@@ -59,7 +59,11 @@ class _FakeWriter:
 
 
 class _FakeFrame:
-    columns = ["item_id"]
+    columns = [
+        "item_id",
+        "embedding_model_name",
+        "embedding_model_version",
+    ]
 
     def __init__(self, spark):
         self.spark = spark
@@ -98,7 +102,7 @@ def _stub_contract_alignment(monkeypatch):
     )
 
 
-def test_registry_declares_only_current_item_attributes_as_overwrite():
+def test_registry_declares_latest_snapshots_as_complete_overwrites():
     registry = load_feature_store_registry()
 
     overwrite_features = {
@@ -108,7 +112,8 @@ def test_registry_declares_only_current_item_attributes_as_overwrite():
     }
 
     assert overwrite_features == {
-        "next_uk_nextads_fs_item_attributes_latest"
+        "next_uk_nextads_fs_item_attributes_latest",
+        "next_uk_nextads_fs_product_embeddings_latest",
     }
 
 
@@ -144,6 +149,33 @@ def test_overwrite_snapshot_is_tagged_and_does_not_delete_a_partition(
         "table_name": "next_uk_nextads_fs_item_attributes_latest",
     }
     assert materialization.DELTA_COMMIT_METADATA_KEY not in spark.conf.values
+
+
+def test_overwrite_does_not_import_feature_engineering_client(monkeypatch):
+    _stub_contract_alignment(monkeypatch)
+    spark = _FakeSpark()
+    frame = _FakeFrame(spark)
+
+    def fail_if_created():
+        raise AssertionError("overwrite must not create the FE client")
+
+    monkeypatch.setattr(
+        materialization,
+        "create_feature_engineering_client",
+        fail_if_created,
+    )
+
+    materialization.write_feature_table(
+        spark,
+        "next_uk_nextads_fs_product_embeddings_latest",
+        frame,
+        catalog="marketingdata_dev",
+        schema="stephen_blain",
+        reference_date="2026-08-12",
+        mode="overwrite",
+    )
+
+    assert frame.write_calls
 
 
 def test_feature_write_restores_existing_delta_commit_metadata(monkeypatch):

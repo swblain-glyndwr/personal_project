@@ -27,7 +27,7 @@ EXPECTED_DAILY_PREFLIGHT_TABLES = (
 )
 
 
-def test_preflight_contracts_are_derived_from_daily_implemented_registry_order():
+def test_central_preflight_contracts_follow_registry_order():
     registry = load_feature_store_registry()
 
     assert preflight_checks.expected_preflight_table_names(registry) == (
@@ -42,6 +42,14 @@ def test_preflight_contracts_exclude_scaffolds_on_demand_and_per_run_features():
     assert "next_uk_nextads_fs_pctr_model_input" not in expected
     assert "next_uk_nextads_fs_theme_affinity_training_input" not in expected
     assert "next_uk_nextads_fs_feature_quality_events" not in expected
+    assert "next_uk_nextads_fs_product_embeddings_latest" not in expected
+    assert "next_uk_nextads_fs_advert_product_profile_daily" not in expected
+    assert (
+        registry.table_spec(
+            "next_uk_nextads_fs_advert_product_profile_daily"
+        ).preflight_mode
+        == "BUILDER"
+    )
 
 
 def test_preflight_frame_validation_returns_registry_order_not_mapping_order():

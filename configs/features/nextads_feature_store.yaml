@@ -61,11 +61,12 @@ feature_store:
       entity: item
       grain: one row per item and embedding model
       primary_keys: [item_id, embedding_model_name, embedding_model_version]
-      source_job: build_advert_features
+      source_job: build_product_embeddings_latest
       owner: marketing_data
-      freshness: weekly
-      state: SCAFFOLD
-      missing_contracts: [promoted_embedding_source, materializer]
+      freshness: daily
+      write_mode: overwrite
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_advert_core_daily
@@ -104,14 +105,14 @@ feature_store:
       consumers: [pctr]
     - name: next_uk_nextads_fs_advert_product_profile_daily
       entity: advert
-      grain: one row per advert and feature date
-      primary_keys: [advert_id, feature_date]
+      grain: one row per advert, feature date, and exact embedding model version
+      primary_keys: [advert_id, feature_date, embedding_model_name, embedding_model_version]
       timestamp_key: feature_date
-      source_job: build_advert_features
+      source_job: build_advert_product_profile_daily
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [promoted_embedding_source, materializer]
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_seasonal_product_demand_daily

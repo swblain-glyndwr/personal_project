@@ -197,7 +197,6 @@ def write_feature_table(
     aligned_df = align_to_feature_table_contract(df, table_name, active_registry)
     validate_required_column_values(aligned_df, table.primary_keys, table_name)
 
-    client = feature_engineering_client or create_feature_engineering_client()
     previous_metadata = _set_feature_commit_metadata(
         spark,
         table_name,
@@ -221,6 +220,10 @@ def write_feature_table(
         if mode == "overwrite":
             aligned_df.write.mode("overwrite").insertInto(table_path)
         else:
+            client = (
+                feature_engineering_client
+                or create_feature_engineering_client()
+            )
             client.write_table(name=table_path, df=aligned_df, mode="merge")
     finally:
         _restore_feature_commit_metadata(spark, previous_metadata)

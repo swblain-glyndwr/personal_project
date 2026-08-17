@@ -11,6 +11,7 @@ from next_ads.features.embedding_contract import (
     ProductEmbeddingDefinition,
     load_approved_dev_smoke_binding,
     load_product_embedding_definition,
+    load_product_embedding_materialization_binding,
 )
 
 
@@ -127,6 +128,31 @@ def test_dev_smoke_binding_is_fixed_to_recorded_model_provenance():
         "nextads_pctr_advert_sentence_transformer"
     )
     assert binding.model.registered_model_version == 11
+    assert binding.source_run_id == "95be978bd9e24783afe4e68def0c9845"
+    assert binding.artifact_sha256 == (
+        "bc4daec2a2647ce42ad35df49181c762187cd4e1fed008915ce4f76ac89ca384"
+    )
+
+
+def test_shared_dev_materialization_binding_pins_the_promoted_model_version():
+    binding = load_product_embedding_materialization_binding()
+
+    assert binding.environment == "DEV"
+    assert binding.purpose == "shared_dev_materialization"
+    assert binding.model.registered_model_name == (
+        "marketingdata_dev.nextads_integration."
+        "nextads_product_embedding_sentence_transformer"
+    )
+    assert binding.model.registered_model_version == 1
+    assert binding.model.model_uri == (
+        "models:/marketingdata_dev.nextads_integration."
+        "nextads_product_embedding_sentence_transformer/1"
+    )
+    assert binding.source_registered_model_name == (
+        "marketingdata_dev.stephen_blain."
+        "nextads_pctr_advert_sentence_transformer"
+    )
+    assert binding.source_registered_model_version == 11
     assert binding.source_run_id == "95be978bd9e24783afe4e68def0c9845"
     assert binding.artifact_sha256 == (
         "bc4daec2a2647ce42ad35df49181c762187cd4e1fed008915ce4f76ac89ca384"
