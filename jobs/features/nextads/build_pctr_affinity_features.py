@@ -14,8 +14,10 @@ from _registry_job import (
     validate_builder_output_tables,
 )
 from dsutils.dbc import configure_spark
+from next_ads.common.delta_writes import schema_checksum
 from next_ads.features import load_feature_store_registry
 from next_ads.features.analytics_pctr_source import (
+    latest_delta_version,
     load_analytics_pctr_source_binding,
     load_analytics_pctr_source_definition,
     read_analytics_pctr_source_binding,
@@ -50,7 +52,10 @@ PCTR_MODEL_INPUT_TABLE = "next_uk_nextads_fs_pctr_model_input"
 ANALYTICS_PCTR_SNAPSHOT_FEATURES = (
     AFFINITY_TABLE,
     PCTR_MODEL_INPUT_TABLE,
+    SESSION_TABLE,
 )
+FAILURE_INJECTION_NONE = "none"
+FAILURE_INJECTION_AFTER_FIRST_WRITE = "after_first_write"
 
 
 @dataclass(frozen=True)
@@ -92,6 +97,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feature_build_attempt_id", default=None)
     parser.add_argument("--git_commit", default=None)
     parser.add_argument("--publish_ready_snapshot", default="false")
+    parser.add_argument("--failure_injection", default=FAILURE_INJECTION_NONE)
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -135,6 +141,73 @@ def read_session_source_frames(
     }
 
 
+def read_pinned_session_sources(
+    spark,
+    paths: PctrAffinitySourcePaths,
+    *,
+    feature_build_id: str,
+    feature_build_attempt_id: str,
+    reference_date,
+    captured_at: datetime,
+):
+    """Read every session input at one recorded Delta version."""
+    path_by_role = {
+        "web_sessions": paths.web_sessions,
+        "app_sessions": paths.app_sessions,
+        "account_mappings": paths.rpid_accounts,
+        "customer_accounts": paths.customer_accounts,
+        "page_events": paths.web_pages,
+        "country_mapping": paths.country_mapping,
+    }
+    frames = {}
+    sources = []
+    for source_name, table_path in path_by_role.items():
+        delta_version = latest_delta_version(spark, table_path)
+        frame = spark.read.option("versionAsOf", delta_version).table(
+            table_path
+        )
+        frames[source_name] = frame
+        sources.append(
+            external_delta_source(
+                feature_build_id=feature_build_id,
+                feature_build_attempt_id=feature_build_attempt_id,
+                reference_date=reference_date,
+                source_name=source_name,
+                source_table=table_path,
+                delta_version=delta_version,
+                schema_checksum_value=schema_checksum(frame),
+                captured_at=captured_at,
+            )
+        )
+    return frames, tuple(sources)
+
+
+def validate_failure_injection(
+    failure_injection: str,
+    *,
+    catalog: str,
+    schema: str,
+) -> str:
+    """Allow controlled failure evidence only in a personal DEV schema."""
+    mode = failure_injection.strip().lower()
+    allowed = {FAILURE_INJECTION_NONE, FAILURE_INJECTION_AFTER_FIRST_WRITE}
+    if mode not in allowed:
+        raise ValueError(f"Unsupported failure injection: {failure_injection}")
+    protected_schemas = {
+        "nextads_feature_store",
+        "nextads_integration",
+        "ds_sandbox",
+    }
+    if mode != FAILURE_INJECTION_NONE and (
+        catalog != "marketingdata_dev" or schema.lower() in protected_schemas
+    ):
+        raise ValueError(
+            "Feature publication failure injection is restricted to a "
+            "personal DEV schema"
+        )
+    return mode
+
+
 def main() -> None:
     args = parse_args()
     configure_job_logging(args.log_level)
@@ -147,6 +220,27 @@ def main() -> None:
     reference_date = resolve_reference_date_from_theme(spark, args)
     replace_reference_date = args.replace_reference_date.lower() == "true"
     source_paths = resolve_source_paths(args)
+    publish_ready_snapshot = (
+        getattr(args, "publish_ready_snapshot", "false").strip().lower()
+        == "true"
+    )
+    write_identity = feature_write_kwargs(args)
+    failure_injection = validate_failure_injection(
+        getattr(args, "failure_injection", FAILURE_INJECTION_NONE),
+        catalog=target_catalog,
+        schema=target_schema,
+    )
+    if publish_ready_snapshot:
+        missing_identity = sorted(
+            name
+            for name in ("build_id", "attempt_id", "git_commit")
+            if not write_identity.get(name)
+        )
+        if missing_identity:
+            raise ValueError(
+                "READY snapshot publication needs a complete feature build "
+                "identity; missing " + ", ".join(missing_identity)
+            )
     source_definition = load_analytics_pctr_source_definition(
         args.analytics_pctr_source_binding,
         catalog=args.analytics_pctr_source_catalog,
@@ -174,7 +268,20 @@ def main() -> None:
         "FEATURE_STORE_SOURCE_BINDING=%s",
         serialise_source_binding(source_binding),
     )
-    session_sources = read_session_source_frames(spark, source_paths)
+    captured_at = datetime.now(timezone.utc)
+    resolved_date = parse_reference_date(reference_date)
+    if publish_ready_snapshot:
+        session_sources, session_source_bindings = read_pinned_session_sources(
+            spark,
+            source_paths,
+            feature_build_id=write_identity["build_id"],
+            feature_build_attempt_id=write_identity["attempt_id"],
+            reference_date=resolved_date,
+            captured_at=captured_at,
+        )
+    else:
+        session_sources = read_session_source_frames(spark, source_paths)
+        session_source_bindings = ()
 
     writes = {
         AFFINITY_TABLE: build_account_advert_affinity_frame(
@@ -199,25 +306,8 @@ def main() -> None:
     }
     validate_builder_output_tables(BUILDER, writes, registry)
     feature_engineering_client = create_feature_engineering_client()
-    publish_ready_snapshot = (
-        getattr(args, "publish_ready_snapshot", "false").strip().lower()
-        == "true"
-    )
-    write_identity = feature_write_kwargs(args)
     build = None
     if publish_ready_snapshot:
-        missing_identity = sorted(
-            name
-            for name in ("build_id", "attempt_id", "git_commit")
-            if not write_identity.get(name)
-        )
-        if missing_identity:
-            raise ValueError(
-                "READY snapshot publication needs a complete feature build "
-                "identity; missing " + ", ".join(missing_identity)
-            )
-        captured_at = datetime.now(timezone.utc)
-        resolved_date = parse_reference_date(reference_date)
         build = begin_feature_build(
             spark,
             catalog=target_catalog,
@@ -239,6 +329,7 @@ def main() -> None:
                     captured_at=captured_at,
                     row_count=source_binding.reference_date_row_count,
                 ),
+                *session_source_bindings,
             ),
             started_at=captured_at,
         )
@@ -271,6 +362,14 @@ def main() -> None:
             else:
                 table_path = result
             LOGGER.info("Wrote pCTR feature table: %s", table_path)
+            if (
+                failure_injection == FAILURE_INJECTION_AFTER_FIRST_WRITE
+                and len(results) == 1
+            ):
+                raise RuntimeError(
+                    "Intentional personal DEV failure after the first "
+                    "feature output"
+                )
 
         if build is not None:
             ready_build, ready_snapshot = publish_ready_feature_group(

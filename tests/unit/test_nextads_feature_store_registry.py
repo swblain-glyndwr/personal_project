@@ -384,6 +384,30 @@ def test_feature_store_setup_can_recreate_registered_objects():
     )
 
 
+def test_feature_store_setup_can_create_only_requested_tables_without_views():
+    fake_spark = _FakeSpark()
+    fake_client = _FakeFeatureEngineeringClient()
+
+    created_tables = create_feature_store_tables(
+        fake_spark,
+        catalog="marketingdata_dev",
+        schema="feature_schema",
+        feature_engineering_client=fake_client,
+        table_names=["next_uk_nextads_fs_pctr_model_input"],
+        create_views=False,
+    )
+
+    assert created_tables == [
+        "marketingdata_dev.feature_schema."
+        "next_uk_nextads_fs_pctr_model_input"
+    ]
+    assert len(fake_client.create_table_calls) == 1
+    assert not any(
+        query.startswith("CREATE OR REPLACE VIEW")
+        for query in fake_spark.sql_calls
+    )
+
+
 def test_feature_metadata_tables_are_created_from_repo_contracts():
     fake_spark = _FakeSpark()
 
@@ -1283,6 +1307,58 @@ def test_analytics_pctr_feature_source_is_source_only_and_uses_dbr_15_4():
     assert receipt_parameters[
         receipt_parameters.index("--receipt_correlation_id") + 1
     ] == "{{job.parameters.receipt_correlation_id}}"
+
+    notebook_tasks = [
+        task["notebook_task"]
+        for task in job["tasks"]
+        if "notebook_task" in task
+    ]
+    assert notebook_tasks
+    assert all(
+        task["base_parameters"]["catalog_schema_prefix"]
+        == "{{job.parameters.output_catalog}}.{{job.parameters.output_schema}}"
+        for task in notebook_tasks
+    )
+
+
+def test_analytics_pctr_notebooks_cannot_default_to_ds_sandbox():
+    sql_directory = PROJECT_ROOT / "experiments" / "analytics_pctr" / "SQL"
+    sql_files = tuple(sql_directory.rglob("*.sql"))
+
+    assert sql_files
+    for sql_file in sql_files:
+        source = sql_file.read_text(encoding="utf-8")
+        assert "marketingdata_dev.ds_sandbox" not in source
+        if "CREATE WIDGET TEXT catalog_schema_prefix" in source:
+            assert "OUTPUT_LOCATION_REQUIRED" in source
+
+
+def test_analytics_pctr_snapshot_proof_is_personal_dev_only_and_focused():
+    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+    relative_path = (
+        "pipelines/databricks/jobs/"
+        "mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml"
+    )
+    config = yaml.safe_load((PROJECT_ROOT / relative_path).read_text())
+
+    assert relative_path in bundle_config["include"]
+    assert set(config["targets"]) == {"DEV"}
+    job_config = config["analytics_pctr_snapshot_verification_config"][
+        "mktg_next_uk_nextads_analytics_pctr_snapshot_verification"
+    ]
+    assert [task["task_key"] for task in job_config["tasks"]] == [
+        "prepare_pctr_feature_tables",
+        "publish_pctr_feature_snapshot",
+        "verify_readable_ready_snapshot",
+    ]
+    setup_parameters = job_config["tasks"][0]["spark_python_task"][
+        "parameters"
+    ]
+    assert setup_parameters.count("--table") == 3
+    assert setup_parameters[setup_parameters.index("--recreate_tables") + 1] == (
+        "false"
+    )
+    assert job_config["tasks"][-1]["run_if"] == "ALL_DONE"
 
 
 def test_account_feature_task_uses_theme_affinity_source_outputs():

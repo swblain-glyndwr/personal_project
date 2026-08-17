@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
+import pytest
+
 from next_ads.features.analytics_pctr_source import (
     AnalyticsPctrSourceDefinition,
 )
@@ -102,6 +104,69 @@ def test_session_reader_reads_only_the_declared_bq_sources():
         "page_events",
         "country_mapping",
     }
+
+
+def test_session_publication_pins_every_delta_source(monkeypatch):
+    paths = job.resolve_source_paths(_args())
+
+    class Reader:
+        def __init__(self):
+            self.version = None
+            self.reads = []
+
+        def option(self, name, value):
+            assert name == "versionAsOf"
+            self.version = value
+            return self
+
+        def table(self, table_path):
+            self.reads.append((table_path, self.version))
+            return f"frame:{table_path}:{self.version}"
+
+    spark = SimpleNamespace(read=Reader())
+    monkeypatch.setattr(job, "latest_delta_version", lambda *_args: 17)
+    monkeypatch.setattr(job, "schema_checksum", lambda _frame: "a" * 64)
+
+    frames, bindings = job.read_pinned_session_sources(
+        spark,
+        paths,
+        feature_build_id="100",
+        feature_build_attempt_id="101",
+        reference_date=date.fromisoformat(REFERENCE_DATE),
+        captured_at=job.datetime.now(job.timezone.utc),
+    )
+
+    assert len(frames) == 6
+    assert len(bindings) == 6
+    assert all(binding.delta_version == 17 for binding in bindings)
+    assert {binding.source_name for binding in bindings} == set(frames)
+    assert all(version == 17 for _, version in spark.read.reads)
+
+
+@pytest.mark.parametrize(
+    ("catalog", "schema"),
+    [
+        ("marketingdata_prod", "Stephen_Blain"),
+        ("marketingdata_dev", "nextads_feature_store"),
+        ("marketingdata_dev", "nextads_integration"),
+        ("marketingdata_dev", "ds_sandbox"),
+    ],
+)
+def test_failure_injection_is_blocked_outside_personal_dev(catalog, schema):
+    with pytest.raises(ValueError, match="personal DEV schema"):
+        job.validate_failure_injection(
+            job.FAILURE_INJECTION_AFTER_FIRST_WRITE,
+            catalog=catalog,
+            schema=schema,
+        )
+
+
+def test_failure_injection_is_allowed_in_personal_dev():
+    assert job.validate_failure_injection(
+        job.FAILURE_INJECTION_AFTER_FIRST_WRITE,
+        catalog="marketingdata_dev",
+        schema="Stephen_Blain",
+    ) == job.FAILURE_INJECTION_AFTER_FIRST_WRITE
 
 
 

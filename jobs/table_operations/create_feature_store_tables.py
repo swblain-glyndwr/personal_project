@@ -338,6 +338,8 @@ def create_feature_store_tables(
     manage_principals: list[str] | None = None,
     all_privileges_principals: list[str] | None = None,
     empty_scaffold_migrations: list[str] | tuple[str, ...] | None = None,
+    table_names: list[str] | tuple[str, ...] | None = None,
+    create_views: bool = True,
 ) -> list[str]:
     """Create missing physical Databricks feature tables.
 
@@ -384,7 +386,19 @@ def create_feature_store_tables(
     if not dry_run and fe_client is None:
         fe_client = create_feature_engineering_client()
 
+    requested_tables = set(table_names or ())
+    if requested_tables:
+        unknown_tables = requested_tables.difference(
+            table.name for table in registry.physical_tables
+        )
+        if unknown_tables:
+            raise ValueError(
+                "Unknown Feature Store tables requested: "
+                + ", ".join(sorted(unknown_tables))
+            )
     for table in registry.physical_tables:
+        if requested_tables and table.name not in requested_tables:
+            continue
         table_path = registry.resolved_table_path(
             table.name,
             catalog=target_catalog,
@@ -430,12 +444,13 @@ def create_feature_store_tables(
             )
         created_tables.append(table_path)
 
-    create_feature_store_views(
-        spark,
-        catalog=target_catalog,
-        schema=target_schema,
-        dry_run=dry_run,
-    )
+    if create_views:
+        create_feature_store_views(
+            spark,
+            catalog=target_catalog,
+            schema=target_schema,
+            dry_run=dry_run,
+        )
     return created_tables
 
 
@@ -485,6 +500,8 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
     )
+    parser.add_argument("--table", action="append", default=[])
+    parser.add_argument("--create_views", default="True")
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -506,6 +523,8 @@ def main() -> None:
         manage_principals=args.manage_principal,
         all_privileges_principals=args.all_privileges_principal,
         empty_scaffold_migrations=args.empty_scaffold_migration,
+        table_names=args.table,
+        create_views=args.create_views.lower() == "true",
     )
     LOGGER.info("Feature-store table setup complete: %s", created_tables)
 
