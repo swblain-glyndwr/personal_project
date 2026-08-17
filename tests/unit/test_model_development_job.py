@@ -38,6 +38,8 @@ def test_model_job_is_manual_dev_evidence_only():
     ).read_text()
 
     assert "activation_mode: EVALUATE" in bundle_job
+    assert "provider_builds_table" in bundle_job
+    assert "{{task.run_id}}" in bundle_job
     assert "feature_reference_dates\n      default: REQUIRED" in bundle_job
     assert "label_end\n      default: REQUIRED" in bundle_job
     assert "schedule:" not in bundle_job

@@ -43,6 +43,8 @@ def test_analytics_adoption_is_manual_evaluate_only():
     ).read_text()
 
     assert "activation_mode: EVALUATE" in bundle_job
+    assert "provider_builds_table" in bundle_job
+    assert "{{task.run_id}}" in bundle_job
     assert "source_delta_version\n      default: REQUIRED" in bundle_job
     assert "producing_run_id\n      default: REQUIRED" in bundle_job
     assert "schedule:" not in bundle_job

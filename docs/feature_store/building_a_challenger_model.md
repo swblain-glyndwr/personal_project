@@ -123,9 +123,9 @@ Promotion is evidence that the same model is available in the next environment. 
 
 ## 8. Produce Challenger Scores
 
-The same run uses the declared `ScoreProvider` to write `account_entity_scores/v1` into the personal evaluation table. The declared `CandidateAdapter` applies those scores only to eligible adverts and ranks ties by advert ID. The job runs the adapter twice and fails if the ordered result changes.
+The same run uses the declared `ScoreProvider` to write `account_entity_scores/v1` into the personal DEV provider-signals table. It records a `READY_FOR_NEXTADS` provider build only after that exact Delta write is complete. The declared `CandidateAdapter` applies those scores only to eligible adverts and ranks ties by advert ID. The job runs the adapter twice and fails if the ordered result changes.
 
-The provider remains `EVALUATE`. This produces challenger evidence but does not change a portfolio, customer assignment, public payload or champion policy.
+The model is registered as an available account-advert provider, but it is not added to a portfolio. A later policy-only change can add that exact build as an `EVALUATE` challenger. Training a model therefore cannot change a customer assignment, public payload or champion policy by itself.
 
 ### Bringing The Existing Analytics pCTR Onto The Route
 
@@ -136,7 +136,7 @@ Analytics pCTR already has two trained models and a prediction job, so it follow
 3. Open `mktg_next_uk_nextads_analytics_pctr_adoption` in personal DEV.
 4. Enter the exact source table, Delta version, date and producing run ID.
 5. Run the job. It checks that both registered versions still resolve to the recorded MLflow runs.
-6. Review the external score receipt and the canonical `analytics_pctr` provider output in the personal evaluation table.
+6. Review the external score receipt, canonical `analytics_pctr` signals and `READY_FOR_NEXTADS` provider-build record in the personal DEV tables.
 
 The adopter is manual, DEV-only and `EVALUATE`. It does not retrain Analytics pCTR and it does not change the main algorithm.
 
@@ -162,5 +162,5 @@ The author should be able to show the following links in order.
 | READY Feature Snapshot resolution | Consumers use the exact Delta version in a READY snapshot and fail rather than falling back to a moving latest table. The Analytics pCTR complete-run, retry and failure-retention proof is in progress. |
 | Declarative training set and receipt | Implemented for repository model definitions, exact feature bindings and point-in-time joins. DEV job evidence is still required. |
 | Exact MLflow promotion without retraining | Implemented with source and copied-artifact digest comparison. DEV job evidence is still required. |
-| Generic challenger provider and candidate adapter | Implemented for account-advert scores. Shopping Bag trains through the generic route; Analytics uses its separate exact-output adopter. Both remain `EVALUATE`. |
+| Generic challenger provider and candidate adapter | Implemented for account-advert scores. Shopping Bag trains through the generic route; Analytics uses its separate exact-output adopter. Both publish selectable provider builds but remain outside the serving portfolios. |
 | Champion activation | Separate policy-only change after evaluation. |

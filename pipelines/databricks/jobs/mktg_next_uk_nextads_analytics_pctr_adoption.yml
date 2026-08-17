@@ -16,8 +16,10 @@ analytics_pctr_adoption_job: &analytics_pctr_adoption_job
       default: ${var.mktgdata_catalog}
     - name: receipt_schema
       default: ${var.user_schema}
-    - name: evaluation_scores_table
-      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_model_evaluation_scores
+    - name: provider_signals_table
+      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_signals
+    - name: provider_builds_table
+      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_builds
     - name: classifier_model_uri
       default: models:/marketingdata_dev.ds_sandbox.nextads_analytics_pctr_popularity_classification_model/2
     - name: classifier_run_id
@@ -56,8 +58,10 @@ analytics_pctr_adoption_job: &analytics_pctr_adoption_job
           - "{{job.parameters.receipt_catalog}}"
           - --receipt_schema
           - "{{job.parameters.receipt_schema}}"
-          - --evaluation_scores_table
-          - "{{job.parameters.evaluation_scores_table}}"
+          - --provider_signals_table
+          - "{{job.parameters.provider_signals_table}}"
+          - --provider_builds_table
+          - "{{job.parameters.provider_builds_table}}"
           - --classifier_model_uri
           - "{{job.parameters.classifier_model_uri}}"
           - --classifier_run_id
@@ -66,6 +70,14 @@ analytics_pctr_adoption_job: &analytics_pctr_adoption_job
           - "{{job.parameters.regressor_model_uri}}"
           - --regressor_run_id
           - "{{job.parameters.regressor_run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --orchestration_run_id
+          - "{{job.run_id}}"
+          - --task_run_id
+          - "{{task.run_id}}"
+          - --execution_count
+          - "{{task.execution_count}}"
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

@@ -18,8 +18,10 @@ model_development_job: &model_development_job
       default: ${var.mktgdata_catalog}.${var.user_schema}.nextads_shopping_bag_pctr
     - name: experiment_path
       default: /Shared/mlflow/nextads/dev/experiments/shopping_bag_pctr
-    - name: evaluation_scores_table
-      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_model_evaluation_scores
+    - name: provider_signals_table
+      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_signals
+    - name: provider_builds_table
+      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_builds
     - name: promotion_model_name
       default: ""
     - name: promotion_alias
@@ -57,12 +59,20 @@ model_development_job: &model_development_job
           - "{{job.parameters.registered_model_name}}"
           - --experiment_path
           - "{{job.parameters.experiment_path}}"
-          - --evaluation_scores_table
-          - "{{job.parameters.evaluation_scores_table}}"
+          - --provider_signals_table
+          - "{{job.parameters.provider_signals_table}}"
+          - --provider_builds_table
+          - "{{job.parameters.provider_builds_table}}"
           - --promotion_model_name
           - "{{job.parameters.promotion_model_name}}"
           - --promotion_alias
           - "{{job.parameters.promotion_alias}}"
+          - --orchestration_run_id
+          - "{{job.run_id}}"
+          - --task_run_id
+          - "{{task.run_id}}"
+          - --execution_count
+          - "{{task.execution_count}}"
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

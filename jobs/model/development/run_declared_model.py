@@ -19,10 +19,6 @@ sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from dsutils.dbc import configure_spark
-from next_ads.common.delta_writes import (
-    quote_qualified_identifier,
-    replace_scope_by_name,
-)
 from next_ads.features.feature_builds import feature_value_checksum
 from next_ads.model_development import (
     ModelPluginRegistry,
@@ -31,9 +27,9 @@ from next_ads.model_development import (
     load_model_definition,
     persist_training_set_receipt,
     promote_exact_model_build,
+    publish_evaluation_provider,
     train_or_reuse_model,
 )
-from next_ads.ranking.provider_publication import PROVIDER_SIGNAL_COLUMNS
 
 
 LOGGER = logging.getLogger(__name__)
@@ -50,9 +46,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--code_sha", required=True)
     parser.add_argument("--registered_model_name", required=True)
     parser.add_argument("--experiment_path", required=True)
-    parser.add_argument("--evaluation_scores_table", required=True)
+    parser.add_argument("--provider_signals_table", required=True)
+    parser.add_argument("--provider_builds_table", required=True)
     parser.add_argument("--promotion_model_name", default=None)
     parser.add_argument("--promotion_alias", default="integration_candidate")
+    parser.add_argument("--orchestration_run_id", type=int, required=True)
+    parser.add_argument("--task_run_id", type=int, required=True)
+    parser.add_argument("--execution_count", type=int, required=True)
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -64,24 +64,6 @@ def _reference_dates(value: str) -> tuple[str, ...]:
     for value in dates:
         date.fromisoformat(value)
     return dates
-
-
-def _ensure_evaluation_score_table(spark, table_path: str) -> None:
-    spark.sql(
-        f"""
-        CREATE TABLE IF NOT EXISTS {quote_qualified_identifier(table_path)} (
-          ProviderBuildID STRING NOT NULL,
-          AccountNumber STRING NOT NULL,
-          EntityType STRING NOT NULL,
-          EntityID STRING NOT NULL,
-          ProviderID STRING NOT NULL,
-          RunDate DATE NOT NULL,
-          RawScore DOUBLE,
-          Score DOUBLE NOT NULL,
-          ProviderRank INT NOT NULL
-        ) USING DELTA
-        """
-    )
 
 
 def main() -> None:
@@ -162,28 +144,37 @@ def main() -> None:
     if first_checksum != second_checksum:
         raise ValueError("Candidate adapter output changed for identical inputs")
 
-    _ensure_evaluation_score_table(spark, args.evaluation_scores_table)
-    output_receipt = replace_scope_by_name(
-        scores.select(*PROVIDER_SIGNAL_COLUMNS),
-        args.evaluation_scores_table,
-        {"ProviderBuildID": build.model_build_id},
-        PROVIDER_SIGNAL_COLUMNS,
-        spark=spark,
-        build_id=build.model_build_id,
-        attempt_id=training.receipt.receipt_id,
+    publication = publish_evaluation_provider(
+        spark,
+        scores,
+        provider_id=definition.model_name,
+        provider_version=f"{definition.model_name}/v1",
+        provider_build_id=build.model_build_id,
+        provider_build_attempt_id=training.receipt.receipt_id,
+        input_snapshot_id=training.receipt.receipt_id,
+        run_date=run_date,
+        model_uri=build.model_uri,
+        signals_table=args.provider_signals_table,
+        builds_table=args.provider_builds_table,
         git_commit=args.code_sha,
+        orchestration_run_id=args.orchestration_run_id,
+        task_run_id=args.task_run_id,
+        execution_count=args.execution_count,
     )
     evidence = {
         "artifact_digest": build.artifact_digest,
         "candidate_checksum": first_checksum,
-        "evaluation_scores_delta_version": output_receipt.delta_version,
-        "evaluation_scores_rows": output_receipt.row_count,
+        "provider_signals_delta_version": (
+            publication.build.output_delta_version
+        ),
+        "provider_signals_rows": publication.build.row_count,
         "feature_bindings": len(training.receipt.feature_bindings),
         "mlflow_run_id": build.mlflow_run_id,
         "model_build_id": build.model_build_id,
         "model_definition_checksum": definition.checksum,
         "model_reused": reused,
         "model_uri": build.model_uri,
+        "provider_build_status": publication.build.status,
         "promotion": promotion.__dict__ if promotion else None,
         "promotion_reused": promotion_reused,
         "runtime_profile": build.runtime_profile,

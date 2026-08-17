@@ -59,6 +59,10 @@ from next_ads.model_development.promotion import (
     ModelPromotionReceipt,
     promote_exact_model_build,
 )
+from next_ads.model_development.provider_adoption import (
+    PROVIDER_CONTRACT_VERSION,
+    publish_evaluation_provider,
+)
 
 __all__ = [
     "ALLOWED_RUNTIME_PROFILES",
@@ -74,6 +78,7 @@ __all__ = [
     "ModelDefinition",
     "ModelPluginRegistry",
     "ModelPromotionReceipt",
+    "PROVIDER_CONTRACT_VERSION",
     "ScoreProvider",
     "SparkBinaryClassifierTrainer",
     "SparkAccountAdvertScoreProvider",
@@ -100,6 +105,7 @@ __all__ = [
     "persist_external_score_output_receipt",
     "persist_training_set_receipt",
     "promote_exact_model_build",
+    "publish_evaluation_provider",
     "train_or_reuse_model",
     "validate_snapshot_time_boundary",
 ]
