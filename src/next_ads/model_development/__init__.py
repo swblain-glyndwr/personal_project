@@ -47,6 +47,7 @@ from next_ads.model_development.external_outputs import (
     ExternalScoreOutputReceipt,
     adapt_external_advert_scores,
     bind_external_score_output,
+    verify_external_model_components,
 )
 from next_ads.model_development.plugins import (
     AccountAdvertCandidateAdapter,
@@ -87,6 +88,7 @@ __all__ = [
     "deterministic_train_validation_split",
     "adapt_external_advert_scores",
     "bind_external_score_output",
+    "verify_external_model_components",
     "create_model_development_tables",
     "load_ready_model_build",
     "load_external_score_output_receipt",

@@ -138,3 +138,61 @@ def test_external_output_bind_requires_a_run_date_column(monkeypatch):
             producing_run_id="123",
             components=COMPONENTS,
         )
+
+
+def test_external_latest_output_can_be_bound_without_a_date_column(
+    monkeypatch,
+):
+    class Frame:
+        columns = ["account_number", "UniqueAdID"]
+
+        def count(self):
+            return 2
+
+    frame = Frame()
+    reader = SimpleNamespace(
+        option=lambda *_args: SimpleNamespace(table=lambda _table: frame)
+    )
+    spark = SimpleNamespace(read=reader)
+    monkeypatch.setattr(outputs, "schema_checksum", lambda _frame: "c" * 64)
+
+    exact, receipt = outputs.bind_external_score_output(
+        spark,
+        model_name="analytics_pctr",
+        provider_id="analytics_pctr",
+        source_table="catalog.schema.predictions_latest",
+        source_delta_version=4,
+        run_date=RUN_DATE,
+        run_date_column=None,
+        producing_run_id="123",
+        components=COMPONENTS,
+    )
+
+    assert exact is frame
+    assert receipt.source_delta_version == 4
+    assert receipt.row_count == 2
+
+
+def test_external_components_verify_the_exact_registered_run():
+    class Client:
+        def get_model_version(self, name, version):
+            expected = {
+                (COMPONENTS[0].model_uri.split("/")[-2], "2"): (
+                    COMPONENTS[0].expected_run_id
+                ),
+                (COMPONENTS[1].model_uri.split("/")[-2], "2"): (
+                    COMPONENTS[1].expected_run_id
+                ),
+            }
+            return SimpleNamespace(run_id=expected[(name, version)])
+
+    outputs.verify_external_model_components(Client(), COMPONENTS)
+
+
+def test_external_component_rejects_a_changed_registered_run():
+    client = SimpleNamespace(
+        get_model_version=lambda *_args: SimpleNamespace(run_id="different")
+    )
+
+    with pytest.raises(ValueError, match="different MLflow run"):
+        outputs.verify_external_model_components(client, COMPONENTS)

@@ -124,7 +124,7 @@ def bind_external_score_output(
     producing_run_id: str,
     components: tuple[ExternalModelComponent, ...],
     source_delta_version: int | None = None,
-    run_date_column: str = "rundate",
+    run_date_column: str | None = "rundate",
 ) -> tuple[Any, ExternalScoreOutputReceipt]:
     """Read one external score output at an exact Delta version."""
     from pyspark.sql import functions as F
@@ -137,12 +137,14 @@ def bind_external_score_output(
     if version < 0:
         raise ValueError("source_delta_version cannot be negative")
     frame = spark.read.option("versionAsOf", version).table(source_table)
-    if run_date_column not in frame.columns:
+    if run_date_column is not None and run_date_column not in frame.columns:
         raise ValueError(
             f"External score output is missing {run_date_column}"
         )
-    exact_output = frame.where(
-        F.to_date(F.col(run_date_column)) == F.lit(run_date)
+    exact_output = (
+        frame.where(F.to_date(F.col(run_date_column)) == F.lit(run_date))
+        if run_date_column is not None
+        else frame
     )
     row_count = exact_output.count()
     if row_count == 0:
@@ -170,6 +172,24 @@ def bind_external_score_output(
         created_at=datetime.now(timezone.utc),
     )
     return exact_output, receipt
+
+
+def verify_external_model_components(
+    client: Any,
+    components: tuple[ExternalModelComponent, ...],
+) -> None:
+    """Prove every numeric model URI resolves to its recorded MLflow run."""
+    for component in components:
+        match = _EXACT_MODEL_URI.fullmatch(component.model_uri)
+        if match is None:
+            raise ValueError("External component model URI is not exact")
+        model_name, version = match.groups()
+        registered = client.get_model_version(model_name, version)
+        if registered.run_id != component.expected_run_id:
+            raise ValueError(
+                f"External model component {component.role} resolves to "
+                "a different MLflow run"
+            )
 
 
 def adapt_external_advert_scores(
@@ -201,4 +221,5 @@ __all__ = [
     "ExternalScoreOutputReceipt",
     "adapt_external_advert_scores",
     "bind_external_score_output",
+    "verify_external_model_components",
 ]
