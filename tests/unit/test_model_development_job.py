@@ -25,3 +25,21 @@ def test_model_job_uses_receipts_plugins_and_exact_promotion():
     assert "ModelPluginRegistry" in source
     assert "MODEL_DEVELOPMENT_EVIDENCE=" in source
     assert "mktg_next_uk_nextads.yml" not in source
+
+
+def test_model_job_is_manual_dev_evidence_only():
+    project_root = job.Path(job.__file__).resolve().parents[3]
+    bundle_job = (
+        project_root
+        / "pipelines"
+        / "databricks"
+        / "jobs"
+        / "mktg_next_uk_nextads_model_development.yml"
+    ).read_text()
+
+    assert "activation_mode: EVALUATE" in bundle_job
+    assert "feature_reference_dates\n      default: REQUIRED" in bundle_job
+    assert "label_end\n      default: REQUIRED" in bundle_job
+    assert "schedule:" not in bundle_job
+    assert "mktg_next_uk_nextads.yml" not in bundle_job
+    assert "PROD:" not in bundle_job
