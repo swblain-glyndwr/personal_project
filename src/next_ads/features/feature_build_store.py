@@ -259,6 +259,99 @@ def ready_snapshot_bindings(
     return bindings
 
 
+def latest_ready_feature_binding_row(
+    spark: Any,
+    *,
+    catalog: str,
+    schema: str,
+    feature_id: str,
+    reference_date: Any | None = None,
+) -> Any | None:
+    """Return one exact binding from the latest READY containing snapshot."""
+    from pyspark.sql import functions as F
+
+    snapshots = spark.table(
+        metadata_table_path(catalog, schema, SNAPSHOT_TABLE)
+    ).alias("snapshot")
+    bindings = spark.table(
+        metadata_table_path(catalog, schema, SNAPSHOT_BINDING_TABLE)
+    ).alias("binding")
+    joined = (
+        snapshots.where(F.col("snapshot.status") == F.lit("READY"))
+        .where(F.col("snapshot.completed_at").isNotNull())
+        .join(
+            bindings,
+            on=(
+                (
+                    F.col("snapshot.feature_snapshot_id")
+                    == F.col("binding.feature_snapshot_id")
+                )
+                & (
+                    F.col("snapshot.feature_snapshot_attempt_id")
+                    == F.col("binding.feature_snapshot_attempt_id")
+                )
+            ),
+            how="inner",
+        )
+        .where(F.col("binding.feature_id") == F.lit(feature_id))
+    )
+    if reference_date is not None:
+        joined = joined.where(
+            F.col("snapshot.reference_date") == F.lit(reference_date)
+        )
+    rows = (
+        joined.select(
+            "snapshot.feature_snapshot_id",
+            "snapshot.feature_snapshot_attempt_id",
+            "snapshot.feature_build_id",
+            "snapshot.feature_build_attempt_id",
+            "snapshot.reference_date",
+            "snapshot.registry_checksum",
+            "snapshot.git_commit",
+            "snapshot.completed_at",
+            "snapshot.binding_count",
+            "binding.feature_id",
+            "binding.backing_table",
+            "binding.delta_version",
+            "binding.row_count",
+            "binding.output_schema_checksum",
+            "binding.backing_schema_checksum",
+            "binding.value_checksum",
+            "binding.write_receipt_id",
+        )
+        .orderBy(
+            F.col("snapshot.completed_at").desc(),
+            F.col("snapshot.feature_snapshot_attempt_id").desc(),
+        )
+        .limit(2)
+        .collect()
+    )
+    if not rows:
+        return None
+    first = rows[0]
+    same_attempt = [
+        row
+        for row in rows
+        if row["feature_snapshot_id"] == first["feature_snapshot_id"]
+        and row["feature_snapshot_attempt_id"]
+        == first["feature_snapshot_attempt_id"]
+    ]
+    if len(same_attempt) != 1:
+        raise ValueError(
+            "A READY snapshot must bind a logical feature exactly once"
+        )
+    ready_snapshot_bindings(
+        spark,
+        catalog=catalog,
+        schema=schema,
+        feature_snapshot_id=first["feature_snapshot_id"],
+        feature_snapshot_attempt_id=first[
+            "feature_snapshot_attempt_id"
+        ],
+    )
+    return first
+
+
 __all__ = [
     "BUILD_TABLE",
     "METADATA_TABLES",
@@ -267,6 +360,7 @@ __all__ = [
     "SNAPSHOT_TABLE",
     "SOURCE_TABLE",
     "latest_ready_snapshot_row",
+    "latest_ready_feature_binding_row",
     "metadata_table_path",
     "metadata_table_paths",
     "persist_feature_build",
