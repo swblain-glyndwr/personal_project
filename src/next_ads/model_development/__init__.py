@@ -13,6 +13,10 @@ from next_ads.model_development.contracts import (
     TrainingFeatureBinding,
     TrainingSetReceipt,
 )
+from next_ads.model_development.registry import (
+    load_model_definition,
+    load_model_definitions,
+)
 
 __all__ = [
     "ALLOWED_RUNTIME_PROFILES",
@@ -26,4 +30,6 @@ __all__ = [
     "Trainer",
     "TrainingFeatureBinding",
     "TrainingSetReceipt",
+    "load_model_definition",
+    "load_model_definitions",
 ]
