@@ -39,6 +39,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_feature_source.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_adoption.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml
   - pipelines/databricks/jobs/dev_setup.yml
   - pipelines/databricks/jobs/table_operations.yml
