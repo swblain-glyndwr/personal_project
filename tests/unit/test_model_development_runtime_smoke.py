@@ -21,6 +21,23 @@ def test_model_runtime_smoke_exercises_future_lookup_rejection():
     assert "is after observation end" in message
 
 
+@pytest.mark.parametrize(
+    "module",
+    [
+        smoke,
+        pytest.importorskip("jobs.model.development.run_declared_model"),
+        pytest.importorskip("jobs.model.development.adopt_analytics_pctr"),
+    ],
+)
+def test_model_jobs_resolve_the_bundle_root_without_dunder_file(module):
+    root = module.resolve_project_root(
+        None,
+        "/Users/test/.bundle/next-ads/DEV/test/files/jobs/model/development/job.py",
+    )
+
+    assert root.as_posix() == "/Workspace/Users/test/.bundle/next-ads/DEV/test/files"
+
+
 def test_model_runtime_smoke_is_manual_dev_only():
     project_root = smoke.Path(smoke.__file__).resolve().parents[3]
     resource = (
