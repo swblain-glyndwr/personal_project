@@ -8,6 +8,10 @@ from next_ads.model_development.contracts import (
     TrainingSetReceipt,
 )
 from next_ads.model_development import store
+from next_ads.model_development.external_outputs import (
+    ExternalModelComponent,
+    ExternalScoreOutputReceipt,
+)
 
 
 NOW = datetime(2026, 8, 17, tzinfo=timezone.utc)
@@ -62,7 +66,29 @@ def _build():
     )
 
 
-def test_setup_creates_only_the_two_receipt_tables():
+def _external_receipt():
+    return ExternalScoreOutputReceipt(
+        receipt_id="external-1",
+        model_name="analytics_pctr",
+        provider_id="analytics_pctr",
+        source_table="catalog.schema.predictions",
+        source_delta_version=5,
+        run_date=date(2026, 8, 11),
+        row_count=100,
+        schema_checksum="f" * 64,
+        producing_run_id="run-5",
+        components=(
+            ExternalModelComponent(
+                role="classifier",
+                model_uri="models:/catalog.schema.classifier/2",
+                expected_run_id="run-classifier",
+            ),
+        ),
+        created_at=NOW,
+    )
+
+
+def test_setup_creates_the_three_model_development_receipt_tables():
     class Spark:
         def __init__(self):
             self.queries = []
@@ -79,8 +105,10 @@ def test_setup_creates_only_the_two_receipt_tables():
         "marketingdata_dev.Stephen_Blain."
         "next_uk_nextads_training_set_receipts",
         "marketingdata_dev.Stephen_Blain.next_uk_nextads_model_builds",
+        "marketingdata_dev.Stephen_Blain."
+        "next_uk_nextads_external_score_receipts",
     )
-    assert len(spark.queries) == 2
+    assert len(spark.queries) == 3
     assert all("CREATE TABLE IF NOT EXISTS" in query for query in spark.queries)
 
 
@@ -131,6 +159,32 @@ def test_model_build_persists_exact_mlflow_version_and_digest(monkeypatch):
     assert row["model_uri"] == "models:/catalog.schema.model/4"
     assert row["artifact_digest"] == "f" * 64
     assert row["metrics_json"] == '{"auc_pr":0.42}'
+
+
+def test_external_score_receipt_persists_component_model_versions(monkeypatch):
+    calls = []
+    monkeypatch.setattr(store, "typed_table_frame", lambda _s, _t, rows: rows)
+    monkeypatch.setattr(
+        store,
+        "replace_scope_by_name",
+        lambda frame, table, scope, **kwargs: calls.append(
+            (frame, table, scope, kwargs)
+        ),
+    )
+
+    target = store.persist_external_score_output_receipt(
+        object(),
+        catalog="catalog",
+        schema="schema",
+        receipt=_external_receipt(),
+    )
+
+    row = calls[0][0][0]
+    assert target.endswith(store.EXTERNAL_SCORE_RECEIPT_TABLE)
+    assert row["source_delta_version"] == 5
+    assert '"model_uri":"models:/catalog.schema.classifier/2"' in row[
+        "components_json"
+    ]
 
 
 def test_ready_receipt_loader_reconstructs_feature_bindings(monkeypatch):

@@ -13,17 +13,25 @@ from next_ads.model_development.contracts import (
     TrainingFeatureBinding,
     TrainingSetReceipt,
 )
+from next_ads.model_development.external_outputs import (
+    ExternalModelComponent,
+    ExternalScoreOutputReceipt,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SQL_ROOT = PROJECT_ROOT / "sql" / "model_development"
 TRAINING_RECEIPT_TABLE = "next_uk_nextads_training_set_receipts"
 MODEL_BUILD_TABLE = "next_uk_nextads_model_builds"
+EXTERNAL_SCORE_RECEIPT_TABLE = "next_uk_nextads_external_score_receipts"
 TABLE_CONTRACTS = {
     TRAINING_RECEIPT_TABLE: (
         SQL_ROOT / "create_table_next_uk_nextads_training_set_receipts.sql"
     ),
     MODEL_BUILD_TABLE: SQL_ROOT / "create_table_next_uk_nextads_model_builds.sql",
+    EXTERNAL_SCORE_RECEIPT_TABLE: (
+        SQL_ROOT / "create_table_next_uk_nextads_external_score_receipts.sql"
+    ),
 }
 
 
@@ -149,6 +157,74 @@ def persist_model_build(
     return target
 
 
+def persist_external_score_output_receipt(
+    spark: Any,
+    *,
+    catalog: str,
+    schema: str,
+    receipt: ExternalScoreOutputReceipt,
+) -> str:
+    """Persist one accepted external model output by exact receipt ID."""
+    target = table_path(catalog, schema, EXTERNAL_SCORE_RECEIPT_TABLE)
+    row = {
+        "receipt_id": receipt.receipt_id,
+        "model_name": receipt.model_name,
+        "provider_id": receipt.provider_id,
+        "source_table": receipt.source_table,
+        "source_delta_version": receipt.source_delta_version,
+        "run_date": receipt.run_date,
+        "row_count": receipt.row_count,
+        "schema_checksum": receipt.schema_checksum,
+        "producing_run_id": receipt.producing_run_id,
+        "components_json": json.dumps(
+            [asdict(component) for component in receipt.components],
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        "created_at": receipt.created_at,
+    }
+    _replace_row(
+        spark,
+        table=target,
+        row=row,
+        key="receipt_id",
+        value=receipt.receipt_id,
+        operation="external_score_output_receipt",
+    )
+    return target
+
+
+def load_external_score_output_receipt(
+    spark: Any,
+    *,
+    catalog: str,
+    schema: str,
+    receipt_id: str,
+) -> ExternalScoreOutputReceipt | None:
+    """Load one exact external score receipt for retry reuse."""
+    from pyspark.sql import functions as F
+
+    target = table_path(catalog, schema, EXTERNAL_SCORE_RECEIPT_TABLE)
+    rows = (
+        spark.table(target)
+        .where(F.col("receipt_id") == F.lit(receipt_id))
+        .limit(2)
+        .collect()
+    )
+    if len(rows) > 1:
+        raise ValueError(
+            f"More than one external score receipt found for {receipt_id}"
+        )
+    if not rows:
+        return None
+    values = rows[0].asDict()
+    values["components"] = tuple(
+        ExternalModelComponent(**component)
+        for component in json.loads(values.pop("components_json"))
+    )
+    return ExternalScoreOutputReceipt(**values)
+
+
 def _one_ready_row(frame: Any, identity: str, object_name: str) -> Any | None:
     rows = frame.where("status = 'READY'").limit(2).collect()
     if len(rows) > 1:
@@ -211,12 +287,15 @@ def load_ready_model_build(
 
 
 __all__ = [
+    "EXTERNAL_SCORE_RECEIPT_TABLE",
     "MODEL_BUILD_TABLE",
     "TRAINING_RECEIPT_TABLE",
     "create_model_development_tables",
     "load_ready_model_build",
+    "load_external_score_output_receipt",
     "load_ready_training_set_receipt",
     "persist_model_build",
+    "persist_external_score_output_receipt",
     "persist_training_set_receipt",
     "table_path",
 ]
