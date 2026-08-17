@@ -39,6 +39,7 @@
 | `migration_backlog.md` | 5111881 | Prioritised migration backlog and dependencies. |
 | [`../architecture/feature_store_flow.md`](../architecture/feature_store_flow.md) | Architecture | Mermaid view of the shared DEV Feature Store flow and model-building boundaries. |
 | [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Architecture | Wider NextAds model, Feature Store and MLflow overview. |
+| [`building_a_challenger_model.md`](building_a_challenger_model.md) | Author route | The decisions, contracts and evidence a model author follows from a problem statement to an evaluation-only challenger. |
 
 ## Executable Contracts
 
@@ -57,9 +58,9 @@
 
 | State | Count | Current coverage |
 | --- | ---: | --- |
-| `ACTIVE` | 11 | Account, web activity, advert, item, Theme Affinity, labels and quality tables with implemented builders. |
+| `ACTIVE` | 17 | Account, web activity, advert, item, embedding, affinity, session, Theme Affinity, labels and quality tables with implemented builders. |
 | `COMPATIBILITY` | 2 | Theme Affinity model and training inputs retained during migration. |
-| `SCAFFOLD` | 7 | Embedding, advert/product, session and pCTR shells awaiting named source or materialisation contracts. |
+| `SCAFFOLD` | 1 | The assembled pCTR model input still needs its approved session-level training source and materialiser. |
 
 - These counts describe repository contracts, not live DEV completion. `DEV_COMPLETE` requires every intended physical contract and both compatibility views to meet the migration-backlog exit gate.
 
@@ -112,7 +113,7 @@ The normal daily job keeps the on-demand Theme Affinity training build at `skip`
 
 The quality table's own persisted event uses `MANIFEST_ONLY` because a row cannot truthfully contain the Delta version created by writing itself. The deterministic manifest is emitted after that final merge and contains the exact resulting quality-table version.
 
-The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mode: overwrite`. Its builder uses one atomic whole-table replacement, while dated tables retain keyed merge behaviour; this prevents items absent from the latest source from remaining in the current feature snapshot.
+The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mode: overwrite`. Its builder uses one atomic whole-table replacement. Dated tables use one atomic reference-date replacement rather than a delete followed by a merge. Exact Delta receipts can therefore be attached to a build without a temporary missing partition.
 
 #### Personal DEV runtime evidence
 
@@ -170,7 +171,7 @@ The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mo
 | Account theme interactions | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/reference date | Theme Affinity, LTR |
 | Account theme affinity | `next_uk_nextads_fs_account_theme_affinity_daily` | Account/theme/reference date | Theme Affinity, LTR |
 | Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | Theme Affinity, LTR |
-| Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/location/reference date | pCTR, LTR |
+| Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/reference date | pCTR, LTR |
 | Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | pCTR |
 | Theme latest model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity, LTR |
 | Theme labelled training input | `next_uk_nextads_fs_theme_affinity_training_input` | Account/theme/reference date | Theme Affinity |
