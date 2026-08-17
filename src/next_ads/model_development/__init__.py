@@ -37,6 +37,11 @@ from next_ads.model_development.runtime import (
     model_build_id,
     train_or_reuse_model,
 )
+from next_ads.model_development.spark_training import (
+    SparkBinaryClassifierTrainer,
+    artifact_directory_digest,
+    deterministic_train_validation_split,
+)
 from next_ads.model_development.external_outputs import (
     ExternalModelComponent,
     ExternalScoreOutputReceipt,
@@ -55,13 +60,16 @@ __all__ = [
     "ModelBuild",
     "ModelDefinition",
     "ScoreProvider",
+    "SparkBinaryClassifierTrainer",
     "Trainer",
     "TrainingFeatureBinding",
     "TrainingObservationSpec",
     "TrainingSetReceipt",
+    "artifact_directory_digest",
     "TrainingSetBuildResult",
     "build_training_set",
     "build_training_set_from_feature_store",
+    "deterministic_train_validation_split",
     "adapt_external_advert_scores",
     "bind_external_score_output",
     "create_model_development_tables",
