@@ -459,6 +459,8 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.run_id}}"
           - --git_commit
           - ${var.git_commit_sha}
+          - --publish_ready_snapshot
+          - "true"
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

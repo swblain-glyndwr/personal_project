@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import logging
 
 from _registry_job import (
@@ -18,9 +19,13 @@ from next_ads.features.analytics_pctr_source import (
     load_analytics_pctr_source_binding,
     load_analytics_pctr_source_definition,
     read_analytics_pctr_source_binding,
+    parse_reference_date,
     serialise_source_binding,
 )
+from next_ads.features.feature_build_store import persist_feature_build
+from next_ads.features.feature_builds import mark_feature_build_failed
 from next_ads.features.materialization import (
+    FeatureMaterializationResult,
     create_feature_engineering_client,
     write_feature_table,
 )
@@ -30,6 +35,11 @@ from next_ads.features.pctr_affinity import (
     build_account_advert_affinity_frame,
     build_session_context_frame,
 )
+from next_ads.features.snapshot_publication import (
+    begin_feature_build,
+    external_delta_source,
+    publish_ready_feature_group,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -37,6 +47,10 @@ BUILDER = "build_pctr_affinity_features"
 AFFINITY_TABLE = "next_uk_nextads_fs_account_advert_affinity_daily"
 SESSION_TABLE = "next_uk_nextads_fs_session_context_daily"
 PCTR_MODEL_INPUT_TABLE = "next_uk_nextads_fs_pctr_model_input"
+ANALYTICS_PCTR_SNAPSHOT_FEATURES = (
+    AFFINITY_TABLE,
+    PCTR_MODEL_INPUT_TABLE,
+)
 
 
 @dataclass(frozen=True)
@@ -77,6 +91,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feature_build_id", default=None)
     parser.add_argument("--feature_build_attempt_id", default=None)
     parser.add_argument("--git_commit", default=None)
+    parser.add_argument("--publish_ready_snapshot", default="false")
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -184,24 +199,113 @@ def main() -> None:
     }
     validate_builder_output_tables(BUILDER, writes, registry)
     feature_engineering_client = create_feature_engineering_client()
-
-    for table_name, frame in writes.items():
-        table = registry.table_spec(table_name)
-        table_path = write_feature_table(
+    publish_ready_snapshot = (
+        getattr(args, "publish_ready_snapshot", "false").strip().lower()
+        == "true"
+    )
+    write_identity = feature_write_kwargs(args)
+    build = None
+    if publish_ready_snapshot:
+        missing_identity = sorted(
+            name
+            for name in ("build_id", "attempt_id", "git_commit")
+            if not write_identity.get(name)
+        )
+        if missing_identity:
+            raise ValueError(
+                "READY snapshot publication needs a complete feature build "
+                "identity; missing " + ", ".join(missing_identity)
+            )
+        captured_at = datetime.now(timezone.utc)
+        resolved_date = parse_reference_date(reference_date)
+        build = begin_feature_build(
             spark,
-            table_name,
-            frame,
             catalog=target_catalog,
             schema=target_schema,
-            reference_date=reference_date,
-            reference_date_column=table.timestamp_key,
-            replace_reference_date=replace_reference_date,
-            mode=table.write_mode,
-            registry=registry,
-            feature_engineering_client=feature_engineering_client,
-            **feature_write_kwargs(args),
+            feature_build_id=write_identity["build_id"],
+            feature_build_attempt_id=write_identity["attempt_id"],
+            reference_date=resolved_date,
+            git_commit=write_identity["git_commit"],
+            required_feature_ids=ANALYTICS_PCTR_SNAPSHOT_FEATURES,
+            sources=(
+                external_delta_source(
+                    feature_build_id=write_identity["build_id"],
+                    feature_build_attempt_id=write_identity["attempt_id"],
+                    reference_date=resolved_date,
+                    source_name=source_binding.source_role,
+                    source_table=source_binding.table_path,
+                    delta_version=source_binding.delta_version,
+                    schema_checksum_value=source_binding.schema_sha256,
+                    captured_at=captured_at,
+                    row_count=source_binding.reference_date_row_count,
+                ),
+            ),
+            started_at=captured_at,
         )
-        LOGGER.info("Wrote pCTR feature table: %s", table_path)
+
+    results = {}
+    try:
+        for table_name, frame in writes.items():
+            table = registry.table_spec(table_name)
+            result = write_feature_table(
+                spark,
+                table_name,
+                frame,
+                catalog=target_catalog,
+                schema=target_schema,
+                reference_date=reference_date,
+                reference_date_column=table.timestamp_key,
+                replace_reference_date=replace_reference_date,
+                mode=table.write_mode,
+                registry=registry,
+                feature_engineering_client=feature_engineering_client,
+                return_receipt=(
+                    publish_ready_snapshot
+                    and table_name in ANALYTICS_PCTR_SNAPSHOT_FEATURES
+                ),
+                **write_identity,
+            )
+            if isinstance(result, FeatureMaterializationResult):
+                results[table_name] = result.receipt
+                table_path = result.table_path
+            else:
+                table_path = result
+            LOGGER.info("Wrote pCTR feature table: %s", table_path)
+
+        if build is not None:
+            ready_build, ready_snapshot = publish_ready_feature_group(
+                spark,
+                catalog=target_catalog,
+                schema=target_schema,
+                group_id="analytics_pctr",
+                build=build,
+                frames={
+                    feature_id: writes[feature_id]
+                    for feature_id in ANALYTICS_PCTR_SNAPSHOT_FEATURES
+                },
+                receipts=results,
+                registry=registry,
+            )
+            build = ready_build
+            LOGGER.info(
+                "Published READY Analytics pCTR feature snapshot: %s attempt %s",
+                ready_snapshot.feature_snapshot_id,
+                ready_snapshot.feature_snapshot_attempt_id,
+            )
+    except Exception as exc:
+        if build is not None and build.status != "READY":
+            failed_build = mark_feature_build_failed(
+                build,
+                failure_reason=f"{type(exc).__name__}: {exc}"[:1000],
+                completed_at=datetime.now(timezone.utc),
+            )
+            persist_feature_build(
+                spark,
+                catalog=target_catalog,
+                schema=target_schema,
+                build=failed_build,
+            )
+        raise
 
 
 if __name__ == "__main__":

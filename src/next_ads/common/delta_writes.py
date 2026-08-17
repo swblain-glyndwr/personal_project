@@ -34,6 +34,7 @@ __all__ = [
     "validate_replace_source_scope",
     "validate_unique_non_null_keys",
     "quote_qualified_identifier",
+    "schema_checksum",
 ]
 
 
@@ -796,14 +797,19 @@ def _restore_commit_metadata(spark: Any, previous: str | None) -> None:
         spark.conf.set(_DELTA_COMMIT_METADATA_KEY, previous)
 
 
-def _target_schema_checksum(spark: Any, target_table: str) -> str:
-    schema = spark.table(target_table).schema
+def schema_checksum(frame: Any) -> str:
+    """Return a stable checksum for an ordered Spark schema."""
+    schema = frame.schema
     signature = [
         (field.name, field.dataType.simpleString()) for field in schema
     ]
     return hashlib.sha256(
         json.dumps(signature, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def _target_schema_checksum(spark: Any, target_table: str) -> str:
+    return schema_checksum(spark.table(target_table))
 
 
 def _read_commit_receipt(

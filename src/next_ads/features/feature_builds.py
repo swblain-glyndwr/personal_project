@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import date, datetime
+import hashlib
+import json
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -87,6 +89,51 @@ def _identifiers(values: Iterable[str], field_name: str) -> tuple[str, ...]:
     if len(result) != len(set(result)):
         raise ValueError(f"{field_name} must contain unique values")
     return result
+
+
+def feature_value_checksum(
+    frame: Any,
+    *,
+    excluded_columns: Iterable[str] = (),
+) -> str:
+    """Fingerprint a feature frame without collecting its rows to the driver."""
+    from pyspark.sql import functions as F
+
+    excluded = set(excluded_columns)
+    value_columns = [
+        column for column in frame.columns if column not in excluded
+    ]
+    if not value_columns:
+        raise ValueError("A feature value checksum needs at least one column")
+    canonical_row = F.to_json(
+        F.struct(*[F.col(column) for column in value_columns]),
+        options={"ignoreNullFields": "false"},
+    )
+    row_hash = F.xxhash64(canonical_row)
+    summary = (
+        frame.select(row_hash.alias("_row_hash"))
+        .agg(
+            F.count(F.lit(1)).alias("row_count"),
+            F.sum(F.col("_row_hash").cast("decimal(38,0)")).alias(
+                "hash_sum"
+            ),
+            F.min("_row_hash").alias("hash_min"),
+            F.max("_row_hash").alias("hash_max"),
+        )
+        .first()
+    )
+    payload = {
+        "columns": value_columns,
+        "hash_max": str(summary["hash_max"]),
+        "hash_min": str(summary["hash_min"]),
+        "hash_sum": str(summary["hash_sum"]),
+        "row_count": int(summary["row_count"]),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -829,6 +876,7 @@ __all__ = [
     "FeatureOutputBinding",
     "FeatureSnapshot",
     "FeatureSnapshotBinding",
+    "feature_value_checksum",
     "FeatureSourceBinding",
     "PASS",
     "READY",

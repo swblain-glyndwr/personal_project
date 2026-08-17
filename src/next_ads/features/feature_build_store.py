@@ -185,6 +185,7 @@ def latest_ready_snapshot_row(
     catalog: str,
     schema: str,
     reference_date: Any | None = None,
+    required_feature_ids: tuple[str, ...] | None = None,
 ) -> Any | None:
     """Return only a completed READY snapshot header."""
     from pyspark.sql import functions as F
@@ -194,6 +195,14 @@ def latest_ready_snapshot_row(
     if reference_date is not None:
         frame = frame.where(
             F.col("reference_date") == F.lit(reference_date)
+        )
+    if required_feature_ids is not None:
+        required_json = json.dumps(
+            required_feature_ids,
+            separators=(",", ":"),
+        )
+        frame = frame.where(
+            F.col("required_feature_ids_json") == F.lit(required_json)
         )
     return (
         frame.where(F.col("completed_at").isNotNull())
