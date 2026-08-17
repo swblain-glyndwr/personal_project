@@ -38,6 +38,19 @@
 | Legacy `source_job` | Existing ownership metadata used by current jobs. | Retained unchanged for compatibility. |
 | Logical `builder` | Task that currently writes the feature. | Defaults to `source_job`; use an override only when the actual writer differs. |
 
+## Product Embedding Foundation
+
+| Artifact | Responsibility | Operational status |
+| --- | --- | --- |
+| `product_embeddings.yaml` | Logical model identity, 384-value normalized output, DBR 15.4 Standard CPU profile and exact direct package versions. | Reusable contract only; it does not select an environment or activate a Feature Store table. |
+| `product_embedding_smoke_dev.yaml` | Fixed personal DEV registered-model version, source run and approved artifact digest. | Compatibility-test binding only; it must not become a shared DEV or PROD dependency. |
+| `../../requirements-feature-store-embeddings.txt` | Exact direct runtime pins, including the CPU-only PyTorch index and thread-pool compatibility version. | Installed only on the isolated manual smoke task in this change. |
+| `../../src/next_ads/features/advert_items.py` | Pure point-in-time transform from advert sort, representative-item and control inputs to deterministic weighted advert-item rows. | No table reads or writes; live materialisation remains outstanding. |
+| `../../pipelines/databricks/jobs/mktg_next_uk_nextads_product_embedding_runtime_smoke.yml` | Manual personal DEV bridge and embedding compatibility checks on separate DBR 15.4 clusters. | Unscheduled and read-only; unavailable in shared Feature Store, PREPROD and PROD targets. |
+
+- The existing registry entries remain `SCAFFOLD` until their source, materialiser and runtime evidence are complete.
+- Runtime callers cannot replace the fixed personal model version, source run or approved artifact digest.
+
 ## Environment Bindings
 
 | Environment | Namespace | Bundle target | Repository state | Table naming |

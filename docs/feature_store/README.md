@@ -133,6 +133,27 @@ The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mo
 | Source reproducibility | The latest item source changed from 639,124 to 639,388 rows between attempts for the same reference date. The immutable-snapshot work must record and consume exact source Delta versions rather than relying on a moving latest source. |
 | Failure-safe publication | Dated tables still remove the requested partition before their Feature Engineering merge. This run proves the current contracts but does not prove atomic multi-table snapshots; the `FeatureBuild` and `FeatureSnapshot` work must remove that exposure gap. |
 
+#### Product embedding foundation evidence
+
+| Evidence | Result |
+| --- | --- |
+| Revision and deployment | Revision `74db4f1149a488d67a0f98e884014fa50af5f50a` deployed through pipeline `2071889`; 1,044 tests passed and 13 skipped. Only the personal DEV route deployed. Destroy, DEV Integration, shared Feature Store, PREPROD and PROD stages were skipped. |
+| Failure and repair sequence | Run `1096436449658921` passed the bridge but exposed an incorrect `model_data` assumption in the registered model's MLflow flavour. Revision `44e8c92` read the actual pyfunc data path and run `1089941215576212` passed, allowing the exact artifact digest to be recorded. Revision `800ae62` pinned that digest and run `533832210189819` proved the approved and downloaded artifacts matched. |
+| Final compatibility fix | Run `533832210189819` also exposed a suppressed callback traceback from the base image's thread-pool inspection library. Revision `74db4f1` pins `threadpoolctl==3.6.0` and checks the runtime library controllers explicitly. |
+| Exact-revision proof | Parent run `334271287452983` completed `SUCCESS` from revision `74db4f1149a488d67a0f98e884014fa50af5f50a`. Bridge task `661018763219592` and embedding task `446396556326604` both completed `SUCCESS`; both outputs were complete rather than truncated. |
+| Bridge manifest | Nine fixture rows across five adverts; zero duplicate keys and zero future rows consumed. Source precedence, weighting and conflicting-position rejection passed; `writes_performed=false`. |
+| Embedding manifest | DBR 15.4, Python 3.11 and Standard CPU execution passed with MLflow 3.11.1, NumPy 1.26.4, protobuf 4.24.1, Sentence Transformers 2.4.0, threadpoolctl 3.6.0, CPU-only PyTorch 2.10.0 and Transformers 4.41.2. The three-module graph and safetensor artifact passed validation, and the output contained 384 values with norm `0.999999976604877`. |
+| Artifact provenance | The fixed personal DEV binding resolves registered model version 11 and source run `95be978bd9e24783afe4e68def0c9845`. The approved and observed artifact SHA-256 values both equal `bc4daec2a2647ce42ad35df49181c762187cd4e1fed008915ce4f76ac89ca384`; custom model code and runtime registration are disabled. |
+| Clean-log gate | All 1,381 embedding log lines were checked. `Exception ignored`, `threadpoolctl.py`, the earlier `NoneType.split` callback error and `Traceback` each occurred zero times. |
+| Environment boundary | The manual job is unscheduled and read-only. It did not create a model run, register a model, move an alias, write a feature table or alter shared data. Model artifacts were downloaded only to ephemeral task storage. |
+
+| Remaining boundary | Required follow-up |
+| --- | --- |
+| Registry state | Product embeddings, advert semantic profiles and advert product profiles remain `SCAFFOLD`. This foundation does not present any of those feature tables as operational. |
+| Materialisation | The personal binding proves one fixed artifact is compatible with DBR 15.4; it is not a shared feature dependency or a production materialiser. A separate change must define the reusable product source, build semantics, keys, freshness and publication evidence. |
+| Live advert inputs | The bridge run used in-memory fixtures. Live source metadata matches the expected shapes, but live row quality, historical coverage and full-volume scan cost remain unproven. |
+| Higher environments | No shared DEV, DEV Integration, PREPROD, PROD or realtime resource was changed or exercised. |
+
 ## Feature Catalogue
 
 | Feature group | Physical table/view | Entity/grain | Primary consumers |

@@ -1,0 +1,47 @@
+# Read-only product-embedding runtime smoke job.
+# This personal DEV-only job validates an exact registered model version on the
+# DBR 15.4 CPU profile without writing tables or changing model aliases.
+nextads_product_embedding_runtime_smoke_config: &nextads_product_embedding_runtime_smoke_config
+  mktg_next_uk_nextads_product_embedding_runtime_smoke:
+    name: mktg_next_uk_nextads_product_embedding_runtime_smoke
+    queue:
+      enabled: true
+    max_concurrent_runs: 1
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: feature_store
+      purpose: product_embedding_runtime_smoke
+    timeout_seconds: 3600
+    tasks:
+      - task_key: advert_item_bridge_smoke
+        spark_python_task:
+          python_file: ../../../jobs/features/nextads/smoke_advert_item_bridge.py
+          parameters:
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D8ads_v5_2_2
+        libraries: ${var.feature_store_libraries}
+        timeout_seconds: 1800
+      - task_key: product_embedding_runtime_smoke
+        depends_on:
+          - task_key: advert_item_bridge_smoke
+        spark_python_task:
+          python_file: ../../../jobs/features/nextads/smoke_product_embedding_runtime.py
+          parameters:
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.feature_store_embedding_libraries}
+        timeout_seconds: 3600
+
+targets:
+  DEV:
+    resources:
+      jobs:
+        <<: *nextads_product_embedding_runtime_smoke_config
