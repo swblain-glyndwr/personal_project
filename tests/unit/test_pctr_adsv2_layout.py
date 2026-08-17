@@ -1,4 +1,5 @@
 import ast
+import argparse
 from pathlib import Path
 
 import pytest
@@ -140,6 +141,56 @@ def test_prediction_route_rejects_empty_model_stages_before_publication():
     assert source.index("require_non_empty(predictions") < source.index(
         'print("Loading output to table (latest)")'
     )
+
+
+def test_prediction_python_task_uses_its_command_line_parameters():
+    source_path = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    )
+    source = source_path.read_text()
+    tree = ast.parse(source)
+    selected = [
+        node
+        for node in tree.body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name)
+                and target.id == "MODEL_ARGUMENTS"
+                for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.FunctionDef)
+            and node.name == "parse_command_line_values"
+        )
+    ]
+    namespace = {"argparse": argparse}
+    exec(
+        compile(
+            ast.Module(body=selected, type_ignores=[]),
+            str(source_path),
+            "exec",
+        ),
+        namespace,
+    )
+
+    values = namespace["parse_command_line_values"](
+        [
+            "--catalog_schema_prefix",
+            "marketingdata_dev.Stephen_Blain",
+            "--table_prefix",
+            "next_uk_nextAds_analytics_pctr",
+            "--unknown-runtime-argument",
+            "ignored",
+        ]
+    )
+
+    assert values == {
+        "catalog_schema_prefix": "marketingdata_dev.Stephen_Blain",
+        "table_prefix": "next_uk_nextAds_analytics_pctr",
+    }
+    assert "if name in COMMAND_LINE_VALUES" in source
 
 
 def test_adsv2_entrypoints_remain_in_current_route_folders():

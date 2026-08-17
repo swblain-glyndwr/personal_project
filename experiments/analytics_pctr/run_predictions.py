@@ -2,8 +2,10 @@
 #!pip install "/Workspace/Users/claire_wilsonbarnes@next.co.uk/next-ads/wheels/dsutils-0.1.13-py3-none-any.whl"
 
 # COMMAND ----------
+import argparse
 import hashlib
 import json
+import sys
 
 import mlflow
 import mlflow.spark
@@ -28,7 +30,35 @@ spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 
 
 # COMMAND ----------
+MODEL_ARGUMENTS = (
+    "catalog_schema_prefix",
+    "lookback_period",
+    "table_prefix",
+    "affinity_weighting_factor",
+    "regressor_model_uri",
+    "classifier_model_uri",
+)
+
+
+def parse_command_line_values(argv):
+    """Read Python-task parameters without breaking notebook widgets."""
+    parser = argparse.ArgumentParser(add_help=False)
+    for name in MODEL_ARGUMENTS:
+        parser.add_argument(f"--{name}")
+    parsed, _unknown = parser.parse_known_args(argv)
+    return {
+        name: value
+        for name, value in vars(parsed).items()
+        if value not in (None, "")
+    }
+
+
+COMMAND_LINE_VALUES = parse_command_line_values(sys.argv[1:])
+
+
 def get_widget_value(name, default):
+    if name in COMMAND_LINE_VALUES:
+        return COMMAND_LINE_VALUES[name]
     try:
         dbutils.widgets.text(name, str(default))
         value = dbutils.widgets.get(name)
