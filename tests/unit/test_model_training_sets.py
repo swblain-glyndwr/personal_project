@@ -1,0 +1,71 @@
+from datetime import date, datetime, timezone
+
+import pytest
+
+from next_ads.features.snapshot_reader import ReadyFeatureBinding
+from next_ads.model_development import (
+    load_model_definition,
+    validate_snapshot_time_boundary,
+)
+from next_ads.model_development import training_sets
+
+
+def _binding(reference_date):
+    return ReadyFeatureBinding(
+        feature_snapshot_id=f"analytics_pctr:{reference_date}",
+        feature_snapshot_attempt_id="123",
+        feature_build_id="123",
+        feature_build_attempt_id="123",
+        reference_date=reference_date,
+        registry_checksum="a" * 64,
+        git_commit="abc123",
+        completed_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+        feature_id="next_uk_nextads_fs_pctr_model_input",
+        backing_table="catalog.schema.pctr",
+        delta_version=42,
+        row_count=10,
+        output_schema_checksum="b" * 64,
+        backing_schema_checksum="b" * 64,
+        value_checksum="c" * 64,
+        write_receipt_id="receipt",
+    )
+
+
+def test_future_snapshot_is_rejected_before_a_receipt_can_be_ready():
+    with pytest.raises(ValueError, match="after observation end"):
+        validate_snapshot_time_boundary(
+            _binding(date(2026, 8, 2)),
+            date(2026, 8, 1),
+        )
+
+
+def test_training_receipt_id_pins_definition_versions_and_windows():
+    definition = load_model_definition("analytics_pctr")
+    binding = training_sets._training_feature_binding(
+        _binding(date(2026, 8, 1))
+    )
+    values = {
+        "observation_start": date(2026, 1, 1),
+        "observation_end": date(2026, 7, 31),
+        "label_end": date(2026, 8, 1),
+        "code_sha": "abc123",
+    }
+
+    first = training_sets._receipt_id(
+        definition,
+        (binding,),
+        **values,
+    )
+    second = training_sets._receipt_id(
+        definition,
+        (binding,),
+        **values,
+    )
+    changed = training_sets._receipt_id(
+        definition,
+        (binding,),
+        **{**values, "code_sha": "def456"},
+    )
+
+    assert first == second
+    assert first != changed

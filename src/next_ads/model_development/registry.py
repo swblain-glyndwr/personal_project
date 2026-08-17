@@ -55,6 +55,7 @@ def _definition(raw: dict[str, Any]) -> ModelDefinition:
         prediction_entity=raw["prediction_entity"],
         prediction_time=raw["prediction_time"],
         label=raw["label"],
+        observation_keys=tuple(raw["observation_keys"]),
         success_metrics=tuple(raw["success_metrics"]),
         runtime_profile=raw["runtime_profile"],
         feature_lookups=tuple(
