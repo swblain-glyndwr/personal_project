@@ -1284,6 +1284,30 @@ def test_analytics_pctr_feature_source_is_source_only_and_uses_dbr_15_4():
         receipt_parameters.index("--receipt_correlation_id") + 1
     ] == "{{job.parameters.receipt_correlation_id}}"
 
+    notebook_tasks = [
+        task["notebook_task"]
+        for task in job["tasks"]
+        if "notebook_task" in task
+    ]
+    assert notebook_tasks
+    assert all(
+        task["base_parameters"]["catalog_schema_prefix"]
+        == "{{job.parameters.output_catalog}}.{{job.parameters.output_schema}}"
+        for task in notebook_tasks
+    )
+
+
+def test_analytics_pctr_notebooks_cannot_default_to_ds_sandbox():
+    sql_directory = PROJECT_ROOT / "experiments" / "analytics_pctr" / "SQL"
+    sql_files = tuple(sql_directory.rglob("*.sql"))
+
+    assert sql_files
+    for sql_file in sql_files:
+        source = sql_file.read_text(encoding="utf-8")
+        assert "marketingdata_dev.ds_sandbox" not in source
+        if "CREATE WIDGET TEXT catalog_schema_prefix" in source:
+            assert "OUTPUT_LOCATION_REQUIRED" in source
+
 
 def test_account_feature_task_uses_theme_affinity_source_outputs():
     source = (
