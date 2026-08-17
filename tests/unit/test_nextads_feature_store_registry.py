@@ -609,6 +609,12 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         == "next_uk_nextads_theme_affinity_training"
     )
     assert (
+        bundle_config["variables"][
+            "feature_store_product_embedding_binding"
+        ]["default"]
+        == "configs/features/product_embedding_materialization_dev.yaml"
+    )
+    assert (
         bundle_config["targets"]["SANDBOX"]["variables"][
             "feature_store_schema"
         ]
@@ -617,6 +623,15 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     assert (
         bundle_config["targets"]["DEV"]["variables"]["feature_store_schema"]
         == "${var.git_last_commit_user_name}"
+    )
+    assert (
+        bundle_config["targets"]["DEV"]["variables"][
+            "feature_store_product_embedding_binding"
+        ]
+        == (
+            "configs/features/"
+            "product_embedding_materialization_personal_dev.yaml"
+        )
     )
     assert (
         "feature_store_theme_source_catalog"
@@ -881,6 +896,28 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     )
     assert embedding_task["libraries"] == (
         "${var.feature_store_embedding_libraries}"
+    )
+    embedding_parameters = embedding_task["spark_python_task"]["parameters"]
+    assert (
+        embedding_parameters[
+            embedding_parameters.index("--product_embedding_binding") + 1
+        ]
+        == "${var.feature_store_product_embedding_binding}"
+    )
+    advert_profile_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "build_advert_product_profile_daily"
+    )
+    advert_profile_parameters = advert_profile_task["spark_python_task"][
+        "parameters"
+    ]
+    assert (
+        advert_profile_parameters[
+            advert_profile_parameters.index("--product_embedding_binding")
+            + 1
+        ]
+        == "${var.feature_store_product_embedding_binding}"
     )
     assert all(
         task["libraries"] == "${var.feature_store_libraries}"

@@ -24,6 +24,7 @@ def test_main_validates_runtime_and_model_before_replacing_complete_snapshot(
         source_catalog="marketingdata_prod",
         source_schema="warehouse",
         reference_date="2026-08-01",
+        product_embedding_binding="configs/features/personal.yaml",
         log_level="INFO",
     )
     source_path = "marketingdata_prod.warehouse.product_catalog_history"
@@ -69,7 +70,14 @@ def test_main_validates_runtime_and_model_before_replacing_complete_snapshot(
     monkeypatch.setattr(
         job,
         "load_product_embedding_materialization_binding",
-        lambda: binding,
+        lambda path: calls.setdefault("binding_path", path) and binding,
+    )
+    monkeypatch.setattr(
+        job,
+        "validate_materialization_binding_target",
+        lambda actual_binding, **kwargs: calls.setdefault(
+            "binding_target", (actual_binding, kwargs)
+        ),
     )
     monkeypatch.setattr(
         job,
@@ -129,6 +137,14 @@ def test_main_validates_runtime_and_model_before_replacing_complete_snapshot(
 
     job.main()
 
+    assert calls["binding_path"] == "configs/features/personal.yaml"
+    assert calls["binding_target"] == (
+        binding,
+        {
+            "catalog": "marketingdata_dev",
+            "schema": "nextads_feature_store",
+        },
+    )
     assert spark.reads == [source_path, target_path]
     assert calls["runtime"] == (spark, definition)
     assert calls["source"] == (

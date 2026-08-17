@@ -6,12 +6,14 @@ import pytest
 import yaml
 
 from next_ads.features.embedding_contract import (
+    DEFAULT_PERSONAL_DEV_MATERIALIZATION_BINDING_PATH,
     EmbeddingModelBinding,
     EmbeddingRuntimeProfile,
     ProductEmbeddingDefinition,
     load_approved_dev_smoke_binding,
     load_product_embedding_definition,
     load_product_embedding_materialization_binding,
+    validate_materialization_binding_target,
 )
 
 
@@ -157,6 +159,66 @@ def test_shared_dev_materialization_binding_pins_the_promoted_model_version():
     assert binding.artifact_sha256 == (
         "bc4daec2a2647ce42ad35df49181c762187cd4e1fed008915ce4f76ac89ca384"
     )
+
+
+def test_personal_dev_materialization_uses_the_exact_reviewed_source_model():
+    binding = load_product_embedding_materialization_binding(
+        DEFAULT_PERSONAL_DEV_MATERIALIZATION_BINDING_PATH
+    )
+
+    assert binding.purpose == "personal_dev_validation"
+    assert binding.model.registered_model_name == (
+        binding.source_registered_model_name
+    )
+    assert binding.model.registered_model_version == (
+        binding.source_registered_model_version
+    )
+    validate_materialization_binding_target(
+        binding,
+        catalog="marketingdata_dev",
+        schema="Stephen_Blain",
+    )
+    with pytest.raises(ValueError, match="does not match"):
+        validate_materialization_binding_target(
+            binding,
+            catalog="marketingdata_dev",
+            schema="nextads_feature_store",
+        )
+
+
+def test_shared_materialization_cannot_write_to_a_personal_feature_schema():
+    binding = load_product_embedding_materialization_binding()
+
+    validate_materialization_binding_target(
+        binding,
+        catalog="marketingdata_dev",
+        schema="nextads_feature_store",
+    )
+    with pytest.raises(ValueError, match="does not match"):
+        validate_materialization_binding_target(
+            binding,
+            catalog="marketingdata_dev",
+            schema="stephen_blain",
+        )
+
+
+def test_personal_materialization_cannot_substitute_another_model(tmp_path):
+    document = yaml.safe_load(
+        DEFAULT_PERSONAL_DEV_MATERIALIZATION_BINDING_PATH.read_text()
+    )
+    values = document["product_embedding_materialization"]
+    values["registered_model_name"] = (
+        "marketingdata_dev.nextads_integration.unreviewed_model"
+    )
+    values["registered_model_version"] = 1
+    values["model_uri"] = (
+        "models:/marketingdata_dev.nextads_integration.unreviewed_model/1"
+    )
+    path = tmp_path / "personal-materialization.yaml"
+    path.write_text(yaml.safe_dump(document, sort_keys=False))
+
+    with pytest.raises(ValueError, match="exact approved source model"):
+        load_product_embedding_materialization_binding(path)
 
 
 def test_dev_smoke_binding_rejects_changed_provenance(tmp_path):

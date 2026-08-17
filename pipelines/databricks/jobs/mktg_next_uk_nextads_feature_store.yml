@@ -134,6 +134,8 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --product_embedding_binding
+          - ${var.feature_store_product_embedding_binding}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D16ads_v5_2_2
@@ -161,6 +163,8 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --product_embedding_binding
+          - ${var.feature_store_product_embedding_binding}
           - --replace_reference_date
           - "true"
           - --log_level

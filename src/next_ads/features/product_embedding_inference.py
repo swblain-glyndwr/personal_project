@@ -84,6 +84,8 @@ def validate_materialization_runtime(
 
 def validate_promoted_model_provenance(version_info, binding) -> None:
     """Require the shared version to point to the recorded source version."""
+    if binding.purpose == "personal_dev_validation":
+        return
     tags = dict(getattr(version_info, "tags", {}) or {})
     expected_tags = {
         "source_registered_model_name": (

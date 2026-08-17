@@ -43,6 +43,7 @@ def local_spark():
 
 def _binding():
     return SimpleNamespace(
+        purpose="shared_dev_materialization",
         model=SimpleNamespace(
             registered_model_name=MODEL_NAME,
             registered_model_version=MODEL_VERSION,
@@ -197,3 +198,10 @@ def test_promoted_model_provenance_must_match_recorded_source():
     invalid = SimpleNamespace(tags={"source_model_version": "12"})
     with pytest.raises(ValueError, match="provenance does not match"):
         validate_promoted_model_provenance(invalid, binding)
+
+
+def test_personal_validation_does_not_require_promotion_tags():
+    binding = _binding()
+    binding.purpose = "personal_dev_validation"
+
+    validate_promoted_model_provenance(SimpleNamespace(tags={}), binding)

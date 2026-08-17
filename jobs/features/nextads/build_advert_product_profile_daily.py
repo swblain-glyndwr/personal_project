@@ -17,6 +17,7 @@ from next_ads.features import load_feature_store_registry
 from next_ads.features.advert_items import build_advert_item_bridge
 from next_ads.features.embedding_contract import (
     load_product_embedding_materialization_binding,
+    validate_materialization_binding_target,
 )
 from next_ads.features.materialization import (
     create_feature_engineering_client,
@@ -148,9 +149,16 @@ def main() -> None:
 
     spark = configure_spark()
     registry = load_feature_store_registry()
-    embedding_binding = load_product_embedding_materialization_binding()
     target_catalog = args.catalog or registry.default_catalog
     target_schema = args.schema or registry.default_schema
+    embedding_binding = load_product_embedding_materialization_binding(
+        args.product_embedding_binding
+    )
+    validate_materialization_binding_target(
+        embedding_binding,
+        catalog=target_catalog,
+        schema=target_schema,
+    )
     reference_date = resolve_reference_date_from_theme(spark, args)
     replace_reference_date = args.replace_reference_date.lower() == "true"
     feature_engineering_client = create_feature_engineering_client()

@@ -48,6 +48,10 @@ def parse_common_args() -> argparse.Namespace:
     parser.add_argument("--client", default="next_uk")
     parser.add_argument("--theme_training_reference_date", default="skip")
     parser.add_argument(
+        "--product_embedding_binding",
+        default="configs/features/product_embedding_materialization_dev.yaml",
+    )
+    parser.add_argument(
         "--theme_training_table_prefix",
         default="next_uk_nextads_theme_affinity_training",
     )

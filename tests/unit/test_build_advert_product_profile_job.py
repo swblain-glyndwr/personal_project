@@ -109,6 +109,7 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
         source_catalog=SOURCE_CATALOG,
         source_schema=SOURCE_SCHEMA,
         reference_date=None,
+        product_embedding_binding="configs/features/personal.yaml",
         replace_reference_date="true",
         log_level="INFO",
     )
@@ -141,7 +142,15 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
     monkeypatch.setattr(
         job,
         "load_product_embedding_materialization_binding",
-        lambda: embedding_binding,
+        lambda path: calls.setdefault("binding_path", path)
+        and embedding_binding,
+    )
+    monkeypatch.setattr(
+        job,
+        "validate_materialization_binding_target",
+        lambda actual_binding, **kwargs: calls.setdefault(
+            "binding_target", (actual_binding, kwargs)
+        ),
     )
     monkeypatch.setattr(
         job,
@@ -202,6 +211,11 @@ def test_main_uses_shared_date_bridge_profile_and_registered_merge(
 
     job.main()
 
+    assert calls["binding_path"] == "configs/features/personal.yaml"
+    assert calls["binding_target"] == (
+        embedding_binding,
+        {"catalog": TARGET_CATALOG, "schema": TARGET_SCHEMA},
+    )
     assert calls["ownership"] == (
         job.BUILDER,
         (job.OUTPUT_TABLE,),

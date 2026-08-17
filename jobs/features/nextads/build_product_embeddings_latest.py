@@ -16,6 +16,7 @@ from next_ads.features import load_feature_store_registry
 from next_ads.features.embedding_contract import (
     load_product_embedding_definition,
     load_product_embedding_materialization_binding,
+    validate_materialization_binding_target,
 )
 from next_ads.features.materialization import write_feature_table
 from next_ads.features.nextads_core import (
@@ -52,7 +53,14 @@ def main() -> None:
     target_schema = args.schema or registry.default_schema
     reference_date = resolve_reference_date_from_theme(spark, args)
     definition = load_product_embedding_definition()
-    binding = load_product_embedding_materialization_binding()
+    binding = load_product_embedding_materialization_binding(
+        args.product_embedding_binding
+    )
+    validate_materialization_binding_target(
+        binding,
+        catalog=target_catalog,
+        schema=target_schema,
+    )
     validate_builder_output_tables(BUILDER, (OUTPUT_TABLE,), registry)
 
     runtime_evidence = validate_materialization_runtime(spark, definition)

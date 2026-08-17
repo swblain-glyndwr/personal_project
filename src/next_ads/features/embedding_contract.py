@@ -26,6 +26,12 @@ DEFAULT_DEV_MATERIALIZATION_BINDING_PATH = (
     / "features"
     / "product_embedding_materialization_dev.yaml"
 )
+DEFAULT_PERSONAL_DEV_MATERIALIZATION_BINDING_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "features"
+    / "product_embedding_materialization_personal_dev.yaml"
+)
 
 EXPECTED_CONTRACT_VERSION = 1
 EXPECTED_SOURCE_MODEL_NAME = "sentence-transformers/all-MiniLM-L12-v2"
@@ -605,7 +611,7 @@ class ApprovedEmbeddingSmokeBinding:
 
 @dataclass(frozen=True)
 class ProductEmbeddingMaterializationBinding:
-    """Exact shared DEV model used for product materialisation."""
+    """Exact model artifact approved for one DEV materialisation route."""
 
     environment: str
     purpose: str
@@ -619,7 +625,7 @@ class ProductEmbeddingMaterializationBinding:
     inference_batch_size: int
 
     def __post_init__(self) -> None:
-        """Reject personal targets, mutable versions, and unsafe paths."""
+        """Reject ambiguous targets, mutable versions, and unsafe paths."""
         environment = _required_text(
             self.environment,
             "environment",
@@ -636,25 +642,19 @@ class ProductEmbeddingMaterializationBinding:
             "environment",
             "Product embedding materialization binding",
         )
-        _require_value(
-            purpose,
+        if purpose not in {
+            "personal_dev_validation",
             "shared_dev_materialization",
-            "purpose",
-            "Product embedding materialization binding",
-        )
+        }:
+            raise ValueError(
+                "Product embedding materialization binding purpose must be "
+                "personal_dev_validation or shared_dev_materialization"
+            )
         if not isinstance(self.model, EmbeddingModelBinding):
             raise ValueError(
                 "Product embedding materialization binding model must "
                 "be an EmbeddingModelBinding"
             )
-        if not self.model.registered_model_name.startswith(
-            "marketingdata_dev.nextads_integration."
-        ):
-            raise ValueError(
-                "Product embedding materialization binding registered model "
-                "must be in marketingdata_dev.nextads_integration"
-            )
-
         source_name = _required_text(
             self.source_registered_model_name,
             "source_registered_model_name",
@@ -674,6 +674,23 @@ class ProductEmbeddingMaterializationBinding:
                 "Product embedding materialization binding "
                 "source_registered_model_version must be a positive numeric "
                 "version"
+            )
+        source_version = int(source_version_text)
+        if purpose == "shared_dev_materialization":
+            if not self.model.registered_model_name.startswith(
+                "marketingdata_dev.nextads_integration."
+            ):
+                raise ValueError(
+                    "Shared product embedding materialization model must be "
+                    "in marketingdata_dev.nextads_integration"
+                )
+        elif (
+            self.model.registered_model_name != source_name
+            or self.model.registered_model_version != source_version
+        ):
+            raise ValueError(
+                "Personal DEV materialization must use the exact approved "
+                "source model name and version"
             )
 
         source_run_id = _required_text(
@@ -738,7 +755,7 @@ class ProductEmbeddingMaterializationBinding:
         object.__setattr__(
             self,
             "source_registered_model_version",
-            int(source_version_text),
+            source_version,
         )
         object.__setattr__(self, "source_run_id", source_run_id)
         object.__setattr__(self, "artifact_sha256", artifact_sha256)
@@ -870,11 +887,43 @@ def load_product_embedding_materialization_binding(
     )
 
 
+def validate_materialization_binding_target(
+    binding: ProductEmbeddingMaterializationBinding,
+    *,
+    catalog: str,
+    schema: str,
+) -> None:
+    """Keep personal proof and shared DEV publication in separate schemas."""
+    resolved_catalog = _required_text(
+        catalog,
+        "catalog",
+        "Product embedding materialization target",
+    ).lower()
+    resolved_schema = _required_text(
+        schema,
+        "schema",
+        "Product embedding materialization target",
+    ).lower()
+    if binding.purpose == "shared_dev_materialization":
+        expected = ("marketingdata_dev", "nextads_feature_store")
+    else:
+        model_parts = binding.model.registered_model_name.split(".")
+        expected = (model_parts[0].lower(), model_parts[1].lower())
+    actual = (resolved_catalog, resolved_schema)
+    if actual != expected:
+        raise ValueError(
+            "Product embedding materialization binding does not match the "
+            f"target Feature Store schema: expected {expected[0]}."
+            f"{expected[1]}, found {actual[0]}.{actual[1]}"
+        )
+
+
 __all__ = [
     "ApprovedEmbeddingSmokeBinding",
     "DEFAULT_DEV_SMOKE_BINDING_PATH",
     "DEFAULT_DEV_MATERIALIZATION_BINDING_PATH",
     "DEFAULT_PRODUCT_EMBEDDING_CONTRACT_PATH",
+    "DEFAULT_PERSONAL_DEV_MATERIALIZATION_BINDING_PATH",
     "EmbeddingModelBinding",
     "EmbeddingRuntimeProfile",
     "ProductEmbeddingDefinition",
@@ -882,4 +931,5 @@ __all__ = [
     "load_approved_dev_smoke_binding",
     "load_product_embedding_definition",
     "load_product_embedding_materialization_binding",
+    "validate_materialization_binding_target",
 ]

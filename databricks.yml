@@ -137,6 +137,9 @@ variables:
   feature_store_theme_training_table_prefix:
     description: Staging table prefix used when creating labelled Theme Affinity training input from historical prep
     default: next_uk_nextads_theme_affinity_training
+  feature_store_product_embedding_binding:
+    description: Exact model binding used by Feature Store embedding builders
+    default: configs/features/product_embedding_materialization_dev.yaml
   theme_affinity_training_input_table:
     description: Theme Affinity labelled training input table for DEV model-building jobs
     default: ""
@@ -210,6 +213,7 @@ targets:
       # override user schema to last git commit author for dev environment, this is because for DEV deployment the SP would be the user and we want to avoid collision of user schemas in dev when multiple developers are deploying.
       user_schema: ${var.git_last_commit_user_name}
       feature_store_schema: ${var.git_last_commit_user_name}
+      feature_store_product_embedding_binding: configs/features/product_embedding_materialization_personal_dev.yaml
       theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
       theme_affinity_monitor_baseline_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
       theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
