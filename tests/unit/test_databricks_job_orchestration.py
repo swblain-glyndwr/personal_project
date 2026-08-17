@@ -224,6 +224,7 @@ def test_main_job_waits_for_native_page_build_results():
     trigger_v1_task = tasks_by_key["run_page_build_v1"]
     trigger_v2_task = tasks_by_key["run_page_build_v2"]
     data_pull_task = tasks_by_key["trigger_data_pull_for_CMS_pull"]
+    exclusions_task = tasks_by_key["write_exclusions"]
 
     assert job["name"] == "mktg_next_uk_nextads_candidate_build"
     assert job["email_notifications"]["on_failure"] == (
@@ -252,6 +253,13 @@ def test_main_job_waits_for_native_page_build_results():
     assert tasks_by_key["audit_control_sheet_v2"]["depends_on"] == [
         {"task_key": "process_control_sheet_v2"},
     ]
+    assert exclusions_task["depends_on"] == [
+        {"task_key": "load_control_sheet_v2"},
+    ]
+    assert exclusions_task["spark_python_task"]["python_file"] == (
+        "../../../jobs/nextads_control/exclusions_export.py"
+    )
+    assert exclusions_task["libraries"] == "${var.cosmos_libraries}"
     _assert_cli_values(
         tasks_by_key["load_control_sheet_v2"], {"--phase": "land"}
     )

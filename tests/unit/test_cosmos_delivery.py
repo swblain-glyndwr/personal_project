@@ -83,6 +83,22 @@ class FakeContainer:
     def upsert_item(self, document):
         self.documents.append(document)
 
+    def query_items(
+        self,
+        query,
+        parameters=None,
+        enable_cross_partition_query=False,
+    ):
+        assert isinstance(query, str)
+        assert enable_cross_partition_query is True
+
+        if not parameters:
+            return list(self.documents)
+
+        parameter_map = {item["name"]: item["value"] for item in parameters}
+        doc_id = parameter_map.get("@id")
+        return [doc for doc in self.documents if doc.get("id") == doc_id]
+
 
 class FakeDatabase:
     def __init__(self, container):
