@@ -27,7 +27,7 @@ def test_manual_label_job_sets_up_and_publishes_only_the_new_contract():
 
     assert set(tasks) == {
         "create_observed_label_table",
-        "publish_observed_labels",
+        "build_shopping_bag_click_labels",
     }
     setup = tasks["create_observed_label_table"]["spark_python_task"]
     assert setup["python_file"].endswith("/create_feature_store_tables.py")
@@ -39,11 +39,13 @@ def test_manual_label_job_sets_up_and_publishes_only_the_new_contract():
         setup["parameters"].index("--recreate_tables") + 1
     ] == "false"
 
-    publication = tasks["publish_observed_labels"]["spark_python_task"]
+    publication = tasks["build_shopping_bag_click_labels"][
+        "spark_python_task"
+    ]
     assert publication["python_file"].endswith(
         "/build_shopping_bag_click_labels.py"
     )
-    assert tasks["publish_observed_labels"]["depends_on"] == [
+    assert tasks["build_shopping_bag_click_labels"]["depends_on"] == [
         {"task_key": "create_observed_label_table"}
     ]
     assert "build_account_features.py" not in source

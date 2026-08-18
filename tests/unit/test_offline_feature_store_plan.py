@@ -96,6 +96,18 @@ def test_offline_plan_reports_builders_dependencies_and_missing_contracts():
     ]
     assert pctr["missing_contracts"] == []
 
+    observed_labels = features[
+        "next_uk_nextads_fs_shopping_bag_click_labels"
+    ]
+    assert observed_labels["builder"] == "build_shopping_bag_click_labels"
+    assert observed_labels["builder_job"] == (
+        "mktg_next_uk_nextads_shopping_bag_label_publication"
+    )
+    assert observed_labels["execution_scope"] == "MANUAL_DEV_PROOF"
+    assert observed_labels["task_dependencies"] == [
+        "create_observed_label_table"
+    ]
+
 
 def test_compatibility_view_plan_reports_contract_readiness_not_live_state():
     plan = build_offline_feature_store_plan(environments=("PROD",))
