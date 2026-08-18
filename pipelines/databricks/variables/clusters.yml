@@ -171,9 +171,7 @@ variables:
       - job_cluster_key: next_ads_job_cluster_model_research_automl_D32ads_v5_4
         new_cluster:
           <<: *base_cluster_fixed_standard
-          kind: CLASSIC_PREVIEW
           spark_version: 15.4.x-cpu-ml-scala2.12
-          use_ml_runtime: true
           node_type_id: Standard_D32ads_v5
           driver_node_type_id: Standard_D32ads_v5
           num_workers: 4

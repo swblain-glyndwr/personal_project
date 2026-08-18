@@ -97,8 +97,8 @@ def test_model_research_dependencies_and_clusters_are_isolated():
     assert standard["num_workers"] == 4
     assert standard["node_type_id"] == "Standard_D32ads_v5"
     assert automl["spark_version"] == "15.4.x-cpu-ml-scala2.12"
-    assert automl["kind"] == "CLASSIC_PREVIEW"
-    assert automl["use_ml_runtime"] is True
+    assert "kind" not in automl
+    assert "use_ml_runtime" not in automl
     assert automl["num_workers"] == 4
 
 
