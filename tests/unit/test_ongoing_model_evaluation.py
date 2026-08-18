@@ -1,5 +1,7 @@
 from dataclasses import replace
 from datetime import date, datetime, timezone
+import hashlib
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,6 +13,8 @@ from next_ads.model_development.ongoing_evaluation import (
     CandidateInputBinding,
     OngoingEvaluationBuild,
     _require_non_empty_candidate_scope,
+    _validate_account_limit,
+    build_shopping_bag_candidate_frame,
     evaluation_scoring_build_id,
     persist_evaluation_build,
     scoring_build_attempt_id,
@@ -91,6 +95,8 @@ def _building():
         artifact_digest=model_build.artifact_digest,
         run_date=date(2026, 8, 18),
         serving_slot="best",
+        account_limit=10_000,
+        input_account_count=100,
         candidate_bindings=(
             _candidate_binding(),
             _candidate_binding("v2", "candidate-v2-attempt"),
@@ -108,13 +114,21 @@ def _building():
     )
 
 
-def _build_id(*, candidates=None, features=None):
+def _build_id(
+    *,
+    candidates=None,
+    features=None,
+    account_limit=10_000,
+    input_account_count=100,
+):
     definition = load_model_definition("shopping_bag_pctr")
     return evaluation_scoring_build_id(
         definition=definition,
         model_build=_model_build(),
         run_date=date(2026, 8, 18),
         serving_slot="best",
+        account_limit=account_limit,
+        input_account_count=input_account_count,
         candidate_bindings=candidates
         or (
             _candidate_binding(),
@@ -139,6 +153,27 @@ def test_daily_build_id_pins_model_candidates_and_feature_versions():
         )
     )
     assert original != _build_id(features=(_feature_binding(43),))
+    assert original != _build_id(account_limit=20_000)
+    assert original != _build_id(input_account_count=99)
+
+
+@pytest.mark.parametrize("value", [True, 0, -1, 1.5, "100"])
+def test_account_limit_rejects_non_integer_or_non_positive_values(value):
+    with pytest.raises(ValueError, match="positive integer"):
+        _validate_account_limit(value)
+
+
+def test_evaluation_manifest_records_bounded_account_cohort():
+    building = _building()
+
+    assert building.as_row()["account_limit"] == 10_000
+    assert building.as_row()["input_account_count"] == 100
+    with pytest.raises(ValueError, match="cannot exceed account_limit"):
+        replace(
+            building,
+            account_limit=99,
+            input_account_count=100,
+        )
 
 
 def test_retry_attempt_id_is_immutable_and_execution_specific():
@@ -168,6 +203,144 @@ def test_candidate_builder_requires_every_shopping_bag_scope():
             scope_type="page_type",
             scope_value="ShoppingBagPage",
         )
+
+
+@pytest.fixture(scope="module")
+def local_spark():
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError as exc:
+        pytest.skip(f"PySpark unavailable: {exc}")
+    try:
+        return (
+            SparkSession.builder.master("local[2]")
+            .appName("next-ads-ongoing-evaluation-tests")
+            .getOrCreate()
+        )
+    except (RuntimeError, ValueError) as exc:
+        pytest.skip(f"Local Spark unavailable: {exc}")
+
+
+class _AcceptedCandidates:
+    def __init__(self, frames, route):
+        self.frames = frames
+        self.provenance = SimpleNamespace(
+            candidate_build_id=f"candidate-{route}",
+            candidate_build_attempt_id=f"candidate-{route}-attempt",
+            portfolio_id=f"portfolio-{route}",
+            portfolio_attempt_id=f"portfolio-{route}-attempt",
+            candidate_foundation_snapshot_id=f"foundation-{route}",
+        )
+
+    def candidates_for_scope(self, serving_slot, scope):
+        assert serving_slot == "best"
+        return self.frames[scope]
+
+
+def _candidate_frame(spark, accounts, suffix):
+    rows = [
+        (account, f"P-{suffix}-{advert}", 0.5, 0.4, advert)
+        for account in accounts
+        for advert in (1, 2)
+    ]
+    return spark.createDataFrame(
+        rows,
+        "AccountNumber string, UniqueAdID string, Score double, "
+        "TriggerScore double, Rank int",
+    )
+
+
+def test_bounded_candidate_cohort_is_deterministic_and_route_complete(
+    local_spark,
+):
+    accounts = ["A-4", "A-2", "A-1", "A-3"]
+    reversed_accounts = list(reversed(accounts))
+    accepted_v1 = _AcceptedCandidates(
+        {
+            "SB1": _candidate_frame(local_spark, accounts, "SB1"),
+            "SB2": _candidate_frame(local_spark, reversed_accounts, "SB2"),
+        },
+        "v1",
+    )
+    accepted_v2 = _AcceptedCandidates(
+        {
+            "ShoppingBagPage": _candidate_frame(
+                local_spark,
+                ["A-3", "A-1", "A-4", "A-2"],
+                "SBP",
+            )
+        },
+        "v2",
+    )
+
+    first = build_shopping_bag_candidate_frame(
+        accepted_v1,
+        accepted_v2,
+        serving_slot="best",
+        account_limit=2,
+    )
+    reordered_v1 = _AcceptedCandidates(
+        {
+            "SB1": _candidate_frame(
+                local_spark,
+                reversed_accounts,
+                "SB1",
+            ).repartition(3),
+            "SB2": _candidate_frame(
+                local_spark,
+                accounts,
+                "SB2",
+            ).repartition(2),
+        },
+        "v1",
+    )
+    reordered_v2 = _AcceptedCandidates(
+        {
+            "ShoppingBagPage": _candidate_frame(
+                local_spark,
+                reversed_accounts,
+                "SBP",
+            ).repartition(4)
+        },
+        "v2",
+    )
+    second = build_shopping_bag_candidate_frame(
+        reordered_v1,
+        reordered_v2,
+        serving_slot="best",
+        account_limit=2,
+    )
+    expected_accounts = set(
+        sorted(
+            accounts,
+            key=lambda value: (
+                hashlib.sha256(value.encode()).hexdigest(),
+                value,
+            ),
+        )[:2]
+    )
+    first_rows = first.select(
+        "account_number", "route", "scope_value"
+    ).collect()
+    second_rows = second.select(
+        "account_number", "route", "scope_value"
+    ).collect()
+
+    assert {row["account_number"] for row in first_rows} == expected_accounts
+    assert sorted(tuple(row) for row in first_rows) == sorted(
+        tuple(row) for row in second_rows
+    )
+    assert len(first_rows) == 12
+    for account in expected_accounts:
+        assert {
+            (row["route"], row["scope_value"])
+            for row in first_rows
+            if row["account_number"] == account
+        } == {
+            ("v1", "SB1"),
+            ("v1", "SB2"),
+            ("v2", "ShoppingBagPage"),
+        }
 
 
 def test_ready_is_only_valid_after_exact_delta_output_exists():

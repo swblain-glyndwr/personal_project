@@ -36,6 +36,11 @@ def test_job_scores_exact_inputs_and_publishes_ready_last():
     assert 'route="v1"' in source
     assert 'route="v2"' in source
     assert "build_label_free_scoring_set(" in source
+    assert source.index("build_shopping_bag_candidate_frame(") < source.index(
+        "build_label_free_scoring_set("
+    )
+    assert "account_limit=args.account_limit" in source
+    assert '"input_account_count": input_account_count' in source
     assert (
         "account_entity_scores/v1"
         in (
@@ -96,6 +101,14 @@ def test_bundle_is_manual_dev_only_and_separate_from_customer_jobs():
         "name": "run_date",
         "default": "{{job.start_time.iso_date}}",
     }
+    assert {"name": "account_limit", "default": "10000"} in resource[
+        "parameters"
+    ]
+    parameters = task["spark_python_task"]["parameters"]
+    account_limit_index = parameters.index("--account_limit")
+    assert parameters[account_limit_index + 1] == (
+        "{{job.parameters.account_limit}}"
+    )
     assert "schedule:" not in text
     assert "PROD:" not in text
     assert "assign" not in text.lower()
@@ -125,6 +138,8 @@ def test_history_tables_preserve_model_candidate_and_feature_provenance():
         "artifact_digest",
         "candidate_bindings_json",
         "feature_bindings_json",
+        "account_limit",
+        "input_account_count",
         "output_delta_version",
         "status",
     ):

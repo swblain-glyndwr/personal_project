@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_model_evaluation_s
   artifact_digest STRING NOT NULL,
   run_date DATE NOT NULL,
   serving_slot STRING NOT NULL,
+  account_limit BIGINT NOT NULL,
+  input_account_count BIGINT NOT NULL,
   candidate_bindings_json STRING NOT NULL,
   feature_bindings_json STRING NOT NULL,
   input_row_count BIGINT NOT NULL,

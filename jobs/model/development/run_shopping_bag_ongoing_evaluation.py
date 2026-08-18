@@ -99,6 +99,7 @@ def parse_args() -> argparse.Namespace:
         default="AUTO",
     )
     parser.add_argument("--candidate_serving_slot", default="best")
+    parser.add_argument("--account_limit", type=int, required=True)
     parser.add_argument("--code_sha", required=True)
     parser.add_argument("--orchestration_run_id", type=int, required=True)
     parser.add_argument("--task_run_id", type=int, required=True)
@@ -218,7 +219,11 @@ def main() -> None:
         accepted_v1,
         accepted_v2,
         serving_slot=args.candidate_serving_slot,
+        account_limit=args.account_limit,
     ).cache()
+    input_account_count = (
+        candidates.select("account_number").distinct().count()
+    )
     scoring_set = build_label_free_scoring_set(
         spark,
         definition,
@@ -252,6 +257,8 @@ def main() -> None:
         model_build=model_build,
         run_date=run_date,
         serving_slot=args.candidate_serving_slot,
+        account_limit=args.account_limit,
+        input_account_count=input_account_count,
         candidate_bindings=candidate_bindings,
         feature_bindings=scoring_set.feature_bindings,
         input_row_count=scoring_set.row_count,
@@ -277,6 +284,8 @@ def main() -> None:
         artifact_digest=model_build.artifact_digest,
         run_date=run_date,
         serving_slot=args.candidate_serving_slot,
+        account_limit=args.account_limit,
+        input_account_count=input_account_count,
         candidate_bindings=candidate_bindings,
         feature_bindings=scoring_set.feature_bindings,
         input_row_count=scoring_set.row_count,
@@ -355,6 +364,7 @@ def main() -> None:
 
     evidence = {
         "activation_mode": "EVALUATE",
+        "account_limit": args.account_limit,
         "artifact_digest": model_build.artifact_digest,
         "candidate_bindings": [
             binding.candidate_build_attempt_id
@@ -371,6 +381,7 @@ def main() -> None:
         ],
         "model_build_id": model_build.model_build_id,
         "model_uri": model_build.model_uri,
+        "input_account_count": input_account_count,
         "output_delta_version": output.delta_version,
         "output_rows": output.row_count,
         "provider_contract": scoring.provider_contract,

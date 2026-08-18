@@ -30,6 +30,8 @@ shopping_bag_ongoing_evaluation_job: &shopping_bag_ongoing_evaluation_job
       default: AUTO
     - name: candidate_serving_slot
       default: best
+    - name: account_limit
+      default: "10000"
   job_clusters: ${var.job_clusters_config}
   tags:
     deployed_at: ${var.deploy_timestamp}
@@ -77,6 +79,8 @@ shopping_bag_ongoing_evaluation_job: &shopping_bag_ongoing_evaluation_job
           - "{{job.parameters.v2_candidate_build_attempt_id}}"
           - --candidate_serving_slot
           - "{{job.parameters.candidate_serving_slot}}"
+          - --account_limit
+          - "{{job.parameters.account_limit}}"
           - --code_sha
           - ${var.git_commit_sha}
           - --orchestration_run_id

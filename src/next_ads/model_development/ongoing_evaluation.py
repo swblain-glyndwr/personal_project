@@ -66,6 +66,13 @@ def _required_text(value: Any, field_name: str) -> str:
     return value.strip()
 
 
+def _validate_account_limit(value: Any) -> int:
+    """Require an explicit positive safety bound for DEV evaluation."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("account_limit must be a positive integer")
+    return value
+
+
 def _table_path(catalog: str, schema: str, table: str) -> str:
     return ".".join(
         _required_text(value, label)
@@ -138,6 +145,8 @@ class OngoingEvaluationBuild:
     artifact_digest: str
     run_date: date
     serving_slot: str
+    account_limit: int
+    input_account_count: int
     candidate_bindings: tuple[CandidateInputBinding, ...]
     feature_bindings: tuple[ScoringFeatureBinding, ...]
     input_row_count: int
@@ -176,8 +185,17 @@ class OngoingEvaluationBuild:
             _required_text(getattr(self, field_name), field_name)
         if self.registered_model_version < 1:
             raise ValueError("registered_model_version must be positive")
+        _validate_account_limit(self.account_limit)
+        if self.input_account_count < 1:
+            raise ValueError("input_account_count must be positive")
+        if self.input_account_count > self.account_limit:
+            raise ValueError("input_account_count cannot exceed account_limit")
         if self.input_row_count < 1:
             raise ValueError("input_row_count must be positive")
+        if self.input_account_count > self.input_row_count:
+            raise ValueError(
+                "input_account_count cannot exceed input_row_count"
+            )
         if not self.candidate_bindings or not self.feature_bindings:
             raise ValueError(
                 "Evaluation builds need candidate and feature bindings"
@@ -225,6 +243,8 @@ class OngoingEvaluationBuild:
             "artifact_digest": self.artifact_digest,
             "run_date": self.run_date,
             "serving_slot": self.serving_slot,
+            "account_limit": self.account_limit,
+            "input_account_count": self.input_account_count,
             "candidate_bindings_json": json.dumps(
                 [asdict(binding) for binding in self.candidate_bindings],
                 sort_keys=True,
@@ -322,6 +342,8 @@ def evaluation_scoring_build_id(
     model_build: ModelBuild,
     run_date: date,
     serving_slot: str,
+    account_limit: int,
+    input_account_count: int,
     candidate_bindings: tuple[CandidateInputBinding, ...],
     feature_bindings: tuple[ScoringFeatureBinding, ...],
     input_row_count: int,
@@ -330,14 +352,21 @@ def evaluation_scoring_build_id(
     git_commit: str,
 ) -> str:
     """Hash every input that can change one day's evaluation scores."""
+    limit = _validate_account_limit(account_limit)
+    if input_account_count < 1:
+        raise ValueError("input_account_count must be positive")
+    if input_account_count > limit:
+        raise ValueError("input_account_count cannot exceed account_limit")
     payload = {
-        "contract_version": "shopping_bag_ongoing_evaluation/v1",
+        "contract_version": "shopping_bag_ongoing_evaluation/v2",
         "model_build_id": model_build.model_build_id,
         "model_definition_checksum": definition.checksum,
         "model_uri": model_build.model_uri,
         "artifact_digest": model_build.artifact_digest,
         "run_date": run_date.isoformat(),
         "serving_slot": _required_text(serving_slot, "serving_slot"),
+        "account_limit": limit,
+        "input_account_count": input_account_count,
         "candidate_bindings": [
             asdict(binding)
             for binding in sorted(
@@ -455,12 +484,14 @@ def build_shopping_bag_candidate_frame(
     accepted_v2: Any,
     *,
     serving_slot: str,
+    account_limit: int,
 ) -> Any:
-    """Read current SB scopes from exact accepted v1 and v2 attempts."""
+    """Read one deterministic, route-complete SB evaluation cohort."""
     from pyspark.sql import functions as F
 
+    limit = _validate_account_limit(account_limit)
     inputs = {"v1": accepted_v1, "v2": accepted_v2}
-    frames = []
+    scoped_frames = []
     for route, scope_type, scope_value in SHOPPING_BAG_SCOPES:
         accepted = inputs[route]
         frame = accepted.candidates_for_scope(
@@ -475,43 +506,95 @@ def build_shopping_bag_candidate_frame(
             .alias("incumbent_trigger_score"),
             F.col("Rank").cast("int").alias("incumbent_rank"),
         )
-        _require_non_empty_candidate_scope(
-            frame,
-            route=route,
-            scope_type=scope_type,
-            scope_value=scope_value,
-        )
         provenance = accepted.provenance
-        frames.append(
-            frame.withColumn("route", F.lit(route))
-            .withColumn("scope_type", F.lit(scope_type))
-            .withColumn("scope_value", F.lit(scope_value))
-            .withColumn("location", F.lit(scope_value))
-            .withColumn(
-                "candidate_build_id",
-                F.lit(provenance.candidate_build_id),
+        scoped_frames.append(
+            (
+                route,
+                scope_type,
+                scope_value,
+                frame.withColumn("route", F.lit(route))
+                .withColumn("scope_type", F.lit(scope_type))
+                .withColumn("scope_value", F.lit(scope_value))
+                .withColumn("location", F.lit(scope_value))
+                .withColumn(
+                    "candidate_build_id",
+                    F.lit(provenance.candidate_build_id),
+                )
+                .withColumn(
+                    "candidate_build_attempt_id",
+                    F.lit(provenance.candidate_build_attempt_id),
+                )
+                .withColumn(
+                    "portfolio_id",
+                    F.lit(provenance.portfolio_id),
+                )
+                .withColumn(
+                    "portfolio_attempt_id",
+                    F.lit(provenance.portfolio_attempt_id),
+                )
+                .withColumn(
+                    "candidate_foundation_snapshot_id",
+                    F.lit(provenance.candidate_foundation_snapshot_id),
+                )
+                .withColumn("serving_slot", F.lit(serving_slot)),
             )
-            .withColumn(
-                "candidate_build_attempt_id",
-                F.lit(provenance.candidate_build_attempt_id),
-            )
-            .withColumn("portfolio_id", F.lit(provenance.portfolio_id))
-            .withColumn(
-                "portfolio_attempt_id",
-                F.lit(provenance.portfolio_attempt_id),
-            )
-            .withColumn(
-                "candidate_foundation_snapshot_id",
-                F.lit(provenance.candidate_foundation_snapshot_id),
-            )
-            .withColumn("serving_slot", F.lit(serving_slot))
         )
+
+    eligible_accounts = scoped_frames[0][3].select("account_number").distinct()
+    for _route, _scope_type, _scope_value, frame in scoped_frames[1:]:
+        eligible_accounts = eligible_accounts.join(
+            frame.select("account_number").distinct(),
+            "account_number",
+            "inner",
+        )
+    selected_accounts = (
+        eligible_accounts.where(F.col("account_number").isNotNull())
+        .withColumn(
+            "_account_order",
+            F.sha2(F.col("account_number"), 256),
+        )
+        .orderBy(F.col("_account_order"), F.col("account_number"))
+        .limit(limit)
+        .select("account_number")
+        .cache()
+    )
+    if selected_accounts.limit(1).count() == 0:
+        raise ValueError("No account is present in every Shopping Bag scope")
+    scoped_frames = [
+        (
+            route,
+            scope_type,
+            scope_value,
+            frame.join(
+                F.broadcast(selected_accounts),
+                "account_number",
+                "inner",
+            ),
+        )
+        for route, scope_type, scope_value, frame in scoped_frames
+    ]
+
+    frames = [frame for _route, _type, _value, frame in scoped_frames]
     combined = frames[0]
     for frame in frames[1:]:
         combined = combined.unionByName(frame)
-    validate_unique_non_null_keys(combined, CANDIDATE_KEYS)
-    if combined.limit(1).count() == 0:
+    combined = combined.cache()
+    summary = validate_unique_non_null_keys(combined, CANDIDATE_KEYS)
+    if summary.row_count == 0:
         raise ValueError("Accepted Shopping Bag candidate scopes are empty")
+    observed_scopes = {
+        (row["route"], row["scope_type"], row["scope_value"]): row["count"]
+        for row in combined.groupBy("route", "scope_type", "scope_value")
+        .count()
+        .collect()
+    }
+    for route, scope_type, scope_value in SHOPPING_BAG_SCOPES:
+        if observed_scopes.get((route, scope_type, scope_value), 0) < 1:
+            raise ValueError(
+                "Accepted Shopping Bag candidate scope is empty: "
+                f"route={route}, {scope_type}={scope_value}"
+            )
+    selected_accounts.unpersist()
     return combined
 
 
