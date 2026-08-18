@@ -26,6 +26,8 @@ MODEL_EVALUATION_METRICS = (
     "lift_at_5_percent",
 )
 
+MODEL_SIGNATURE_OUTPUTS = ("prediction",)
+
 
 def artifact_directory_digest(path: str | Path) -> str:
     """Hash artifact paths and bytes so promotion can verify exact identity."""
@@ -46,6 +48,67 @@ def artifact_directory_digest(path: str | Path) -> str:
     return digest.hexdigest()
 
 
+def _signature_column_names(schema: Any, field_name: str) -> tuple[str, ...]:
+    """Return named MLflow schema columns or reject an unusable signature."""
+    if schema is None or not hasattr(schema, "input_names"):
+        raise ValueError(f"MLflow model signature has no {field_name} schema")
+    names = tuple(schema.input_names())
+    if not names or any(
+        not isinstance(name, str) or not name.strip() for name in names
+    ):
+        raise ValueError(
+            f"MLflow model signature {field_name} columns must be named"
+        )
+    return names
+
+
+def validate_spark_model_signature(
+    definition: ModelDefinition,
+    signature: Any,
+) -> None:
+    """Require the registered signature to expose only declared model inputs."""
+    input_names = _signature_column_names(signature.inputs, "input")
+    if input_names != definition.model_feature_columns:
+        raise ValueError(
+            "MLflow model signature inputs do not match the declared model "
+            f"features: expected={definition.model_feature_columns}, "
+            f"found={input_names}"
+        )
+    output_names = _signature_column_names(signature.outputs, "output")
+    if output_names != MODEL_SIGNATURE_OUTPUTS:
+        raise ValueError(
+            "MLflow model signature output must be the Spark prediction: "
+            f"found={output_names}"
+        )
+
+
+def log_spark_model_with_signature(
+    mlflow_module: Any,
+    model: Any,
+    definition: ModelDefinition,
+    signature_frame: Any,
+    *,
+    infer_signature_fn: Any | None = None,
+) -> Any:
+    """Log a Spark pipeline with the named signature required by UC models."""
+    model_input = signature_frame.select(*definition.model_feature_columns)
+    model_output = model.transform(model_input).select(
+        *MODEL_SIGNATURE_OUTPUTS
+    )
+    if infer_signature_fn is None:
+        from mlflow.models import infer_signature
+
+        infer_signature_fn = infer_signature
+    signature = infer_signature_fn(model_input, model_output)
+    validate_spark_model_signature(definition, signature)
+    mlflow_module.spark.log_model(
+        model,
+        artifact_path="model",
+        signature=signature,
+    )
+    return signature
+
+
 def deterministic_train_validation_split(
     frame: Any,
     *,
@@ -59,7 +122,9 @@ def deterministic_train_validation_split(
         raise ValueError("validation_percent must be between 1 and 50")
     missing = sorted(set(keys).difference(frame.columns))
     if missing:
-        raise ValueError("Training split is missing keys: " + ", ".join(missing))
+        raise ValueError(
+            "Training split is missing keys: " + ", ".join(missing)
+        )
     bucket = F.pmod(
         F.xxhash64(*[F.col(column) for column in keys]),
         F.lit(100),
@@ -111,7 +176,9 @@ def temporal_train_validation_split(
             f"Temporal validation is missing timestamp: {timestamp_column}"
         )
     rows = (
-        frame.select(F.to_date(F.col(timestamp_column)).alias("observation_date"))
+        frame.select(
+            F.to_date(F.col(timestamp_column)).alias("observation_date")
+        )
         .where(F.col("observation_date").isNotNull())
         .distinct()
         .orderBy("observation_date")
@@ -202,7 +269,9 @@ class SparkBinaryClassifierTrainer:
     ) -> ModelBuild:
         """Fit candidates, log evidence and return one exact registered version."""
         if definition.runtime_profile != DBR_15_4_SPARK_CPU:
-            raise ValueError("Spark binary trainer requires DBR 15.4 Spark/CPU")
+            raise ValueError(
+                "Spark binary trainer requires DBR 15.4 Spark/CPU"
+            )
         if training_receipt.status != "READY":
             raise ValueError("Spark binary trainer requires a READY receipt")
 
@@ -229,7 +298,9 @@ class SparkBinaryClassifierTrainer:
             )
         )
         if missing:
-            raise ValueError("Training frame is missing: " + ", ".join(missing))
+            raise ValueError(
+                "Training frame is missing: " + ", ".join(missing)
+            )
         train, validation, validation_start = temporal_train_validation_split(
             training_frame,
             timestamp_column=(
@@ -248,16 +319,22 @@ class SparkBinaryClassifierTrainer:
             training_frame.schema[field_name] for field_name in feature_columns
         ]
         string_columns = [
-            field.name for field in feature_fields if isinstance(field.dataType, StringType)
+            field.name
+            for field in feature_fields
+            if isinstance(field.dataType, StringType)
         ]
         numeric_columns = [
-            field.name for field in feature_fields if isinstance(field.dataType, NumericType)
+            field.name
+            for field in feature_fields
+            if isinstance(field.dataType, NumericType)
         ]
         if not string_columns and not numeric_columns:
             raise ValueError("Training frame has no supported model features")
         for column in numeric_columns:
             train = train.withColumn(column, F.col(column).cast("double"))
-            validation = validation.withColumn(column, F.col(column).cast("double"))
+            validation = validation.withColumn(
+                column, F.col(column).cast("double")
+            )
 
         stages = []
         indexed = []
@@ -282,7 +359,9 @@ class SparkBinaryClassifierTrainer:
                     handleInvalid="keep",
                 )
             )
-        imputed_numeric = [f"__model_numeric_{column}" for column in numeric_columns]
+        imputed_numeric = [
+            f"__model_numeric_{column}" for column in numeric_columns
+        ]
         if numeric_columns:
             stages.append(
                 Imputer(
@@ -333,7 +412,9 @@ class SparkBinaryClassifierTrainer:
 
         build_id = model_build_id(definition, training_receipt)
         started_at = datetime.now(timezone.utc)
-        with mlflow.start_run(run_name=f"{definition.model_name}_{build_id[:12]}") as run:
+        with mlflow.start_run(
+            run_name=f"{definition.model_name}_{build_id[:12]}"
+        ) as run:
             mlflow.log_params(
                 {
                     "model_build_id": build_id,
@@ -381,7 +462,12 @@ class SparkBinaryClassifierTrainer:
                 metrics[metric_name] = metrics[f"{best[1]}_{metric_name}"]
             mlflow.log_metrics(metrics)
             mlflow.log_param("selected_candidate", best[1])
-            mlflow.spark.log_model(best[2], artifact_path="model")
+            log_spark_model_with_signature(
+                mlflow,
+                best[2],
+                definition,
+                validation,
+            )
             run_id = run.info.run_id
 
         model_uri = f"runs:/{run_id}/model"
@@ -433,6 +519,8 @@ __all__ = [
     "MODEL_EVALUATION_METRICS",
     "artifact_directory_digest",
     "deterministic_train_validation_split",
+    "log_spark_model_with_signature",
     "temporal_train_validation_split",
     "temporal_validation_cutoff",
+    "validate_spark_model_signature",
 ]
