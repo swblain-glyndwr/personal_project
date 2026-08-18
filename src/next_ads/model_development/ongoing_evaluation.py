@@ -45,6 +45,21 @@ SHOPPING_BAG_SCOPES = (
 )
 
 
+def _require_non_empty_candidate_scope(
+    frame: Any,
+    *,
+    route: str,
+    scope_type: str,
+    scope_value: str,
+) -> None:
+    """Reject a partial evaluation that omits one declared SB placement."""
+    if frame.limit(1).count() == 0:
+        raise ValueError(
+            "Accepted Shopping Bag candidate scope is empty: "
+            f"route={route}, {scope_type}={scope_value}"
+        )
+
+
 def _required_text(value: Any, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must not be empty")
@@ -459,6 +474,12 @@ def build_shopping_bag_candidate_frame(
             .cast("double")
             .alias("incumbent_trigger_score"),
             F.col("Rank").cast("int").alias("incumbent_rank"),
+        )
+        _require_non_empty_candidate_scope(
+            frame,
+            route=route,
+            scope_type=scope_type,
+            scope_value=scope_value,
         )
         provenance = accepted.provenance
         frames.append(

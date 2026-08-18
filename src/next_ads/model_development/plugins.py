@@ -59,6 +59,7 @@ class SparkAccountAdvertScoreProvider:
         predictions: Any,
         *,
         scope_columns: tuple[str, ...] = (),
+        tie_break_columns: tuple[str, ...] | None = None,
     ) -> Any:
         from pyspark.sql import Window
         from pyspark.sql import functions as F
@@ -66,11 +67,17 @@ class SparkAccountAdvertScoreProvider:
         observation_timestamp = (
             definition.training_observation.observation_timestamp
         )
+        resolved_tie_break_columns = (
+            definition.observation_keys
+            if tie_break_columns is None
+            else tie_break_columns
+        )
         required = {
             self.account_column,
             self.advert_column,
             observation_timestamp,
             *scope_columns,
+            *resolved_tie_break_columns,
         }
         missing = sorted(required.difference(predictions.columns))
         if missing:
@@ -82,7 +89,7 @@ class SparkAccountAdvertScoreProvider:
             F.col(observation_timestamp).desc_nulls_last(),
             *(
                 F.col(column).cast("string").desc_nulls_last()
-                for column in definition.observation_keys
+                for column in resolved_tie_break_columns
             ),
         ]
         latest = Window.partitionBy(
@@ -139,10 +146,18 @@ class SparkAccountAdvertScoreProvider:
             definition,
             predictions,
             scope_columns=scope_columns,
+            # Current candidates are label-free and intentionally do not have
+            # historical exposure IDs or label horizons. Their candidate
+            # contract is already unique within the declared route and scope.
+            tie_break_columns=(),
         ).persist()
         canonical_predictions = self._latest_predictions(
             definition,
             scoped_predictions,
+            # A canonical provider row drops the evaluation scope. Use that
+            # retained scope as the deterministic tie-break when the same ad
+            # appears in more than one Shopping Bag placement.
+            tie_break_columns=scope_columns,
         )
         canonical = adapt_account_entity_scores(
             canonical_predictions,
@@ -234,12 +249,16 @@ class AccountAdvertCandidateAdapter:
             "Score",
             *(column for column, _values in self.scope_filters),
         }
-        missing_scores = sorted(required_scores.difference(provider_scores.columns))
+        missing_scores = sorted(
+            required_scores.difference(provider_scores.columns)
+        )
         scope_columns = tuple(column for column, _values in self.scope_filters)
         missing_candidates = sorted(
-            {self.account_column, self.advert_column, *scope_columns}.difference(
-                eligible_candidates.columns
-            )
+            {
+                self.account_column,
+                self.advert_column,
+                *scope_columns,
+            }.difference(eligible_candidates.columns)
         )
         if missing_scores or missing_candidates:
             raise ValueError(
@@ -278,7 +297,10 @@ class AccountAdvertCandidateAdapter:
             F.col(self.advert_column).cast("string").asc(),
         )
         return joined.select(
-            *[F.col(f"eligible.{column}") for column in eligible_candidates.columns],
+            *[
+                F.col(f"eligible.{column}")
+                for column in eligible_candidates.columns
+            ],
             F.col("scores.ProviderBuildID"),
             F.col("scores.ProviderID"),
             F.col("scores.RawScore"),

@@ -10,6 +10,7 @@ from next_ads.model_development.ongoing_evaluation import (
     READY,
     CandidateInputBinding,
     OngoingEvaluationBuild,
+    _require_non_empty_candidate_scope,
     evaluation_scoring_build_id,
     persist_evaluation_build,
     scoring_build_attempt_id,
@@ -146,6 +147,27 @@ def test_retry_attempt_id_is_immutable_and_execution_specific():
 
     with pytest.raises(ValueError, match="non-negative"):
         scoring_build_attempt_id(101, 202, -1)
+
+
+def test_candidate_builder_requires_every_shopping_bag_scope():
+    class EmptyFrame:
+        def limit(self, value):
+            assert value == 1
+            return self
+
+        def count(self):
+            return 0
+
+    with pytest.raises(
+        ValueError,
+        match=("route=v2, page_type=ShoppingBagPage"),
+    ):
+        _require_non_empty_candidate_scope(
+            EmptyFrame(),
+            route="v2",
+            scope_type="page_type",
+            scope_value="ShoppingBagPage",
+        )
 
 
 def test_ready_is_only_valid_after_exact_delta_output_exists():
