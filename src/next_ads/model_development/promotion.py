@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import re
-from typing import Any
+from typing import Any, Callable
 
 from next_ads.model_development.contracts import ModelBuild
 from next_ads.model_development.spark_training import (
@@ -14,9 +14,51 @@ from next_ads.model_development.spark_training import (
 
 
 _DIGEST = re.compile(r"[0-9a-f]{64}")
+_EXACT_MODEL_URI = re.compile(r"models:/([^/@\s]+)/([1-9][0-9]*)")
 REGISTERED_MODEL_COPY = "REGISTERED_MODEL_COPY"
 SOURCE_ALIAS_REHEARSAL = "SOURCE_ALIAS_REHEARSAL"
 PROMOTION_MODES = frozenset({REGISTERED_MODEL_COPY, SOURCE_ALIAS_REHEARSAL})
+
+
+def _exact_registered_model_uri(model_name: str, version: int | str) -> str:
+    """Return one numeric registered-model URI, rejecting aliases and stages."""
+    if not isinstance(model_name, str) or not model_name.strip():
+        raise ValueError("registered model name must not be empty")
+    if isinstance(version, bool) or not str(version).isdigit():
+        raise ValueError("registered model version must be numeric")
+    numeric_version = int(version)
+    if numeric_version < 1:
+        raise ValueError("registered model version must be positive")
+    model_uri = f"models:/{model_name.strip()}/{numeric_version}"
+    if _EXACT_MODEL_URI.fullmatch(model_uri) is None:
+        raise ValueError("registered model URI must name one numeric version")
+    return model_uri
+
+
+def registered_model_artifact_digest(
+    model_uri: str,
+    *,
+    artifact_downloader: Callable[..., str] | None = None,
+) -> str:
+    """Hash artifacts resolved through one exact registered-model URI.
+
+    Resolving through ``models:/name/version`` works for both legacy run-backed
+    MLflow models and newer registered artifacts without relying on a tracking
+    run ID that may only exist in the source workspace.
+    """
+    if (
+        not isinstance(model_uri, str)
+        or _EXACT_MODEL_URI.fullmatch(model_uri) is None
+    ):
+        raise ValueError(
+            "model_uri must name one numeric registered model version"
+        )
+    if artifact_downloader is None:
+        from mlflow.artifacts import download_artifacts
+
+        artifact_downloader = download_artifacts
+    artifact_path = artifact_downloader(artifact_uri=model_uri)
+    return artifact_directory_digest(artifact_path)
 
 
 def validate_registered_model_build(client: Any, build: ModelBuild) -> None:
@@ -37,11 +79,16 @@ def validate_registered_model_build(client: Any, build: ModelBuild) -> None:
         raise ValueError("Registered model version has a different build ID")
     if tags.get("nextads.artifact_digest") != build.artifact_digest:
         raise ValueError("Registered model version has a different digest tag")
-    run_id = version.run_id or build.mlflow_run_id
-    if not run_id:
-        raise ValueError("Registered model version has no source run")
-    artifact_path = client.download_artifacts(run_id, "model")
-    if artifact_directory_digest(artifact_path) != build.artifact_digest:
+    source_model_uri = _exact_registered_model_uri(
+        build.registered_model_name,
+        build.registered_model_version,
+    )
+    if build.model_uri != source_model_uri:
+        raise ValueError("Model build URI is not its exact registered version")
+    if (
+        registered_model_artifact_digest(source_model_uri)
+        != build.artifact_digest
+    ):
         raise ValueError("Registered model artifact bytes no longer match")
 
 
@@ -53,7 +100,7 @@ class ModelPromotionReceipt:
     source_model_uri: str
     destination_model_name: str
     destination_model_version: int
-    destination_run_id: str
+    destination_run_id: str | None
     artifact_digest: str
     alias: str
     promotion_mode: str
@@ -65,12 +112,16 @@ class ModelPromotionReceipt:
             "model_build_id",
             "source_model_uri",
             "destination_model_name",
-            "destination_run_id",
             "alias",
         ):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} must not be empty")
+        if self.destination_run_id is not None and (
+            not isinstance(self.destination_run_id, str)
+            or not self.destination_run_id.strip()
+        ):
+            raise ValueError("destination_run_id must be null or non-empty")
         if self.destination_model_version < 1:
             raise ValueError("destination_model_version must be positive")
         if _DIGEST.fullmatch(self.artifact_digest) is None:
@@ -92,7 +143,9 @@ def _existing_destination_version(
             destination_model_name,
             summary.version,
         )
-        if (version.tags or {}).get("nextads.model_build_id") == model_build_id:
+        if (version.tags or {}).get(
+            "nextads.model_build_id"
+        ) == model_build_id:
             return version
     return None
 
@@ -126,11 +179,11 @@ def promote_exact_registered_version(
         raise ValueError("Source model version has no NextAds build ID")
     if not expected_digest or _DIGEST.fullmatch(expected_digest) is None:
         raise ValueError("Source model version has no valid artifact digest")
-    if not source.run_id:
-        raise ValueError("Source model version has no MLflow run")
-    source_digest = artifact_directory_digest(
-        client.download_artifacts(source.run_id, "model")
+    source_model_uri = _exact_registered_model_uri(
+        source_model_name,
+        source_model_version,
     )
+    source_digest = registered_model_artifact_digest(source_model_uri)
     if source_digest != expected_digest:
         raise ValueError("Source artifact bytes do not match its digest tag")
 
@@ -142,19 +195,19 @@ def promote_exact_registered_version(
     reused = destination is not None
     if destination is None:
         copied = client.copy_model_version(
-            src_model_uri=(
-                f"models:/{source_model_name}/{source_model_version}"
-            ),
+            src_model_uri=source_model_uri,
             dst_name=destination_model_name,
         )
         destination = client.get_model_version(
             destination_model_name,
             copied.version,
         )
-    if not destination.run_id:
-        raise ValueError("Destination model version has no MLflow run")
-    destination_digest = artifact_directory_digest(
-        client.download_artifacts(destination.run_id, "model")
+    destination_model_uri = _exact_registered_model_uri(
+        destination_model_name,
+        destination.version,
+    )
+    destination_digest = registered_model_artifact_digest(
+        destination_model_uri
     )
     if destination_digest != source_digest:
         raise ValueError("Destination artifact bytes differ from the source")
@@ -178,12 +231,10 @@ def promote_exact_registered_version(
     return (
         ModelPromotionReceipt(
             model_build_id=model_build_id,
-            source_model_uri=(
-                f"models:/{source_model_name}/{source_model_version}"
-            ),
+            source_model_uri=source_model_uri,
             destination_model_name=destination_model_name,
             destination_model_version=int(destination.version),
-            destination_run_id=destination.run_id,
+            destination_run_id=getattr(destination, "run_id", None) or None,
             artifact_digest=destination_digest,
             alias=alias,
             promotion_mode=REGISTERED_MODEL_COPY,
@@ -202,21 +253,32 @@ def promote_exact_model_build(
     promotion_mode: str = REGISTERED_MODEL_COPY,
 ) -> tuple[ModelPromotionReceipt, bool]:
     """Promote exactly, or rehearse aliases when target access is unavailable."""
-    if build.status != "READY" or not build.model_uri or not build.artifact_digest:
+    if (
+        build.status != "READY"
+        or not build.model_uri
+        or not build.artifact_digest
+    ):
         raise ValueError("Promotion requires a READY exact model build")
     if promotion_mode not in PROMOTION_MODES:
         raise ValueError(f"Unsupported promotion mode: {promotion_mode}")
     if not alias.strip():
         raise ValueError("Promotion alias must not be empty")
+    if not build.registered_model_name or not build.registered_model_version:
+        raise ValueError(
+            "Promotion requires one exact registered source version"
+        )
+    source_model_uri = _exact_registered_model_uri(
+        build.registered_model_name,
+        build.registered_model_version,
+    )
+    if build.model_uri != source_model_uri:
+        raise ValueError("Model build URI is not its exact registered version")
+    source_digest = registered_model_artifact_digest(source_model_uri)
+    if source_digest != build.artifact_digest:
+        raise ValueError(
+            "Source artifact digest does not match the source model build"
+        )
     if promotion_mode == SOURCE_ALIAS_REHEARSAL:
-        if (
-            not build.registered_model_name
-            or not build.registered_model_version
-            or not build.mlflow_run_id
-        ):
-            raise ValueError(
-                "Source alias rehearsal needs the exact registered source version"
-            )
         if destination_model_name and (
             destination_model_name.strip() != build.registered_model_name
         ):
@@ -251,9 +313,14 @@ def promote_exact_model_build(
         else:
             destination = existing
 
-    artifact_path = client.download_artifacts(destination.run_id, "model")
-    destination_digest = artifact_directory_digest(artifact_path)
-    if destination_digest != build.artifact_digest:
+    destination_model_uri = _exact_registered_model_uri(
+        destination_model_name,
+        destination.version,
+    )
+    destination_digest = registered_model_artifact_digest(
+        destination_model_uri
+    )
+    if destination_digest != source_digest:
         raise ValueError(
             "Promoted artifact digest does not match the source model build"
         )
@@ -281,7 +348,7 @@ def promote_exact_model_build(
             source_model_uri=build.model_uri,
             destination_model_name=destination_model_name,
             destination_model_version=int(destination.version),
-            destination_run_id=destination.run_id,
+            destination_run_id=getattr(destination, "run_id", None) or None,
             artifact_digest=destination_digest,
             alias=alias,
             promotion_mode=promotion_mode,
@@ -298,5 +365,6 @@ __all__ = [
     "ModelPromotionReceipt",
     "promote_exact_model_build",
     "promote_exact_registered_version",
+    "registered_model_artifact_digest",
     "validate_registered_model_build",
 ]
