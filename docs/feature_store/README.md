@@ -76,7 +76,7 @@ daily schedule.
 | [`initial_table_design.md`](initial_table_design.md) | Initial account, advert, embedding, model-input and quality design. |
 | [`candidate_similarity.md`](candidate_similarity.md) | Offline similarity diagnostics concept; not a current model input. |
 | [`migration_backlog.md`](migration_backlog.md) | Prioritised migrations and dependencies. |
-| [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Start here for the in-flight jobs, what they consume and produce, their boundaries, and links to the detailed documentation. |
+| [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Start here for the main assignment/delivery route and the in-flight Feature Store/model jobs, including what they consume and produce. |
 | [`../architecture/feature_store_flow.md`](../architecture/feature_store_flow.md) | Detailed task order and parallel branches inside the shared DEV Feature Store job. |
 
 ## Executable Contracts

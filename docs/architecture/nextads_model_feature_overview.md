@@ -1,16 +1,90 @@
-# NextAds Current And In-Flight Job Data Flow
+# NextAds Job And Table Data Flow
 
-This is the entry point for understanding which NextAds jobs are being added or
-extended, the data they consume, and the data or model artifacts they produce.
-It deliberately stays at a human-readable route level. The linked documents own
-the detailed table keys, schemas, schedules, runtime evidence and operating
-instructions.
+This is the inclusive entry point for the main NextAds assignment and delivery
+route and the Feature Store/model-development work around it. It shows which
+jobs consume which data and what tables, external outputs or model artifacts
+they produce.
 
-"In flight" means declared on the current feature branch. It does not mean that
-a job is deployed, scheduled or proven in a shared environment. Physical
+The page stays at a human-readable route level. Linked documents own detailed
+keys, schemas, schedules, runtime evidence and operating instructions. Physical
 catalogs and schemas vary by bundle target; table names below are logical names.
+An in-flight job being declared on a feature branch does not prove that it is
+deployed, scheduled or proven in a shared environment.
 
-## End-To-End View
+## Main Assignment And Delivery Route
+
+```mermaid
+flowchart LR
+  operational["Operational sources<br/>accounts, web/app activity, adverts, results"]
+  theme_inputs["Theme Inputs job<br/>accepted scoring-input snapshot"]
+  providers["Theme Affinity and Markov jobs<br/>accepted score-provider builds"]
+  foundation["Candidate Foundation job<br/>cells, exposure and feedback"]
+  control["v1/v2 control sheets"]
+  data_pull["CMS and sort-order data pull"]
+  candidates["Candidate Build job<br/>accepted v1/v2 candidate attempts"]
+  page_v1["v1 Page Build"]
+  page_v2["v2 Page Build"]
+  assignments_v1["v1 assignments<br/>history and latest"]
+  assignments_v2["v2 assignments<br/>history and latest"]
+  masid["MASID handoff check"]
+  plp["PLP GS delivery"]
+  payload["Bloomreach payload export"]
+  compatibility["Candidate compatibility<br/>and assignment monitoring"]
+
+  operational --> theme_inputs --> providers
+  operational --> foundation
+  control --> candidates
+  data_pull --> candidates
+  providers --> candidates
+  foundation --> candidates
+  candidates --> page_v1 --> assignments_v1
+  candidates --> page_v2 --> assignments_v2
+  assignments_v1 --> masid
+  assignments_v1 --> plp
+  assignments_v2 --> payload
+  candidates --> compatibility
+```
+
+### Main Jobs At A Glance
+
+| Job | Consumes | Produces |
+| --- | --- | --- |
+| [`mktg_next_uk_nextads_theme_inputs`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_inputs.yml) | Authoritative theme mapping, item attributes and product/control inputs | `next_uk_nextads_theme_mapping`, `next_uk_nextads_theme_mapping_latest`, `next_uk_nextads_attribute_set`, `next_uk_nextads_attribute_set_latest`, `next_uk_nextads_item_attributes_latest`, `next_uk_nextads_item_themes`, `next_uk_nextads_item_themes_latest`, `next_uk_nextads_scoring_input_theme_mapping_raw`, `next_uk_nextads_scoring_input_item_themes`, `next_uk_nextads_scoring_input_snapshots` and `next_uk_nextads_scoring_input_snapshot_sources` |
+| [`mktg_next_uk_nextads_theme_affinity`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml) | One accepted scoring-input snapshot plus Theme Affinity preparation sources | Ranked account-theme foundation, `next_uk_nextads_scoring_foundation_builds`, `next_uk_nextads_scoring_foundation_outputs`, `next_uk_nextads_scoring_foundation_run_contexts`, `next_uk_nextads_score_provider_signals`, `next_uk_nextads_score_provider_builds` and `next_uk_nextads_score_provider_run_contexts` |
+| [`mktg_next_uk_nextads_markov_scoring`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml) | One accepted scoring-input snapshot plus web/app activity, views and baskets | An optional shadow build in the same score-provider tables, plus Markov compatibility outputs such as theme transitions and next-theme scores |
+| [`mktg_next_uk_nextads_candidate_foundation`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml) | Account populations, existing cell assignments, web/app activity and advert-result history | `next_uk_nextads_customer_cells_fixed_latest`, fixed-cell history, transient/latest cells, `next_uk_nextads_customer_cells_latest`, `next_uk_nextads_candidate_repeat_ad_exposure`, `next_uk_nextads_candidate_ad_feedback`, `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` |
+| [`mktg_next_uk_nextads_data_pull`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml) | Landed v2 advert IDs plus CMS and sort-order sources | `nextads_sort_order_v2_latest`, `nextads_sort_order_v2`, `next_uk_nextads_cms_content_latest` and `next_uk_nextads_cms_content` |
+| [`mktg_next_uk_nextads_candidate_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads.yml) | v1/v2 control sheets, one accepted Candidate Foundation, accepted scoring snapshots/provider builds, CMS and sort order | Versioned control/exclusion tables, scoring portfolios/entries, `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores`, `next_uk_nextads_candidate_ad_sets`, and the exclusions Cosmos container; it then runs both page-build jobs |
+| [`mktg_next_uk_nextads_page_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml) | One accepted v1 candidate attempt, pinned customer cells, v1 control, NextGen assignments and advert results | `next_uk_nextads_assignments_build_staging`, `next_uk_nextads_assignments`, `next_uk_nextads_assignments_latest` and assignment-build events; then MASID and PLP child jobs |
+| [`mktg_next_uk_nextads_masid_handoff`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml) | `next_uk_nextads_assignments_latest` | Validation/alert result only; no table write |
+| [`mktg_next_uk_nextads_plp_gs_delivery`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml) | v1 raw/latest control, PLP placement and multipage-location tables | `next_uk_nextads_plp_gs_latest`, the territory-specific latest table and the configured delivery file |
+| [`mktg_next_uk_nextads_page_build_v2`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml) | One accepted v2 candidate attempt, pinned customer cells, v2 control and NextGen assignments | `next_uk_nextads_assignments_v2_build_staging`, `next_uk_nextads_assignments_v2`, `next_uk_nextads_assignments_v2_latest` and assignment-build events; then the payload child job |
+| [`mktg_next_uk_nextads_payload_export`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml) | v2 latest assignments, fixed/latest customer cells, v2 latest control and account/RPID mapping | `next_uk_nextads_payload`, `next_uk_nextads_payload_latest` and the configured Bloomreach CSV output |
+| [`mktg_next_uk_nextads_candidate_compatibility`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml) | Accepted v1/v2 candidate builds, scores and advert sets | Legacy v1/v2 preranked candidate snapshots; then an independent assignment-quality monitor |
+
+### Inside The Candidate Build
+
+The candidate-build job is the main orchestrator. It does not calculate customer
+cells or train a model; it selects accepted upstream versions and keeps the v1
+and v2 paths separate.
+
+| Stage and tasks | Consumes | Produces or triggers |
+| --- | --- | --- |
+| `select_candidate_foundation` | `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` | Pinned customer-cell, exposure and feedback table versions in task values; no table write |
+| `load_control_sheet_v1` and `audit_control_sheet_v1` | v1 Google control, PLP placement and multipage inputs | v1 raw/history/latest control tables, PLP raw/history/latest tables, `next_uk_nextads_control_sheet`, `next_uk_nextads_control_sheet_latest`, `next_uk_nextads_multipage_locations` and `next_uk_nextads_multipage_locations_latest`; audit is read-only |
+| `load_control_sheet_v2`, `trigger_data_pull_for_CMS_pull`, `process_control_sheet_v2` and `audit_control_sheet_v2` | v2 Google control/exclusions, refreshed CMS content, sort order and product catalog | v2 raw/history/latest control tables, `next_uk_nextads_exclusions`, `next_uk_nextads_exclusions_latest`, `next_uk_nextads_control_sheet_v2` and `next_uk_nextads_control_sheet_latest_v2`; audit is read-only |
+| `write_exclusions` | `next_uk_nextads_exclusions_latest` | Azure Cosmos DB exclusions container |
+| `resolve_scoring_portfolio_v1` and `resolve_scoring_portfolio_v2` | `next_uk_nextads_scoring_input_snapshots`, provider builds/signals and configured portfolio policy | `next_uk_nextads_scoring_portfolios` and `next_uk_nextads_scoring_portfolio_entries`, plus exact selected IDs/versions in task values |
+| `validate_score_provider_theme_coverage_v1` and `validate_score_provider_theme_coverage_v2` | Selected provider signals, accepted item-theme snapshot and the matching v1/v2 latest control | Validation result only; no table write |
+| `map_theme_scores_to_ads_v1` and `map_theme_scores_to_ads_v2` | Selected provider signals, matching control, pinned customer cells, repeat exposure and advert feedback | Route-specific accepted attempts in `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores` and `next_uk_nextads_candidate_ad_sets` |
+| `run_page_build_v1` and `run_page_build_v2` | Exact candidate, provider, scoring-input and Candidate Foundation identities from the preceding tasks | Synchronous v1/v2 page-build child jobs and their delivery children |
+
+The exact task dependencies and failure boundaries are kept in
+[`v1_v2_parallel_route.md`](v1_v2_parallel_route.md), while the time-based
+operational hand-offs are in
+[`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md).
+
+## Feature Store And Model Development Route
 
 ```mermaid
 flowchart LR
@@ -51,7 +125,7 @@ The hard boundary is intentional: these in-flight jobs can build features,
 train or adopt models, and write evaluation evidence. They do not add a provider
 to a serving portfolio and do not write live assignments or delivery payloads.
 
-## Jobs At A Glance
+### Feature Store And Model Jobs At A Glance
 
 | Route | Job | Consumes | Produces |
 | --- | --- | --- | --- |
@@ -66,11 +140,6 @@ to a serving portfolio and do not write live assignments or delivery payloads.
 | Runtime proof | [`mktg_next_uk_nextads_model_development_runtime_smoke`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development_runtime_smoke.yml) | Runtime libraries and a deliberately invalid future feature binding | Validation result only; it must not create a training receipt or model build |
 | Ongoing Shopping Bag evaluation | [`mktg_next_uk_nextads_shopping_bag_ongoing_evaluation`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml) | One READY model build, READY feature snapshots and one accepted candidate build | Evaluation scoring-build and score tables; no serving candidate tables are changed |
 | Exact model movement | [`mktg_next_uk_nextads_model_import_dev_integration`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml) and [`mktg_next_uk_nextads_model_import_preprod`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_preprod.yml) | One exact source model version or alias | A digest-checked copy of that registered model in the next environment; no data tables |
-
-The existing production candidate, page-build, assignment and delivery jobs are
-context rather than part of this in-flight model-building slice. Their shared
-v1/v2 route is documented in
-[`v1_v2_parallel_route.md`](v1_v2_parallel_route.md).
 
 ## What The Full Feature Store Job Builds
 
@@ -130,6 +199,9 @@ features. They make the handoff between jobs reproducible.
 
 | Question | Document |
 | --- | --- |
+| How do the main v1/v2 candidate, page-build and delivery routes fit together? | [`v1_v2_parallel_route.md`](v1_v2_parallel_route.md) |
+| What runs when, and where are the operational table hand-offs? | [`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md) |
+| What are the main jobs' parameters and operating settings? | [`nextads_databricks_job_settings.md`](../CICD/nextads_databricks_job_settings.md) |
 | What order do the Feature Store tasks run in? | [`feature_store_flow.md`](feature_store_flow.md) |
 | What is each feature table's grain, key and refresh expectation? | [`initial_table_design.md`](../feature_store/initial_table_design.md) |
 | What is implemented, proven in DEV or still blocked? | [Feature Store README](../feature_store/README.md) and [`migration_backlog.md`](../feature_store/migration_backlog.md) |
@@ -137,16 +209,19 @@ features. They make the handoff between jobs reproducible.
 | How does Theme Affinity operate today? | [`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md) |
 | How are exact model versions promoted? | [`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md) |
 | How could a reviewed challenger later enter NextAds? | [`future_model_adoption.md`](future_model_adoption.md) |
-| How do the current v1/v2 delivery routes fit together? | [`v1_v2_parallel_route.md`](v1_v2_parallel_route.md) |
 
-## Sources Of Truth
+## References And Linkages
 
-- Job order, parameters and target availability:
+- Job definitions, parameters and target availability:
   [`pipelines/databricks/jobs/`](../../pipelines/databricks/jobs/).
-- Feature names, builders, keys and compatibility views:
+- Main-route task dependencies and failure boundaries:
+  [`v1_v2_parallel_route.md`](v1_v2_parallel_route.md).
+- Scheduled job and table hand-offs:
+  [`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md).
+- Feature names, builders, keys and compatibility-view links:
   [`configs/features/nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml).
-- Model inputs, trainers, providers and evaluation scope:
+- Model inputs, trainers, providers and evaluation links:
   [`configs/models/nextads_models.yaml`](../../configs/models/nextads_models.yaml).
-- Physical Feature Store and model-evidence schemas:
+- Physical Feature Store and model-evidence schema references:
   [`sql/features/nextads/`](../../sql/features/nextads/) and
   [`sql/model_development/`](../../sql/model_development/).
