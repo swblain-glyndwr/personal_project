@@ -96,7 +96,9 @@ def _validate_label_maturity(
     from pyspark.sql import functions as F
 
     if maturity_column not in frame.columns:
-        raise ValueError(f"Label maturity column is missing: {maturity_column}")
+        raise ValueError(
+            f"Label maturity column is missing: {maturity_column}"
+        )
     invalid = frame.where(
         F.col(maturity_column).isNull()
         | (F.to_date(F.col(maturity_column)) > F.lit(label_end))
@@ -129,7 +131,9 @@ def summarise_binary_labels(frame: Any, label: str) -> tuple[int, int]:
     if row is None or not row["row_count"]:
         raise ValueError("Training observations are empty")
     if row["invalid_count"]:
-        raise ValueError("Training label must contain only non-null 0 or 1 values")
+        raise ValueError(
+            "Training label must contain only non-null 0 or 1 values"
+        )
     row_count = int(row["row_count"])
     positive_count = int(row["positive_count"] or 0)
     if positive_count in {0, row_count}:
@@ -146,6 +150,16 @@ def _lookup_output_names(lookup: FeatureLookupSpec) -> tuple[str, ...]:
     )
 
 
+def feature_missing_audit_column(feature_column: str) -> str:
+    """Name the pre-default missing-value flag retained for research evidence."""
+    return f"__feature_missing__{feature_column}"
+
+
+def feature_default_audit_column(feature_column: str) -> str:
+    """Name the flag proving a declared Feature Store default was applied."""
+    return f"__feature_defaulted__{feature_column}"
+
+
 def _apply_point_in_time_lookup(
     observations: Any,
     feature_frame: Any,
@@ -153,6 +167,7 @@ def _apply_point_in_time_lookup(
     *,
     feature_timestamp_key: str,
     observation_keys: tuple[str, ...],
+    include_feature_audit_columns: bool = False,
 ) -> Any:
     from pyspark.sql import Window
     from pyspark.sql import functions as F
@@ -223,21 +238,39 @@ def _apply_point_in_time_lookup(
     latest = Window.partitionBy(
         *[F.col(f"observation.{column}") for column in observation_keys]
     ).orderBy(F.col("feature._lookup_feature_time").desc_nulls_last())
-    selected = joined.withColumn("_lookup_rank", F.row_number().over(latest)).where(
-        F.col("_lookup_rank") == F.lit(1)
-    )
+    selected = joined.withColumn(
+        "_lookup_rank", F.row_number().over(latest)
+    ).where(F.col("_lookup_rank") == F.lit(1))
     defaults = dict(lookup.defaults)
     feature_values = []
+    feature_audits = []
     for index, (source_column, output_column) in enumerate(
         zip(lookup.selected_columns, output_names, strict=True)
     ):
-        value = F.col(f"_lookup_value_{index}")
+        source_value = F.col(f"_lookup_value_{index}")
+        missing = source_value.isNull()
+        value = source_value
         if source_column in defaults:
             value = F.coalesce(value, F.lit(defaults[source_column]))
         feature_values.append(value.alias(output_column))
+        if include_feature_audit_columns:
+            feature_audits.extend(
+                (
+                    missing.cast("boolean").alias(
+                        feature_missing_audit_column(output_column)
+                    ),
+                    (missing if source_column in defaults else F.lit(False))
+                    .cast("boolean")
+                    .alias(feature_default_audit_column(output_column)),
+                )
+            )
     return selected.select(
-        *[F.col(f"observation.{column}").alias(column) for column in observations.columns],
+        *[
+            F.col(f"observation.{column}").alias(column)
+            for column in observations.columns
+        ],
         *feature_values,
+        *feature_audits,
     )
 
 
@@ -249,6 +282,7 @@ def _receipt_id(
     observation_end: date,
     label_end: date,
     code_sha: str,
+    include_feature_audit_columns: bool = False,
 ) -> str:
     payload = {
         "code_sha": code_sha,
@@ -267,6 +301,8 @@ def _receipt_id(
         "observation_end": observation_end.isoformat(),
         "observation_start": observation_start.isoformat(),
     }
+    if include_feature_audit_columns:
+        payload["feature_audit_columns"] = "missingness_and_defaults_v1"
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
             "utf-8"
@@ -279,14 +315,21 @@ def _normalise_feature_reference_dates(
     feature_reference_date: str | date | None,
     feature_reference_dates: tuple[str | date, ...] | None,
 ) -> tuple[str | date, ...]:
-    if feature_reference_date is not None and feature_reference_dates is not None:
+    if (
+        feature_reference_date is not None
+        and feature_reference_dates is not None
+    ):
         raise ValueError(
             "Supply feature_reference_date or feature_reference_dates, not both"
         )
     values = (
         tuple(feature_reference_dates)
         if feature_reference_dates is not None
-        else ((feature_reference_date,) if feature_reference_date is not None else ())
+        else (
+            (feature_reference_date,)
+            if feature_reference_date is not None
+            else ()
+        )
     )
     if not values:
         raise ValueError("At least one feature reference date is required")
@@ -356,6 +399,7 @@ def build_training_set(
     observation_bindings: tuple[ReadyFeatureBinding, ...] = (),
     label_end: date,
     code_sha: str,
+    include_feature_audit_columns: bool = False,
 ) -> TrainingSetBuildResult:
     """Build a checked training frame and READY receipt without training."""
     if definition.label not in observations.columns:
@@ -419,6 +463,7 @@ def build_training_set(
             lookup,
             feature_timestamp_key=feature.timestamp_key,
             observation_keys=definition.observation_keys,
+            include_feature_audit_columns=include_feature_audit_columns,
         )
         bindings.extend(
             _training_feature_binding(ready_binding)
@@ -426,7 +471,9 @@ def build_training_set(
         )
 
     missing_features = sorted(
-        set(definition.model_feature_columns).difference(training_frame.columns)
+        set(definition.model_feature_columns).difference(
+            training_frame.columns
+        )
     )
     if missing_features:
         raise ValueError(
@@ -456,6 +503,7 @@ def build_training_set(
             observation_end=observation_end,
             label_end=label_end,
             code_sha=code_sha,
+            include_feature_audit_columns=include_feature_audit_columns,
         ),
         model_name=definition.model_name,
         model_definition_checksum=definition.checksum,
@@ -489,6 +537,7 @@ def build_training_set_from_feature_store(
     feature_reference_dates: tuple[str | date, ...],
     label_end: date,
     code_sha: str,
+    include_feature_audit_columns: bool = False,
 ) -> TrainingSetBuildResult:
     """Load declared modelling rows and features from READY snapshots."""
     from pyspark.sql import functions as F
@@ -541,6 +590,7 @@ def build_training_set_from_feature_store(
         observation_bindings=bindings,
         label_end=label_end,
         code_sha=code_sha,
+        include_feature_audit_columns=include_feature_audit_columns,
     )
 
 
@@ -548,6 +598,8 @@ __all__ = [
     "TrainingSetBuildResult",
     "build_training_set",
     "build_training_set_from_feature_store",
+    "feature_default_audit_column",
+    "feature_missing_audit_column",
     "summarise_binary_labels",
     "validate_snapshot_time_boundary",
 ]

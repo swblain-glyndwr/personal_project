@@ -88,7 +88,7 @@ shopping_bag_ongoing_evaluation_job: &shopping_bag_ongoing_evaluation_job
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
-      libraries: ${var.model_development_libraries}
+      libraries: ${var.model_research_libraries}
       timeout_seconds: 10800
 
 shopping_bag_ongoing_evaluation_config: &shopping_bag_ongoing_evaluation_config
