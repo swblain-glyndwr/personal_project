@@ -1,7 +1,53 @@
+import sys
+
 import pytest
 import yaml
 
 from jobs.model.development import run_declared_model as job
+
+
+def test_model_job_does_not_promote_by_default(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_declared_model.py",
+            "--model_name",
+            "shopping_bag_pctr",
+            "--feature_catalog",
+            "marketingdata_dev",
+            "--feature_schema",
+            "personal",
+            "--model_catalog",
+            "marketingdata_dev",
+            "--model_schema",
+            "personal",
+            "--observation_reference_dates",
+            "2026-08-05,2026-08-06",
+            "--feature_reference_dates",
+            "2026-08-04,2026-08-05",
+            "--label_end",
+            "2026-08-14",
+            "--code_sha",
+            "abc123",
+            "--registered_model_name",
+            "marketingdata_dev.personal.shopping_bag_pctr",
+            "--experiment_path",
+            "/Shared/shopping_bag_pctr",
+            "--provider_signals_table",
+            "marketingdata_dev.personal.provider_signals",
+            "--provider_builds_table",
+            "marketingdata_dev.personal.provider_builds",
+            "--orchestration_run_id",
+            "1",
+            "--task_run_id",
+            "2",
+            "--execution_count",
+            "0",
+        ],
+    )
+
+    assert job.parse_args().promotion_mode == "NONE"
 
 
 def test_model_job_accepts_one_or_more_exact_feature_dates():
@@ -78,7 +124,7 @@ def test_model_job_is_manual_dev_evidence_only():
     assert "observation_reference_dates\n      default: REQUIRED" in bundle_job
     assert "feature_reference_dates\n      default: REQUIRED" in bundle_job
     assert "label_end\n      default: REQUIRED" in bundle_job
-    assert "default: SOURCE_ALIAS_REHEARSAL" in bundle_job
+    assert "default: NONE" in bundle_job
     assert "${workspace.root_path}/experiments/shopping_bag_pctr" in bundle_job
     assert "model_schema" in bundle_job
     assert "schedule:" not in bundle_job

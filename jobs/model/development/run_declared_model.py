@@ -1,4 +1,4 @@
-"""Build, train, promote and score one declared Feature Store model."""
+"""Build, train and score one declared Feature Store model."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--promotion_mode",
         choices=(REGISTERED_MODEL_COPY, SOURCE_ALIAS_REHEARSAL, "NONE"),
-        default=SOURCE_ALIAS_REHEARSAL,
+        default="NONE",
     )
     parser.add_argument("--orchestration_run_id", type=int, required=True)
     parser.add_argument("--task_run_id", type=int, required=True)

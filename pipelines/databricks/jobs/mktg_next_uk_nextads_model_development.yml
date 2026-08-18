@@ -31,7 +31,7 @@ model_development_job: &model_development_job
     - name: promotion_model_name
       default: ""
     - name: promotion_mode
-      default: SOURCE_ALIAS_REHEARSAL
+      default: NONE
     - name: promotion_alias
       default: dev_evaluation_candidate
   job_clusters: ${var.job_clusters_config}
