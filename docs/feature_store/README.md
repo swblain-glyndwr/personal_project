@@ -37,8 +37,8 @@
 | `initial_table_design.md` | 5111861 | Initial customer, advert, embedding, model-input and quality table design. |
 | `candidate_similarity.md` | Follow-up | Offline candidate similarity diagnostics concept; not part of current production model inputs. |
 | `migration_backlog.md` | 5111881 | Prioritised migration backlog and dependencies. |
-| [`../architecture/feature_store_flow.md`](../architecture/feature_store_flow.md) | Architecture | Mermaid view of the shared DEV Feature Store flow and model-building boundaries. |
-| [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Architecture | Wider NextAds model, Feature Store and MLflow overview. |
+| [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Start here | Inclusive guide to the in-flight jobs, the tables or model artifacts they consume and produce, and the documents that own the detail. |
+| [`../architecture/feature_store_flow.md`](../architecture/feature_store_flow.md) | Architecture | Detailed task order and parallel branches inside the shared DEV Feature Store job. |
 | [`building_a_challenger_model.md`](building_a_challenger_model.md) | Author route | The decisions, contracts and evidence a model author follows from a problem statement to an evaluation-only challenger. |
 
 ## Executable Contracts
