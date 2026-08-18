@@ -48,7 +48,7 @@ These tables separate stable advert metadata, rolled-up product attributes, sema
 | Table | Grain | Primary keys | Snapshot/date key | Consumer |
 | --- | --- | --- | --- | --- |
 | `next_uk_nextads_fs_theme_affinity_model_input` | Account, theme, reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Theme Affinity; future ranking/challenger models |
-| `next_uk_nextads_fs_pctr_model_input` | Account, advert, location, session date, reference date | `account_number`, `advert_id`, `location`, `session_date`, `reference_date` | `reference_date` | Shopping Bag pCTR |
+| `next_uk_nextads_fs_pctr_model_input` | Account, advert, reference date | `account_number`, `advert_id`, `reference_date` | `reference_date` | Analytics pCTR |
 | `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | Shopping Bag pCTR; future ranking/challenger models |
 | `next_uk_nextads_fs_labels_theme_response` | Account, theme, reference date and label name | `account_number`, `theme`, `reference_date`, `label_name` | `reference_date` | Theme Affinity; future ranking/challenger models |
 

@@ -20,6 +20,10 @@ nextads_feature_store_job: &nextads_feature_store_job
       default: ${var.feature_store_theme_table_prefix}
     - name: theme_training_reference_date
       default: ${var.feature_store_theme_training_reference_date}
+    - name: analytics_pctr_source_binding
+      default: ${var.feature_store_analytics_pctr_source_binding}
+    - name: analytics_pctr_source_schema
+      default: ${var.feature_store_analytics_pctr_source_schema}
     - name: recreate_feature_tables
       default: "false"
   job_clusters: ${var.job_clusters_config}
@@ -31,9 +35,32 @@ nextads_feature_store_job: &nextads_feature_store_job
     department: marketing
     project: nextads
     domain: feature_store
-  timeout_seconds: 14400
+  timeout_seconds: 43200
   tasks:
+    - task_key: resolve_feature_store_reference_date
+      spark_python_task:
+        python_file: ../../../jobs/features/nextads/resolve_feature_reference_date.py
+        parameters:
+          - --reference_date
+          - "{{job.parameters.reference_date}}"
+          - --source_catalog
+          - "{{job.parameters.source_catalog}}"
+          - --source_schema
+          - "{{job.parameters.source_schema}}"
+          - --theme_source_catalog
+          - "{{job.parameters.theme_source_catalog}}"
+          - --theme_source_schema
+          - "{{job.parameters.theme_source_schema}}"
+          - --theme_table_prefix
+          - "{{job.parameters.theme_table_prefix}}"
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 1800
     - task_key: create_feature_store_tables
+      depends_on:
+        - task_key: resolve_feature_store_reference_date
       spark_python_task:
         python_file: ../../../jobs/table_operations/create_feature_store_tables.py
         parameters:
@@ -49,6 +76,18 @@ nextads_feature_store_job: &nextads_feature_store_job
           - AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
           - --recreate_tables
           - "{{job.parameters.recreate_feature_tables}}"
+          - --empty_scaffold_migration
+          - next_uk_nextads_fs_product_embeddings_latest
+          - --empty_scaffold_migration
+          - next_uk_nextads_fs_advert_semantic_profile_daily
+          - --empty_scaffold_migration
+          - next_uk_nextads_fs_advert_product_profile_daily
+          - --empty_scaffold_migration
+          - next_uk_nextads_fs_seasonal_product_demand_daily
+          - --empty_scaffold_migration
+          - next_uk_nextads_fs_account_advert_affinity_daily
+          - --empty_scaffold_migration
+          - next_uk_nextads_fs_pctr_model_input
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -57,6 +96,7 @@ nextads_feature_store_job: &nextads_feature_store_job
     - task_key: preflight_feature_store_sources
       depends_on:
         - task_key: create_feature_store_tables
+        - task_key: refresh_analytics_pctr_feature_source
       spark_python_task:
         python_file: ../../../jobs/features/nextads/preflight_checks.py
         parameters:
@@ -65,7 +105,7 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -92,7 +132,7 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -103,11 +143,105 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 7200
+    - task_key: build_product_embeddings_latest
+      depends_on:
+        - task_key: preflight_feature_store_sources
+      spark_python_task:
+        python_file: ../../../jobs/features/nextads/build_product_embeddings_latest.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --reference_date
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          - --source_catalog
+          - "{{job.parameters.source_catalog}}"
+          - --source_schema
+          - "{{job.parameters.source_schema}}"
+          - --theme_source_catalog
+          - "{{job.parameters.theme_source_catalog}}"
+          - --theme_source_schema
+          - "{{job.parameters.theme_source_schema}}"
+          - --theme_table_prefix
+          - "{{job.parameters.theme_table_prefix}}"
+          - --product_embedding_binding
+          - ${var.feature_store_product_embedding_binding}
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D16ads_v5_2_2
+      libraries: ${var.feature_store_embedding_libraries}
+      timeout_seconds: 14400
+    - task_key: build_advert_product_profile_daily
+      depends_on:
+        - task_key: build_product_embeddings_latest
+      spark_python_task:
+        python_file: ../../../jobs/features/nextads/build_advert_product_profile_daily.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --reference_date
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          - --source_catalog
+          - "{{job.parameters.source_catalog}}"
+          - --source_schema
+          - "{{job.parameters.source_schema}}"
+          - --theme_source_catalog
+          - "{{job.parameters.theme_source_catalog}}"
+          - --theme_source_schema
+          - "{{job.parameters.theme_source_schema}}"
+          - --theme_table_prefix
+          - "{{job.parameters.theme_table_prefix}}"
+          - --product_embedding_binding
+          - ${var.feature_store_product_embedding_binding}
+          - --replace_reference_date
+          - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 7200
+    - task_key: refresh_analytics_pctr_feature_source
+      depends_on:
+        - task_key: create_feature_store_tables
+      run_job_task:
+        job_id: ${resources.jobs.mktg_next_uk_nextads_analytics_pctr_feature_source.id}
+        job_parameters:
+          reference_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          output_catalog: ${var.mktgdata_catalog}
+          output_schema: "{{job.parameters.analytics_pctr_source_schema}}"
+          source_binding: "{{job.parameters.analytics_pctr_source_binding}}"
+          source_catalog: "{{job.parameters.source_catalog}}"
+          source_schema: "{{job.parameters.source_schema}}"
+          theme_source_catalog: "{{job.parameters.theme_source_catalog}}"
+          theme_source_schema: "{{job.parameters.theme_source_schema}}"
+          theme_table_prefix: "{{job.parameters.theme_table_prefix}}"
+          receipt_correlation_id: "{{job.run_id}}"
     - task_key: build_theme_affinity_training_input
       depends_on:
         - task_key: create_feature_store_tables
@@ -119,7 +253,7 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -134,6 +268,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - ${var.feature_store_theme_training_table_prefix}
           - --replace_reference_date
           - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -150,7 +290,7 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -161,6 +301,88 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 7200
+    - task_key: build_advert_semantic_profile_daily
+      depends_on:
+        - task_key: build_advert_features
+        - task_key: build_product_embeddings_latest
+      spark_python_task:
+        python_file: ../../../jobs/features/nextads/build_advert_semantic_profile_daily.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --reference_date
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          - --source_catalog
+          - "{{job.parameters.source_catalog}}"
+          - --source_schema
+          - "{{job.parameters.source_schema}}"
+          - --theme_source_catalog
+          - "{{job.parameters.theme_source_catalog}}"
+          - --theme_source_schema
+          - "{{job.parameters.theme_source_schema}}"
+          - --theme_table_prefix
+          - "{{job.parameters.theme_table_prefix}}"
+          - --product_embedding_binding
+          - ${var.feature_store_product_embedding_binding}
+          - --replace_reference_date
+          - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D16ads_v5_2_2
+      libraries: ${var.feature_store_embedding_libraries}
+      timeout_seconds: 14400
+    - task_key: build_seasonal_product_demand_daily
+      depends_on:
+        - task_key: build_advert_features
+        - task_key: build_product_embeddings_latest
+      spark_python_task:
+        python_file: ../../../jobs/features/nextads/build_seasonal_product_demand_daily.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --reference_date
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          - --source_catalog
+          - "{{job.parameters.source_catalog}}"
+          - --source_schema
+          - "{{job.parameters.source_schema}}"
+          - --theme_source_catalog
+          - "{{job.parameters.theme_source_catalog}}"
+          - --theme_source_schema
+          - "{{job.parameters.theme_source_schema}}"
+          - --theme_table_prefix
+          - "{{job.parameters.theme_table_prefix}}"
+          - --product_embedding_binding
+          - ${var.feature_store_product_embedding_binding}
+          - --replace_reference_date
+          - "true"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -178,7 +400,7 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -189,6 +411,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -206,11 +434,33 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
           - "{{job.parameters.source_schema}}"
+          - --theme_source_catalog
+          - "{{job.parameters.theme_source_catalog}}"
+          - --theme_source_schema
+          - "{{job.parameters.theme_source_schema}}"
+          - --theme_table_prefix
+          - "{{job.parameters.theme_table_prefix}}"
+          - --analytics_pctr_source_binding
+          - "{{job.parameters.analytics_pctr_source_binding}}"
+          - --analytics_pctr_source_catalog
+          - ${var.mktgdata_catalog}
+          - --analytics_pctr_source_schema
+          - "{{job.parameters.analytics_pctr_source_schema}}"
+          - --analytics_pctr_receipt_correlation_id
+          - "{{job.run_id}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --publish_ready_snapshot
+          - "true"
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -228,7 +478,7 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -239,6 +489,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_source_schema}}"
           - --theme_table_prefix
           - "{{job.parameters.theme_table_prefix}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
@@ -248,6 +504,9 @@ nextads_feature_store_job: &nextads_feature_store_job
       depends_on:
         - task_key: build_model_inputs
         - task_key: build_theme_affinity_training_input
+        - task_key: build_advert_product_profile_daily
+        - task_key: build_advert_semantic_profile_daily
+        - task_key: build_seasonal_product_demand_daily
       spark_python_task:
         python_file: ../../../jobs/features/nextads/quality_checks.py
         parameters:
@@ -256,7 +515,7 @@ nextads_feature_store_job: &nextads_feature_store_job
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -269,6 +528,12 @@ nextads_feature_store_job: &nextads_feature_store_job
           - "{{job.parameters.theme_table_prefix}}"
           - --theme_training_reference_date
           - "{{job.parameters.theme_training_reference_date}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4

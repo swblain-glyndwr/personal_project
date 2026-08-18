@@ -39,6 +39,7 @@
 | `migration_backlog.md` | 5111881 | Prioritised migration backlog and dependencies. |
 | [`../architecture/feature_store_flow.md`](../architecture/feature_store_flow.md) | Architecture | Mermaid view of the shared DEV Feature Store flow and model-building boundaries. |
 | [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Architecture | Wider NextAds model, Feature Store and MLflow overview. |
+| [`building_a_challenger_model.md`](building_a_challenger_model.md) | Author route | The decisions, contracts and evidence a model author follows from a problem statement to an evaluation-only challenger. |
 
 ## Executable Contracts
 
@@ -50,16 +51,35 @@
 | `sql/features/nextads/` | Physical table and compatibility-view schemas. |
 | `jobs/table_operations/create_feature_store_tables.py` | Databricks Feature Engineering table creation. |
 | `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` | Personal, integration and shared DEV Feature Store jobs. |
+| `pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml` | Personal DEV proof for the three Analytics pCTR feature tables. |
 | `jobs/features/nextads/` | Feature builders, checks and the read-only plan command. |
 | `configs/features/README.md` | Contract-state, binding and planner terminology. |
+
+### Analytics pCTR publication
+
+| Step | What now happens |
+| ---: | --- |
+| 1 | The Analytics source job records the exact source table, Delta version, schema checksum, reference-date row count and producing run. |
+| 2 | The pCTR builder records a `BUILDING` attempt before publishing feature data. This record cannot be selected by a model author. |
+| 3 | Account-advert affinity, the Analytics pCTR model input and session context are each written in one reference-date transaction. |
+| 4 | The builder checks contract schema, non-null and unique keys, a value fingerprint and same-date row stability. |
+| 5 | The build and snapshot are recorded `READY` only after every check passes. All three output tables and every session source are pinned to exact Delta versions. |
+
+A failed first attempt has no READY snapshot. A failed retry leaves the preceding READY snapshot selectable. Direct reads of the physical latest table and the legacy compatibility view do not provide that guarantee. Model-development code uses `read_ready_feature`, which opens the exact Delta version in the READY snapshot and fails when no accepted binding exists.
+
+### Personal DEV proof
+
+Use the `mktg_next_uk_nextads_analytics_pctr_feature_source` job to create and receipt the Analytics feature output for one historical date. Then run `mktg_next_uk_nextads_analytics_pctr_snapshot_verification` with the same date and the source job's receipt correlation ID.
+
+The verification job creates only the three required personal Feature Store tables and their metadata. It does not run the full Feature Store job, update shared DEV or change the main NextAds job. A normal run must return all three tables from its own READY attempt. A retry must produce the same value checksums. A controlled `after_first_write` failure must return the preceding READY attempt; the failure option is rejected outside a personal DEV schema.
 
 ### Current Contract Status
 
 | State | Count | Current coverage |
 | --- | ---: | --- |
-| `ACTIVE` | 11 | Account, web activity, advert, item, Theme Affinity, labels and quality tables with implemented builders. |
-| `COMPATIBILITY` | 2 | Theme Affinity model and training inputs retained during migration. |
-| `SCAFFOLD` | 7 | Embedding, advert/product, session and pCTR shells awaiting named source or materialisation contracts. |
+| `ACTIVE` | 17 | Account, web activity, advert, item, embedding, affinity, session, Theme Affinity, labels and quality tables with implemented builders. |
+| `COMPATIBILITY` | 3 | Theme Affinity inputs and the Analytics pCTR model input retained while their model routes move onto shared contracts. |
+| `SCAFFOLD` | 0 | Every registered physical contract now has a repository builder. Live DEV proof is still required before calling the store complete. |
 
 - These counts describe repository contracts, not live DEV completion. `DEV_COMPLETE` requires every intended physical contract and both compatibility views to meet the migration-backlog exit gate.
 
@@ -106,13 +126,13 @@ The final quality task derives its coverage from the same registry and writes on
 | `CURRENT_IMPLEMENTED_PASS` | Every non-skipped implemented contract passed physical schema, Feature Engineering key, scoped commit-recency and row/key checks, and every implemented-source compatibility view matched its declared source and row/key evidence. |
 | `current_implemented_complete` | `true` only when none of the 13 implemented contracts was skipped and every implemented-source view is ready. |
 | `dev_complete` | `true` only when current implemented coverage is complete, every intended feature is implemented, no scaffolds remain and both views are ready. |
-| `BLOCKED` | The compatibility view resolves a source that is still a scaffold; the job does not present it as operational. |
+| `BLOCKED` | The compatibility view resolves a source with missing contracts; the job does not present it as operational. |
 
 The normal daily job keeps the on-demand Theme Affinity training build at `skip`, so its manifest must report that table in `skipped_current_contracts` and keep `current_implemented_complete=false`. Supply an explicit historical `theme_training_reference_date` to build and audit that exact partition.
 
 The quality table's own persisted event uses `MANIFEST_ONLY` because a row cannot truthfully contain the Delta version created by writing itself. The deterministic manifest is emitted after that final merge and contains the exact resulting quality-table version.
 
-The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mode: overwrite`. Its builder uses one atomic whole-table replacement, while dated tables retain keyed merge behaviour; this prevents items absent from the latest source from remaining in the current feature snapshot.
+The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mode: overwrite`. Its builder uses one atomic whole-table replacement. Dated tables use one atomic reference-date replacement rather than a delete followed by a merge. Exact Delta receipts can therefore be attached to a build without a temporary missing partition.
 
 #### Personal DEV runtime evidence
 
@@ -123,7 +143,7 @@ The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mo
 | Exact-revision proof | Run `373370623960025` completed `SUCCESS` in 152.8 minutes from revision `e96485e931576695205787227eaa20297c76d0d5`. One worker was lost to a cloud communication health check during the click-label shuffle; Databricks restored the cluster to four workers and the task completed without a code retry. |
 | Audit manifest | `CURRENT_IMPLEMENTED_PASS`; 13 implemented contracts, two compatibility views, seven scaffolds, no failed current contracts and one intentionally skipped Theme Affinity training-input contract. `current_implemented_complete=false` and `dev_complete=false` remain truthful. |
 | Label evidence | Click labels: 407,436 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 17. Theme response labels: 3,971,236,814 rows and distinct keys, zero null or duplicate keys, schema/key/commit checks passed, Delta version 16. |
-| Compatibility views | `next_uk_nextads_theme_affinity_features_latest` is `READY` with 1,264,725,100 rows. `next_uk_nextads_pctr_features_latest` remains `BLOCKED` until its approved Shopping Bag pCTR source and materializer exist. |
+| Compatibility views | At revision `e96485e`, `next_uk_nextads_theme_affinity_features_latest` was `READY` with 1,264,725,100 rows and the pCTR view was still blocked. The current Analytics pCTR contract removes that repository blocker but needs a fresh linked DEV run before it can be claimed as live. |
 | Environment boundary | All writes were limited to `marketingdata_dev.stephen_blain`. This evidence does not activate shared DEV, DEV Integration, PREPROD, PROD or realtime resources. |
 
 | Remaining boundary | Evidence and required follow-up |
@@ -170,16 +190,16 @@ The registry declares `next_uk_nextads_fs_item_attributes_latest` with `write_mo
 | Account theme interactions | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/reference date | Theme Affinity, LTR |
 | Account theme affinity | `next_uk_nextads_fs_account_theme_affinity_daily` | Account/theme/reference date | Theme Affinity, LTR |
 | Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | Theme Affinity, LTR |
-| Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/location/reference date | pCTR, LTR |
+| Account advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/reference date | pCTR, LTR |
 | Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | pCTR |
 | Theme latest model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | Theme Affinity, LTR |
 | Theme labelled training input | `next_uk_nextads_fs_theme_affinity_training_input` | Account/theme/reference date | Theme Affinity |
-| pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/location/session/reference date | pCTR |
+| Analytics pCTR model input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/reference date | Analytics pCTR |
 | Click labels | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | pCTR, LTR |
 | Theme labels | `next_uk_nextads_fs_labels_theme_response` | Account/theme/reference date/label | Theme Affinity, LTR |
 | Quality events | `next_uk_nextads_fs_feature_quality_events` | Table/check/run timestamp | Feature-store operations |
 | Theme compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Current Theme Affinity model shape | Theme Affinity, LTR |
-| pCTR compatibility view | `next_uk_nextads_pctr_features_latest` | Current pCTR model shape | pCTR |
+| Analytics pCTR compatibility view | `next_uk_nextads_pctr_features_latest` | Current Analytics pCTR model shape | Analytics pCTR |
 
 ## Ownership and Refresh
 

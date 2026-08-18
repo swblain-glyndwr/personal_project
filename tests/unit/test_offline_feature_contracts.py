@@ -24,11 +24,17 @@ ACTIVE_FEATURES = {
     "next_uk_nextads_fs_account_profile",
     "next_uk_nextads_fs_account_web_activity_90d",
     "next_uk_nextads_fs_item_attributes_latest",
+    "next_uk_nextads_fs_product_embeddings_latest",
     "next_uk_nextads_fs_advert_core_daily",
     "next_uk_nextads_fs_advert_attribute_profile_daily",
+    "next_uk_nextads_fs_advert_semantic_profile_daily",
+    "next_uk_nextads_fs_advert_product_profile_daily",
+    "next_uk_nextads_fs_seasonal_product_demand_daily",
     "next_uk_nextads_fs_account_theme_interactions_daily",
     "next_uk_nextads_fs_account_theme_affinity_daily",
     "next_uk_nextads_fs_theme_popularity_daily",
+    "next_uk_nextads_fs_account_advert_affinity_daily",
+    "next_uk_nextads_fs_session_context_daily",
     "next_uk_nextads_fs_labels_clicks",
     "next_uk_nextads_fs_labels_theme_response",
     "next_uk_nextads_fs_feature_quality_events",
@@ -36,23 +42,28 @@ ACTIVE_FEATURES = {
 COMPATIBILITY_FEATURES = {
     "next_uk_nextads_fs_theme_affinity_model_input",
     "next_uk_nextads_fs_theme_affinity_training_input",
-}
-SCAFFOLD_FEATURES = {
-    "next_uk_nextads_fs_product_embeddings_latest",
-    "next_uk_nextads_fs_advert_semantic_profile_daily",
-    "next_uk_nextads_fs_advert_product_profile_daily",
-    "next_uk_nextads_fs_seasonal_product_demand_daily",
-    "next_uk_nextads_fs_account_advert_affinity_daily",
-    "next_uk_nextads_fs_session_context_daily",
     "next_uk_nextads_fs_pctr_model_input",
 }
+SCAFFOLD_FEATURES = set()
 IMPLEMENTED_BUILDERS = {
     "next_uk_nextads_fs_account_profile": "build_account_features",
     "next_uk_nextads_fs_account_web_activity_90d": "build_account_features",
     "next_uk_nextads_fs_item_attributes_latest": "build_advert_features",
+    "next_uk_nextads_fs_product_embeddings_latest": (
+        "build_product_embeddings_latest"
+    ),
     "next_uk_nextads_fs_advert_core_daily": "build_advert_features",
     "next_uk_nextads_fs_advert_attribute_profile_daily": (
         "build_advert_features"
+    ),
+    "next_uk_nextads_fs_advert_product_profile_daily": (
+        "build_advert_product_profile_daily"
+    ),
+    "next_uk_nextads_fs_advert_semantic_profile_daily": (
+        "build_advert_semantic_profile_daily"
+    ),
+    "next_uk_nextads_fs_seasonal_product_demand_daily": (
+        "build_seasonal_product_demand_daily"
     ),
     "next_uk_nextads_fs_account_theme_interactions_daily": (
         "build_theme_affinity_features"
@@ -62,6 +73,15 @@ IMPLEMENTED_BUILDERS = {
     ),
     "next_uk_nextads_fs_theme_popularity_daily": (
         "build_theme_affinity_features"
+    ),
+    "next_uk_nextads_fs_account_advert_affinity_daily": (
+        "build_pctr_affinity_features"
+    ),
+    "next_uk_nextads_fs_session_context_daily": (
+        "build_pctr_affinity_features"
+    ),
+    "next_uk_nextads_fs_pctr_model_input": (
+        "build_pctr_affinity_features"
     ),
     "next_uk_nextads_fs_theme_affinity_model_input": "build_model_inputs",
     "next_uk_nextads_fs_theme_affinity_training_input": (
@@ -264,12 +284,8 @@ def test_unknown_feature_states_are_rejected(tmp_path):
 
 def test_scaffold_missing_contracts_are_required(tmp_path):
     raw_registry = _registry_config()
-    scaffold = next(
-        feature
-        for feature in raw_registry["feature_store"]["physical_tables"]
-        if feature["state"] == "SCAFFOLD"
-    )
-    scaffold.pop("missing_contracts")
+    scaffold = raw_registry["feature_store"]["physical_tables"][0]
+    scaffold["state"] = "SCAFFOLD"
 
     with pytest.raises(ValueError, match="must declare missing_contracts"):
         load_feature_store_registry(_write_registry(tmp_path, raw_registry))
@@ -300,11 +316,8 @@ def test_feature_contract_lists_reject_scalars_blanks_and_duplicates(
 ):
     raw_registry = _registry_config()
     if field_name == "missing_contracts":
-        feature = next(
-            item
-            for item in raw_registry["feature_store"]["physical_tables"]
-            if item["state"] == "SCAFFOLD"
-        )
+        feature = raw_registry["feature_store"]["physical_tables"][0]
+        feature["state"] = "SCAFFOLD"
     else:
         feature = raw_registry["feature_store"]["physical_tables"][0]
     feature[field_name] = invalid_value

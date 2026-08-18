@@ -7,21 +7,24 @@ import logging
 
 from _registry_job import (
     configure_job_logging,
+    feature_group_identity,
     log_owned_tables,
     parse_common_args,
     validate_builder_output_tables,
 )
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
-from next_ads.features.materialization import (
-    create_feature_engineering_client,
-    write_feature_table,
+from next_ads.features.analytics_pctr_source import parse_reference_date
+from next_ads.features.snapshot_publication import (
+    write_and_publish_feature_group,
 )
+from next_ads.features.source_pinning import PinnedSourceSession
 from next_ads.features.theme_affinity import build_theme_affinity_training_input_df
 from pyspark.sql import functions as F
 
 
 LOGGER = logging.getLogger(__name__)
+BUILDER = "build_theme_affinity_training_input"
 TRAINING_TABLE_NAME = "next_uk_nextads_fs_theme_affinity_training_input"
 
 
@@ -58,7 +61,7 @@ def _validate_labelled_training_frame(df) -> dict[str, int]:
 def main() -> None:
     args = parse_common_args()
     configure_job_logging(args.log_level)
-    log_owned_tables("build_theme_affinity_training_input", args)
+    log_owned_tables(BUILDER, args)
 
     if _should_skip(args.theme_training_reference_date):
         LOGGER.info(
@@ -71,13 +74,14 @@ def main() -> None:
     spark = configure_spark()
     registry = load_feature_store_registry()
     validate_builder_output_tables(
-        "build_theme_affinity_training_input",
+        BUILDER,
         (TRAINING_TABLE_NAME,),
         registry,
     )
     target_catalog = args.catalog or registry.default_catalog
     target_schema = args.schema or registry.default_schema
     replace_reference_date = args.replace_reference_date.lower() == "true"
+    identity = feature_group_identity(args, BUILDER)
     from next_ads.ranking.theme_affinity.config import resolve_runtime
     from next_ads.ranking.theme_affinity.data_prep import rank_complete_table, run_layers
 
@@ -101,7 +105,18 @@ def main() -> None:
     rank_complete_table(spark, runtime)
 
     ranked_table = f"{runtime.namespace}.{runtime.table_prefix}_ranked"
-    ranked_df = spark.table(ranked_table).where(
+    pinned_spark = PinnedSourceSession(
+        spark,
+        feature_build_id=identity["feature_build_id"],
+        feature_build_attempt_id=identity["feature_build_attempt_id"],
+        reference_date=parse_reference_date(
+            args.theme_training_reference_date
+        ),
+        target_catalog=target_catalog,
+        target_schema=target_schema,
+        registry=registry,
+    )
+    ranked_df = pinned_spark.table(ranked_table).where(
         F.col("reference_date")
         == F.lit(args.theme_training_reference_date).cast("date")
     )
@@ -111,19 +126,23 @@ def main() -> None:
     )
     stats = _validate_labelled_training_frame(training_input_df)
 
-    table_path = write_feature_table(
+    _ready_build, snapshot = write_and_publish_feature_group(
         spark,
-        TRAINING_TABLE_NAME,
-        training_input_df,
         catalog=target_catalog,
         schema=target_schema,
-        reference_date=args.theme_training_reference_date,
+        group_id=BUILDER,
+        reference_date=parse_reference_date(
+            args.theme_training_reference_date
+        ),
+        frames={TRAINING_TABLE_NAME: training_input_df},
+        sources=pinned_spark.source_bindings,
+        registry=registry,
         replace_reference_date=replace_reference_date,
-        feature_engineering_client=create_feature_engineering_client(),
+        **identity,
     )
     LOGGER.info(
-        "Wrote Theme Affinity labelled training input feature table: %s stats=%s",
-        table_path,
+        "Published READY Theme Affinity training snapshot: %s stats=%s",
+        snapshot.feature_snapshot_id,
         stats,
     )
 

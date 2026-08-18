@@ -45,6 +45,7 @@ def expected_preflight_table_names(registry) -> tuple[str, ...]:
         feature.name
         for feature in registry.implemented_features
         if feature.freshness == "daily"
+        and feature.preflight_mode == "CENTRAL"
     )
 
 

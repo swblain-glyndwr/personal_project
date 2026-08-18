@@ -33,10 +33,47 @@ finally:
 
 from next_ads.features import load_feature_store_registry
 from next_ads.features.feature_store_registry import normalize_schema_name
+from next_ads.features.feature_build_store import METADATA_TABLES
 from next_ads.features.sql_contracts import extract_create_table_columns
 
 
 LOGGER = logging.getLogger(__name__)
+
+DEV_EMPTY_SCAFFOLD_MIGRATIONS = frozenset(
+    {
+        "next_uk_nextads_fs_product_embeddings_latest",
+        "next_uk_nextads_fs_advert_semantic_profile_daily",
+        "next_uk_nextads_fs_advert_product_profile_daily",
+        "next_uk_nextads_fs_seasonal_product_demand_daily",
+        "next_uk_nextads_fs_account_advert_affinity_daily",
+        "next_uk_nextads_fs_pctr_model_input",
+    }
+)
+
+
+def create_feature_metadata_tables(
+    spark,
+    catalog: str,
+    schema: str,
+    *,
+    dry_run: bool = False,
+) -> list[str]:
+    """Create the build and READY-snapshot evidence tables."""
+    contract_root = PROJECT_ROOT / "sql" / "features" / "nextads"
+    created = []
+    for table_name in METADATA_TABLES:
+        table_path = f"{catalog}.{schema}.{table_name}"
+        contract_path = contract_root / f"create_table_{table_name}.sql"
+        statement = contract_path.read_text().format(
+            catalog=catalog,
+            schema=schema,
+        )
+        if dry_run:
+            LOGGER.info("Dry run CREATE TABLE IF NOT EXISTS %s", table_path)
+        else:
+            spark.sql(statement)
+        created.append(table_path)
+    return created
 
 
 def configure_job_logging(log_level: str) -> None:
@@ -142,6 +179,75 @@ def create_feature_engineering_client():
     return FeatureEngineeringClient()
 
 
+def _schema_signature(schema) -> tuple[tuple[str, str, bool], ...]:
+    return tuple(
+        (field.name, field.dataType.simpleString(), field.nullable)
+        for field in schema.fields
+    )
+
+
+def migrate_empty_dev_scaffolds(
+    spark,
+    catalog: str,
+    schema: str,
+    table_names: list[str] | tuple[str, ...],
+    *,
+    dry_run: bool = False,
+) -> list[str]:
+    """Replace only known empty DEV scaffolds whose contracts changed."""
+    requested = tuple(table_names)
+    unsupported = sorted(
+        set(requested).difference(DEV_EMPTY_SCAFFOLD_MIGRATIONS)
+    )
+    if unsupported:
+        raise ValueError(
+            "Unsupported empty scaffold migration: "
+            + ", ".join(unsupported)
+        )
+    if requested and catalog != "marketingdata_dev":
+        raise ValueError(
+            "Empty scaffold migrations are allowed only in marketingdata_dev"
+        )
+
+    registry = load_feature_store_registry()
+    migrated = []
+    for table_name in requested:
+        table_path = registry.resolved_table_path(
+            table_name,
+            catalog=catalog,
+            schema=schema,
+        )
+        if not spark.catalog.tableExists(table_path):
+            continue
+        expected_schema = schema_from_contract(
+            registry.sql_contract_path(table_name).read_text()
+        )
+        existing = spark.table(table_path)
+        if _schema_signature(existing.schema) == _schema_signature(
+            expected_schema
+        ):
+            LOGGER.info(
+                "Empty scaffold migration already applied: %s",
+                table_path,
+            )
+            continue
+        if existing.limit(1).count():
+            raise ValueError(
+                "Refusing to replace non-empty DEV scaffold with a changed "
+                f"contract: {table_path}"
+            )
+        if dry_run:
+            LOGGER.info(
+                "Dry run replacement of empty DEV scaffold contract: %s",
+                table_path,
+            )
+        else:
+            LOGGER.info("Replacing empty DEV scaffold contract: %s", table_path)
+            spark.sql(f"DROP TABLE IF EXISTS {table_path}")
+        migrated.append(table_path)
+    return migrated
+
+
 def _supported_kwargs(callable_obj, kwargs):
     signature = inspect.signature(callable_obj)
     return {
@@ -231,6 +337,9 @@ def create_feature_store_tables(
     recreate_tables: bool = False,
     manage_principals: list[str] | None = None,
     all_privileges_principals: list[str] | None = None,
+    empty_scaffold_migrations: list[str] | tuple[str, ...] | None = None,
+    table_names: list[str] | tuple[str, ...] | None = None,
+    create_views: bool = True,
 ) -> list[str]:
     """Create missing physical Databricks feature tables.
 
@@ -260,10 +369,36 @@ def create_feature_store_tables(
             dry_run=dry_run,
         )
         LOGGER.info("Recreated feature-store objects requested: %s", dropped_objects)
+    migrate_empty_dev_scaffolds(
+        spark,
+        target_catalog,
+        target_schema,
+        empty_scaffold_migrations or (),
+        dry_run=dry_run,
+    )
+    metadata_tables = create_feature_metadata_tables(
+        spark,
+        target_catalog,
+        target_schema,
+        dry_run=dry_run,
+    )
+    LOGGER.info("Feature build metadata tables: %s", metadata_tables)
     if not dry_run and fe_client is None:
         fe_client = create_feature_engineering_client()
 
+    requested_tables = set(table_names or ())
+    if requested_tables:
+        unknown_tables = requested_tables.difference(
+            table.name for table in registry.physical_tables
+        )
+        if unknown_tables:
+            raise ValueError(
+                "Unknown Feature Store tables requested: "
+                + ", ".join(sorted(unknown_tables))
+            )
     for table in registry.physical_tables:
+        if requested_tables and table.name not in requested_tables:
+            continue
         table_path = registry.resolved_table_path(
             table.name,
             catalog=target_catalog,
@@ -309,12 +444,13 @@ def create_feature_store_tables(
             )
         created_tables.append(table_path)
 
-    create_feature_store_views(
-        spark,
-        catalog=target_catalog,
-        schema=target_schema,
-        dry_run=dry_run,
-    )
+    if create_views:
+        create_feature_store_views(
+            spark,
+            catalog=target_catalog,
+            schema=target_schema,
+            dry_run=dry_run,
+        )
     return created_tables
 
 
@@ -359,6 +495,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--recreate_tables", default="False")
     parser.add_argument("--manage_principal", action="append", default=[])
     parser.add_argument("--all_privileges_principal", action="append", default=[])
+    parser.add_argument(
+        "--empty_scaffold_migration",
+        action="append",
+        default=[],
+    )
+    parser.add_argument("--table", action="append", default=[])
+    parser.add_argument("--create_views", default="True")
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
 
@@ -379,6 +522,9 @@ def main() -> None:
         recreate_tables=args.recreate_tables.lower() == "true",
         manage_principals=args.manage_principal,
         all_privileges_principals=args.all_privileges_principal,
+        empty_scaffold_migrations=args.empty_scaffold_migration,
+        table_names=args.table,
+        create_views=args.create_views.lower() == "true",
     )
     LOGGER.info("Feature-store table setup complete: %s", created_tables)
 

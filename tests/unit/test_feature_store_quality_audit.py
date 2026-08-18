@@ -72,13 +72,18 @@ class _ViewSpark:
         self.sql_calls.append(query)
         if self.error:
             raise self.error
+        source_table = (
+            "next_uk_nextads_fs_pctr_model_input"
+            if "next_uk_nextads_pctr_features_latest" in query
+            else "next_uk_nextads_fs_theme_affinity_model_input"
+        )
         return _HistoryResult(
             [
                 {
                     "createtab_stmt": (
                         "CREATE VIEW example AS SELECT * FROM "
                         "marketingdata_dev.nextads_feature_store."
-                        "next_uk_nextads_fs_theme_affinity_model_input"
+                        + source_table
                     )
                 }
             ]
@@ -99,11 +104,11 @@ def _stub_readable_view_checks(monkeypatch, *, row_count=10):
     return _ViewSpark()
 
 
-def test_quality_audit_inventory_contains_all_thirteen_implemented_contracts():
+def test_quality_audit_inventory_matches_the_registered_implemented_contracts():
     registry = load_feature_store_registry()
     features = quality_checks.quality_audit_features(registry)
 
-    assert len(features) == 13
+    assert len(features) == len(registry.implemented_features)
     assert {feature.name for feature in features} == {
         feature.name for feature in registry.implemented_features
     }
@@ -201,7 +206,7 @@ def test_quality_event_uses_audit_date_for_whole_table_and_skipped_scopes():
     assert skipped_event["freshness_timestamp"] is None
 
 
-def test_manifest_reports_current_coverage_without_claiming_dev_complete(
+def test_manifest_reports_registry_coverage_without_claiming_dev_complete(
     monkeypatch,
 ):
     registry = load_feature_store_registry()
@@ -216,25 +221,31 @@ def test_manifest_reports_current_coverage_without_claiming_dev_complete(
         RUN_TIMESTAMP,
     )
 
-    assert manifest["implemented_count"] == 13
-    assert manifest["compatibility_view_count"] == 2
-    assert manifest["scaffold_count"] == 7
+    assert manifest["implemented_count"] == len(registry.implemented_features)
+    assert manifest["compatibility_view_count"] == len(
+        registry.compatibility_views
+    )
+    assert manifest["scaffold_count"] == (
+        len(registry.offline_features) - len(registry.implemented_features)
+    )
     assert manifest["overall_status"] == "CURRENT_IMPLEMENTED_PASS"
     assert manifest["skipped_current_contracts"] == [
         "next_uk_nextads_fs_theme_affinity_training_input"
     ]
     assert manifest["current_implemented_complete"] is False
     assert manifest["dev_complete"] is False
-    assert len(manifest["contracts"]) == 15
+    assert len(manifest["contracts"]) == (
+        len(registry.implemented_features) + len(registry.compatibility_views)
+    )
 
     contracts = {entry["name"]: entry for entry in manifest["contracts"]}
     theme_view = contracts["next_uk_nextads_theme_affinity_features_latest"]
     pctr_view = contracts["next_uk_nextads_pctr_features_latest"]
     assert theme_view["status"] == "READY"
     assert theme_view["row_count"] == 10
-    assert pctr_view["status"] == "BLOCKED"
-    assert pctr_view["source_state"] == "SCAFFOLD"
-    assert pctr_view["row_count"] is None
+    assert pctr_view["status"] == "READY"
+    assert pctr_view["source_state"] == "COMPATIBILITY"
+    assert pctr_view["row_count"] == 10
 
     required_fields = {
         "physical_path",
@@ -334,18 +345,22 @@ def test_implemented_view_is_physically_read_and_counted(monkeypatch):
 
     assert spark.table_calls == [
         "marketingdata_dev.nextads_feature_store."
-        "next_uk_nextads_theme_affinity_features_latest"
+        "next_uk_nextads_theme_affinity_features_latest",
+        "marketingdata_dev.nextads_feature_store."
+        "next_uk_nextads_pctr_features_latest",
     ]
     assert spark.sql_calls == [
         "SHOW CREATE TABLE marketingdata_dev.nextads_feature_store."
-        "next_uk_nextads_theme_affinity_features_latest"
+        "next_uk_nextads_theme_affinity_features_latest",
+        "SHOW CREATE TABLE marketingdata_dev.nextads_feature_store."
+        "next_uk_nextads_pctr_features_latest",
     ]
     assert entries[0]["status"] == "READY"
     assert entries[0]["row_count"] == 10
-    assert entries[1]["status"] == "BLOCKED"
+    assert entries[1]["status"] == "READY"
 
 
-def test_unreadable_implemented_view_fails_without_reading_scaffold_view(
+def test_unreadable_implemented_views_are_each_reported_as_failed(
     monkeypatch,
 ):
     registry = load_feature_store_registry()
@@ -359,11 +374,12 @@ def test_unreadable_implemented_view_fails_without_reading_scaffold_view(
         "nextads_feature_store",
     )
 
-    assert len(spark.table_calls) == 1
+    assert len(spark.table_calls) == 2
     assert not spark.sql_calls
     assert entries[0]["status"] == "FAIL"
     assert "view missing" in entries[0]["error"]
-    assert entries[1]["status"] == "BLOCKED"
+    assert entries[1]["status"] == "FAIL"
+    assert "view missing" in entries[1]["error"]
 
 
 def test_implemented_view_requires_source_row_and_key_parity(monkeypatch):

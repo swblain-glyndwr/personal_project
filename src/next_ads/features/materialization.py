@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from next_ads.common.delta_writes import (
+    DeltaWriteReceipt,
+    replace_scope_by_name,
+    replace_table_by_name,
+)
 from next_ads.features.feature_store_registry import (
     FeatureStoreRegistry,
     load_feature_store_registry,
@@ -116,20 +122,15 @@ def align_to_feature_table_contract(
     return df.select(*selected_columns)
 
 
-def delete_reference_date_partition(
-    spark: Any,
-    table_path: str,
-    reference_date_column: str,
-    reference_date: str | date,
-) -> None:
-    """Delete one point-in-time partition before a feature-table merge."""
-    spark.sql(
-        f"DELETE FROM {table_path} "
-        f"WHERE {reference_date_column} = DATE '{reference_date}'"
-    )
-
-
 DELTA_COMMIT_METADATA_KEY = "spark.databricks.delta.commitInfo.userMetadata"
+
+
+@dataclass(frozen=True)
+class FeatureMaterializationResult:
+    """The table path and exact Delta transaction produced by a feature write."""
+
+    table_path: str
+    receipt: DeltaWriteReceipt
 
 
 def _read_spark_conf(spark: Any, key: str) -> str | None:
@@ -182,7 +183,11 @@ def write_feature_table(
     mode: str = "merge",
     registry: FeatureStoreRegistry | None = None,
     feature_engineering_client: Any | None = None,
-) -> str:
+    build_id: str | None = None,
+    attempt_id: str | None = None,
+    git_commit: str | None = None,
+    return_receipt: bool = False,
+) -> str | FeatureMaterializationResult:
     """Validate and write a feature table through Databricks FE."""
     if mode not in {"merge", "overwrite"}:
         raise ValueError(
@@ -197,31 +202,54 @@ def write_feature_table(
     aligned_df = align_to_feature_table_contract(df, table_name, active_registry)
     validate_required_column_values(aligned_df, table.primary_keys, table_name)
 
-    client = feature_engineering_client or create_feature_engineering_client()
-    previous_metadata = _set_feature_commit_metadata(
-        spark,
-        table_name,
-        reference_date,
-    )
-    try:
-        if (
-            mode == "merge"
-            and replace_reference_date
-            and reference_date
-            and reference_date_column in aligned_df.columns
-            and spark.catalog.tableExists(table_path)
-        ):
-            delete_reference_date_partition(
-                spark,
-                table_path,
-                reference_date_column,
-                reference_date,
+    commit_metadata = {
+        "contract": "nextads_feature_build/v1",
+        "reference_date": str(reference_date) if reference_date else None,
+        "table_name": table_name,
+    }
+    if mode == "overwrite":
+        receipt = replace_table_by_name(
+            aligned_df,
+            table_path,
+            spark=spark,
+            build_id=build_id,
+            attempt_id=attempt_id,
+            git_commit=git_commit,
+            commit_metadata=commit_metadata,
+        )
+    elif (
+        replace_reference_date
+        and reference_date
+        and reference_date_column in aligned_df.columns
+    ):
+        receipt = replace_scope_by_name(
+            aligned_df,
+            table_path,
+            {reference_date_column: reference_date},
+            spark=spark,
+            build_id=build_id,
+            attempt_id=attempt_id,
+            git_commit=git_commit,
+            commit_metadata=commit_metadata,
+        )
+    else:
+        if return_receipt:
+            raise ValueError(
+                "Exact receipts require a date-scoped or full-table replacement"
             )
-
-        if mode == "overwrite":
-            aligned_df.write.mode("overwrite").insertInto(table_path)
-        else:
+        previous_metadata = _set_feature_commit_metadata(
+            spark,
+            table_name,
+            reference_date,
+        )
+        try:
+            client = (
+                feature_engineering_client
+                or create_feature_engineering_client()
+            )
             client.write_table(name=table_path, df=aligned_df, mode="merge")
-    finally:
-        _restore_feature_commit_metadata(spark, previous_metadata)
-    return table_path
+        finally:
+            _restore_feature_commit_metadata(spark, previous_metadata)
+        return table_path
+    result = FeatureMaterializationResult(table_path, receipt)
+    return result if return_receipt else result.table_path

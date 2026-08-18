@@ -10,7 +10,14 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_seasonal_produc
   product_views_ly_same_month BIGINT,
   product_purchases_ly_same_month BIGINT,
   product_trending_7x30 DOUBLE,
+  embedding_model_name STRING NOT NULL,
+  embedding_model_version STRING NOT NULL,
+  embedding_model_uri STRING NOT NULL,
+  embedding_source_run_id STRING NOT NULL,
+  embedding_artifact_sha256 STRING NOT NULL,
+  product_embedding_text_hash STRING,
   seasonal_product_embedding ARRAY<DOUBLE>,
+  seasonal_product_embedding_dimension INT NOT NULL,
   seasonal_product_embedding_coverage DOUBLE,
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
@@ -22,4 +29,3 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_fs_seasonal_produc
   )
 )
 USING delta
-PARTITIONED BY (feature_date)

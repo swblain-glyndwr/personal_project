@@ -31,6 +31,41 @@ def resolve_model_version_for_alias(
     return str(model_version.version)
 
 
+def _already_exists(error: Exception) -> bool:
+    return str(getattr(error, "error_code", "")).upper() in {
+        "ALREADY_EXISTS",
+        "RESOURCE_ALREADY_EXISTS",
+    }
+
+
+def _ensure_registered_model(mlflow_client, registered_model_name: str) -> None:
+    try:
+        mlflow_client.create_registered_model(registered_model_name)
+    except Exception as error:
+        if not _already_exists(error):
+            raise
+
+
+def _copy_exact_model_version(
+    mlflow_client,
+    *,
+    source_uri: str,
+    source_model_version,
+    target_registered_model_name: str,
+):
+    """Copy an exact artifact without relying on a logged-model ID."""
+    _ensure_registered_model(mlflow_client, target_registered_model_name)
+    return mlflow_client.create_model_version(
+        name=target_registered_model_name,
+        source=source_uri,
+        run_id=getattr(source_model_version, "run_id", None) or None,
+        tags=dict(getattr(source_model_version, "tags", {}) or {}),
+        run_link=None,
+        description=getattr(source_model_version, "description", None),
+        model_id=None,
+    )
+
+
 def copy_model_alias_to_registered_model(
     mlflow_module,
     source_registered_model_name: str,
@@ -38,12 +73,21 @@ def copy_model_alias_to_registered_model(
     target_registered_model_name: str,
     target_alias: str,
 ):
-    source_uri = model_uri_for_alias(source_registered_model_name, source_alias)
-    registered_model = mlflow_module.register_model(
-        model_uri=source_uri,
-        name=target_registered_model_name,
-    )
     client = mlflow_module.tracking.MlflowClient()
+    source_model_version = client.get_model_version_by_alias(
+        name=source_registered_model_name,
+        alias=source_alias,
+    )
+    source_uri = model_uri_for_version(
+        source_model_version.name,
+        source_model_version.version,
+    )
+    registered_model = _copy_exact_model_version(
+        client,
+        source_uri=source_uri,
+        source_model_version=source_model_version,
+        target_registered_model_name=target_registered_model_name,
+    )
     set_model_alias(
         client,
         target_registered_model_name,
@@ -60,15 +104,21 @@ def copy_model_version_to_registered_model(
     target_registered_model_name: str,
     target_alias: str,
 ):
-    source_uri = model_uri_for_version(
-        source_registered_model_name,
-        source_version,
-    )
-    registered_model = mlflow_module.register_model(
-        model_uri=source_uri,
-        name=target_registered_model_name,
-    )
     client = mlflow_module.tracking.MlflowClient()
+    source_model_version = client.get_model_version(
+        name=source_registered_model_name,
+        version=str(source_version),
+    )
+    source_uri = model_uri_for_version(
+        source_model_version.name,
+        source_model_version.version,
+    )
+    registered_model = _copy_exact_model_version(
+        client,
+        source_uri=source_uri,
+        source_model_version=source_model_version,
+        target_registered_model_name=target_registered_model_name,
+    )
     set_model_alias(
         client,
         target_registered_model_name,

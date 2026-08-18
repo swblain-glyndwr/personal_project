@@ -123,6 +123,7 @@ class OfflineFeatureDefinition:
     missing_contracts: tuple[str, ...] = ()
     builder: str | None = None
     write_mode: str = "merge"
+    preflight_mode: str = "CENTRAL"
 
     def __post_init__(self) -> None:
         """Default the logical builder to the legacy source-job metadata."""
@@ -187,6 +188,12 @@ class OfflineFeatureDefinition:
                 f"{context} has unsupported write_mode {write_mode!r}; "
                 "expected merge or overwrite"
             )
+        preflight_mode = str(raw.get("preflight_mode", "CENTRAL")).upper()
+        if preflight_mode not in {"CENTRAL", "BUILDER", "NONE"}:
+            raise ValueError(
+                f"{context} has unsupported preflight_mode "
+                f"{preflight_mode!r}; expected CENTRAL, BUILDER, or NONE"
+            )
 
         return cls(
             name=_required_text(raw["name"], "name", context),
@@ -209,6 +216,7 @@ class OfflineFeatureDefinition:
                 else None
             ),
             write_mode=write_mode,
+            preflight_mode=preflight_mode,
         )
 
     @property

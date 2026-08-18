@@ -9,8 +9,13 @@ import pytest
 
 from jobs.features.nextads import smoke_product_embedding_runtime as smoke_module
 from jobs.features.nextads.smoke_product_embedding_runtime import (
-    _runtime_matches,
     run_smoke,
+)
+from next_ads.features import embedding_runtime as runtime_module
+from next_ads.features.embedding_runtime import (
+    load_approved_sentence_transformer,
+    resolve_validated_sentence_transformer_artifact,
+    runtime_matches,
     validate_cpu_torch,
     validate_embedding_vector,
     validate_model_metadata,
@@ -31,7 +36,7 @@ def _write_safe_model_artifact(model_data_path):
     (model_data_path / "2_Normalize").mkdir()
     (model_data_path / "model.safetensors").write_bytes(b"safe")
     (model_data_path / "modules.json").write_text(
-        json.dumps(smoke_module.EXPECTED_SENTENCE_TRANSFORMER_MODULES)
+        json.dumps(runtime_module.EXPECTED_SENTENCE_TRANSFORMER_MODULES)
     )
 
 
@@ -69,11 +74,11 @@ def _fake_mlflow_artifact(binding, artifact_root, flavors):
 def test_runtime_release_accepts_exact_bundle_and_runtime_tag_forms():
     expected = "15.4.x-scala2.12"
 
-    assert _runtime_matches("15.4.x-scala2.12", expected)
-    assert _runtime_matches("15.4", expected)
-    assert _runtime_matches("15.4.12", expected)
-    assert not _runtime_matches("15.3", expected)
-    assert not _runtime_matches("16.4.x-scala2.12", expected)
+    assert runtime_matches("15.4.x-scala2.12", expected)
+    assert runtime_matches("15.4", expected)
+    assert runtime_matches("15.4.12", expected)
+    assert not runtime_matches("15.3", expected)
+    assert not runtime_matches("16.4.x-scala2.12", expected)
 
 
 def test_runtime_validation_requires_every_exact_dependency_pin():
@@ -227,7 +232,7 @@ def test_safe_artifact_validation_requires_safetensors_and_no_code(tmp_path):
 
 def test_safe_artifact_validation_rejects_custom_module_graph(tmp_path):
     _write_safe_model_artifact(tmp_path)
-    modules = list(smoke_module.EXPECTED_SENTENCE_TRANSFORMER_MODULES)
+    modules = list(runtime_module.EXPECTED_SENTENCE_TRANSFORMER_MODULES)
     modules[0] = {
         **modules[0],
         "type": "custom_package.RemoteCode",
@@ -236,6 +241,58 @@ def test_safe_artifact_validation_rejects_custom_module_graph(tmp_path):
 
     with pytest.raises(ValueError, match="approved Transformer"):
         validate_safe_model_artifacts(tmp_path)
+
+
+def test_validated_artifact_resolver_returns_path_without_loading_model(
+    tmp_path,
+    monkeypatch,
+):
+    definition = load_product_embedding_definition()
+    binding = load_approved_dev_smoke_binding()
+    artifact_root = tmp_path / "artifact"
+    model_data_path = artifact_root / "model.sentence_transformer"
+    _write_safe_model_artifact(model_data_path)
+    flavors = {
+        "sentence_transformers": {
+            "code": None,
+            "sentence_transformers_version": "2.4.0",
+        },
+        "python_function": {
+            "code": None,
+            "data": "model.sentence_transformer",
+            "loader_module": "mlflow.sentence_transformers",
+        },
+    }
+    fake_mlflow = _fake_mlflow_artifact(binding, artifact_root, flavors)
+    artifact_sha256 = validate_safe_model_artifacts(model_data_path)[
+        "artifact_sha256"
+    ]
+    binding = replace(binding, artifact_sha256=artifact_sha256)
+
+    class UnexpectedSentenceTransformer:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Artifact resolution must not load the model")
+
+    sentence_transformers_module = ModuleType("sentence_transformers")
+    sentence_transformers_module.SentenceTransformer = (
+        UnexpectedSentenceTransformer
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "sentence_transformers",
+        sentence_transformers_module,
+    )
+
+    resolved_path, evidence = resolve_validated_sentence_transformer_artifact(
+        fake_mlflow,
+        binding,
+        definition,
+    )
+
+    assert resolved_path == model_data_path.resolve()
+    assert evidence["artifact_sha256"] == artifact_sha256
+    assert evidence["approved_artifact_sha256"] == artifact_sha256
+    assert evidence["module_graph_verified"] is True
 
 
 def test_approved_loader_checks_and_loads_the_exact_safe_artifact(
@@ -279,7 +336,7 @@ def test_approved_loader_checks_and_loads_the_exact_safe_artifact(
         sentence_transformers_module,
     )
 
-    model, evidence = smoke_module.load_approved_sentence_transformer(
+    model, evidence = load_approved_sentence_transformer(
         fake_mlflow,
         binding,
         definition,
@@ -332,7 +389,7 @@ def test_approved_loader_rejects_an_unapproved_artifact_digest(
     )
 
     with pytest.raises(ValueError, match="artifact digest does not match"):
-        smoke_module.load_approved_sentence_transformer(
+        load_approved_sentence_transformer(
             fake_mlflow,
             binding,
             definition,
@@ -389,7 +446,7 @@ def test_approved_loader_rejects_wrong_flavor_or_path_traversal(
     )
 
     with pytest.raises(ValueError, match=expected_message):
-        smoke_module.load_approved_sentence_transformer(
+        load_approved_sentence_transformer(
             fake_mlflow,
             binding,
             definition,
@@ -401,12 +458,12 @@ def test_run_smoke_uses_fixed_binding_and_emits_observed_evidence(monkeypatch):
     package_versions = dict(definition.runtime_profile.package_versions)
     monkeypatch.setattr(
         smoke_module,
-        "_runtime_version",
+        "resolve_runtime_version",
         lambda spark: "15.4.x-scala2.12",
     )
     monkeypatch.setattr(
         smoke_module,
-        "_installed_package_versions",
+        "installed_package_versions",
         lambda package_names: package_versions,
     )
     registry_uris = []
