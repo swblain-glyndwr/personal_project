@@ -547,21 +547,40 @@ def shopping_bag_assignment_is_eligible(
     treatment: str | None,
 ) -> bool:
     """Apply the observable-label assignment exclusions without Spark."""
+    return (
+        classify_shopping_bag_assignment_exclusion(
+            measurement_advert_id,
+            assigned_advert_id,
+            treatment,
+        )
+        is None
+    )
+
+
+def classify_shopping_bag_assignment_exclusion(
+    measurement_advert_id: str | None,
+    assigned_advert_id: str | None,
+    treatment: str | None,
+) -> str | None:
+    """Return one stable audit reason for an assignment rejected from labels."""
     import re
 
-    invalid_advert_ids = {"NoAd", "NoAds", "NoAdFound", "AdSuppressed"}
-    if measurement_advert_id in invalid_advert_ids:
-        return False
-    if assigned_advert_id in invalid_advert_ids:
-        return False
-    if (treatment or "").strip().lower() not in SHOPPING_BAG_SERVED_TREATMENTS:
-        return False
-    return bool(
-        measurement_advert_id
-        and assigned_advert_id
-        and re.match(r"^P\d+_C\d+", measurement_advert_id)
-        and re.match(r"^P\d+_C\d+", assigned_advert_id)
-    )
+    advert_ids = {
+        (measurement_advert_id or "").strip(),
+        (assigned_advert_id or "").strip(),
+    }
+    normalized_treatment = (treatment or "").strip().lower()
+    if advert_ids.intersection({"NoAd", "NoAds", "NoAdFound"}):
+        return "NO_AD"
+    if "AdSuppressed" in advert_ids or normalized_treatment == "adsuppressed":
+        return "SUPPRESSED"
+    if normalized_treatment == "control":
+        return "CONTROL"
+    if normalized_treatment not in SHOPPING_BAG_SERVED_TREATMENTS:
+        return "UNKNOWN_TREATMENT"
+    if not all(re.match(r"^P\d+_C\d+", value) for value in advert_ids):
+        return "UNRESOLVED_ADVERT"
+    return None
 
 
 def _campaign_key(column_expr):
@@ -604,7 +623,13 @@ def _event_id(*columns):
     )
 
 
-def _normalise_label_sessions(sessions, rpid_lookup, platform: str):
+def _normalise_label_sessions(
+    sessions,
+    rpid_lookup,
+    platform: str,
+    *,
+    include_excluded: bool = False,
+):
     from pyspark.sql import functions as F
 
     normalized = sessions.select(
@@ -642,7 +667,7 @@ def _normalise_label_sessions(sessions, rpid_lookup, platform: str):
         .alias("session_start_hour"),
         F.lit(platform).alias("platform"),
     )
-    return (
+    candidates = (
         normalized.withColumn(
             "session_start_timestamp",
             F.coalesce(
@@ -664,12 +689,22 @@ def _normalise_label_sessions(sessions, rpid_lookup, platform: str):
             "account_number",
             F.coalesce("direct_account_number", "mapped_account_number"),
         )
-        .where(F.col("account_number").isNotNull())
-        .where(F.col("session_id").isNotNull())
-        .where(F.col("session_start_timestamp").isNotNull())
-        .where(
-            F.hour("session_start_timestamp")
-            >= F.lit(SHOPPING_BAG_MASID_REFRESH_HOUR)
+        .withColumn(
+            "session_exclusion_reason",
+            F.when(F.col("session_id").isNull(), F.lit("MISSING_SESSION_ID"))
+            .when(
+                F.col("account_number").isNull(),
+                F.lit("UNMAPPED_ACCOUNT"),
+            )
+            .when(
+                F.col("session_start_timestamp").isNull(),
+                F.lit("MISSING_SESSION_START"),
+            )
+            .when(
+                F.hour("session_start_timestamp")
+                < F.lit(SHOPPING_BAG_MASID_REFRESH_HOUR),
+                F.lit("PRE_REFRESH"),
+            ),
         )
         .select(
             "platform",
@@ -679,8 +714,14 @@ def _normalise_label_sessions(sessions, rpid_lookup, platform: str):
             "device",
             "operating_system",
             "session_start_timestamp",
+            "session_exclusion_reason",
         )
         .dropDuplicates()
+    )
+    if include_excluded:
+        return candidates
+    return candidates.where(F.col("session_exclusion_reason").isNull()).drop(
+        "session_exclusion_reason"
     )
 
 
@@ -844,6 +885,8 @@ def _shopping_bag_v1_assignments(
     control_sheet,
     multipage_locations,
     reference_date: str,
+    *,
+    include_ineligible: bool = False,
 ):
     from pyspark.sql import functions as F
 
@@ -947,13 +990,15 @@ def _shopping_bag_v1_assignments(
         .drop("control_measurement_advert_id")
         .withColumn("route", F.lit("v1"))
     )
-    return _valid_assignment_filter(normalized)
+    return normalized if include_ineligible else _valid_assignment_filter(normalized)
 
 
 def _shopping_bag_v2_assignments(
     assignments,
     control_sheet,
     reference_date: str,
+    *,
+    include_ineligible: bool = False,
 ):
     from pyspark.sql import functions as F
 
@@ -1001,7 +1046,7 @@ def _shopping_bag_v2_assignments(
         )
         .drop("control_measurement_advert_id")
     )
-    return _valid_assignment_filter(normalized)
+    return normalized if include_ineligible else _valid_assignment_filter(normalized)
 
 
 def build_observed_shopping_bag_click_labels_df(

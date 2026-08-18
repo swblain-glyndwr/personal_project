@@ -6,6 +6,7 @@ import yaml
 
 from next_ads.features.nextads_core import (
     build_observed_shopping_bag_click_labels_df,
+    classify_shopping_bag_assignment_exclusion,
     classify_shopping_bag_event_route,
     normalize_shopping_bag_advert_id,
     shopping_bag_assignment_is_eligible,
@@ -85,6 +86,33 @@ def test_non_served_or_control_assignments_are_not_label_exposures(
         measurement,
         assigned,
         treatment,
+    )
+
+
+@pytest.mark.parametrize(
+    ("measurement", "assigned", "treatment", "expected"),
+    [
+        ("P1_C1_A", "NoAd", "Best", "NO_AD"),
+        ("P1_C1_A", "P1_C1_A", "AdSuppressed", "SUPPRESSED"),
+        ("P1_C1_A", "P1_C1_A", "Control", "CONTROL"),
+        ("P1_C1_A", "P1_C1_A", None, "UNKNOWN_TREATMENT"),
+        (None, "P1_C1_A", "Best", "UNRESOLVED_ADVERT"),
+        ("P1_C1_A", "P1_C1_A", "Best", None),
+    ],
+)
+def test_assignment_exclusions_have_stable_evidence_reasons(
+    measurement,
+    assigned,
+    treatment,
+    expected,
+):
+    assert (
+        classify_shopping_bag_assignment_exclusion(
+            measurement,
+            assigned,
+            treatment,
+        )
+        == expected
     )
 
 

@@ -17,6 +17,11 @@ from next_ads.features.nextads_core import (
     build_observed_shopping_bag_click_labels_df,
     build_raw_shopping_bag_events_df,
     read_shopping_bag_click_label_sources,
+    source_table,
+)
+from next_ads.features.shopping_bag_label_evidence import (
+    collect_reporting_sanity,
+    collect_shopping_bag_label_evidence,
 )
 from next_ads.features.snapshot_publication import (
     write_and_publish_feature_group,
@@ -29,95 +34,73 @@ BUILDER = "build_shopping_bag_click_labels"
 OBSERVED_TABLE = "next_uk_nextads_fs_shopping_bag_click_labels"
 
 
-def _log_label_evidence(raw_events, observed_labels) -> None:
-    """Log bounded audit totals that reviewers can read from the task output."""
-    from pyspark.sql import functions as F
-
-    raw_evidence = (
-        raw_events.groupBy("event_route", "platform", "action")
-        .agg(F.countDistinct("raw_event_id").alias("tagged_events"))
-        .orderBy("event_route", "platform", "action")
-        .collect()
+def _log_label_evidence(
+    *,
+    spark,
+    sources,
+    raw_events,
+    observed_labels,
+    reference_date: str,
+    label_end: str,
+    source_catalog: str,
+    source_schema: str,
+    source_watermarks,
+) -> None:
+    """Log one bounded funnel and a non-gating reporting comparison."""
+    evidence = collect_shopping_bag_label_evidence(
+        sources=sources,
+        raw_events=raw_events,
+        observed_labels=observed_labels,
+        reference_date=reference_date,
+        label_end=label_end,
+        source_watermarks=source_watermarks,
     )
-    evidence = (
-        observed_labels.groupBy(
-            "route",
-            "platform",
-            "exposure_match_type",
-            "label_horizon_days",
+    reporting_table = source_table(
+        source_catalog,
+        source_schema,
+        "next_uk_nextads_results_ads_location",
+    )
+    try:
+        # This comparison is evidence only, so it must not become a recorded
+        # input to the reproducible label snapshot.
+        reporting_results = (
+            spark.table(reporting_table)
+            if spark.catalog.tableExists(reporting_table)
+            else None
         )
-        .agg(
-            F.countDistinct("exposure_id").alias("accepted_exposures"),
-            F.sum("click_count").alias("attributed_clicks"),
-            F.sum("clicked").alias("positive_labels"),
+        reporting_sanity = collect_reporting_sanity(
+            observed_labels,
+            reporting_results,
+            reference_date=reference_date,
+            reporting_table=reporting_table,
         )
-        .orderBy(
-            "route",
-            "platform",
-            "exposure_match_type",
-            "label_horizon_days",
+    except Exception as exc:
+        LOGGER.warning(
+            "Reporting sanity was unavailable and did not block labels: %s",
+            exc,
         )
-        .collect()
-    )
+        reporting_sanity = collect_reporting_sanity(
+            observed_labels,
+            None,
+            reference_date=reference_date,
+            reporting_table=reporting_table,
+        )
+        reporting_sanity["detail"] = (
+            "Reporting sanity was unavailable and did not block labels: "
+            f"{type(exc).__name__}"
+        )
+    evidence["reporting_sanity"] = reporting_sanity
     LOGGER.info(
-        "SHOPPING_BAG_RAW_EVENT_EVIDENCE=%s",
-        json.dumps(
-            [row.asDict(recursive=True) for row in raw_evidence]
-        ),
-    )
-    LOGGER.info(
-        "SHOPPING_BAG_LABEL_EVIDENCE=%s",
-        json.dumps([row.asDict(recursive=True) for row in evidence]),
-    )
-    quality = observed_labels.agg(
-        F.count(F.lit(1)).alias("label_rows"),
-        F.countDistinct(
-            "exposure_id",
-            "label_horizon_days",
-            "exposure_timestamp",
-        ).alias("distinct_label_keys"),
-        F.sum(
-            F.when(
-                F.lower(F.trim("treatment")).isin(
-                    "best",
-                    "bestprem",
-                    "bestchallenger",
-                    "bestchallengerprem",
-                ),
-                0,
-            ).otherwise(1)
-        ).alias("invalid_treatment_rows"),
-        F.sum(
-            F.when(
-                F.col("first_click_timestamp").isNotNull()
-                & (
-                    F.col("first_click_timestamp")
-                    <= F.col("exposure_timestamp")
-                ),
-                1,
-            ).otherwise(0)
-        ).alias("click_not_after_exposure_rows"),
-        F.sum(
-            F.when(
-                (F.col("platform") == "APP")
-                & (
-                    F.col("event_cms_page_id").isNull()
-                    | F.col("assignment_cms_page_id").isNull()
-                ),
-                1,
-            ).otherwise(0)
-        ).alias("app_rows_without_cms_match"),
-    ).first()
-    LOGGER.info(
-        "SHOPPING_BAG_LABEL_QUALITY=%s",
-        json.dumps(quality.asDict(recursive=True)),
+        "SHOPPING_BAG_LABEL_FUNNEL=%s",
+        json.dumps(evidence, sort_keys=True),
     )
 
 
-def _validate_action_watermarks(sources, label_end) -> None:
+def _validate_action_watermarks(sources, label_end) -> dict[str, str]:
     """Reject labels when either telemetry source stops before the cutoff."""
     from pyspark.sql import functions as F
 
+    watermarks = {}
     for source_name in ("web_actions", "app_actions"):
         row = sources[source_name].agg(
             F.max(F.to_date("date")).alias("max_event_date")
@@ -133,6 +116,8 @@ def _validate_action_watermarks(sources, label_end) -> None:
             source_name,
             max_event_date,
         )
+        watermarks[source_name] = max_event_date.isoformat()
+    return watermarks
 
 
 def main() -> None:
@@ -167,7 +152,7 @@ def main() -> None:
         args.source_catalog,
         args.source_schema,
     )
-    _validate_action_watermarks(sources, label_end)
+    source_watermarks = _validate_action_watermarks(sources, label_end)
     raw_events = build_raw_shopping_bag_events_df(
         sources["web_actions"],
         sources["app_actions"],
@@ -182,7 +167,17 @@ def main() -> None:
     ).cache()
     frames = {OBSERVED_TABLE: observed}
     validate_builder_output_tables(BUILDER, frames, registry)
-    _log_label_evidence(raw_events, observed)
+    _log_label_evidence(
+        spark=spark,
+        sources=sources,
+        raw_events=raw_events,
+        observed_labels=observed,
+        reference_date=reference_date.isoformat(),
+        label_end=label_end.isoformat(),
+        source_catalog=args.source_catalog,
+        source_schema=args.source_schema,
+        source_watermarks=source_watermarks,
+    )
 
     _ready_build, snapshot = write_and_publish_feature_group(
         spark,

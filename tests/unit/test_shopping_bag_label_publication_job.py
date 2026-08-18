@@ -70,6 +70,36 @@ def test_manual_label_job_is_dev_only_and_unscheduled():
     assert JOB_PATH.name in (PROJECT_ROOT / "databricks.yml").read_text()
 
 
+def test_manual_label_job_logs_a_bounded_non_gating_evidence_funnel():
+    job_source = (
+        PROJECT_ROOT
+        / "jobs"
+        / "features"
+        / "nextads"
+        / "build_shopping_bag_click_labels.py"
+    ).read_text()
+    evidence_source = (
+        PROJECT_ROOT
+        / "src"
+        / "next_ads"
+        / "features"
+        / "shopping_bag_label_evidence.py"
+    ).read_text()
+
+    assert "SHOPPING_BAG_LABEL_FUNNEL=" in job_source
+    assert "next_uk_nextads_results_ads_location" in job_source
+    assert "pinned_spark.table(reporting_table)" not in job_source
+    assert '"is_gate": False' in evidence_source
+    assert "AMBIGUOUS_ACCOUNT" in evidence_source
+    assert "AMBIGUOUS_MATCH" in evidence_source
+    assert "PRE_REFRESH" in evidence_source
+    assert "UNKNOWN_TREATMENT" in evidence_source
+    assert "event_cms_page_id" in evidence_source
+    assert "assignment_cms_page_id" in evidence_source
+    assert "label_horizon_days" in evidence_source
+    assert '"quality_checks"' in evidence_source
+
+
 def test_label_publication_replaces_the_session_date_partition():
     source = BUILDER_PATH.read_text()
 
