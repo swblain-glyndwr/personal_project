@@ -23,6 +23,7 @@ REGISTRY_PATH = (
 ACTIVE_FEATURES = {
     "next_uk_nextads_fs_account_profile",
     "next_uk_nextads_fs_account_web_activity_90d",
+    "next_uk_nextads_fs_shopping_bag_account_activity_90d",
     "next_uk_nextads_fs_item_attributes_latest",
     "next_uk_nextads_fs_product_embeddings_latest",
     "next_uk_nextads_fs_advert_core_daily",
@@ -49,6 +50,9 @@ SCAFFOLD_FEATURES = set()
 IMPLEMENTED_BUILDERS = {
     "next_uk_nextads_fs_account_profile": "build_account_features",
     "next_uk_nextads_fs_account_web_activity_90d": "build_account_features",
+    "next_uk_nextads_fs_shopping_bag_account_activity_90d": (
+        "build_shopping_bag_account_activity"
+    ),
     "next_uk_nextads_fs_item_attributes_latest": "build_advert_features",
     "next_uk_nextads_fs_product_embeddings_latest": (
         "build_product_embeddings_latest"
@@ -120,7 +124,7 @@ def test_offline_feature_definitions_have_explicit_delivery_states():
         for state in OfflineFeatureState
     }
 
-    assert len(registry.offline_features) == 21
+    assert len(registry.offline_features) == 22
     assert features_by_state[OfflineFeatureState.ACTIVE] == ACTIVE_FEATURES
     assert (
         features_by_state[OfflineFeatureState.COMPATIBILITY]

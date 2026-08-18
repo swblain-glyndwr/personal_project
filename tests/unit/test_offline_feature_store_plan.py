@@ -30,7 +30,7 @@ def test_offline_plan_resolves_the_same_logical_graph_for_every_environment():
 
     assert plan["mode"] == "READ_ONLY"
     assert plan["summary"] == {
-        "ACTIVE": 17,
+        "ACTIVE": 18,
         "COMPATIBILITY": 4,
         "SCAFFOLD": 0,
     }
@@ -63,7 +63,7 @@ def test_offline_plan_resolves_the_same_logical_graph_for_every_environment():
         feature_ids_by_environment[0],
         feature_ids_by_environment[0],
     ]
-    assert len(feature_ids_by_environment[0]) == 21
+    assert len(feature_ids_by_environment[0]) == 22
     preprod_first_feature = environments["PREPROD"]["features"][0]
     assert preprod_first_feature["location_state"] == "RELEASE_ID_REQUIRED"
     assert "{release_id}" in preprod_first_feature["table_location"]

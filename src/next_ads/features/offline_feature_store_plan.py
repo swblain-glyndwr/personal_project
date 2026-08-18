@@ -37,6 +37,14 @@ MANUAL_BUILDER_JOB_DEFINITIONS = (
         / "mktg_next_uk_nextads_shopping_bag_label_publication.yml",
         "mktg_next_uk_nextads_shopping_bag_label_publication",
     ),
+    (
+        PROJECT_ROOT
+        / "pipelines"
+        / "databricks"
+        / "jobs"
+        / "mktg_next_uk_nextads_shopping_bag_feature_preparation.yml",
+        "mktg_next_uk_nextads_shopping_bag_feature_preparation",
+    ),
 )
 
 

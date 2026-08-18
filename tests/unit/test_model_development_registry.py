@@ -101,9 +101,18 @@ def test_shopping_bag_pctr_uses_feature_store_labels_and_reusable_features():
         "location": ("SB1", "SB2", "ShoppingBagPage")
     }
     assert {lookup.feature_id for lookup in definition.feature_lookups} == {
-        "next_uk_nextads_fs_account_web_activity_90d",
+        "next_uk_nextads_fs_shopping_bag_account_activity_90d",
         "next_uk_nextads_fs_advert_core_daily",
     }
+    activity = next(
+        lookup
+        for lookup in definition.feature_lookups
+        if lookup.feature_id
+        == "next_uk_nextads_fs_shopping_bag_account_activity_90d"
+    )
+    assert activity.availability_lag_days == 1
+    assert dict(activity.defaults)["browse_session_recency_days"] == 91
+    assert dict(activity.defaults)["action_recency_days"] == 91
 
 
 def test_shopping_bag_model_features_exclude_outcome_and_audit_columns():

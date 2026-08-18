@@ -21,22 +21,33 @@ def test_job_publishes_only_the_missing_shopping_bag_feature_groups():
 
     assert set(tasks) == {
         "resolve_reference_date",
-        "publish_account_features",
+        "build_shopping_bag_account_activity",
         "publish_advert_features",
-        "create_observed_label_table",
+        "create_required_feature_tables",
         "publish_click_labels",
     }
-    assert tasks["publish_account_features"]["spark_python_task"][
+    assert tasks["build_shopping_bag_account_activity"][
+        "spark_python_task"
+    ][
         "python_file"
-    ].endswith("/build_account_features.py")
+    ].endswith("/build_shopping_bag_account_activity.py")
     assert tasks["publish_advert_features"]["spark_python_task"][
         "python_file"
     ].endswith("/build_advert_features.py")
     assert tasks["publish_click_labels"]["spark_python_task"][
         "python_file"
     ].endswith("/build_shopping_bag_click_labels.py")
-    setup = tasks["create_observed_label_table"]["spark_python_task"]
+    setup = tasks["create_required_feature_tables"]["spark_python_task"]
     assert setup["python_file"].endswith("/create_feature_store_tables.py")
+    assert "next_uk_nextads_fs_shopping_bag_account_activity_90d" in setup[
+        "parameters"
+    ]
+    for table_name in (
+        "next_uk_nextads_fs_item_attributes_latest",
+        "next_uk_nextads_fs_advert_core_daily",
+        "next_uk_nextads_fs_advert_attribute_profile_daily",
+    ):
+        assert table_name in setup["parameters"]
     assert "next_uk_nextads_fs_shopping_bag_click_labels" in setup[
         "parameters"
     ]
@@ -44,6 +55,9 @@ def test_job_publishes_only_the_missing_shopping_bag_feature_groups():
         value.lower()
         for value in setup["parameters"]
         if isinstance(value, str)
+    ]
+    assert tasks["publish_advert_features"]["depends_on"] == [
+        {"task_key": "create_required_feature_tables"}
     ]
 
 
@@ -59,14 +73,24 @@ def test_job_is_manual_personal_dev_evidence_only():
     assert "default: REQUIRED" in source
     assert parameters["reference_date"] == "REQUIRED"
     assert parameters["label_end"] == "REQUIRED"
+    assert parameters["feature_reference_date"] == "REQUIRED"
     assert parameters["source_catalog"] == "${var.feature_store_source_catalog}"
     assert parameters["source_schema"] == "${var.feature_store_source_schema}"
-    assert parameters["theme_source_catalog"] == (
-        "${var.feature_store_source_catalog}"
-    )
-    assert parameters["theme_source_schema"] == (
-        "${var.feature_store_source_schema}"
-    )
+    tasks = {task["task_key"]: task for task in job["tasks"]}
+    activity_parameters = tasks["build_shopping_bag_account_activity"][
+        "spark_python_task"
+    ]["parameters"]
+    advert_parameters = tasks["publish_advert_features"]["spark_python_task"][
+        "parameters"
+    ]
+    label_parameters = tasks["publish_click_labels"]["spark_python_task"][
+        "parameters"
+    ]
+    feature_date = "{{tasks.resolve_reference_date.values.reference_date}}"
+    assert feature_date in activity_parameters
+    assert feature_date in advert_parameters
+    assert "{{job.parameters.reference_date}}" in label_parameters
+    assert feature_date not in label_parameters
     assert "activation_mode: EVALUATE" in source
     assert "schedule:" not in source
     assert "DEV_FEATURE_STORE:" not in source

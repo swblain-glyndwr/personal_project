@@ -114,7 +114,7 @@ def test_feature_store_registry_loads_physical_tables_and_views():
     assert registry.name == "nextads_feature_store"
     assert registry.default_catalog == "marketingdata_dev"
     assert registry.default_schema == "nextads_feature_store"
-    assert len(registry.physical_tables) == 21
+    assert len(registry.physical_tables) == 22
     assert {
         view["name"] for view in registry.compatibility_views
     } == {

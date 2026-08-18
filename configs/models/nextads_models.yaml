@@ -137,7 +137,7 @@ models:
         - ShoppingBagPage
     activation_mode: EVALUATE
     feature_lookups:
-      - feature_id: next_uk_nextads_fs_account_web_activity_90d
+      - feature_id: next_uk_nextads_fs_shopping_bag_account_activity_90d
         observation_timestamp: exposure_timestamp
         availability_lag_days: 1
         key_mapping:
@@ -160,8 +160,8 @@ models:
           avg_pages_per_session_90d: 0.0
           action_events_90d: 0
           add_to_bag_actions_90d: 0
-          browse_session_recency_days: 0
-          action_recency_days: 0
+          browse_session_recency_days: 91
+          action_recency_days: 91
       - feature_id: next_uk_nextads_fs_advert_core_daily
         observation_timestamp: exposure_timestamp
         key_mapping:

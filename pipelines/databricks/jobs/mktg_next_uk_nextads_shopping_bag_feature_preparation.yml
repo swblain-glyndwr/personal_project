@@ -9,16 +9,12 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
       default: REQUIRED
     - name: label_end
       default: REQUIRED
+    - name: feature_reference_date
+      default: REQUIRED
     - name: source_catalog
       default: ${var.feature_store_source_catalog}
     - name: source_schema
       default: ${var.feature_store_source_schema}
-    - name: theme_source_catalog
-      default: ${var.feature_store_source_catalog}
-    - name: theme_source_schema
-      default: ${var.feature_store_source_schema}
-    - name: theme_table_prefix
-      default: ${var.feature_store_theme_table_prefix}
   job_clusters: ${var.job_clusters_config}
   tags:
     deployed_at: ${var.deploy_timestamp}
@@ -38,46 +34,32 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
         python_file: ../../../jobs/features/nextads/resolve_feature_reference_date.py
         parameters:
           - --reference_date
-          - "{{job.parameters.reference_date}}"
+          - "{{job.parameters.feature_reference_date}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
           - "{{job.parameters.source_schema}}"
-          - --theme_source_catalog
-          - "{{job.parameters.theme_source_catalog}}"
-          - --theme_source_schema
-          - "{{job.parameters.theme_source_schema}}"
-          - --theme_table_prefix
-          - "{{job.parameters.theme_table_prefix}}"
           - --log_level
           - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 1800
-    - task_key: publish_account_features
+    - task_key: build_shopping_bag_account_activity
       depends_on:
-        - task_key: resolve_reference_date
+        - task_key: create_required_feature_tables
       spark_python_task:
-        python_file: ../../../jobs/features/nextads/build_account_features.py
-        parameters: &common_builder_parameters
+        python_file: ../../../jobs/features/nextads/build_shopping_bag_account_activity.py
+        parameters: &feature_builder_parameters
           - --catalog
           - ${var.mktgdata_catalog}
           - --schema
           - ${var.feature_store_schema}
           - --reference_date
           - "{{tasks.resolve_reference_date.values.reference_date}}"
-          - --label_end
-          - "{{job.parameters.label_end}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
           - "{{job.parameters.source_schema}}"
-          - --theme_source_catalog
-          - "{{job.parameters.theme_source_catalog}}"
-          - --theme_source_schema
-          - "{{job.parameters.theme_source_schema}}"
-          - --theme_table_prefix
-          - "{{job.parameters.theme_table_prefix}}"
           - --feature_build_id
           - "{{job.run_id}}"
           - --feature_build_attempt_id
@@ -89,7 +71,7 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 7200
-    - task_key: create_observed_label_table
+    - task_key: create_required_feature_tables
       depends_on:
         - task_key: resolve_reference_date
       spark_python_task:
@@ -100,7 +82,15 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
           - --schema
           - ${var.feature_store_schema}
           - --table
+          - next_uk_nextads_fs_shopping_bag_account_activity_90d
+          - --table
           - next_uk_nextads_fs_shopping_bag_click_labels
+          - --table
+          - next_uk_nextads_fs_item_attributes_latest
+          - --table
+          - next_uk_nextads_fs_advert_core_daily
+          - --table
+          - next_uk_nextads_fs_advert_attribute_profile_daily
           - --create_schema
           - "false"
           - --create_views
@@ -114,19 +104,39 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
       timeout_seconds: 1800
     - task_key: publish_advert_features
       depends_on:
-        - task_key: resolve_reference_date
+        - task_key: create_required_feature_tables
       spark_python_task:
         python_file: ../../../jobs/features/nextads/build_advert_features.py
-        parameters: *common_builder_parameters
+        parameters: *feature_builder_parameters
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 7200
     - task_key: publish_click_labels
       depends_on:
-        - task_key: create_observed_label_table
+        - task_key: create_required_feature_tables
       spark_python_task:
         python_file: ../../../jobs/features/nextads/build_shopping_bag_click_labels.py
-        parameters: *common_builder_parameters
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --reference_date
+          - "{{job.parameters.reference_date}}"
+          - --label_end
+          - "{{job.parameters.label_end}}"
+          - --source_catalog
+          - "{{job.parameters.source_catalog}}"
+          - --source_schema
+          - "{{job.parameters.source_schema}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --log_level
+          - INFO
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 7200
