@@ -1,0 +1,74 @@
+# Manual DEV-only reviewed selection from one immutable research build.
+model_research_selection_job: &model_research_selection_job
+  name: mktg_next_uk_nextads_model_research_selection
+  queue:
+    enabled: true
+  parameters:
+    - name: research_build_id
+      default: REQUIRED
+    - name: candidate_id
+      default: REQUIRED
+    - name: written_reason
+      default: REQUIRED
+    - name: reviewed_by
+      default: REQUIRED
+    - name: model_catalog
+      default: ${var.mktgdata_catalog}
+    - name: model_schema
+      default: ${var.user_schema}
+    - name: registered_model_name
+      default: ${var.mktgdata_catalog}.${var.user_schema}.nextads_shopping_bag_pctr
+  job_clusters: ${var.model_research_job_clusters_config}
+  tags:
+    deployed_at: ${var.deploy_timestamp}
+    git_commit: ${var.git_commit_sha}
+    git_branch: ${var.git_branch}
+    deployed_by: ${var.deployed_by}
+    department: marketing
+    project: nextads
+    domain: model_research
+    activation_mode: EVALUATE
+  max_concurrent_runs: 1
+  timeout_seconds: 10800
+  tasks:
+    - task_key: select_reviewed_model_candidate
+      spark_python_task:
+        python_file: ../../../jobs/model/research/select_research_candidate.py
+        parameters:
+          - --research_build_id
+          - "{{job.parameters.research_build_id}}"
+          - --candidate_id
+          - "{{job.parameters.candidate_id}}"
+          - --written_reason
+          - "{{job.parameters.written_reason}}"
+          - --reviewed_by
+          - "{{job.parameters.reviewed_by}}"
+          - --model_catalog
+          - "{{job.parameters.model_catalog}}"
+          - --model_schema
+          - "{{job.parameters.model_schema}}"
+          - --registered_model_name
+          - "{{job.parameters.registered_model_name}}"
+          - --code_sha
+          - ${var.git_commit_sha}
+          - --orchestration_run_id
+          - "{{job.run_id}}"
+          - --task_run_id
+          - "{{task.run_id}}"
+          - --execution_count
+          - "{{task.execution_count}}"
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_model_research_D32ads_v5_4
+      libraries: ${var.model_research_libraries}
+      timeout_seconds: 10800
+
+model_research_selection_config: &model_research_selection_config
+  mktg_next_uk_nextads_model_research_selection:
+    <<: *model_research_selection_job
+
+targets:
+  DEV:
+    resources:
+      jobs:
+        <<: *model_research_selection_config
