@@ -1,0 +1,6 @@
+databricks-feature-engineering==0.12.1
+dynaconf[yaml]==3.2.12
+matplotlib==3.11.1
+mlflow==3.11.1
+numpy==1.26.4
+xgboost==3.0.0
