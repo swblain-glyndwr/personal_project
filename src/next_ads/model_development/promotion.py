@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import re
-from typing import Any, Callable
+from typing import Any
 
 from next_ads.model_development.contracts import (
     MODEL_VERSION_TAG_ARTIFACT_DIGEST,
@@ -20,7 +20,7 @@ from next_ads.model_development.contracts import (
 from next_ads.model_development.runtime import model_build_id
 from next_ads.model_development.spark_training import (
     MODEL_EVALUATION_METRICS,
-    artifact_directory_digest,
+    registered_model_artifact_digest,
 )
 
 
@@ -73,32 +73,6 @@ def _exact_registered_model_uri(model_name: str, version: int | str) -> str:
     if _EXACT_MODEL_URI.fullmatch(model_uri) is None:
         raise ValueError("registered model URI must name one numeric version")
     return model_uri
-
-
-def registered_model_artifact_digest(
-    model_uri: str,
-    *,
-    artifact_downloader: Callable[..., str] | None = None,
-) -> str:
-    """Hash artifacts resolved through one exact registered-model URI.
-
-    Resolving through ``models:/name/version`` works for both legacy run-backed
-    MLflow models and newer registered artifacts without relying on a tracking
-    run ID that may only exist in the source workspace.
-    """
-    if (
-        not isinstance(model_uri, str)
-        or _EXACT_MODEL_URI.fullmatch(model_uri) is None
-    ):
-        raise ValueError(
-            "model_uri must name one numeric registered model version"
-        )
-    if artifact_downloader is None:
-        from mlflow.artifacts import download_artifacts
-
-        artifact_downloader = download_artifacts
-    artifact_path = artifact_downloader(artifact_uri=model_uri)
-    return artifact_directory_digest(artifact_path)
 
 
 def recover_registered_model_build(

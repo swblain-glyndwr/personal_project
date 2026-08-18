@@ -47,6 +47,8 @@ def test_trainer_uses_unity_catalog_safe_version_tags():
     assert "MODEL_VERSION_TAG_ARTIFACT_DIGEST" in source
     assert "MODEL_VERSION_TAG_BUILD_ID" in source
     assert "MODEL_VERSION_TAG_TRAINING_RECEIPT_ID" in source
+    assert "registered_model_artifact_digest(registered_model_uri)" in source
+    assert "client.download_artifacts" not in source
     assert '"nextads.' not in source
 
 

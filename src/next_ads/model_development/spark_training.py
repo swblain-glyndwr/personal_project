@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 from typing import Any
 
 from next_ads.model_development.contracts import (
@@ -30,6 +31,7 @@ MODEL_EVALUATION_METRICS = (
 )
 
 MODEL_SIGNATURE_OUTPUTS = ("prediction",)
+_EXACT_MODEL_URI = re.compile(r"models:/([^/@\s]+)/([1-9][0-9]*)")
 
 
 def artifact_directory_digest(path: str | Path) -> str:
@@ -49,6 +51,27 @@ def artifact_directory_digest(path: str | Path) -> str:
             while chunk := handle.read(1024 * 1024):
                 digest.update(chunk)
     return digest.hexdigest()
+
+
+def registered_model_artifact_digest(
+    model_uri: str,
+    *,
+    artifact_downloader: Any | None = None,
+) -> str:
+    """Hash artifacts resolved from one exact numeric registered version."""
+    if (
+        not isinstance(model_uri, str)
+        or _EXACT_MODEL_URI.fullmatch(model_uri) is None
+    ):
+        raise ValueError(
+            "model_uri must name one numeric registered model version"
+        )
+    if artifact_downloader is None:
+        from mlflow.artifacts import download_artifacts
+
+        artifact_downloader = download_artifacts
+    artifact_path = artifact_downloader(artifact_uri=model_uri)
+    return artifact_directory_digest(artifact_path)
 
 
 def _signature_column_names(schema: Any, field_name: str) -> tuple[str, ...]:
@@ -480,8 +503,10 @@ class SparkBinaryClassifierTrainer:
         )
         version = int(registered.version)
         client = MlflowClient()
-        artifact_path = client.download_artifacts(run_id, "model")
-        digest = artifact_directory_digest(artifact_path)
+        registered_model_uri = (
+            f"models:/{self.registered_model_name}/{version}"
+        )
+        digest = registered_model_artifact_digest(registered_model_uri)
         for key, value in {
             MODEL_VERSION_TAG_ARTIFACT_DIGEST: digest,
             MODEL_VERSION_TAG_BUILD_ID: build_id,
@@ -512,7 +537,7 @@ class SparkBinaryClassifierTrainer:
             mlflow_run_id=run_id,
             registered_model_name=self.registered_model_name,
             registered_model_version=version,
-            model_uri=(f"models:/{self.registered_model_name}/{version}"),
+            model_uri=registered_model_uri,
             artifact_digest=digest,
             metrics=tuple(sorted(metrics.items())),
             completed_at=completed_at,
@@ -523,6 +548,7 @@ __all__ = [
     "SparkBinaryClassifierTrainer",
     "MODEL_EVALUATION_METRICS",
     "artifact_directory_digest",
+    "registered_model_artifact_digest",
     "deterministic_train_validation_split",
     "log_spark_model_with_signature",
     "temporal_train_validation_split",

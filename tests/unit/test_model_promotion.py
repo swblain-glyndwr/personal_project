@@ -14,6 +14,7 @@ from next_ads.model_development.contracts import (
 )
 from next_ads.model_development.registry import load_model_definition
 from next_ads.model_development.runtime import model_build_id
+from next_ads.model_development.spark_training import artifact_directory_digest
 import next_ads.model_development.promotion as promotion
 
 
@@ -160,7 +161,7 @@ def test_registered_model_digest_downloads_one_exact_numeric_uri(tmp_path):
     )
 
     assert calls == ["models:/catalog.dev.model/2"]
-    assert digest == promotion.artifact_directory_digest(model)
+    assert digest == artifact_directory_digest(model)
     assert len(digest) == hashlib.sha256().digest_size * 2
 
 
