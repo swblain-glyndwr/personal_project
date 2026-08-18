@@ -408,6 +408,35 @@ once in
 table inputs and outputs are in
 [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md).
 
+## Manual DEV Model Research Route
+
+The model-research jobs are unscheduled and declared only in the personal
+`DEV` target. They use exact READY snapshots and remain separate from the
+operational scoring and assignment graph.
+
+```mermaid
+flowchart LR
+  snapshots["READY Feature Store snapshots"]
+  research["Model research<br/>parent and nested MLflow runs"]
+  receipts["Immutable research and candidate receipts"]
+  selection["Reviewed selection"]
+  selected["Selected registered DEV model"]
+  evaluation["Isolated Shopping Bag evaluation"]
+  automl["Optional bounded AutoML discovery"]
+  live["Serving portfolios, assignments and payloads"]
+
+  snapshots --> research --> receipts --> selection --> selected --> evaluation
+  receipts -. "disabled by default" .-> automl
+  evaluation -. "no write" .-> live
+```
+
+The current Shopping Bag research plan requires reviewed selection. The
+research job logs the automatic recommendation and stops without registration;
+the selection job requires the exact research build and candidate IDs, reviewer
+and written reason before test evaluation and registration. The AutoML job is a
+separate manually enabled discovery route over the exact research frame. It
+does not receive the research test period and does not register a model.
+
 ## Job And Table Ownership Boundaries
 
 New NextAds model work should decide which layer it belongs to before adding a job or table:
