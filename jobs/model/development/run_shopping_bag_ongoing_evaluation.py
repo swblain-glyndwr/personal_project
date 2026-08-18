@@ -132,7 +132,10 @@ def _scopes(route: str) -> tuple[str, ...]:
 
 
 def _load_model_build(args, spark, definition):
-    from mlflow.tracking import MlflowClient
+    import mlflow
+    from next_ads.ml.lifecycle import configure_mlflow
+
+    configure_mlflow(mlflow)
 
     build = load_ready_model_build(
         spark,
@@ -159,7 +162,7 @@ def _load_model_build(args, spark, definition):
         raise ValueError(
             "The requested model build does not use an exact version"
         )
-    validate_registered_model_build(MlflowClient(), build)
+    validate_registered_model_build(mlflow.tracking.MlflowClient(), build)
     return build
 
 

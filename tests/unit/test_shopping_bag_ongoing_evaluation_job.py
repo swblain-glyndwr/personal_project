@@ -56,7 +56,11 @@ def test_job_scores_exact_inputs_and_publishes_ready_last():
             / "ongoing_evaluation.py"
         ).read_text()
     )
-    assert "validate_registered_model_build(MlflowClient(), build)" in source
+    assert "configure_mlflow(mlflow)" in source
+    assert (
+        "validate_registered_model_build(mlflow.tracking.MlflowClient(), build)"
+        in source
+    )
     assert "models:/{build.registered_model_name}/" in source
     assert source.index("status=BUILDING") < source.index(
         "persist_evaluation_scores("
