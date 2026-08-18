@@ -5,7 +5,7 @@
 | 5111595 | Reusable offline Feature Store. |
 | 5111881 | Documentation and migration backlog. |
 
-## Scope
+## Feature Store Scope And Serving Boundary
 
 | Area | Current boundary |
 | --- | --- |
@@ -33,7 +33,7 @@ for the complete individual data-scientist route:
 That walkthrough deliberately stops before cross-environment promotion or
 customer serving.
 
-## Current Repository Status
+## Registry Contract Status
 
 The read-only plan currently reports:
 
@@ -52,7 +52,7 @@ particular environment or date has a READY snapshot.
 
 The registry contains 22 physical contracts and two compatibility views.
 
-## Delivery Gates
+## Feature Store Delivery Gates
 
 | Order | Gate | Exit condition |
 | ---: | --- | --- |
@@ -67,19 +67,20 @@ An empty table shell is not a populated feature. An on-demand contract is not
 exempt from evidence; it is proved through an explicit dated run rather than a
 daily schedule.
 
-## Documents
+## Feature Store Documentation Map
 
 | Document | Purpose |
 | --- | --- |
 | [`building_a_challenger_model.md`](building_a_challenger_model.md) | Worked Shopping Bag route from research to DEV MLflow and isolated `EVALUATE`. |
+| [`adding_sql_built_feature.md`](adding_sql_built_feature.md) | Contract, implementation, testing and evidence steps for a reusable feature built with Spark SQL. |
 | [`reusable_feature_inventory.md`](reusable_feature_inventory.md) | Reusable signals and migration candidates. |
-| [`initial_table_design.md`](initial_table_design.md) | Initial account, advert, embedding, model-input and quality design. |
+| [`feature_store_table_design.md`](feature_store_table_design.md) | Complete current table/view design, including grain, keys, dates, cadence and training safety. |
 | [`candidate_similarity.md`](candidate_similarity.md) | Offline similarity diagnostics concept; not a current model input. |
 | [`migration_backlog.md`](migration_backlog.md) | Prioritised migrations and dependencies. |
-| [`../architecture/nextads_model_feature_overview.md`](../architecture/nextads_model_feature_overview.md) | Start here for the main assignment/delivery route and the in-flight Feature Store/model jobs, including what they consume and produce. |
+| [`../architecture/nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md) | Start here for the operational assignment/delivery route and the in-flight Feature Store/model jobs, including what they consume and produce. |
 | [`../architecture/feature_store_flow.md`](../architecture/feature_store_flow.md) | Detailed task order and parallel branches inside the shared DEV Feature Store job. |
 
-## Executable Contracts
+## Executable Feature Store Contracts
 
 | Artifact | Responsibility |
 | --- | --- |
@@ -93,7 +94,7 @@ daily schedule.
 | `pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml` | Manual isolated Shopping Bag candidate scoring. |
 | `configs/models/nextads_models.yaml` | Model problems, lookups, runtimes and plug-ins. |
 
-## Immutable Publication
+## READY Snapshot Publication Contract
 
 Every accepted build follows the same boundary:
 
@@ -112,7 +113,7 @@ Model code uses `read_ready_feature`, which opens the exact backing-table Delta
 version recorded in the snapshot. A direct physical-table read does not provide
 the same reproducibility guarantee.
 
-## Read-Only Plan
+## Repository Contract Plan Commands
 
 All environments:
 
@@ -140,7 +141,7 @@ DEV only:
 
 Planner state is not live-run evidence.
 
-## Runtime And Quality Audit
+## Registry-Driven Runtime Quality Audit
 
 The final quality task derives its scope from the same registry and reports one
 result for every implemented physical contract in scope.
@@ -160,7 +161,7 @@ The quality table's own persisted row uses `MANIFEST_ONLY`: a row cannot contain
 the Delta version created by writing itself. The deterministic manifest emitted
 after the write contains the resulting quality-table version.
 
-## Current Personal DEV Evidence
+## Personal DEV Shopping Bag Evidence
 
 The Shopping Bag walkthrough proves a complete model-author slice without
 starting the full Feature Store job.
@@ -177,59 +178,15 @@ starting the full Feature Store job.
 This is personal DEV proof. It does not claim PREPROD, PROD, realtime or online
 Feature Store activation.
 
-## Feature Catalogue
+## Feature Table Design Ownership
 
-| State | Feature group | Physical contract | Grain | Main consumers |
-| --- | --- | --- | --- | --- |
-| ACTIVE | Account profile | `next_uk_nextads_fs_account_profile` | Account/reference date | Theme Affinity, pCTR, LTR |
-| ACTIVE | Account web activity | `next_uk_nextads_fs_account_web_activity_90d` | Account/reference date | pCTR, LTR |
-| ACTIVE | Shopping Bag account activity | `next_uk_nextads_fs_shopping_bag_account_activity_90d` | Account/reference date | Shopping Bag pCTR |
-| ACTIVE | Item attributes | `next_uk_nextads_fs_item_attributes_latest` | Item | pCTR, LTR |
-| ACTIVE | Product embeddings | `next_uk_nextads_fs_product_embeddings_latest` | Item/model version | pCTR |
-| ACTIVE | Advert core | `next_uk_nextads_fs_advert_core_daily` | Advert/location/feature date | pCTR, LTR |
-| ACTIVE | Advert attribute profile | `next_uk_nextads_fs_advert_attribute_profile_daily` | Advert/feature date | pCTR, LTR |
-| ACTIVE | Advert semantic profile | `next_uk_nextads_fs_advert_semantic_profile_daily` | Advert/feature date/model | pCTR |
-| ACTIVE | Advert product profile | `next_uk_nextads_fs_advert_product_profile_daily` | Advert/feature date | pCTR |
-| ACTIVE | Seasonal product demand | `next_uk_nextads_fs_seasonal_product_demand_daily` | Entity/product/feature date | pCTR |
-| ACTIVE | Account-theme interactions | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/date | Theme Affinity, LTR |
-| ACTIVE | Account-theme affinity | `next_uk_nextads_fs_account_theme_affinity_daily` | Account/theme/date | Theme Affinity, LTR |
-| ACTIVE | Theme popularity | `next_uk_nextads_fs_theme_popularity_daily` | Theme/date | Theme Affinity, LTR |
-| ACTIVE | Account-advert affinity | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/date | Analytics pCTR, LTR |
-| ACTIVE | Session context | `next_uk_nextads_fs_session_context_daily` | Account/session/date | Analytics pCTR |
-| COMPATIBILITY | Theme model input | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/date | Theme Affinity |
-| COMPATIBILITY | Theme labelled input | `next_uk_nextads_fs_theme_affinity_training_input` | Account/theme/date | Theme Affinity training |
-| COMPATIBILITY | Analytics pCTR input | `next_uk_nextads_fs_pctr_model_input` | Account/advert/date | Analytics pCTR |
-| COMPATIBILITY | Legacy inferred click label | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session/horizon | Compatibility only; not training-safe |
-| ACTIVE | Observed Shopping Bag click label | `next_uk_nextads_fs_shopping_bag_click_labels` | Exposure/horizon | Shopping Bag pCTR |
-| ACTIVE | Theme response label | `next_uk_nextads_fs_labels_theme_response` | Account/theme/date/label | Theme Affinity |
-| ACTIVE | Quality events | `next_uk_nextads_fs_feature_quality_events` | Table/check/run | Feature operations |
-| VIEW | Theme compatibility view | `next_uk_nextads_theme_affinity_features_latest` | Current Theme model shape | Theme Affinity |
-| VIEW | Analytics pCTR compatibility view | `next_uk_nextads_pctr_features_latest` | Current Analytics shape | Analytics pCTR |
+The complete physical catalogue, compatibility views, grain, keys, dates,
+cadence, ownership and training-safety boundary are maintained once in
+[`feature_store_table_design.md`](feature_store_table_design.md). The executable
+form is [`nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml).
+The counts in Current Repository Status are derived from that registry.
 
-## Ownership And Refresh
-
-Initial ownership is `marketing_data` for every Feature Store contract.
-
-| Cadence | Contracts |
-| --- | --- |
-| Daily dated | Account, advert, affinity, session, demand and label features. |
-| Latest/weekly | Product embeddings and item-latest features until source-change refresh is introduced. |
-| On demand | Historical training inputs and bounded model-example inputs. |
-| Per run | Quality events and immutable build/snapshot records. |
-
-Target bindings:
-
-| Target | Namespace | Use |
-| --- | --- | --- |
-| SANDBOX | Current user's schema | Local/personal exploration. |
-| DEV | Last commit author's schema | Branch proof and model-author workflow. |
-| DEV_INTEGRATION | `marketingdata_dev.nextads_integration` | Shared integration after merge. |
-| DEV_FEATURE_STORE | `marketingdata_dev.nextads_feature_store` | Shared scheduled offline store. |
-
-The shared `DEV_FEATURE_STORE` job is scheduled for 21:00 Europe/London. Manual
-model-example jobs are unscheduled and allow one run at a time.
-
-## Dependencies And Boundaries
+## Runtime Dependencies And Activation Boundaries
 
 - DEV Feature Engineering and Unity Catalog permissions must allow the run-as
   identity to create or update the declared personal/shared targets.
@@ -242,12 +199,12 @@ model-example jobs are unscheduled and allow one run at a time.
 - PREPROD, PROD, realtime and online publication require separate evidence and
   activation routes.
 
-## Acceptance Criteria Mapping
+## Feature Store Delivery Acceptance Criteria
 
 | Acceptance criterion | Evidence |
 | --- | --- |
-| Feature catalogue created or updated | Feature Catalogue and registry plan. |
-| Ownership and refresh approach recorded | Ownership And Refresh. |
+| Feature catalogue created or updated | [`feature_store_table_design.md`](feature_store_table_design.md) and the registry plan. |
+| Ownership and refresh approach recorded | [`feature_store_table_design.md`](feature_store_table_design.md). |
 | Remaining migrations prioritised | [`migration_backlog.md`](migration_backlog.md). |
 | A DS can build a model from accepted features | [`building_a_challenger_model.md`](building_a_challenger_model.md) and linked DEV runs. |
 | Customer output remains unchanged | Isolated `EVALUATE` boundary and manual jobs. |

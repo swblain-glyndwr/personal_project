@@ -16,7 +16,7 @@ It does not promote a model to another environment, add a provider to a serving
 portfolio, run the main NextAds job, change a customer assignment or change a
 payload.
 
-## The Route At A Glance
+## End-To-End Model Author Route
 
 | Step | What the data scientist does | Repository evidence |
 | ---: | --- | --- |
@@ -52,7 +52,7 @@ The implemented brief is the `shopping_bag_pctr` entry in
 The declaration is executable configuration, not a note that can drift away
 from the training code.
 
-### Research before training
+### Modelling Research Before Training
 
 Keep a short research record covering:
 
@@ -73,7 +73,7 @@ The model does not use the earlier inferred-assignment label. It uses
 `next_uk_nextads_fs_shopping_bag_click_labels`, which begins with observed
 telemetry.
 
-### Label rule
+### Observed Shopping Bag Label Rule
 
 For each label row, the builder:
 
@@ -101,7 +101,7 @@ impression_count = 1
 That makes the demonstrated target an observed same-session click after an
 observed web impression.
 
-### Code to show
+### Label Construction Code
 
 | Behaviour | Code |
 | --- | --- |
@@ -111,9 +111,9 @@ observed web impression.
 | V1 assignment reconstruction | [`_shopping_bag_v1_assignments`](../../src/next_ads/features/nextads_core.py#L883) |
 | Exposure and click attribution | [`build_observed_shopping_bag_click_labels_df`](../../src/next_ads/features/nextads_core.py#L1052) |
 | Bounded funnel and quality evidence | [`collect_shopping_bag_label_evidence`](../../src/next_ads/features/shopping_bag_label_evidence.py#L289) |
-| Watermark guard and READY publication | [`build_shopping_bag_click_labels.py`](../../jobs/features/nextads/build_shopping_bag_click_labels.py#L94) |
+| Watermark guard and READY publication | [`build_shopping_bag_click_labels.py`](../../jobs/features/nextads/build_shopping_bag_click_labels.py#L99) |
 
-### Read one accepted label snapshot
+### Accepted Observed-Label Snapshot Query
 
 Run this on DBR 15.4 after the feature-preparation job has published the date:
 
@@ -154,7 +154,7 @@ opens the exact Delta version recorded in the last matching READY snapshot. It
 also verifies the accepted schema and row count. Do not replace it with a plain
 `spark.table(...)` call, which would read a moving table.
 
-### Proven label numbers
+### Observed-Label Evidence
 
 | Observation date | Accepted exposures | Same-session positives | Observed rate | Quality result |
 | --- | ---: | ---: | ---: | --- |
@@ -185,7 +185,7 @@ ACTIVE=18 COMPATIBILITY=4 SCAFFOLD=0
 The plan proves that contracts, builders and locations are declared. It does
 not prove that your requested dates have READY data.
 
-### Inputs selected by the worked model
+### Worked Model Feature Inputs
 
 | Logical contract | What it contributes | Time rule |
 | --- | --- | --- |
@@ -237,7 +237,7 @@ It does not recreate tables, run the complete Feature Store or start the main
 NextAds job. The task graph is declared in
 [`mktg_next_uk_nextads_shopping_bag_feature_preparation.yml`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_feature_preparation.yml).
 
-### READY data used by the proof
+### READY Feature Snapshot Evidence
 
 | Feature | Date | Delta version | Rows | Value checksum |
 | --- | --- | ---: | ---: | --- |
@@ -341,7 +341,7 @@ Use these parameters:
 `promotion_mode=NONE` is the control. A blank destination name is not a
 substitute for it.
 
-### What the job does
+### Model Development Job Actions
 
 1. Resolves the exact READY label and feature snapshots.
 2. Enforces the observation timestamp and availability lag for each lookup.
@@ -359,7 +359,7 @@ Point-in-time lookup and receipt construction are in
 The job entry point and evidence record are in
 [`run_declared_model.py`](../../jobs/model/development/run_declared_model.py#L124).
 
-### Receipt created by the proof
+### Training Receipt Evidence
 
 | Field | Value |
 | --- | --- |
@@ -395,7 +395,7 @@ later date.
 Logistic regression was selected by PR-AUC and was also better calibrated on
 this holdout.
 
-### Exact registered result
+### Registered Model Evidence
 
 | Field | Value |
 | --- | --- |
@@ -409,7 +409,7 @@ this holdout.
 | Promotion | None |
 
 Training and registration are implemented in
-[`SparkBinaryClassifierTrainer`](../../src/next_ads/model_development/spark_training.py#L248).
+[`SparkBinaryClassifierTrainer`](../../src/next_ads/model_development/spark_training.py#L274).
 Build persistence and reuse are implemented in
 [`train_or_reuse_model`](../../src/next_ads/model_development/runtime.py#L63).
 
@@ -476,11 +476,11 @@ The job:
 The label-free lookup is in
 [`scoring_sets.py`](../../src/next_ads/model_development/scoring_sets.py#L153).
 The bounded candidate route is in
-[`ongoing_evaluation.py`](../../src/next_ads/model_development/ongoing_evaluation.py#L338).
+[`build_shopping_bag_candidate_frame`](../../src/next_ads/model_development/ongoing_evaluation.py#L481).
 The job validation and evidence record are in
 [`run_shopping_bag_ongoing_evaluation.py`](../../jobs/model/development/run_shopping_bag_ongoing_evaluation.py#L166).
 
-### Proven evaluation result
+### Evaluation Scoring Evidence
 
 | Field | Value |
 | --- | --- |
@@ -507,7 +507,7 @@ The job writes only:
 
 It does not write a serving portfolio, assignment or payload table.
 
-## 11. Evidence To Show In The Walkthrough
+## 11. Model Development Review Evidence
 
 Use this order when presenting the route.
 
@@ -533,7 +533,7 @@ End the walkthrough with these statements:
 - The exact model can score a bounded Shopping Bag candidate population.
 - The result remains isolated `EVALUATE`; no customer route changed.
 
-## Appendix A. Code Map
+## Appendix A. Source Code Map
 
 | Question from a reviewer | Where to go |
 | --- | --- |
@@ -549,10 +549,10 @@ End the walkthrough with these statements:
 | Where is retry reuse decided? | [`runtime.py`](../../src/next_ads/model_development/runtime.py#L63) |
 | Where are score and candidate plug-ins selected? | [`plugins.py`](../../src/next_ads/model_development/plugins.py#L316) |
 | Where is the manual training job defined? | [`mktg_next_uk_nextads_model_development.yml`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml) |
-| Where is isolated ongoing scoring implemented? | [`ongoing_evaluation.py`](../../src/next_ads/model_development/ongoing_evaluation.py#L338) |
+| Where is isolated ongoing scoring implemented? | [`build_shopping_bag_candidate_frame`](../../src/next_ads/model_development/ongoing_evaluation.py#L481) |
 | Where is the ongoing job defined? | [`mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml) |
 
-## Appendix B. What Changes For The Next Model
+## Appendix B. Changes Required For Another Model
 
 Keep the framework and change only the model-specific declaration and plug-ins:
 

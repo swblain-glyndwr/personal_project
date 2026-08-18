@@ -2,9 +2,14 @@
 
 Status: Working reference
 
-This page explains the runtime settings declared in `pipelines/databricks/jobs/*.yml`. For target availability and release-route rules, see `docs/CICD/nextads_databricks_job_environment_matrix.md`.
+This page explains the runtime settings declared in
+[`pipelines/databricks/jobs/`](../../pipelines/databricks/jobs/). For the data
+consumed and produced by every job, see
+[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md). For
+target availability and release-route rules, see
+[`nextads_databricks_job_environment_matrix.md`](nextads_databricks_job_environment_matrix.md).
 
-## Common Settings
+## Settings Shared By Multiple Jobs
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
@@ -16,7 +21,7 @@ This page explains the runtime settings declared in `pipelines/databricks/jobs/*
 | Table names / namespaces | Unity Catalog objects used by table, feature, model, or monitor jobs. | Fully qualified `catalog.schema.table` or `catalog.schema` unless the script documents otherwise. |
 | Boolean settings | String booleans passed through DAB/job parameters. | Prefer `true` or `false`. Some scripts also accept `1`/`0`. |
 
-## Job Settings
+## Job-Specific Settings
 
 ### `mktg_next_uk_nextads_theme_inputs`
 
@@ -43,7 +48,7 @@ Scheduled at 16:00 Europe/London. It prepares the shared customer inputs before 
 
 ### `mktg_next_uk_nextads_candidate_build`
 
-Main NextAds candidate-generation graph. It selects the accepted Candidate Foundation produced by the separate 16:00 job, loads and audits the independent v1/v2 control sheets, resolves the configured provider selection for each route, maps the selected scores to adverts, and waits for the route-specific page-build jobs. Candidate rows are accepted through an internal manifest before the page job receives their exact attempt ID. Theme Inputs and Theme Affinity are separate upstream jobs. Markov is an independently runnable shadow provider and candidate publication does not wait for it.
+Nightly NextAds candidate-generation graph. It selects the accepted Candidate Foundation produced by the separate 16:00 job, loads and audits the independent v1/v2 control sheets, resolves the configured provider selection for each route, maps the selected scores to adverts, and waits for the route-specific page-build jobs. Candidate rows are accepted through an internal manifest before the page job receives their exact attempt ID. Theme Inputs and Theme Affinity are separate upstream jobs. Markov is an independently runnable shadow provider and candidate publication does not wait for it.
 
 The candidate job parameter `run_date` defaults to `{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. The `v1_portfolio_policy_id` and `v2_portfolio_policy_id` parameters default to the declared route policies. The parameters cannot name an undeclared policy or override a higher-precedence matching policy. A v1 control or required-provider failure cannot block the v2 route, and the reverse is also true. Business coverage findings remain warning-only; technical inability to run an audit or read the pinned provider output fails only that route.
 
@@ -69,13 +74,13 @@ The page-build jobs read only that accepted attempt. They resolve `best` and `be
 
 ### `mktg_next_uk_nextads_candidate_compatibility`
 
-Independent 21:00 compatibility and monitoring job. Its v1 and v2 branches select the exact same-date READY candidate build for their route and publish the existing preranked table shapes. After both compatibility branches succeed, it starts the assignment-quality job for the same run date. Failure here alerts separately and does not revoke an accepted candidate build or live assignment snapshot.
+Independent 21:00 compatibility and validation job. Its v1 and v2 branches select the exact same-date READY candidate build for their route and publish the existing preranked table shapes. After both compatibility branches succeed, it starts the assignment-validation job for the same run date. Failure here alerts separately and does not revoke an accepted candidate build or live assignment snapshot.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
 | `publish_v1_compatibility` | `client`, `job_env`, `run_date`, `route=v1` | Publishes `preranked_ads_from_themes_latest` from the exact accepted v1 attempt for that date. |
 | `publish_v2_compatibility` | `client`, `job_env`, `run_date`, `route=v2` | Publishes `preranked_ads_from_themes_v2_latest` from the exact accepted v2 attempt for that date. |
-| `assignment_quality_monitor` | Child job with `run_date` | Starts only after both compatibility tasks succeed and waits for the assignment-quality result. |
+| `assignment_quality_monitor` | Child job with `run_date` | Starts only after both compatibility tasks succeed and waits for the assignment-validation result. |
 
 ### `mktg_next_uk_nextads_markov_scoring`
 
@@ -90,7 +95,7 @@ Before a non-training run starts, Markov resolves the existing transition matrix
 | `build_and_publish_markov` | `client`, `job_env`, `refresh_model_date`, `run_date`, `input_snapshot_id`, context/orchestration/task identity and Git commit | Waits up to 90 minutes for the accepted scoring input, pins that input and the transition-model version, calculates and publishes the canonical provider output, writes readiness last and closes the context. |
 | `publish_markov_compatibility` | `client`, `job_env`, `run_date`, `provider_id=markov` | Reads the exact same-date READY Markov provider build and publishes the legacy compatibility tables. A compatibility failure does not revoke the canonical READY build. |
 
-### Adding another score provider
+### Score Provider Registration And Publication Settings
 
 A new challenger follows the same route whether it is theme-based, ad-based, or uses another registered account/entity capability:
 
@@ -158,7 +163,7 @@ Do not run a blank `run_alter_tables` pass as part of this clean personal-schema
 
 In a non-disposable environment where the wider modular state must be retained, the minimum mandatory migration is still to recreate `assignments_build_staging`, `assignments_v2_build_staging`, and `assignment_build_events` when they lack candidate, portfolio and foundation provenance. Broad `alter_tables` intentionally refuses to backup-copy this transient data because doing so can exceed the one-hour table-operations timeout.
 
-### DEV Integration And PREPROD Table Setup Jobs
+### DEV Integration And PREPROD Table Setup Job Settings
 
 These are fixed-parameter wrappers around `table_operations.py`.
 
@@ -183,6 +188,25 @@ Shared DEV feature-store build.
 | `recreate_feature_tables` | Recreate feature-store tables before building. | `false` by default; use `true` only for intentional table rebuilds. |
 | Fixed task settings | `catalog`, `schema`, `manage_principal`, `all_privileges_principal`, `replace_reference_date`, `log_level` | Set by bundle variables/job definition; only change with feature-store ownership review. |
 
+### Supporting Feature And Model Job Settings
+
+These are manual or bounded jobs around the shared Feature Store route. Exact
+table and model defaults remain in the linked job definitions; the list below
+records the settings an operator is expected to select deliberately.
+
+| Job | Operator-selected settings | Notes / options |
+| --- | --- | --- |
+| `mktg_next_uk_nextads_analytics_pctr_feature_source` | `reference_date`, output/source catalog and schema, `source_binding`, Theme Affinity source namespace/prefix, `receipt_correlation_id` | Builds one receipted Analytics pCTR source version for later Feature Store use. |
+| `mktg_next_uk_nextads_analytics_pctr_snapshot_verification` | `reference_date`, feature/source/Theme namespaces, exact source binding and receipt, `failure_injection`, `expect_current_attempt_ready` | Bounded publication and failure-retention proof for the three pCTR feature contracts. |
+| `mktg_next_uk_nextads_analytics_pctr_prediction_verification` | `catalog_schema_prefix`, `table_prefix`, `lookback_period`, `affinity_weighting_factor`, two exact model URIs | Runs the existing pCTR scorer against a selected DEV table prefix. |
+| `mktg_next_uk_nextads_analytics_pctr_adoption` | Exact source table/version/date/run, receipt namespace, provider tables, classifier/regressor model URIs and run IDs | Adopts an existing prediction version into isolated `EVALUATE`; it does not select a serving provider. |
+| `mktg_next_uk_nextads_shopping_bag_feature_preparation` | `reference_date`, `label_end`, `feature_reference_date`, source namespace | Builds the bounded account, advert and observed-label inputs used by the worked example. |
+| `mktg_next_uk_nextads_shopping_bag_label_publication` | `reference_date`, `label_end`, source namespace | Publishes one bounded mature observed-label window. |
+| `mktg_next_uk_nextads_model_development` | `model_name`, feature/model namespaces, observation and feature dates, `label_end`, registered model/experiment names, provider tables, promotion settings | `promotion_mode` remains disabled for the model-author proof; activation is a separate reviewed change. |
+| `mktg_next_uk_nextads_model_development_runtime_smoke` | Fixed invalid-future-binding smoke inputs | Read-only runtime and leakage-guard proof; no operator-selected data scope. |
+| `mktg_next_uk_nextads_product_embedding_runtime_smoke` | `log_level` | Read-only advert-item bridge and registered embedding runtime proof. |
+| `mktg_next_uk_nextads_shopping_bag_ongoing_evaluation` | Exact `model_build_id`, run/feature dates and namespaces, accepted candidate tables/attempt, serving slot and account limit | Writes repeated evaluation evidence only; it does not change serving candidates. |
+
 ### `mktg_next_uk_nextads_theme_affinity`
 
 Operational Theme Affinity preparation and scoring graph. It contains three tasks: prepare the pinned foundation context, run the Lakeflow preparation, then publish the ranked foundation and provider signals on one Spark task. The accepted provider build is recorded READY last. This job is a shared upstream producer for candidate mapping and does not depend on either v1 or v2 control sheets; the route split happens later inside `mktg_next_uk_nextads_candidate_build`.
@@ -206,18 +230,21 @@ Independent 17:00 compatibility and monitoring graph. One branch reads the exact
 | `source_table_prefix`, `target_table_prefix` | Staging source and compatibility target prefixes. | Prefix string without suffix. |
 | `table_suffixes` | Lakeflow feature outputs copied by the feature branch. | Bundle variable containing the four required suffixes. |
 
-### Theme Affinity Model Lifecycle Jobs
+### Theme Affinity Model Lifecycle Job Settings
 
 | Job | Settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_theme_affinity_model_train` | `client`, `job_env`, `input_table`, `alias_suffix=gpu_xgboost`, `log_level` | GPU XGBoost training. `input_table` must be a readable training table. |
 | `mktg_next_uk_nextads_theme_affinity_model_train_spark` | `client`, `job_env`, `input_table`, `log_level` | Spark XGBoost training. |
 | `mktg_next_uk_nextads_model_import_dev_integration` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias`, `model_family` | Generic lifecycle copy from a reviewed personal DEV model namespace into `marketingdata_dev.nextads_integration` after the PR is completed. Provide the reviewed `source_model_version` where possible. |
+| `mktg_next_uk_nextads_model_import_preprod` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias`, `model_family` | Generic lifecycle copy from a reviewed DEV Integration version into PREPROD. Provide the reviewed exact version where possible. |
 | `mktg_next_uk_nextads_theme_affinity_model_import_dev` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias` | Imports reviewed DEV Integration model into PREPROD namespace. Provide the reviewed `source_model_version` where possible. If it is blank, `source_alias` must resolve to the reviewed source version. |
 | `mktg_next_uk_nextads_theme_affinity_model_promote` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias` | Promotes reviewed PREPROD model into PROD namespace. Provide the reviewed `source_model_version` where possible. If it is blank, `source_alias` must resolve to the reviewed source version. |
 | `mktg_next_uk_nextads_theme_affinity_model_monitor` | `baseline_table`, `candidate_table`, `sample_limit`, `log_level` | Compares two model output tables. `sample_limit` is an integer row cap. |
 
-For the DS operating sequence, evidence to capture and stop conditions, see `docs/model_lifecycle_runbook.md`.
+For the data-science operating sequence, evidence to capture and stop
+conditions, see
+[`model_lifecycle_runbook.md`](../model_lifecycle_runbook.md).
 
 ### `mktg_next_uk_nextads_theme_affinity_quality_monitor_setup`
 
@@ -238,32 +265,33 @@ Databricks quality monitor configuration for Theme Affinity ranked outputs.
 | `problem_type` | ML problem type. | Currently `classification`. |
 | `prediction_col`, `model_id_col`, `label_col`, `prediction_proba_col` | Monitor column mapping. | Existing column names; `prediction_proba_col` may be empty when not used. |
 
-### Page Build And Delivery Jobs
+### Page Build And Delivery Job Settings
 
 | Job | Settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_page_build` | `run_date`, `build_run_id`, accepted candidate attempt, provider/foundation provenance and pinned customer cells | `build_and_publish_v1` calculates all 77 primary locations plus SB2/OC2 in one Spark graph, validates the complete 79-scope output, writes history and then live latest. MASID and PLP child jobs start only after that task succeeds. |
 | `mktg_next_uk_nextads_page_build_v2` | `run_date`, `build_run_id`, accepted candidate attempt, provider/foundation provenance and pinned customer cells | `build_and_publish_v2` calculates and validates all five page types in one Spark graph, writes history and then live latest. Payload export starts only after that task succeeds. |
-| `mktg_next_uk_nextads_qa` | `client`, `job_env` | Runs operational QA in the target environment. |
+| `mktg_next_uk_nextads_assignment_validation` | `client`, `job_env`, plus accepted build/provider/foundation provenance passed by the caller | Runs operational assignment and input-quality checks without writing a data table. |
 | `mktg_next_uk_nextads_masid_handoff` | `client`, `job_env` | Runs MASID handoff checks. |
 | `mktg_next_uk_nextads_payload_export` | `client`, `job_env`, `do_export` | `do_export=1` enables export. |
 | `mktg_next_uk_nextads_plp_gs_delivery` | `client`, `job_env`, `territory` | Iterates configured client/territory inputs. |
 
-### Results, Realtime, And Data Pull Jobs
+### Results, Realtime And Data Pull Job Settings
 
 | Job | Settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_results_cicd` | `client`, `job_env`, plus `label_window_days=28` for inference-log enrichment | Results tasks run in sequence; `label_window_days` is an integer day window. |
-|`mktg_next_uk_nextads_realtime_data` | `client`, `job_env`, `reference-date`, `history-data-weighting`,`lift-threshold`, `ad-coverage-threshold`| Builds realtime  advert: advert affinity inputs. |
+| `mktg_next_uk_nextads_realtime_data` | `client`, `job_env`, `reference-date`, `history-data-weighting`, `lift-threshold`, `ad-coverage-threshold`, `advert-matching-threshold` | Builds advert-to-advert affinity data and known realtime reranking features. |
 | `mktg_next_uk_nextads_realtime_inputs` | `client`, `job_env` | Builds realtime viewed/bought inputs. |
 | `mktg_next_uk_nextads_realtime_results_cicd` | `client`, `job_env` | Builds realtime result outputs. |
 | `mktg_next_uk_nextads_data_pull` | `client`, `job_env`, `log_level` | Pulls and archives sort-order data through the configured pipeline/task graph. |
 | `mktg_next_uk_nextads_analytics_pctr` | `catalog_schema_prefix`, `start_date`, `end_date`, `lookback_period`, `year_lookback_period`, `table_prefix`, model URIs | DEV-only analytics PCTR notebook graph. Dates default to `{{job.start_time.iso_date}}`; lookback values are integer day windows; model URIs are MLflow model references. |
 
-### Smoke, Contract, And Monitoring Jobs
+### Smoke, Contract, Monitoring And Retention Job Settings
 
 | Job | Settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_preprod_dependency_smoke` | `job_env`, `sample_read_count`, `log_level` | `sample_read_count=0` keeps the smoke metadata-only. Use positive integers only when sample reads are deliberately required. |
 | `mktg_next_uk_nextads_prod_table_contract_smoke` | `client`, `job_env`, `log_level` | Read-only production table-contract check. |
 | `mktg_next_uk_nextads_table_monitoring` | No explicit task parameters in the bundle. | Runs `calculate_table_sizes.py` using script defaults/current runtime context. |
+| `mktg_next_uk_nextads_table_maintenance` | `run_date`; fixed `client`, `job_env` and `log_level` | Applies the allowlisted retention and vacuum plan for the logical run date. |

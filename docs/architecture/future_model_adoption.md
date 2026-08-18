@@ -1,4 +1,4 @@
-# Future Model Adoption
+# Model Adoption Boundary For Future Challengers
 
 Future pCTR, LTR and direct-ad challenger work should reuse feature contracts
 and the shared MLflow lifecycle without changing production decisioning by

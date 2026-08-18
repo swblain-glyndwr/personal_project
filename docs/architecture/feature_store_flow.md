@@ -1,10 +1,9 @@
 # Feature Store Job Flow
 
 This page shows the dependency order inside
-`mktg_next_uk_nextads_feature_store`. For the inclusive job-to-table guide,
-including the separate Analytics pCTR, Shopping Bag and model-development jobs,
-start with
-[`nextads_model_feature_overview.md`](nextads_model_feature_overview.md).
+`mktg_next_uk_nextads_feature_store`. For the inclusive inputs-and-outputs guide
+covering all 48 NextAds jobs declared in this checkout, start with
+[`nextads_job_table_flow.md`](nextads_job_table_flow.md).
 
 The shared route runs in the `DEV_FEATURE_STORE` target and writes to
 `marketingdata_dev.nextads_feature_store`. It is a model-building layer, not
@@ -118,7 +117,7 @@ Use the following documents for detail rather than repeating it here:
 
 - [Feature Store README](../feature_store/README.md) for delivery gates and
   current evidence.
-- [`initial_table_design.md`](../feature_store/initial_table_design.md) for
+- [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) for
   table grain, keys, dates, ownership and refresh expectations.
 - [`migration_backlog.md`](../feature_store/migration_backlog.md) for remaining
   migration and environment gates.

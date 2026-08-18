@@ -1,15 +1,25 @@
-# Next Ads Feature Store Initial Table Design
+# Next Ads Feature Store Table Design
 
 Azure Boards story: 5111861
 Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
-## Purpose
+## Contract Scope And Ownership
 
-This document defines the first batch Databricks Feature Engineering table design for reusable Next Ads features.
+This document is the human-readable design for all 22 physical Feature Store
+contracts and both compatibility views currently declared for Next Ads. It owns
+their grain, keys, date boundary, refresh expectation and training-safety state;
+the Feature Store README owns delivery status and runtime evidence.
 
-The executable contract lives in `configs/features/nextads_feature_store.yaml` and the matching SQL schema files under `sql/features/nextads/`. The Databricks setup job uses `databricks.feature_engineering.FeatureEngineeringClient.create_table` so the physical tables are created through the Databricks feature-engineering route rather than plain SQL `CREATE TABLE`.
+The executable contract lives in
+[`configs/features/nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml)
+and the matching SQL schema files under
+[`sql/features/nextads/`](../../sql/features/nextads/). If this page and the
+registry disagree, change the registry and this page together. The Databricks
+setup job uses `FeatureEngineeringClient.create_table`, so the physical tables
+are created through the Databricks Feature Engineering route rather than plain
+SQL `CREATE TABLE`.
 
-## Target Location
+## Feature Store Environment Bindings
 
 | Environment phase | Catalog | Schema |
 | --- | --- | --- |
@@ -23,42 +33,79 @@ The branch includes `feature_store_schema` as an explicit bundle variable per ta
 
 The shared DEV feature-store job is scheduled daily at 21:00 Europe/London. It defaults to stable production Theme Affinity outputs in `marketingdata_prod.warehouse` as the first source and writes reusable model-building features to `marketingdata_dev.nextads_feature_store`. The deployed job also exposes source catalog/schema/prefix job parameters, so manual DEV validation can temporarily point reads at `marketingdata_dev.<schema>` Theme Affinity outputs while production materialized-view access for the DEV service principal is agreed.
 
-## Initial Customer Feature Tables
+Every physical contract is owned by `marketing_data`. Per-table differences in
+cadence, state and training safety are listed below.
 
-| Table | Grain | Primary keys | Snapshot/date key | Refresh | Owner |
-| --- | --- | --- | --- | --- | --- |
-| `next_uk_nextads_fs_account_profile` | One row per account and reference date | `account_number`, `reference_date` | `reference_date` | Daily | `marketing_data` |
-| `next_uk_nextads_fs_account_web_activity_90d` | One row per account and reference date | `account_number`, `reference_date` | `reference_date` | Daily | `marketing_data` |
+## Account Feature Tables
 
-These are the preferred first customer tables to register and populate. They provide reusable account descriptors, account lifecycle fields, recency, browse activity, page views, add-to-bag activity and shopping-bag context needed by Theme Affinity, the Shopping Bag pCTR route, and future ranking/challenger models.
+| State | Table | Grain | Primary keys | Date key | Refresh | Training safe |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ACTIVE` | `next_uk_nextads_fs_account_profile` | Account/reference date | `account_number`, `reference_date` | `reference_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_account_web_activity_90d` | Account/reference date | `account_number`, `reference_date` | `reference_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_shopping_bag_account_activity_90d` | Active web account/reference date | `account_number`, `reference_date` | `reference_date` | On demand | Yes |
 
-## Initial Advert and Embedding Feature Tables
+These tables provide reusable account descriptors, lifecycle fields, recency,
+browse activity, page views, add-to-bag activity and bounded Shopping Bag
+context.
 
-| Table | Grain | Primary keys | Snapshot/date key | Refresh | Owner |
-| --- | --- | --- | --- | --- | --- |
-| `next_uk_nextads_fs_advert_core_daily` | One row per advert, location and feature date | `advert_id`, `location`, `feature_date` | `feature_date` | Daily | `marketing_data` |
-| `next_uk_nextads_fs_advert_attribute_profile_daily` | One row per advert and feature date | `advert_id`, `feature_date` | `feature_date` | Daily | `marketing_data` |
-| `next_uk_nextads_fs_advert_semantic_profile_daily` | One row per advert, feature date and embedding model/version | `advert_id`, `feature_date`, `embedding_model_name`, `embedding_model_version` | `feature_date` | Daily | `marketing_data` |
-| `next_uk_nextads_fs_product_embeddings_latest` | One row per item and embedding model/version | `item_id`, `embedding_model_name`, `embedding_model_version` | None; latest lookup | Weekly | `marketing_data` |
+## Item, Advert And Product Feature Tables
 
-These tables separate stable advert metadata, rolled-up product attributes, semantic text/image/product embedding features, and reusable product embeddings. That lets work reuse the same advert-side contracts without copying notebook outputs directly into model jobs.
+| State | Table | Grain | Primary keys | Date key | Refresh | Training safe |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ACTIVE` | `next_uk_nextads_fs_item_attributes_latest` | Item | `item_id` | None; latest lookup | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_product_embeddings_latest` | Item/embedding model version | `item_id`, `embedding_model_name`, `embedding_model_version` | None; latest lookup | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_advert_core_daily` | Advert/location/feature date | `advert_id`, `location`, `feature_date` | `feature_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_advert_attribute_profile_daily` | Advert/feature date | `advert_id`, `feature_date` | `feature_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_advert_semantic_profile_daily` | Advert/feature date/embedding model version | `advert_id`, `feature_date`, `embedding_model_name`, `embedding_model_version` | `feature_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_advert_product_profile_daily` | Advert/feature date/embedding model version | `advert_id`, `feature_date`, `embedding_model_name`, `embedding_model_version` | `feature_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_seasonal_product_demand_daily` | Entity/product/feature date | `entity_type`, `entity_id`, `item_id`, `feature_date` | `feature_date` | Daily | Yes |
 
-## Model Assembly and Labels
+These tables separate stable advert metadata, rolled-up item attributes,
+semantic and product profiles, reusable embeddings and seasonal demand. Model
+jobs can bind their exact snapshots without copying notebook-owned shapes.
 
-| Table | Grain | Primary keys | Snapshot/date key | Consumer |
-| --- | --- | --- | --- | --- |
-| `next_uk_nextads_fs_theme_affinity_model_input` | Account, theme, reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Theme Affinity; future ranking/challenger models |
-| `next_uk_nextads_fs_pctr_model_input` | Account, advert, reference date | `account_number`, `advert_id`, `reference_date` | `reference_date` | Analytics pCTR |
-| `next_uk_nextads_fs_labels_clicks` | Account, advert, location, session date and label horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | Shopping Bag pCTR; future ranking/challenger models |
-| `next_uk_nextads_fs_labels_theme_response` | Account, theme, reference date and label name | `account_number`, `theme`, `reference_date`, `label_name` | `reference_date` | Theme Affinity; future ranking/challenger models |
+## Theme And Account-Advert Feature Tables
 
-Model assembly tables are intentionally separated from base feature tables. They can join reusable feature groups into current model-ready shapes while preserving compatibility for existing model consumers.
+| State | Table | Grain | Primary keys | Date key | Refresh | Training safe |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ACTIVE` | `next_uk_nextads_fs_account_theme_interactions_daily` | Account/theme/reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_account_theme_affinity_daily` | Account/theme/reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_theme_popularity_daily` | Theme/reference date | `theme`, `reference_date` | `reference_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_account_advert_affinity_daily` | Account/advert/reference date | `account_number`, `advert_id`, `reference_date` | `reference_date` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_session_context_daily` | Account/session/session date | `account_number`, `session_id`, `session_date` | `session_date` | Daily | Yes |
 
-## Quality and Metadata
+## Model Assembly And Labels
 
-| Table | Grain | Primary keys | Purpose |
-| --- | --- | --- | --- |
-| `next_uk_nextads_fs_feature_quality_events` | Feature table, check and run timestamp | `table_name`, `check_name`, `run_timestamp` | Records row counts, key uniqueness, null-rate, freshness and build metadata per feature table/run. |
+| State | Table | Grain | Primary keys | Date key | Refresh | Training safe |
+| --- | --- | --- | --- | --- | --- | --- |
+| `COMPATIBILITY` | `next_uk_nextads_fs_theme_affinity_model_input` | Account/theme/reference date | `account_number`, `theme`, `reference_date` | `reference_date` | Daily | Yes |
+| `COMPATIBILITY` | `next_uk_nextads_fs_theme_affinity_training_input` | Labelled account/theme/reference date | `account_number`, `theme`, `reference_date` | `reference_date` | On demand | Yes |
+| `COMPATIBILITY` | `next_uk_nextads_fs_pctr_model_input` | Analytics pCTR account/advert/reference date | `account_number`, `advert_id`, `reference_date` | `reference_date` | Daily | Yes |
+| `COMPATIBILITY` | `next_uk_nextads_fs_labels_clicks` | Account/advert/location/session date/horizon | `account_number`, `advert_id`, `location`, `session_date`, `label_horizon_days` | `session_date` | Daily | **No: legacy inferred label** |
+| `ACTIVE` | `next_uk_nextads_fs_shopping_bag_click_labels` | Observed Shopping Bag advert impression/mature horizon | `exposure_id`, `label_horizon_days`, `exposure_timestamp` | `exposure_timestamp` | Daily | Yes |
+| `ACTIVE` | `next_uk_nextads_fs_labels_theme_response` | Account/theme/reference date/label | `account_number`, `theme`, `reference_date`, `label_name` | `reference_date` | Daily | Yes |
+
+Model assembly tables are intentionally separated from base feature tables.
+The inferred `next_uk_nextads_fs_labels_clicks` contract is retained only for
+compatibility and must not be presented as an observed training label. The
+worked Shopping Bag route uses
+`next_uk_nextads_fs_shopping_bag_click_labels`.
+
+## Feature Quality Event Contract
+
+| State | Table | Grain | Primary keys | Date key | Refresh | Training safe |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ACTIVE` | `next_uk_nextads_fs_feature_quality_events` | Feature table/check/run timestamp | `table_name`, `check_name`, `run_timestamp` | `run_timestamp` | Per run | No |
+
+## Compatibility Views
+
+| View | Physical source | Consumers |
+| --- | --- | --- |
+| `next_uk_nextads_theme_affinity_features_latest` | `next_uk_nextads_fs_theme_affinity_model_input` | Theme Affinity and LTR compatibility |
+| `next_uk_nextads_pctr_features_latest` | `next_uk_nextads_fs_pctr_model_input` | Analytics pCTR compatibility |
+
+These views are read-only compatibility names. They are not additional physical
+feature contracts and are not counted in the 22-table total.
 
 Every feature table contract should carry build metadata columns where relevant:
 
@@ -67,7 +114,7 @@ Every feature table contract should carry build metadata columns where relevant:
 - source/build identifiers where available
 - embedding model metadata for vector-backed features
 
-## Permissions and Setup Requirements
+## Feature Store Runtime Permissions
 
 DEV validation requires:
 
@@ -78,12 +125,12 @@ DEV validation requires:
 
 The bundle route deploys a manual personal copy to `DEV`, writing to the normal commit-author schema, and a scheduled shared copy to `DEV_FEATURE_STORE`, writing to `marketingdata_dev.nextads_feature_store`. The personal copy is limited to one concurrent run and has no schedule.
 
-## Acceptance Criteria Mapping
+## Feature Table Design Acceptance Criteria
 
 | Acceptance criterion | Evidence in this document/branch |
 | --- | --- |
-| Initial customer feature table defined | Customer feature tables section. |
-| Initial advert or embedding feature table defined | Advert and embedding feature tables section. |
+| Complete physical feature catalogue defined | The four table sections above cover all 22 registry contracts. |
+| Compatibility views identified | Compatibility Views section. |
 | Primary keys and snapshot dates defined | Table design sections and registry. |
-| Refresh frequency and ownership recorded | Customer/advert table sections and registry. |
+| Refresh frequency and ownership recorded | Environment binding and table contract sections above. |
 | Location and permission requirements documented | Target location and permissions sections. |

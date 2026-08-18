@@ -8,7 +8,7 @@ Candidate Foundation prepares the customer cells, repeat-ad exposure and advert 
 
 The v1 and v2 page jobs are separate synchronous children. V1 calculates all 79 location scopes in one Spark graph; v2 calculates all five page types in one Spark graph. Each route writes its dated history before replacing live latest. Delivery starts only after the relevant live table has advanced successfully.
 
-## Diagram Legend
+## Route Ownership And Colour Legend
 
 | Colour | Meaning |
 | --- | --- |
@@ -19,7 +19,7 @@ The v1 and v2 page jobs are separate synchronous children. V1 calculates all 79 
 | Amber | Validation or compatibility work. |
 | Yellow | External CMS dependency. |
 
-## Databricks Job DAG
+## Scheduled And Child-Job DAG
 
 ```mermaid
 flowchart TD
@@ -71,7 +71,7 @@ flowchart TD
     V2_BUILD --> PAYLOAD
   end
 
-  COMPAT["21:00 candidate compatibility<br/>and assignment quality monitoring"]:::monitor
+  COMPAT["21:00 candidate compatibility<br/>and assignment validation"]:::monitor
 
   CANDIDATE_FOUNDATION --> SELECT_FOUNDATION
   V2_CONTROL_RAW --> CMS --> V2_CONTROL
@@ -123,7 +123,7 @@ flowchart TD
   COVER_V2 --> MAP_V2 --> PAGE_V2
 ```
 
-## Why The Route Splits Here
+## V1/V2 Separation Boundaries
 
 The earlier migration assumption was that v2 would replace v1 after a short parallel run. Home Page remains on v1 while new page types use v2, so the routes now split at control loading, provider selection, candidate mapping and assignment publication.
 
@@ -135,9 +135,9 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | Provider selection | V1 and v2 resolve separate configured selections and exact provider versions. | A failure or future configuration change in one route does not have to block the other. |
 | Candidate mapping | V1 and v2 publish separate accepted candidate attempts through the same internal contract. | Each route keeps its own output grain while sharing the same readiness and repair rules. |
 | Page build | V1 and v2 run separate bulk Spark jobs. | Each route replaces its complete live result independently and cannot leave a mixture of old and new scopes. |
-| Compatibility and monitoring | Legacy candidate shapes and assignment quality checks run at 21:00 from accepted outputs. | Monitoring or compatibility failures do not invalidate the canonical candidate or serving build. |
+| Compatibility and validation | Legacy candidate shapes and assignment validation run at 21:00 from accepted outputs. | Validation or compatibility failures do not invalidate the canonical candidate or serving build. |
 
-## Current Jobs And Tasks
+## Job And Candidate-Task Responsibilities
 
 | Databricks job | YAML | Current responsibility |
 | --- | --- | --- |
@@ -147,7 +147,7 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Selects the foundation, loads/audits both controls, selects provider builds, publishes candidate attempts and waits for both page jobs. |
 | `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Builds and publishes all v1 assignments in one task, then runs MASID and PLP delivery. |
 | `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Builds and publishes all v2 assignments in one task, then runs payload export. |
-| `mktg_next_uk_nextads_candidate_compatibility` | `pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml` | Publishes the legacy v1/v2 candidate table shapes and triggers assignment quality monitoring independently. |
+| `mktg_next_uk_nextads_candidate_compatibility` | `pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml` | Publishes the legacy v1/v2 candidate table shapes and triggers `mktg_next_uk_nextads_assignment_validation` independently. |
 
 | Candidate-build task | Script or task type | Upstream task dependencies |
 | --- | --- | --- |
