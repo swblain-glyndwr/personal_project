@@ -32,9 +32,9 @@ def test_job_accepts_auto_or_exact_feature_dates():
 def test_job_scores_exact_inputs_and_publishes_ready_last():
     source = Path(job.__file__).read_text()
 
-    assert source.count("load_accepted_candidate_inputs(") == 2
+    assert source.count("load_accepted_candidate_inputs(") == 1
     assert 'route="v1"' in source
-    assert 'route="v2"' in source
+    assert 'route="v2"' not in source
     assert "build_label_free_scoring_set(" in source
     assert source.index("build_shopping_bag_candidate_frame(") < source.index(
         "build_label_free_scoring_set("
@@ -105,6 +105,7 @@ def test_bundle_is_manual_dev_only_and_separate_from_customer_jobs():
         "parameters"
     ]
     parameters = task["spark_python_task"]["parameters"]
+    assert "--v2_candidate_build_attempt_id" not in parameters
     account_limit_index = parameters.index("--account_limit")
     assert parameters[account_limit_index + 1] == (
         "{{job.parameters.account_limit}}"

@@ -73,6 +73,8 @@ def test_shopping_bag_pctr_uses_feature_store_labels_and_reusable_features():
         "next_uk_nextads_fs_shopping_bag_click_labels"
     )
     assert dict(definition.training_observation.filters) == {
+        "route": "v1",
+        "platform": "WEB",
         "label_horizon_days": 0,
         "label_is_mature": True,
         "impression_count": 1,
@@ -97,9 +99,11 @@ def test_shopping_bag_pctr_uses_feature_store_labels_and_reusable_features():
     )
     assert definition.success_metrics == MODEL_EVALUATION_METRICS
     assert dict(definition.evaluation_scope) == {
-        "route": ("v1", "v2"),
-        "location": ("SB1", "SB2", "ShoppingBagPage")
+        "route": ("v1",),
+        "location": ("SB1", "SB2"),
     }
+    assert dict(definition.training_observation.filters)["route"] == "v1"
+    assert dict(definition.training_observation.filters)["platform"] == "WEB"
     assert {lookup.feature_id for lookup in definition.feature_lookups} == {
         "next_uk_nextads_fs_shopping_bag_account_activity_90d",
         "next_uk_nextads_fs_advert_core_daily",

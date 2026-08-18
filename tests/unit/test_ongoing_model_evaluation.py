@@ -65,7 +65,9 @@ def _candidate_binding(route="v1", attempt="candidate-v1-attempt"):
 
 def _feature_binding(delta_version=42):
     return ScoringFeatureBinding(
-        feature_id="next_uk_nextads_fs_account_web_activity_90d",
+        feature_id=(
+            "next_uk_nextads_fs_shopping_bag_account_activity_90d"
+        ),
         reference_date=date(2026, 8, 17),
         feature_snapshot_id="snapshot",
         feature_snapshot_attempt_id="snapshot-attempt",
@@ -97,10 +99,7 @@ def _building():
         serving_slot="best",
         account_limit=10_000,
         input_account_count=100,
-        candidate_bindings=(
-            _candidate_binding(),
-            _candidate_binding("v2", "candidate-v2-attempt"),
-        ),
+        candidate_bindings=(_candidate_binding(),),
         feature_bindings=(_feature_binding(),),
         input_row_count=100,
         input_schema_checksum="e" * 64,
@@ -129,11 +128,7 @@ def _build_id(
         serving_slot="best",
         account_limit=account_limit,
         input_account_count=input_account_count,
-        candidate_bindings=candidates
-        or (
-            _candidate_binding(),
-            _candidate_binding("v2", "candidate-v2-attempt"),
-        ),
+        candidate_bindings=candidates or (_candidate_binding(),),
         feature_bindings=features or (_feature_binding(),),
         input_row_count=100,
         input_schema_checksum="e" * 64,
@@ -149,7 +144,6 @@ def test_daily_build_id_pins_model_candidates_and_feature_versions():
     assert original != _build_id(
         candidates=(
             _candidate_binding(attempt="different-v1-attempt"),
-            _candidate_binding("v2", "candidate-v2-attempt"),
         )
     )
     assert original != _build_id(features=(_feature_binding(43),))
@@ -195,13 +189,13 @@ def test_candidate_builder_requires_every_shopping_bag_scope():
 
     with pytest.raises(
         ValueError,
-        match=("route=v2, page_type=ShoppingBagPage"),
+        match=("route=v1, location=SB2"),
     ):
         _require_non_empty_candidate_scope(
             EmptyFrame(),
-            route="v2",
-            scope_type="page_type",
-            scope_value="ShoppingBagPage",
+            route="v1",
+            scope_type="location",
+            scope_value="SB2",
         )
 
 
@@ -262,20 +256,8 @@ def test_bounded_candidate_cohort_is_deterministic_and_route_complete(
         },
         "v1",
     )
-    accepted_v2 = _AcceptedCandidates(
-        {
-            "ShoppingBagPage": _candidate_frame(
-                local_spark,
-                ["A-3", "A-1", "A-4", "A-2"],
-                "SBP",
-            )
-        },
-        "v2",
-    )
-
     first = build_shopping_bag_candidate_frame(
         accepted_v1,
-        accepted_v2,
         serving_slot="best",
         account_limit=2,
     )
@@ -294,19 +276,8 @@ def test_bounded_candidate_cohort_is_deterministic_and_route_complete(
         },
         "v1",
     )
-    reordered_v2 = _AcceptedCandidates(
-        {
-            "ShoppingBagPage": _candidate_frame(
-                local_spark,
-                reversed_accounts,
-                "SBP",
-            ).repartition(4)
-        },
-        "v2",
-    )
     second = build_shopping_bag_candidate_frame(
         reordered_v1,
-        reordered_v2,
         serving_slot="best",
         account_limit=2,
     )
@@ -330,7 +301,7 @@ def test_bounded_candidate_cohort_is_deterministic_and_route_complete(
     assert sorted(tuple(row) for row in first_rows) == sorted(
         tuple(row) for row in second_rows
     )
-    assert len(first_rows) == 12
+    assert len(first_rows) == 8
     for account in expected_accounts:
         assert {
             (row["route"], row["scope_value"])
@@ -339,7 +310,6 @@ def test_bounded_candidate_cohort_is_deterministic_and_route_complete(
         } == {
             ("v1", "SB1"),
             ("v1", "SB2"),
-            ("v2", "ShoppingBagPage"),
         }
 
 

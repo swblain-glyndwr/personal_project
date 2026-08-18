@@ -26,8 +26,6 @@ shopping_bag_ongoing_evaluation_job: &shopping_bag_ongoing_evaluation_job
       default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_candidate_ad_sets
     - name: v1_candidate_build_attempt_id
       default: AUTO
-    - name: v2_candidate_build_attempt_id
-      default: AUTO
     - name: candidate_serving_slot
       default: best
     - name: account_limit
@@ -75,8 +73,6 @@ shopping_bag_ongoing_evaluation_job: &shopping_bag_ongoing_evaluation_job
           - "{{job.parameters.candidate_ad_sets_table}}"
           - --v1_candidate_build_attempt_id
           - "{{job.parameters.v1_candidate_build_attempt_id}}"
-          - --v2_candidate_build_attempt_id
-          - "{{job.parameters.v2_candidate_build_attempt_id}}"
           - --candidate_serving_slot
           - "{{job.parameters.candidate_serving_slot}}"
           - --account_limit

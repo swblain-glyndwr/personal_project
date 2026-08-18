@@ -94,10 +94,6 @@ def parse_args() -> argparse.Namespace:
         "--v1_candidate_build_attempt_id",
         default="AUTO",
     )
-    parser.add_argument(
-        "--v2_candidate_build_attempt_id",
-        default="AUTO",
-    )
     parser.add_argument("--candidate_serving_slot", default="best")
     parser.add_argument("--account_limit", type=int, required=True)
     parser.add_argument("--code_sha", required=True)
@@ -192,13 +188,6 @@ def main() -> None:
         route="v1",
         requested_attempt_id=args.v1_candidate_build_attempt_id,
     )
-    v2_attempt_id = resolve_candidate_attempt_id(
-        spark,
-        builds_table=args.candidate_builds_table,
-        run_date=run_date,
-        route="v2",
-        requested_attempt_id=args.v2_candidate_build_attempt_id,
-    )
     accepted_v1 = load_accepted_candidate_inputs(
         spark,
         builds_table=args.candidate_builds_table,
@@ -207,17 +196,8 @@ def main() -> None:
         candidate_build_attempt_id=v1_attempt_id,
         route="v1",
     )
-    accepted_v2 = load_accepted_candidate_inputs(
-        spark,
-        builds_table=args.candidate_builds_table,
-        scores_table=args.candidate_scores_table,
-        ad_sets_table=args.candidate_ad_sets_table,
-        candidate_build_attempt_id=v2_attempt_id,
-        route="v2",
-    )
     candidates = build_shopping_bag_candidate_frame(
         accepted_v1,
-        accepted_v2,
         serving_slot=args.candidate_serving_slot,
         account_limit=args.account_limit,
     ).cache()
@@ -239,14 +219,6 @@ def main() -> None:
             accepted_v1,
             serving_slot=args.candidate_serving_slot,
             scopes=_scopes("v1"),
-            builds_table=args.candidate_builds_table,
-            scores_table=args.candidate_scores_table,
-            ad_sets_table=args.candidate_ad_sets_table,
-        ),
-        candidate_input_binding(
-            accepted_v2,
-            serving_slot=args.candidate_serving_slot,
-            scopes=_scopes("v2"),
             builds_table=args.candidate_builds_table,
             scores_table=args.candidate_scores_table,
             ad_sets_table=args.candidate_ad_sets_table,

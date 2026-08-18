@@ -41,7 +41,6 @@ CANDIDATE_KEYS = (
 SHOPPING_BAG_SCOPES = (
     ("v1", "location", "SB1"),
     ("v1", "location", "SB2"),
-    ("v2", "page_type", "ShoppingBagPage"),
 )
 
 
@@ -481,16 +480,15 @@ def candidate_input_binding(
 
 def build_shopping_bag_candidate_frame(
     accepted_v1: Any,
-    accepted_v2: Any,
     *,
     serving_slot: str,
     account_limit: int,
 ) -> Any:
-    """Read one deterministic, route-complete SB evaluation cohort."""
+    """Read one deterministic, complete web SB evaluation cohort."""
     from pyspark.sql import functions as F
 
     limit = _validate_account_limit(account_limit)
-    inputs = {"v1": accepted_v1, "v2": accepted_v2}
+    inputs = {"v1": accepted_v1}
     scoped_frames = []
     for route, scope_type, scope_value in SHOPPING_BAG_SCOPES:
         accepted = inputs[route]

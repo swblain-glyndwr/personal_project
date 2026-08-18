@@ -80,9 +80,9 @@ models:
           purchase_theme_affinity: 0.0
   - model_name: shopping_bag_pctr
     provider_id: shopping_bag_pctr
-    problem_statement: Rank eligible Shopping Bag adverts by the likelihood of a click after an observed impression in the same session.
+    problem_statement: Rank eligible web Shopping Bag adverts by the likelihood of a click after an observed impression in the same session.
     prediction_entity: account and advert
-    prediction_time: observed Shopping Bag advert exposure
+    prediction_time: observed web Shopping Bag advert exposure
     label: clicked
     observation_keys:
       - exposure_id
@@ -120,6 +120,8 @@ models:
         - location
       label_maturity_column: label_maturity_date
       filters:
+        route: v1
+        platform: WEB
         label_horizon_days: 0
         label_is_mature: true
         impression_count: 1
@@ -130,11 +132,9 @@ models:
     evaluation_scope:
       route:
         - v1
-        - v2
       location:
         - SB1
         - SB2
-        - ShoppingBagPage
     activation_mode: EVALUATE
     feature_lookups:
       - feature_id: next_uk_nextads_fs_shopping_bag_account_activity_90d

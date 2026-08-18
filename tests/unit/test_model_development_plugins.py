@@ -59,8 +59,8 @@ def test_shopping_bag_definition_resolves_without_orchestration_changes():
     assert isinstance(scorer, SparkAccountAdvertScoreProvider)
     assert isinstance(adapter, AccountAdvertCandidateAdapter)
     assert adapter.scope_filters == (
-        ("route", ("v1", "v2")),
-        ("location", ("SB1", "SB2", "ShoppingBagPage")),
+        ("route", ("v1",)),
+        ("location", ("SB1", "SB2")),
     )
 
 
