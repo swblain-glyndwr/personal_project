@@ -1,0 +1,89 @@
+# Manual DEV proof for the observed Shopping Bag impression/click label only.
+shopping_bag_label_publication_job: &shopping_bag_label_publication_job
+  name: mktg_next_uk_nextads_shopping_bag_label_publication
+  queue:
+    enabled: true
+  parameters:
+    - name: reference_date
+      default: REQUIRED
+    - name: label_end
+      default: REQUIRED
+    - name: source_catalog
+      default: ${var.feature_store_source_catalog}
+    - name: source_schema
+      default: ${var.feature_store_source_schema}
+  job_clusters: ${var.job_clusters_config}
+  tags:
+    deployed_at: ${var.deploy_timestamp}
+    git_commit: ${var.git_commit_sha}
+    git_branch: ${var.git_branch}
+    deployed_by: ${var.deployed_by}
+    department: marketing
+    project: nextads
+    domain: feature_store
+    model: shopping_bag_pctr
+    evidence_scope: observed_labels
+    activation_mode: EVALUATE
+  max_concurrent_runs: 1
+  timeout_seconds: 10800
+  tasks:
+    - task_key: create_observed_label_table
+      spark_python_task:
+        python_file: ../../../jobs/table_operations/create_feature_store_tables.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --table
+          - next_uk_nextads_fs_shopping_bag_click_labels
+          - --create_schema
+          - "false"
+          - --create_views
+          - "false"
+          - --recreate_tables
+          - "false"
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 1800
+    - task_key: publish_observed_labels
+      depends_on:
+        - task_key: create_observed_label_table
+      spark_python_task:
+        python_file: ../../../jobs/features/nextads/build_shopping_bag_click_labels.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --reference_date
+          - "{{job.parameters.reference_date}}"
+          - --label_end
+          - "{{job.parameters.label_end}}"
+          - --source_catalog
+          - "{{job.parameters.source_catalog}}"
+          - --source_schema
+          - "{{job.parameters.source_schema}}"
+          - --feature_build_id
+          - "{{job.run_id}}"
+          - --feature_build_attempt_id
+          - "{{job.run_id}}"
+          - --git_commit
+          - ${var.git_commit_sha}
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 7200
+
+shopping_bag_label_publication_config: &shopping_bag_label_publication_config
+  mktg_next_uk_nextads_shopping_bag_label_publication:
+    <<: *shopping_bag_label_publication_job
+
+targets:
+  DEV:
+    resources:
+      jobs:
+        <<: *shopping_bag_label_publication_config

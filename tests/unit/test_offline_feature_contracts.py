@@ -35,7 +35,7 @@ ACTIVE_FEATURES = {
     "next_uk_nextads_fs_theme_popularity_daily",
     "next_uk_nextads_fs_account_advert_affinity_daily",
     "next_uk_nextads_fs_session_context_daily",
-    "next_uk_nextads_fs_labels_clicks",
+    "next_uk_nextads_fs_shopping_bag_click_labels",
     "next_uk_nextads_fs_labels_theme_response",
     "next_uk_nextads_fs_feature_quality_events",
 }
@@ -43,6 +43,7 @@ COMPATIBILITY_FEATURES = {
     "next_uk_nextads_fs_theme_affinity_model_input",
     "next_uk_nextads_fs_theme_affinity_training_input",
     "next_uk_nextads_fs_pctr_model_input",
+    "next_uk_nextads_fs_labels_clicks",
 }
 SCAFFOLD_FEATURES = set()
 IMPLEMENTED_BUILDERS = {
@@ -88,6 +89,9 @@ IMPLEMENTED_BUILDERS = {
         "build_theme_affinity_training_input"
     ),
     "next_uk_nextads_fs_labels_clicks": "build_model_inputs",
+    "next_uk_nextads_fs_shopping_bag_click_labels": (
+        "build_shopping_bag_click_labels"
+    ),
     "next_uk_nextads_fs_labels_theme_response": (
         "build_theme_affinity_features"
     ),
@@ -116,7 +120,7 @@ def test_offline_feature_definitions_have_explicit_delivery_states():
         for state in OfflineFeatureState
     }
 
-    assert len(registry.offline_features) == 20
+    assert len(registry.offline_features) == 21
     assert features_by_state[OfflineFeatureState.ACTIVE] == ACTIVE_FEATURES
     assert (
         features_by_state[OfflineFeatureState.COMPATIBILITY]

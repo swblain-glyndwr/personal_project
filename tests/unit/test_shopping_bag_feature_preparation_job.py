@@ -23,6 +23,7 @@ def test_job_publishes_only_the_missing_shopping_bag_feature_groups():
         "resolve_reference_date",
         "publish_account_features",
         "publish_advert_features",
+        "create_observed_label_table",
         "publish_click_labels",
     }
     assert tasks["publish_account_features"]["spark_python_task"][
@@ -33,7 +34,17 @@ def test_job_publishes_only_the_missing_shopping_bag_feature_groups():
     ].endswith("/build_advert_features.py")
     assert tasks["publish_click_labels"]["spark_python_task"][
         "python_file"
-    ].endswith("/build_model_inputs.py")
+    ].endswith("/build_shopping_bag_click_labels.py")
+    setup = tasks["create_observed_label_table"]["spark_python_task"]
+    assert setup["python_file"].endswith("/create_feature_store_tables.py")
+    assert "next_uk_nextads_fs_shopping_bag_click_labels" in setup[
+        "parameters"
+    ]
+    assert "true" not in [
+        value.lower()
+        for value in setup["parameters"]
+        if isinstance(value, str)
+    ]
 
 
 def test_job_is_manual_personal_dev_evidence_only():
@@ -46,6 +57,8 @@ def test_job_is_manual_personal_dev_evidence_only():
     bundle = (PROJECT_ROOT / "databricks.yml").read_text()
 
     assert "default: REQUIRED" in source
+    assert parameters["reference_date"] == "REQUIRED"
+    assert parameters["label_end"] == "REQUIRED"
     assert parameters["source_catalog"] == "${var.feature_store_source_catalog}"
     assert parameters["source_schema"] == "${var.feature_store_source_schema}"
     assert parameters["theme_source_catalog"] == "${var.mktgdata_catalog}"

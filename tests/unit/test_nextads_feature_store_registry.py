@@ -114,7 +114,7 @@ def test_feature_store_registry_loads_physical_tables_and_views():
     assert registry.name == "nextads_feature_store"
     assert registry.default_catalog == "marketingdata_dev"
     assert registry.default_schema == "nextads_feature_store"
-    assert len(registry.physical_tables) == 20
+    assert len(registry.physical_tables) == 21
     assert {
         view["name"] for view in registry.compatibility_views
     } == {
@@ -342,6 +342,14 @@ def test_feature_store_setup_uses_databricks_feature_engineering_client():
     assert first_call["primary_keys"] == ["account_number", "reference_date"]
     assert first_call["timestamp_keys"] == ["reference_date"]
     assert first_call["partition_columns"] is None
+    label_call = next(
+        call
+        for call in fake_client.create_table_calls
+        if call["name"].endswith(
+            ".next_uk_nextads_fs_shopping_bag_click_labels"
+        )
+    )
+    assert label_call["partition_columns"] == ["session_date"]
     assert first_call["tags"]["nextads_feature_store"] == (
         "nextads_feature_store"
     )
@@ -1445,7 +1453,7 @@ def test_feature_store_creation_avoids_timestamp_partition_conflict():
     assert "receipt = replace_table_by_name(" in materialization
     assert "delete_reference_date_partition" not in materialization
     assert "DeltaTable.forName" not in materialization
-    assert "partition_columns = []" in create_tables
+    assert "if column != table.timestamp_key" in create_tables
 
     advert_product_contract = (
         PROJECT_ROOT

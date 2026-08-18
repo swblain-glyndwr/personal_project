@@ -33,6 +33,7 @@ def configure_job_logging(log_level: str) -> None:
 def parse_common_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference_date", default=None)
+    parser.add_argument("--label_end", default=None)
     parser.add_argument("--catalog", default=None)
     parser.add_argument("--schema", default=None)
     parser.add_argument("--source_catalog", default="marketingdata_prod")

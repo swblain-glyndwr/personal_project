@@ -7,6 +7,8 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
   parameters:
     - name: reference_date
       default: REQUIRED
+    - name: label_end
+      default: REQUIRED
     - name: source_catalog
       default: ${var.feature_store_source_catalog}
     - name: source_schema
@@ -64,6 +66,8 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
           - ${var.feature_store_schema}
           - --reference_date
           - "{{tasks.resolve_reference_date.values.reference_date}}"
+          - --label_end
+          - "{{job.parameters.label_end}}"
           - --source_catalog
           - "{{job.parameters.source_catalog}}"
           - --source_schema
@@ -85,6 +89,29 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 7200
+    - task_key: create_observed_label_table
+      depends_on:
+        - task_key: resolve_reference_date
+      spark_python_task:
+        python_file: ../../../jobs/table_operations/create_feature_store_tables.py
+        parameters:
+          - --catalog
+          - ${var.mktgdata_catalog}
+          - --schema
+          - ${var.feature_store_schema}
+          - --table
+          - next_uk_nextads_fs_shopping_bag_click_labels
+          - --create_schema
+          - "false"
+          - --create_views
+          - "false"
+          - --recreate_tables
+          - "false"
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 1800
     - task_key: publish_advert_features
       depends_on:
         - task_key: resolve_reference_date
@@ -96,9 +123,9 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
       timeout_seconds: 7200
     - task_key: publish_click_labels
       depends_on:
-        - task_key: resolve_reference_date
+        - task_key: create_observed_label_table
       spark_python_task:
-        python_file: ../../../jobs/features/nextads/build_model_inputs.py
+        python_file: ../../../jobs/features/nextads/build_shopping_bag_click_labels.py
         parameters: *common_builder_parameters
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}

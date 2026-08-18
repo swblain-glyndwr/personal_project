@@ -34,7 +34,10 @@ finally:
 from next_ads.features import load_feature_store_registry
 from next_ads.features.feature_store_registry import normalize_schema_name
 from next_ads.features.feature_build_store import METADATA_TABLES
-from next_ads.features.sql_contracts import extract_create_table_columns
+from next_ads.features.sql_contracts import (
+    extract_create_table_columns,
+    extract_partition_columns,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -413,7 +416,11 @@ def create_feature_store_tables(
 
         LOGGER.info("Creating feature-store table: %s", table_path)
         feature_schema = schema_from_contract(contract_sql)
-        partition_columns = []
+        partition_columns = [
+            column
+            for column in extract_partition_columns(contract_sql)
+            if column != table.timestamp_key
+        ]
         tags = {
             "nextads_feature_store": registry.name,
             "entity": table.entity,

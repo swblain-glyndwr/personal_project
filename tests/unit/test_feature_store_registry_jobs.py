@@ -114,6 +114,12 @@ def test_registry_selects_active_builder_outputs_and_excludes_scaffolds():
             "build_advert_product_profile_daily"
         )
     ] == ["next_uk_nextads_fs_advert_product_profile_daily"]
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_shopping_bag_click_labels"
+        )
+    ] == ["next_uk_nextads_fs_shopping_bag_click_labels"]
 
 
 def test_builder_output_validation_accepts_the_exact_implemented_set():
