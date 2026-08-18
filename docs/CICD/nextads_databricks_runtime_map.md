@@ -2,19 +2,19 @@
 
 Status: Working note
 
-Architecture view refreshed: 2026-08-11. Observed runtime evidence last refreshed from Databricks: 2026-07-03.
+Architecture view refreshed: 2026-08-18. Observed runtime evidence last refreshed from Databricks: 2026-07-03.
 
 This page describes the NextAds Databricks bundle shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs wait for child jobs, and where reusable model-building routes sit alongside the operational delivery routes.
 
-This is a runtime map, not a deployment policy. For target availability rules, see [nextads_databricks_job_environment_matrix.md](nextads_databricks_job_environment_matrix.md). For the wider model, Feature Store and MLflow architecture view, see [../architecture/nextads_model_feature_overview.md](../architecture/nextads_model_feature_overview.md).
+This is a runtime map, not a deployment policy. For target availability rules, see [nextads_databricks_job_environment_matrix.md](nextads_databricks_job_environment_matrix.md). For the wider job and table data-flow view, see [../architecture/nextads_job_table_flow.md](../architecture/nextads_job_table_flow.md).
 
-## How to Read This
+## Scope, Schedules And Runtime Evidence
 
 The diagrams below show the Databricks Asset Bundle job structure currently defined under `pipelines/databricks/jobs`. The schedules in the diagrams come from the current bundle. The runtime table is retained as historical pre-change evidence from Databricks job runs, using PROD jobs unless the row explicitly says DEV. Child jobs do not have their own fixed schedule; the parent waits for their result.
 
 Durations are recent observed successful run durations, not SLAs. They should be treated as a guide for debugging, planning model refreshes, and understanding where a new model, feature-store table, or challenger route would attach.
 
-## End-To-End Route Added By This Change
+## End-To-End Operational Route
 
 This is the single-page view of the operational change. The coloured backgrounds show which system responsibility owns each job or boundary. Solid arrows are required dependencies; dotted arrows show optional provider participation or independent retention work.
 
@@ -93,9 +93,9 @@ flowchart LR
     v2_delivery["V2 after successful publication<br/>payload export"]:::delivery
   end
 
-  subgraph OPERATIONS["ASYNCHRONOUS COMPATIBILITY AND MONITORING"]
+  subgraph OPERATIONS["ASYNCHRONOUS COMPATIBILITY, VALIDATION AND RETENTION"]
     theme_compat["17:00 Theme Affinity compatibility<br/>legacy provider and feature tables<br/>plus independent sense checks"]:::operations
-    candidate_compat["21:00 candidate compatibility<br/>and assignment quality monitoring<br/>read exact READY candidates"]:::operations
+    candidate_compat["21:00 candidate compatibility<br/>and assignment validation<br/>read exact READY candidates"]:::operations
     maintenance["05:00 retention<br/>not a build dependency"]:::operations
   end
 
@@ -133,7 +133,7 @@ All model-specific code ends at the canonical provider boundary. Theme Affinity,
 
 Data is written before its READY manifest. Assignment is calculated as one distributed Spark graph per route, checked once at the final public key, and written as one history transaction followed by one live-latest transaction. There is no scope-by-scope public chain to leave a mixed Shopping Bag snapshot. If the live transaction does not complete, the previous accepted snapshot remains active; a repair can publish it from the exact history version without recalculating assignments. V1 and v2 make that decision independently.
 
-## Daily Runtime Shape
+## Daily Job Schedule And Child-Job Triggers
 
 ```mermaid
 flowchart TD
@@ -143,8 +143,10 @@ flowchart TD
   classDef v2 fill:#ede9fe,stroke:#7c3aed,color:#111827
   classDef reporting fill:#f1f5f9,stroke:#64748b,color:#111827
 
+  maintenance["05:00 table maintenance"]:::reporting
   results["07:15 results"]:::reporting
   realtime_results["07:30 realtime results"]:::reporting
+  legacy_pctr["10:00 legacy Analytics pCTR<br/>DEV schedule paused"]:::reporting
   theme_inputs["12:15 theme inputs"]:::sharedModel
   theme_affinity["13:00 theme_affinity"]:::sharedModel
   markov["13:00 markov_scoring<br/>optional shadow"]:::sharedModel
@@ -153,16 +155,20 @@ flowchart TD
   candidate["18:00 candidate_build"]:::sharedTask
   candidate_compat["21:00 candidate compatibility"]:::reporting
   realtime_inputs["18:00 realtime inputs"]:::reporting
+  table_monitor["18:00 table monitoring<br/>DEV only"]:::reporting
   page_build["synchronous page_build_v1"]:::v1
   page_build_v2["synchronous page_build_v2"]:::v2
-  qa["assignment quality monitoring"]:::reporting
+  assignment_validation["assignment validation"]:::reporting
   masid["masid_handoff"]:::v1
   payload["payload_export"]:::v2
   plp["plp_gs_delivery"]:::v1
-  feature_store["21:00 feature_store"]:::sharedModel
+  feature_store["21:00 feature_store<br/>DEV_FEATURE_STORE only"]:::sharedModel
+  analytics_source["Analytics pCTR feature source<br/>synchronous child job"]:::sharedModel
+  realtime_data["23:00 realtime data"]:::reporting
 
   theme_inputs --> theme_affinity
   theme_inputs --> markov
+  results -. advert-result feedback .-> candidate_foundation
   theme_affinity -. exact READY provider .-> theme_compat
   theme_affinity -. same-day or accepted fallback provider .-> candidate
   candidate_foundation --> candidate
@@ -170,12 +176,38 @@ flowchart TD
   candidate --> page_build
   candidate --> page_build_v2
   candidate -. exact READY candidates .-> candidate_compat
-  candidate_compat --> qa
+  candidate_compat --> assignment_validation
   page_build --> masid
   page_build --> plp
   page_build_v2 --> payload
   theme_compat -. compatible feature tables .-> feature_store
+  feature_store --> analytics_source
 ```
+
+The diagram includes every schedule declared by the current job YAML. It does
+not imply that target-specific schedules coexist in one workspace: the legacy
+Analytics pCTR schedule is paused, table monitoring is DEV-only, and the shared
+Feature Store schedule exists only in `DEV_FEATURE_STORE`.
+
+### Declared Schedule Inventory
+
+| Time | Job | Declared targets | Repository schedule state |
+| --- | --- | --- | --- |
+| 05:00 | `mktg_next_uk_nextads_table_maintenance` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 07:15 | `mktg_next_uk_nextads_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 07:30 | `mktg_next_uk_nextads_realtime_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 10:00 | `mktg_next_uk_nextads_analytics_pctr` | `DEV` | Paused |
+| 12:15 | `mktg_next_uk_nextads_theme_inputs` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 13:00 | `mktg_next_uk_nextads_theme_affinity` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 13:00 | `mktg_next_uk_nextads_markov_scoring` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 16:00 | `mktg_next_uk_nextads_candidate_foundation` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 17:00 | `mktg_next_uk_nextads_theme_feature_compatibility` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 18:00 | `mktg_next_uk_nextads_candidate_build` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 18:00 | `mktg_next_uk_nextads_realtime_inputs` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 18:00 | `mktg_next_uk_nextads_table_monitoring` | `DEV` | Declared |
+| 21:00 | `mktg_next_uk_nextads_candidate_compatibility` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 21:00 | `mktg_next_uk_nextads_feature_store` | `DEV_FEATURE_STORE` | Unpaused |
+| 23:00 | `mktg_next_uk_nextads_realtime_data` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 
 ## Historical Observed Runtimes
 
@@ -197,7 +229,7 @@ These measurements were captured on 2026-07-03 against the earlier job graph. Th
 
 ## Candidate Build Task Graph
 
-This is the main evening operational route. It selects one accepted candidate foundation shared by v1 and v2, while each route independently captures its control input, resolves a declared scoring portfolio and publishes an accepted candidate attempt from its serving entries. Theme Inputs, Candidate Foundation, Theme Affinity and Markov scoring are upstream jobs rather than candidate-task implementations.
+This is the evening candidate route. It selects one accepted candidate foundation shared by v1 and v2, while each route independently captures its control input, resolves a declared scoring portfolio and publishes an accepted candidate attempt from its serving entries. Theme Inputs, Candidate Foundation, Theme Affinity and Markov scoring are upstream jobs rather than candidate-task implementations.
 
 Each route audit and coverage task reports business findings without hiding technical failures. Missing themes are surfaced for follow-up and naturally cannot produce theme-matched candidates; an unreadable control or pinned provider snapshot stops only the affected route before mapping.
 
@@ -278,7 +310,7 @@ The critical candidate tasks publish only the canonical ad-set and score tables.
 
 ## Bulk Page Build And Delivery Fan-Out
 
-The v1 and v2 page-build jobs are not normally scheduled by themselves in PROD. They are run as synchronous child jobs after their respective mapping tables and shared customer cells are ready. V1 builds its 77 primary locations in one task with its two inherited secondary locations in the same Spark graph. V2 builds all five page types in one graph. Each graph validates and publishes its route before returning. This removes per-scope cluster starts and intermediate write tasks while keeping the public assignment grain unchanged. After publication, v1 fans out to MASID handoff and PLP delivery, while v2 fans out to payload export. Assignment quality monitoring runs independently at 21:00.
+The v1 and v2 page-build jobs are not normally scheduled by themselves in PROD. They are run as synchronous child jobs after their respective mapping tables and shared customer cells are ready. V1 builds its 77 primary locations in one task with its two inherited secondary locations in the same Spark graph. V2 builds all five page types in one graph. Each graph validates and publishes its route before returning. This removes per-scope cluster starts and intermediate write tasks while keeping the public assignment grain unchanged. After publication, v1 fans out to MASID handoff and PLP delivery, while v2 fans out to payload export. Assignment validation runs independently at 21:00.
 
 ```mermaid
 flowchart TD
@@ -301,7 +333,7 @@ flowchart TD
   run_masid_handoff --> masid["masid_handoff"]:::v1
   run_payload_export --> payload["payload_export"]:::v2
   run_plp_gs_delivery --> plp["plp_gs_delivery"]:::v1
-  quality["21:00 assignment quality monitoring<br/>runs after compatibility publication"]:::trigger
+  quality["21:00 assignment validation<br/>runs after compatibility publication"]:::trigger
   build_and_publish_v1 -.-> quality
   build_and_publish_v2 -.-> quality
 ```
@@ -366,26 +398,17 @@ flowchart TD
 
 ## Feature Store Route
 
-The feature-store job is deliberately separate from the operational PROD delivery routes. It currently exists in the `DEV_FEATURE_STORE` target only, writing reusable model-building tables in `marketingdata_dev.nextads_feature_store`. Its purpose is to publish reusable features and model inputs, not final assignment, ranking, delivery, or production scoring output.
+The Feature Store job is deliberately separate from the operational PROD
+delivery routes. It is scheduled at 21:00 only in `DEV_FEATURE_STORE`, writes
+reusable model-building tables in
+`marketingdata_dev.nextads_feature_store`, and does not publish assignments,
+delivery payloads or production scores. Its complete task graph is maintained
+once in
+[`feature_store_flow.md`](../architecture/feature_store_flow.md); its job and
+table inputs and outputs are in
+[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md).
 
-```mermaid
-flowchart TD
-  create_feature_store_tables --> preflight_feature_store_sources
-  create_feature_store_tables --> build_theme_affinity_training_input
-  preflight_feature_store_sources --> build_account_features
-  preflight_feature_store_sources --> build_advert_features
-  build_account_features --> build_theme_affinity_features
-  build_advert_features --> build_theme_affinity_features
-  build_account_features --> build_pctr_affinity_features
-  build_advert_features --> build_pctr_affinity_features
-  build_theme_affinity_features --> build_model_inputs
-  build_pctr_affinity_features --> build_model_inputs
-  build_model_inputs --> quality_checks
-```
-
-For future challenger work, this means the feature store should be treated as a reusable input layer. A challenger model can consume feature-store tables, Theme Affinity outputs, operational candidate tables, or experiment-specific joins, but its final scores, rankings, assignment decisions, and delivery outputs should remain in model output or decisioning tables rather than being hidden inside feature creation.
-
-## Where New Model Work Fits
+## Job And Table Ownership Boundaries
 
 New NextAds model work should decide which layer it belongs to before adding a job or table:
 
@@ -395,4 +418,4 @@ New NextAds model work should decide which layer it belongs to before adding a j
 | Feature store | Reusable account, advert, candidate, label, and model-input features that can be rebuilt point-in-time and shared across models. | Final scores, rankings, assignment decisions, delivery payloads, or one-off experiment outputs. |
 | Model scoring/challenger output | Model-specific scores, probabilities, candidate rankings, and challenger evidence. | General reusable features unless they are promoted into a feature-store contract. |
 | Decisioning/assignment adapter | Selection between champion/challenger outputs and conversion into the current delivery shape. | Feature engineering or training-set assembly. |
-| Delivery/reporting | Page build, exports, QA, handoff checks, results, and external/reporting outputs. | Model-training features or hidden scoring logic. |
+| Delivery/reporting | Page build, exports, assignment validation, handoff checks, results and external/reporting outputs. | Model-training features or hidden scoring logic. |

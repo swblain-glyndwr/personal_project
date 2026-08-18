@@ -230,6 +230,7 @@ def test_manifest_reports_registry_coverage_without_claiming_dev_complete(
     )
     assert manifest["overall_status"] == "CURRENT_IMPLEMENTED_PASS"
     assert manifest["skipped_current_contracts"] == [
+        "next_uk_nextads_fs_shopping_bag_account_activity_90d",
         "next_uk_nextads_fs_theme_affinity_training_input"
     ]
     assert manifest["current_implemented_complete"] is False

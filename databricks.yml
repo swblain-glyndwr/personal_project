@@ -24,6 +24,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_preprod.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml
@@ -39,6 +40,13 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_feature_source.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_prediction_verification.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_adoption.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_feature_preparation.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_label_publication.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development_runtime_smoke.yml
   - pipelines/databricks/jobs/dev_setup.yml
   - pipelines/databricks/jobs/table_operations.yml
   - pipelines/databricks/jobs/preprod_dependency_smoke.yml
@@ -99,6 +107,9 @@ variables:
     default: "unknown"
   git_last_commit_user_name:
     description: Username of the last git commit author, e.g. 'john_doe'
+    default: ${workspace.current_user.userName}
+  git_last_commit_user_email:
+    description: Databricks login of the last git commit author
     default: ${workspace.current_user.userName}
   deployed_by:
     description: Deployed by user, e.g. 'Doe, John'
@@ -201,6 +212,8 @@ targets:
       host: https://adb-6694370232251359.19.azuredatabricks.net/
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/${var.git_last_commit_user_name}
     permissions:
+      - level: CAN_MANAGE
+        user_name: ${var.git_last_commit_user_email}
       - level: CAN_MANAGE
         group_name: AzUsers-DBK-MarketingData-Contributor-Dev
       - level: CAN_MANAGE

@@ -1,4 +1,8 @@
+import ast
+import argparse
 from pathlib import Path
+
+import pytest
 
 from next_ads.common import paths as common_paths
 from tests.job_resource_helpers import load_job, load_yaml
@@ -50,6 +54,155 @@ def test_analytics_pctr_job_points_to_experiment_and_stays_dev_only_paused():
     assert python_paths == [
         "${workspace.file_path}/experiments/analytics_pctr/run_predictions.py"
     ]
+
+
+def test_prediction_proof_records_the_exact_output_needed_for_adoption():
+    source = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    ).read_text()
+    job_source = (
+        PROJECT_ROOT
+        / "pipelines/databricks/jobs"
+        / "mktg_next_uk_nextads_analytics_pctr_prediction_verification.yml"
+    ).read_text()
+
+    assert "ANALYTICS_PCTR_PREDICTION_RECEIPT=" in source
+    assert "DESCRIBE HISTORY {TARGET_TABLE_LATEST} LIMIT 1" in source
+    assert 'spark.conf.get("spark.databricks.job.runId")' in source
+    assert "activation_mode: EVALUATE" in job_source
+    assert "schedule:" not in job_source
+    assert "mktg_next_uk_nextads.yml" not in job_source
+    assert "PROD:" not in job_source
+
+
+def test_prediction_route_handles_empty_impression_history():
+    source_path = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    )
+    source = source_path.read_text()
+    tree = ast.parse(source)
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "optional_first_value"
+    )
+    namespace = {}
+    exec(
+        compile(
+            ast.Module(body=[helper], type_ignores=[]),
+            str(source_path),
+            "exec",
+        ),
+        namespace,
+    )
+
+    assert namespace["optional_first_value"]([]) is None
+    assert namespace["optional_first_value"]([(12.5,)]) == 12.5
+    assert "median_impressions = optional_first_value" in source
+
+
+def test_prediction_route_rejects_empty_model_stages_before_publication():
+    source_path = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    )
+    source = source_path.read_text()
+    tree = ast.parse(source)
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "require_non_empty"
+    )
+    namespace = {}
+    exec(
+        compile(
+            ast.Module(body=[helper], type_ignores=[]),
+            str(source_path),
+            "exec",
+        ),
+        namespace,
+    )
+
+    class Frame:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def limit(self, _value):
+            return self
+
+        def collect(self):
+            return self.rows
+
+    with pytest.raises(ValueError, match="affinity output contains no rows"):
+        namespace["require_non_empty"](Frame([]), "affinity output")
+    non_empty = Frame([(1,)])
+    assert namespace["require_non_empty"](non_empty, "ranked output") is non_empty
+    assert source.index("require_non_empty(predictions") < source.index(
+        'print("Loading output to table (latest)")'
+    )
+
+
+def test_prediction_python_task_uses_its_command_line_parameters():
+    source_path = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    )
+    source = source_path.read_text()
+    tree = ast.parse(source)
+    selected = [
+        node
+        for node in tree.body
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name)
+                and target.id == "MODEL_ARGUMENTS"
+                for target in node.targets
+            )
+        )
+        or (
+            isinstance(node, ast.FunctionDef)
+            and node.name == "parse_command_line_values"
+        )
+    ]
+    namespace = {"argparse": argparse}
+    exec(
+        compile(
+            ast.Module(body=selected, type_ignores=[]),
+            str(source_path),
+            "exec",
+        ),
+        namespace,
+    )
+
+    values = namespace["parse_command_line_values"](
+        [
+            "--catalog_schema_prefix",
+            "marketingdata_dev.Stephen_Blain",
+            "--table_prefix",
+            "next_uk_nextAds_analytics_pctr",
+            "--unknown-runtime-argument",
+            "ignored",
+        ]
+    )
+
+    assert values == {
+        "catalog_schema_prefix": "marketingdata_dev.Stephen_Blain",
+        "table_prefix": "next_uk_nextAds_analytics_pctr",
+    }
+    assert "if name in COMMAND_LINE_VALUES" in source
+
+
+def test_prediction_qa_accepts_tied_dense_ranks_per_customer():
+    source = (
+        PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
+    ).read_text()
+
+    assert "rank_1_number_predictions" not in source
+    assert "rank_2_number_predictions" not in source
+    assert source.count('.select("account_number")\n    .distinct()') >= 2
+    assert "rank_1_number_customers == number_customers" in source
+    assert "rank_2_number_customers == number_customers" in source
 
 
 def test_adsv2_entrypoints_remain_in_current_route_folders():

@@ -1,4 +1,4 @@
-# MLflow Model Lifecycle
+# NextAds MLflow Model Promotion Lifecycle
 
 The model lifecycle moves exact reviewed Unity Catalog model versions through
 controlled namespaces. Promotion/registering a model is separate from selecting

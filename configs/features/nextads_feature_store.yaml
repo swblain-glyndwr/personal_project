@@ -46,6 +46,19 @@ feature_store:
       state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]
+    - name: next_uk_nextads_fs_shopping_bag_account_activity_90d
+      entity: account
+      grain: one row per active web account and reference date
+      primary_keys: [account_number, reference_date]
+      timestamp_key: reference_date
+      source_job: build_shopping_bag_account_activity
+      builder: build_shopping_bag_account_activity
+      owner: marketing_data
+      freshness: on_demand
+      state: ACTIVE
+      preflight_mode: BUILDER
+      training_safe: true
+      consumers: [shopping_bag_pctr]
     - name: next_uk_nextads_fs_item_attributes_latest
       entity: item
       grain: one row per item
@@ -227,9 +240,22 @@ feature_store:
       source_job: build_model_inputs
       owner: marketing_data
       freshness: daily
-      state: ACTIVE
-      training_safe: true
+      state: COMPATIBILITY
+      training_safe: false
       consumers: [pctr, ltr]
+    - name: next_uk_nextads_fs_shopping_bag_click_labels
+      entity: advert_exposure_label
+      grain: one real Shopping Bag advert impression and mature label horizon
+      primary_keys: [exposure_id, label_horizon_days, exposure_timestamp]
+      timestamp_key: exposure_timestamp
+      source_job: build_shopping_bag_click_labels
+      builder: build_shopping_bag_click_labels
+      owner: marketing_data
+      freshness: daily
+      state: ACTIVE
+      preflight_mode: BUILDER
+      training_safe: true
+      consumers: [shopping_bag_pctr, ltr]
     - name: next_uk_nextads_fs_labels_theme_response
       entity: label
       grain: one row per account, theme, reference date, and label name

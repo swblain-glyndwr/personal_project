@@ -30,7 +30,7 @@ model_import_dev_integration_config: &model_import_dev_integration_config
     tasks:
       - task_key: promote_model
         spark_python_task:
-          python_file: ../../../jobs/model/lifecycle/promote_model.py
+          python_file: ../../../jobs/model/development/promote_exact_model.py
           parameters:
             - --client
             - next_uk

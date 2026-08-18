@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 
 def _extract_outer_column_block(create_table_sql: str) -> str:
     """Return the text inside the CREATE TABLE column-list parentheses."""
@@ -72,3 +74,19 @@ def extract_create_table_columns(create_table_sql: str) -> list[tuple[str, str]]
         columns.append((parts[0].strip("`"), parts[1]))
 
     return columns
+
+
+def extract_partition_columns(create_table_sql: str) -> list[str]:
+    """Extract top-level Delta partition columns from a table contract."""
+    match = re.search(
+        r"\bPARTITIONED\s+BY\s*\(([^)]*)\)",
+        create_table_sql,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if match is None:
+        return []
+    return [
+        value.strip().strip("`")
+        for value in match.group(1).split(",")
+        if value.strip()
+    ]

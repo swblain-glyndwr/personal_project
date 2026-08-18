@@ -1,17 +1,17 @@
-# Next Ads Feature Store Reusable Feature Inventory
+# Next Ads Reusable Feature Source Inventory
 
 | Work item | Purpose |
 | --- | --- |
 | 5111595 | Reusable feature layer (Databricks Feature Store). |
 | 5111856 | Reusable feature inventory. |
 
-## Purpose
+## Inventory Scope
 
 This inventory maps reusable signals from the existing Theme Affinity/LTR-style pipeline, retained pCTR experiment work, and CWB analytics pCTR work into the first Next Ads feature-store contracts.
 
 The target shape is model-neutral. The feature store is for Next Ads-wide reusable batch features, not a pCTR-specific store. Current pCTR and LTR/theme affinity work should consume these governed feature tables instead of rebuilding source-specific feature joins inline.
 
-## Existing Outputs and Reusable Signals
+## Source Signal To Feature Contract Mapping
 
 | Source area | Current reusable signals | Current grain | Feature-store target |
 | --- | --- | --- | --- |
@@ -25,10 +25,11 @@ The target shape is model-neutral. The feature store is for Next Ads-wide reusab
 | Response-model/pCTR semantic features | Advert text corpus, text embedding dimensions, linked item semantic fields and semantic coverage | Advert, feature date, embedding model/version | `next_uk_nextads_fs_advert_semantic_profile_daily` |
 | Response-model/pCTR product embeddings | Item/product embeddings, advert product vectors and embedding coverage inputs | Item/product or advert, feature date, embedding model/version | `next_uk_nextads_fs_product_embeddings_latest`, `next_uk_nextads_fs_advert_product_profile_daily` |
 | Response-model/pCTR seasonal features | Same-month-last-year, 7-day, 30-day and trend product demand features | Product/ad/account entity, item, feature date | `next_uk_nextads_fs_seasonal_product_demand_daily` |
-| Response-model/pCTR labels | Observed Shopping Bag exposures, tagged-click labels and attribution windows | Account, advert, location, session date, label horizon | `next_uk_nextads_fs_labels_clicks` |
+| Legacy inferred click labels | Inferred advert/session response shape retained for compatibility; not training-safe | Account, advert, location, session date, label horizon | `next_uk_nextads_fs_labels_clicks` |
+| Observed Shopping Bag labels | Actual advert impressions, tagged clicks and mature attribution windows | Exposure and label horizon | `next_uk_nextads_fs_shopping_bag_click_labels` |
 | Theme Affinity labels | Theme response labels and targets produced by the current theme pipeline | Account, theme, reference date, label name | `next_uk_nextads_fs_labels_theme_response` |
 
-## Embedding Outputs and Version Requirements
+## Embedding Outputs And Version Requirements
 
 Embedding-derived feature tables must preserve:
 
@@ -48,7 +49,7 @@ The initial feature-store contracts include these requirements in:
 - `next_uk_nextads_fs_pctr_model_input`
 
 
-## Historical First-Slice Candidates
+## Historical First-Slice Ordering
 
 This table records the original first-slice ordering. It does not define completion: the current `DEV_COMPLETE` gate in `migration_backlog.md` requires every intended registry contract and compatibility view to be implemented and evidenced in shared DEV before environment promotion.
 
@@ -63,7 +64,7 @@ The first registration/population candidates should be small enough to validate 
 | 5 | `next_uk_nextads_fs_account_theme_affinity_daily` | Allows current Theme Affinity/LTR-style model to move behind a compatibility view. |
 | 6 | `next_uk_nextads_fs_pctr_model_input` | Allows pCTR work to consume a governed model-ready input. |
 
-## Initial Exclusions
+## Inventory Exclusions
 
 The following stay out of the first feature-store slice:
 
@@ -72,7 +73,7 @@ The following stay out of the first feature-store slice:
 - Candidate similarity diagnostics. That work is a separate offline follow-up and is not part of the first production model contracts.
 
 
-## Acceptance Criteria Mapping
+## Reusable Feature Inventory Acceptance Criteria
 
 | Acceptance criterion | Evidence in this document/branch |
 | --- | --- |

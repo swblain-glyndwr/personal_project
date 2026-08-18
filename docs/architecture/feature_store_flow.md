@@ -1,71 +1,159 @@
-# Feature Store Flow
+# Feature Store Job Flow
 
-The shared Feature Store route runs in the `DEV_FEATURE_STORE` target and writes
-to `marketingdata_dev.nextads_feature_store`. It is a model-building layer, not
+This page shows the dependency order inside
+`mktg_next_uk_nextads_feature_store`. For the inclusive inputs-and-outputs guide
+covering all 48 NextAds jobs declared in this checkout, start with
+[`nextads_job_table_flow.md`](nextads_job_table_flow.md).
+
+The shared route runs in the `DEV_FEATURE_STORE` target and writes to
+`marketingdata_dev.nextads_feature_store`. It is a model-building layer, not
 part of live production delivery.
 
 ```mermaid
 flowchart TD
-  subgraph sources["Source tables"]
-    theme_prod["PROD Theme Affinity outputs<br/>marketingdata_prod.warehouse"]
-    prod_core["Existing PROD source tables<br/>customer, control, item, web, actions"]
-    analytics["Versioned Analytics pCTR feature output<br/>exact Delta receipt"]
-    historical["Historical Theme Affinity prep<br/>explicit training date only"]
+  subgraph sources["Source data and artifacts"]
+    operational["Operational warehouse sources<br/>customer, control, item, web, actions and assignments"]
+    theme_source["Theme Affinity outputs"]
+    analytics_source["Analytics pCTR source tables"]
+    embedding_model["Registered product-embedding model"]
+    historical["Historical Theme Affinity preparation<br/>explicit training date only"]
   end
 
   subgraph job["mktg_next_uk_nextads_feature_store"]
+    resolve["resolve_feature_store_reference_date"]
     create["create_feature_store_tables"]
+    analytics["refresh_analytics_pctr_feature_source<br/>child job"]
     preflight["preflight_feature_store_sources"]
     account["build_account_features"]
     advert["build_advert_features"]
+    embeddings["build_product_embeddings_latest"]
+    advert_product["build_advert_product_profile_daily"]
+    advert_semantic["build_advert_semantic_profile_daily"]
+    seasonal["build_seasonal_product_demand_daily"]
     theme["build_theme_affinity_features"]
-    pctr["build_pctr_affinity_features<br/>Analytics model input plus reusable affinity/session features"]
-    training["build_theme_affinity_training_input<br/>skips unless historical date supplied"]
+    pctr["build_pctr_affinity_features"]
+    training["build_theme_affinity_training_input<br/>skips unless a historical date is supplied"]
     inputs["build_model_inputs"]
     quality["quality_checks"]
   end
 
-  subgraph tables["Feature Store outputs"]
-    base["Reusable base features<br/>account, web, advert, item, theme"]
-    latest["next_uk_nextads_fs_theme_affinity_model_input<br/>daily/latest model-input contract"]
-    labelled["next_uk_nextads_fs_theme_affinity_training_input<br/>historical labelled training data"]
-    analytics_input["next_uk_nextads_fs_pctr_model_input<br/>Analytics pCTR model columns"]
-    views["Compatibility views<br/>model-shaped reads"]
-    events["next_uk_nextads_fs_feature_quality_events"]
+  subgraph outputs["Output groups"]
+    reusable["Account, advert, item, embedding,<br/>semantic and seasonal features"]
+    affinities["Theme and account-advert affinities<br/>plus session context"]
+    model_inputs["Theme Affinity and Analytics pCTR<br/>model inputs and compatibility views"]
+    labels["Click and theme-response labels"]
+    training_output["Historical Theme Affinity training input"]
+    metadata["Feature builds, exact source/output versions<br/>and READY snapshot bindings"]
+    events["Feature quality events"]
   end
 
-  theme_prod --> preflight
-  prod_core --> preflight
-  historical --> training
-  analytics --> pctr
-
+  operational --> resolve
+  resolve --> create
+  create --> analytics
+  analytics_source --> analytics
   create --> preflight
-  create --> training
+  analytics --> preflight
+  operational --> preflight
+  theme_source --> preflight
+
   preflight --> account
   preflight --> advert
+  preflight --> embeddings
+  embedding_model --> embeddings
+
+  embeddings --> advert_product
+  advert --> advert_semantic
+  embeddings --> advert_semantic
+  advert --> seasonal
+  embeddings --> seasonal
+
   account --> theme
   advert --> theme
   account --> pctr
   advert --> pctr
+
+  create --> training
+  historical --> training
   theme --> inputs
   pctr --> inputs
-  inputs --> quality
 
-  account --> base
-  advert --> base
-  theme --> base
-  inputs --> latest
-  training --> labelled
-  pctr --> analytics_input
-  latest --> views
-  analytics_input --> views
+  inputs --> quality
+  training --> quality
+  advert_product --> quality
+  advert_semantic --> quality
+  seasonal --> quality
+
+  account --> reusable
+  advert --> reusable
+  embeddings --> reusable
+  advert_product --> reusable
+  advert_semantic --> reusable
+  seasonal --> reusable
+  theme --> affinities
+  pctr --> affinities
+  pctr --> model_inputs
+  inputs --> model_inputs
+  theme --> labels
+  inputs --> labels
+  training --> training_output
+  account --> metadata
+  advert --> metadata
+  embeddings --> metadata
+  theme --> metadata
+  pctr --> metadata
+  inputs --> metadata
+  advert_product --> metadata
+  advert_semantic --> metadata
+  seasonal --> metadata
+  training --> metadata
   quality --> events
 ```
 
-`next_uk_nextads_fs_theme_affinity_model_input` is the daily/latest model-input
-contract. `next_uk_nextads_fs_theme_affinity_training_input` is historical
-labelled training data and requires an explicit historical training reference
-date.
+The job keeps reusable feature creation separate from final scoring and
+decisioning. It does not create production rankings, assignments or delivery
+payloads.
 
-Feature Store creates reusable features and model inputs. It does not create
-final assignment, ranking, delivery or production scoring decisions.
+## Current Model Consumption Boundary
+
+The Shopping Bag model route uses the same accepted-snapshot contract without
+running the complete shared job:
+
+```mermaid
+flowchart LR
+  observed["Observed Shopping Bag impressions and clicks"]
+  preparation["Manual Shopping Bag feature preparation"]
+  snapshots["READY label, account-activity and advert snapshots"]
+  receipt["Point-in-time TrainingSetReceipt"]
+  model["DEV MLflow run and registered model version"]
+  candidates["Accepted SB1 and SB2 candidate build"]
+  evaluation["Isolated evaluation scores"]
+  serving["Serving portfolios, assignments and payloads"]
+
+  observed --> preparation --> snapshots --> receipt --> model
+  model --> evaluation
+  snapshots --> evaluation
+  candidates --> evaluation
+  evaluation -. "no write" .-> serving
+```
+
+The training job opens the exact Delta versions recorded by the READY snapshot
+bindings. Feature timestamps must be valid for the observation time, including
+the declared one-day availability lag for Shopping Bag account activity. The
+receipt records those bindings before training starts.
+
+The current model job compares logistic regression and gradient-boosted trees
+inside one MLflow run, registers the selected DEV version and can reuse that
+exact build on an identical retry. Promotion is disabled by default. The
+separate ongoing-evaluation job pins the registered model, READY features and
+accepted candidate attempt before writing only
+`next_uk_nextads_model_evaluation_scoring_builds` and
+`next_uk_nextads_model_evaluation_scores`.
+
+Use the following documents for detail rather than repeating it here:
+
+- [Feature Store README](../feature_store/README.md) for delivery gates and
+  current evidence.
+- [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) for
+  table grain, keys, dates, ownership and refresh expectations.
+- [`migration_backlog.md`](../feature_store/migration_backlog.md) for remaining
+  migration and environment gates.
