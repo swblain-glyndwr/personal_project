@@ -14,9 +14,9 @@ shopping_bag_feature_preparation_job: &shopping_bag_feature_preparation_job
     - name: source_schema
       default: ${var.feature_store_source_schema}
     - name: theme_source_catalog
-      default: ${var.mktgdata_catalog}
+      default: ${var.feature_store_source_catalog}
     - name: theme_source_schema
-      default: ${var.user_schema}
+      default: ${var.feature_store_source_schema}
     - name: theme_table_prefix
       default: ${var.feature_store_theme_table_prefix}
   job_clusters: ${var.job_clusters_config}

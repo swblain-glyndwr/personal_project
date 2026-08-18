@@ -61,8 +61,12 @@ def test_job_is_manual_personal_dev_evidence_only():
     assert parameters["label_end"] == "REQUIRED"
     assert parameters["source_catalog"] == "${var.feature_store_source_catalog}"
     assert parameters["source_schema"] == "${var.feature_store_source_schema}"
-    assert parameters["theme_source_catalog"] == "${var.mktgdata_catalog}"
-    assert parameters["theme_source_schema"] == "${var.user_schema}"
+    assert parameters["theme_source_catalog"] == (
+        "${var.feature_store_source_catalog}"
+    )
+    assert parameters["theme_source_schema"] == (
+        "${var.feature_store_source_schema}"
+    )
     assert "activation_mode: EVALUATE" in source
     assert "schedule:" not in source
     assert "DEV_FEATURE_STORE:" not in source
