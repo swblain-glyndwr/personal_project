@@ -15,23 +15,22 @@
 | Personal proof | Model-author runs write to the author's `marketingdata_dev` schema. |
 | Customer impact | Feature and `EVALUATE` jobs do not change a serving portfolio, assignment or payload. |
 
-## Start Here: Build A Shopping Bag pCTR Model
+## Using Accepted Features In A Model
 
-Use
-[`building_a_challenger_model.md`](building_a_challenger_model.md)
-for the complete individual data-scientist route:
+The implemented Shopping Bag route demonstrates how the Feature Store is used
+without making it part of customer serving. Its preparation job publishes
+observed click labels, 90-day account activity and advert features for explicit
+dates. The model job then resolves only READY snapshots, records their exact
+Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the
+selected DEV model version in MLflow.
 
-1. Frame and research the modelling question.
-2. Validate observed impression and click labels.
-3. Select named Feature Store inputs.
-4. Publish two accepted dates.
-5. Build a point-in-time training receipt.
-6. Compare models and register the exact result in DEV MLflow.
-7. Prove an identical retry reuses that version.
-8. Score a bounded Shopping Bag population in isolated `EVALUATE`.
-
-That walkthrough deliberately stops before cross-environment promotion or
-customer serving.
+The separate Shopping Bag evaluation job reads that exact model version and an
+accepted candidate build, then writes isolated evaluation tables. It does not
+update a serving portfolio, assignment or payload. The complete job and table
+boundary is shown in
+[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); the
+Feature Store publication and model-consumption boundary is shown in
+[`feature_store_flow.md`](../architecture/feature_store_flow.md).
 
 ## Registry Contract Status
 
@@ -71,7 +70,6 @@ daily schedule.
 
 | Document | Purpose |
 | --- | --- |
-| [`building_a_challenger_model.md`](building_a_challenger_model.md) | Worked Shopping Bag route from research to DEV MLflow and isolated `EVALUATE`. |
 | [`adding_sql_built_feature.md`](adding_sql_built_feature.md) | Contract, implementation, testing and evidence steps for a reusable feature built with Spark SQL. |
 | [`reusable_feature_inventory.md`](reusable_feature_inventory.md) | Reusable signals and migration candidates. |
 | [`feature_store_table_design.md`](feature_store_table_design.md) | Complete current table/view design, including grain, keys, dates, cadence and training safety. |
@@ -161,10 +159,10 @@ The quality table's own persisted row uses `MANIFEST_ONLY`: a row cannot contain
 the Delta version created by writing itself. The deterministic manifest emitted
 after the write contains the resulting quality-table version.
 
-## Personal DEV Shopping Bag Evidence
+## Current DEV Shopping Bag Evidence
 
-The Shopping Bag walkthrough proves a complete model-author slice without
-starting the full Feature Store job.
+These runs prove a complete model-author slice without starting the full
+Feature Store job.
 
 | Evidence | Result |
 | --- | --- |
@@ -195,7 +193,7 @@ The counts in Current Repository Status are derived from that registry.
 - App Shopping Bag telemetry needs separate route and CMS validation before it
   joins the worked web V1 label.
 - The Analytics pCTR adopter remains separate from the Shopping Bag model.
-- A longer model-research period is required before any serving decision.
+- The current two-date proof is not sufficient evidence for a serving decision.
 - PREPROD, PROD, realtime and online publication require separate evidence and
   activation routes.
 
@@ -206,5 +204,5 @@ The counts in Current Repository Status are derived from that registry.
 | Feature catalogue created or updated | [`feature_store_table_design.md`](feature_store_table_design.md) and the registry plan. |
 | Ownership and refresh approach recorded | [`feature_store_table_design.md`](feature_store_table_design.md). |
 | Remaining migrations prioritised | [`migration_backlog.md`](migration_backlog.md). |
-| A DS can build a model from accepted features | [`building_a_challenger_model.md`](building_a_challenger_model.md) and linked DEV runs. |
+| A DS can build a model from accepted features | The current DEV evidence above and the model-consumption boundary in [`feature_store_flow.md`](../architecture/feature_store_flow.md). |
 | Customer output remains unchanged | Isolated `EVALUATE` boundary and manual jobs. |

@@ -113,6 +113,42 @@ The job keeps reusable feature creation separate from final scoring and
 decisioning. It does not create production rankings, assignments or delivery
 payloads.
 
+## Current Model Consumption Boundary
+
+The Shopping Bag model route uses the same accepted-snapshot contract without
+running the complete shared job:
+
+```mermaid
+flowchart LR
+  observed["Observed Shopping Bag impressions and clicks"]
+  preparation["Manual Shopping Bag feature preparation"]
+  snapshots["READY label, account-activity and advert snapshots"]
+  receipt["Point-in-time TrainingSetReceipt"]
+  model["DEV MLflow run and registered model version"]
+  candidates["Accepted SB1 and SB2 candidate build"]
+  evaluation["Isolated evaluation scores"]
+  serving["Serving portfolios, assignments and payloads"]
+
+  observed --> preparation --> snapshots --> receipt --> model
+  model --> evaluation
+  snapshots --> evaluation
+  candidates --> evaluation
+  evaluation -. "no write" .-> serving
+```
+
+The training job opens the exact Delta versions recorded by the READY snapshot
+bindings. Feature timestamps must be valid for the observation time, including
+the declared one-day availability lag for Shopping Bag account activity. The
+receipt records those bindings before training starts.
+
+The current model job compares logistic regression and gradient-boosted trees
+inside one MLflow run, registers the selected DEV version and can reuse that
+exact build on an identical retry. Promotion is disabled by default. The
+separate ongoing-evaluation job pins the registered model, READY features and
+accepted candidate attempt before writing only
+`next_uk_nextads_model_evaluation_scoring_builds` and
+`next_uk_nextads_model_evaluation_scores`.
+
 Use the following documents for detail rather than repeating it here:
 
 - [Feature Store README](../feature_store/README.md) for delivery gates and
@@ -121,5 +157,3 @@ Use the following documents for detail rather than repeating it here:
   table grain, keys, dates, ownership and refresh expectations.
 - [`migration_backlog.md`](../feature_store/migration_backlog.md) for remaining
   migration and environment gates.
-- [`building_a_challenger_model.md`](../feature_store/building_a_challenger_model.md)
-  for the model-author route that consumes READY snapshots.

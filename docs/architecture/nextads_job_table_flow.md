@@ -265,7 +265,7 @@ features. They make the handoff between jobs reproducible.
 | What order do the Feature Store tasks run in? | [`feature_store_flow.md`](feature_store_flow.md) |
 | What is each feature table's grain, key and refresh expectation? | [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) |
 | What is implemented, proven in DEV or still blocked? | [Feature Store README](../feature_store/README.md) and [`migration_backlog.md`](../feature_store/migration_backlog.md) |
-| How does an author build and evaluate a challenger? | [`building_a_challenger_model.md`](../feature_store/building_a_challenger_model.md) |
+| How do accepted features become a DEV model and isolated evaluation scores? | [`feature_store_flow.md`](feature_store_flow.md#current-model-consumption-boundary) |
 | How does Theme Affinity operate today? | [`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md) |
 | How are exact model versions promoted? | [`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md) |
 | How could a reviewed challenger later enter NextAds? | [`future_model_adoption.md`](future_model_adoption.md) |
