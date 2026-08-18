@@ -268,7 +268,6 @@ features. They make the handoff between jobs reproducible.
 | How do accepted features become a DEV model and isolated evaluation scores? | [`feature_store_flow.md`](feature_store_flow.md#current-model-consumption-boundary) |
 | How does Theme Affinity operate today? | [`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md) |
 | How are exact model versions promoted? | [`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md) |
-| How could a reviewed challenger later enter NextAds? | [`future_model_adoption.md`](future_model_adoption.md) |
 
 ## References And Linkages
 
