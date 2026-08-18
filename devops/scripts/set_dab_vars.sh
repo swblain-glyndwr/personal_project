@@ -19,6 +19,7 @@ fi
 LAST_COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae' 2>/dev/null || echo "unknown@next.co.uk")
 # Extract username part before @ symbol
 export BUNDLE_VAR_git_last_commit_user_name="${LAST_COMMIT_EMAIL%@*}"
+export BUNDLE_VAR_git_last_commit_user_email="${LAST_COMMIT_EMAIL}"
 
 if [ "${TARGET}" = "DEV" ]; then
   export BUNDLE_VAR_user_schema=$(printf '%s' "${BUNDLE_VAR_git_last_commit_user_name}" | tr '[:upper:]' '[:lower:]')
@@ -41,6 +42,7 @@ echo "  Timestamp: ${BUNDLE_VAR_deploy_timestamp}"
 echo "  Commit: ${BUNDLE_VAR_git_commit_sha}"
 echo "  Branch: ${BUNDLE_VAR_git_branch}"
 echo "  Last commit user: ${BUNDLE_VAR_git_last_commit_user_name}"
+echo "  Last commit login: ${BUNDLE_VAR_git_last_commit_user_email}"
 if [ "${TARGET}" = "DEV" ]; then
   echo "  User schema: ${BUNDLE_VAR_user_schema}"
 fi

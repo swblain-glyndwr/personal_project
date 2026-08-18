@@ -108,6 +108,9 @@ variables:
   git_last_commit_user_name:
     description: Username of the last git commit author, e.g. 'john_doe'
     default: ${workspace.current_user.userName}
+  git_last_commit_user_email:
+    description: Databricks login of the last git commit author
+    default: ${workspace.current_user.userName}
   deployed_by:
     description: Deployed by user, e.g. 'Doe, John'
     default: ${workspace.current_user.userName}
@@ -209,6 +212,8 @@ targets:
       host: https://adb-6694370232251359.19.azuredatabricks.net/
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/${var.git_last_commit_user_name}
     permissions:
+      - level: CAN_MANAGE
+        user_name: ${var.git_last_commit_user_email}
       - level: CAN_MANAGE
         group_name: AzUsers-DBK-MarketingData-Contributor-Dev
       - level: CAN_MANAGE
