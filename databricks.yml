@@ -43,6 +43,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_prediction_verification.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_adoption.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_feature_preparation.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_label_publication.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development_runtime_smoke.yml
