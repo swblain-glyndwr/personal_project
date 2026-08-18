@@ -7,7 +7,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from next_ads.common.delta_writes import replace_scope_by_name, typed_table_frame
+from next_ads.common.delta_writes import (
+    quote_qualified_identifier,
+    replace_scope_by_name,
+    typed_table_frame,
+)
 from next_ads.model_development.contracts import (
     ModelBuild,
     TrainingFeatureBinding,
@@ -29,7 +33,8 @@ TABLE_CONTRACTS = {
     TRAINING_RECEIPT_TABLE: (
         SQL_ROOT / "create_table_next_uk_nextads_training_set_receipts.sql"
     ),
-    MODEL_BUILD_TABLE: SQL_ROOT / "create_table_next_uk_nextads_model_builds.sql",
+    MODEL_BUILD_TABLE: SQL_ROOT
+    / "create_table_next_uk_nextads_model_builds.sql",
     EXTERNAL_SCORE_RECEIPT_TABLE: (
         SQL_ROOT / "create_table_next_uk_nextads_external_score_receipts.sql"
     ),
@@ -38,11 +43,20 @@ TABLE_CONTRACTS = {
         / "create_table_next_uk_nextads_model_evaluation_candidates.sql"
     ),
 }
+MODEL_BUILD_RESEARCH_COLUMNS = (
+    "research_build_id",
+    "selection_decision_id",
+    "selected_candidate_id",
+    "selected_candidate_evaluation_id",
+    "registration_code_sha",
+)
 
 
 def table_path(catalog: str, schema: str, table: str) -> str:
     values = (catalog, schema, table)
-    if any(not isinstance(value, str) or not value.strip() for value in values):
+    if any(
+        not isinstance(value, str) or not value.strip() for value in values
+    ):
         raise ValueError("Model-development table paths cannot be blank")
     return ".".join(value.strip() for value in values)
 
@@ -58,7 +72,35 @@ def create_model_development_tables(
     for table, contract in TABLE_CONTRACTS.items():
         spark.sql(contract.read_text().format(catalog=catalog, schema=schema))
         paths.append(table_path(catalog, schema, table))
+    ensure_model_build_research_columns(
+        spark,
+        catalog=catalog,
+        schema=schema,
+    )
     return tuple(paths)
+
+
+def ensure_model_build_research_columns(
+    spark: Any,
+    *,
+    catalog: str,
+    schema: str,
+) -> tuple[str, ...]:
+    """Add nullable research lineage without rebuilding existing history."""
+    target = table_path(catalog, schema, MODEL_BUILD_TABLE)
+    existing = {field.name for field in spark.table(target).schema.fields}
+    missing = tuple(
+        column
+        for column in MODEL_BUILD_RESEARCH_COLUMNS
+        if column not in existing
+    )
+    if missing:
+        additions = ", ".join(f"`{column}` STRING" for column in missing)
+        spark.sql(
+            f"ALTER TABLE {quote_qualified_identifier(target)} "
+            f"ADD COLUMNS ({additions})"
+        )
+    return missing
 
 
 def _replace_row(
@@ -150,6 +192,13 @@ def persist_model_build(
         ),
         "completed_at": build.completed_at,
         "failure_reason": build.failure_reason,
+        "research_build_id": build.research_build_id,
+        "selection_decision_id": build.selection_decision_id,
+        "selected_candidate_id": build.selected_candidate_id,
+        "selected_candidate_evaluation_id": (
+            build.selected_candidate_evaluation_id
+        ),
+        "registration_code_sha": build.registration_code_sha,
     }
     _replace_row(
         spark,
@@ -193,15 +242,12 @@ def persist_evaluation_candidates(
     missing = sorted(required.difference(candidates.columns))
     if missing:
         raise ValueError(
-            "Evaluation candidates are missing columns: "
-            + ", ".join(missing)
+            "Evaluation candidates are missing columns: " + ", ".join(missing)
         )
     target = table_path(catalog, schema, EVALUATION_CANDIDATE_TABLE)
     frame = candidates.select(
         F.lit(model_build_id).cast("string").alias("model_build_id"),
-        F.lit(training_receipt_id)
-        .cast("string")
-        .alias("training_receipt_id"),
+        F.lit(training_receipt_id).cast("string").alias("training_receipt_id"),
         F.lit(provider_id).cast("string").alias("provider_id"),
         F.lit(use_case).cast("string").alias("use_case"),
         F.lit(run_date).cast("date").alias("run_date"),
@@ -300,7 +346,9 @@ def load_external_score_output_receipt(
 def _one_ready_row(frame: Any, identity: str, object_name: str) -> Any | None:
     rows = frame.where("status = 'READY'").limit(2).collect()
     if len(rows) > 1:
-        raise ValueError(f"More than one READY {object_name} found for {identity}")
+        raise ValueError(
+            f"More than one READY {object_name} found for {identity}"
+        )
     return rows[0] if rows else None
 
 
@@ -364,6 +412,7 @@ __all__ = [
     "MODEL_BUILD_TABLE",
     "TRAINING_RECEIPT_TABLE",
     "create_model_development_tables",
+    "ensure_model_build_research_columns",
     "load_ready_model_build",
     "load_external_score_output_receipt",
     "load_ready_training_set_receipt",
