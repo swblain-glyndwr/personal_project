@@ -125,7 +125,8 @@ def test_model_job_is_manual_dev_evidence_only():
     assert "feature_reference_dates\n      default: REQUIRED" in bundle_job
     assert "label_end\n      default: REQUIRED" in bundle_job
     assert "default: NONE" in bundle_job
-    assert "${workspace.root_path}/experiments/shopping_bag_pctr" in bundle_job
+    assert "${workspace.root_path}/shopping_bag_pctr" in bundle_job
+    assert "${workspace.root_path}/experiments/" not in bundle_job
     assert "model_schema" in bundle_job
     assert "schedule:" not in bundle_job
     assert "mktg_next_uk_nextads.yml" not in bundle_job

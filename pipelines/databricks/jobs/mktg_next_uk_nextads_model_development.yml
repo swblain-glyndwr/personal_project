@@ -23,7 +23,7 @@ model_development_job: &model_development_job
     - name: registered_model_name
       default: ${var.mktgdata_catalog}.${var.user_schema}.nextads_shopping_bag_pctr
     - name: experiment_path
-      default: ${workspace.root_path}/experiments/shopping_bag_pctr
+      default: ${workspace.root_path}/shopping_bag_pctr
     - name: provider_signals_table
       default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_signals
     - name: provider_builds_table
