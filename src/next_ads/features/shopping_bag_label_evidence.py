@@ -513,7 +513,6 @@ def collect_shopping_bag_label_evidence(
         F.countDistinct(
             "exposure_id",
             "label_horizon_days",
-            "exposure_timestamp",
         ).alias("distinct_label_keys"),
         F.sum("clicked").alias("positive_labels"),
         F.sum("click_count").alias("attributed_clicks"),
@@ -522,7 +521,10 @@ def collect_shopping_bag_label_evidence(
         ).alias("same_session_positive_labels"),
         F.sum(
             F.when(
-                ~F.lower(F.trim("treatment")).isin(
+                ~F.coalesce(
+                    F.lower(F.trim("treatment")),
+                    F.lit(""),
+                ).isin(
                     *SHOPPING_BAG_SERVED_TREATMENTS
                 ),
                 1,
