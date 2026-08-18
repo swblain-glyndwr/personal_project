@@ -1,6 +1,7 @@
-model_import_dev_integration_config: &model_import_dev_integration_config
-  mktg_next_uk_nextads_model_import_dev_integration:
-    name: mktg_next_uk_nextads_model_import_dev_integration
+# Release-branch-only import of one exact generic model into PREPROD.
+model_import_preprod_config: &model_import_preprod_config
+  mktg_next_uk_nextads_model_import_preprod:
+    name: mktg_next_uk_nextads_model_import_preprod
     queue:
       enabled: true
     job_clusters: ${var.job_clusters_config}
@@ -12,7 +13,7 @@ model_import_dev_integration_config: &model_import_dev_integration_config
       department: marketing
       project: nextads
       domain: model_lifecycle
-      job_type: model_import_dev_to_dev_integration
+      job_type: model_import_dev_integration_to_preprod
     timeout_seconds: 1800
     parameters:
       - name: source_model_name
@@ -24,11 +25,11 @@ model_import_dev_integration_config: &model_import_dev_integration_config
       - name: target_model_name
         default: ""
       - name: target_alias
-        default: ""
+        default: preprod_candidate
       - name: model_family
         default: ""
     tasks:
-      - task_key: promote_model
+      - task_key: promote_exact_model
         spark_python_task:
           python_file: ../../../jobs/model/development/promote_exact_model.py
           parameters:
@@ -37,9 +38,9 @@ model_import_dev_integration_config: &model_import_dev_integration_config
             - --model_family
             - "{{job.parameters.model_family}}"
             - --source_environment
-            - dev
-            - --target_environment
             - dev_integration
+            - --target_environment
+            - preprod
             - --source_model_name
             - "{{job.parameters.source_model_name}}"
             - --source_model_version
@@ -51,9 +52,9 @@ model_import_dev_integration_config: &model_import_dev_integration_config
             - --target_alias
             - "{{job.parameters.target_alias}}"
             - --allowed_source_model_prefix
-            - marketingdata_dev.
-            - --allowed_target_model_prefix
             - marketingdata_dev.nextads_integration.
+            - --allowed_target_model_prefix
+            - marketingdata_prod.ds_sandbox.
             - --log_level
             - INFO
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
@@ -61,7 +62,7 @@ model_import_dev_integration_config: &model_import_dev_integration_config
         timeout_seconds: 1800
 
 targets:
-  DEV_INTEGRATION:
+  PREPROD:
     resources:
       jobs:
-        <<: *model_import_dev_integration_config
+        <<: *model_import_preprod_config

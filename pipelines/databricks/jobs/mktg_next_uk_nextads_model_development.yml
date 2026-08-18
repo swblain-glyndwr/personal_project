@@ -10,6 +10,12 @@ model_development_job: &model_development_job
       default: ${var.mktgdata_catalog}
     - name: feature_schema
       default: ${var.feature_store_schema}
+    - name: model_catalog
+      default: ${var.mktgdata_catalog}
+    - name: model_schema
+      default: ${var.user_schema}
+    - name: observation_reference_dates
+      default: REQUIRED
     - name: feature_reference_dates
       default: REQUIRED
     - name: label_end
@@ -17,15 +23,17 @@ model_development_job: &model_development_job
     - name: registered_model_name
       default: ${var.mktgdata_catalog}.${var.user_schema}.nextads_shopping_bag_pctr
     - name: experiment_path
-      default: /Shared/mlflow/nextads/dev/experiments/shopping_bag_pctr
+      default: ${workspace.root_path}/experiments/shopping_bag_pctr
     - name: provider_signals_table
       default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_signals
     - name: provider_builds_table
       default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_builds
     - name: promotion_model_name
       default: ""
+    - name: promotion_mode
+      default: SOURCE_ALIAS_REHEARSAL
     - name: promotion_alias
-      default: integration_candidate
+      default: dev_evaluation_candidate
   job_clusters: ${var.job_clusters_config}
   tags:
     deployed_at: ${var.deploy_timestamp}
@@ -49,6 +57,12 @@ model_development_job: &model_development_job
           - "{{job.parameters.feature_catalog}}"
           - --feature_schema
           - "{{job.parameters.feature_schema}}"
+          - --model_catalog
+          - "{{job.parameters.model_catalog}}"
+          - --model_schema
+          - "{{job.parameters.model_schema}}"
+          - --observation_reference_dates
+          - "{{job.parameters.observation_reference_dates}}"
           - --feature_reference_dates
           - "{{job.parameters.feature_reference_dates}}"
           - --label_end
@@ -65,6 +79,8 @@ model_development_job: &model_development_job
           - "{{job.parameters.provider_builds_table}}"
           - --promotion_model_name
           - "{{job.parameters.promotion_model_name}}"
+          - --promotion_mode
+          - "{{job.parameters.promotion_mode}}"
           - --promotion_alias
           - "{{job.parameters.promotion_alias}}"
           - --orchestration_run_id

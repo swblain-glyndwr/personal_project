@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+import inspect
 
 import pytest
 
@@ -8,6 +9,7 @@ from next_ads.model_development import (
     validate_snapshot_time_boundary,
 )
 from next_ads.model_development import training_sets
+from next_ads.features import load_feature_store_registry
 
 
 def _binding(reference_date):
@@ -116,3 +118,34 @@ def test_feature_reference_dates_reject_ambiguous_or_duplicate_inputs():
             feature_reference_date=None,
             feature_reference_dates=("2026-08-01", "2026-08-01"),
         )
+
+
+def test_legacy_aggregate_click_label_is_rejected_for_training():
+    registry = load_feature_store_registry()
+
+    with pytest.raises(ValueError, match="not approved for model training"):
+        training_sets._require_training_safe_feature(
+            registry,
+            "next_uk_nextads_fs_labels_clicks",
+        )
+
+    approved = training_sets._require_training_safe_feature(
+        registry,
+        "next_uk_nextads_fs_shopping_bag_click_labels",
+    )
+    assert approved.training_safe is True
+
+
+def test_training_set_builder_reaches_feature_lookups_and_receipt_creation():
+    source = inspect.getsource(training_sets.build_training_set)
+
+    assert "_normalise_feature_reference_dates" in source
+    assert "_apply_point_in_time_lookup" in source
+    assert "return TrainingSetBuildResult" in source
+
+
+def test_point_in_time_lookup_applies_the_declared_availability_lag():
+    source = inspect.getsource(training_sets._apply_point_in_time_lookup)
+
+    assert "lookup.availability_lag_days" in source
+    assert "INTERVAL" in source

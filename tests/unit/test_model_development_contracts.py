@@ -103,6 +103,43 @@ def test_feature_lookup_requires_observation_timestamp_and_known_defaults():
             key_mapping=(("account", "account"),),
             observation_timestamp="",
         )
+    with pytest.raises(ValueError, match="availability_lag_days"):
+        FeatureLookupSpec(
+            feature_id="feature",
+            selected_columns=("value",),
+            key_mapping=(("account", "account"),),
+            observation_timestamp="observed_at",
+            availability_lag_days=-1,
+        )
+
+
+def test_observation_contract_keeps_maturity_and_audit_fields_out_of_features():
+    observation = TrainingObservationSpec(
+        feature_id="shopping_bag_labels",
+        selected_columns=(
+            "exposure_id",
+            "exposure_timestamp",
+            "location",
+            "clicked",
+            "label_maturity_date",
+        ),
+        observation_timestamp="exposure_timestamp",
+        context_features=("location",),
+        label_maturity_column="label_maturity_date",
+    )
+
+    assert observation.context_features == ("location",)
+    with pytest.raises(ValueError, match="Label maturity"):
+        TrainingObservationSpec(
+            feature_id="shopping_bag_labels",
+            selected_columns=(
+                "exposure_timestamp",
+                "label_maturity_date",
+            ),
+            observation_timestamp="exposure_timestamp",
+            context_features=("label_maturity_date",),
+            label_maturity_column="label_maturity_date",
+        )
     with pytest.raises(ValueError, match="unselected columns"):
         FeatureLookupSpec(
             feature_id="feature",

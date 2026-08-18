@@ -25,6 +25,7 @@ def publish_evaluation_provider(
     *,
     provider_id: str,
     provider_version: str,
+    use_case: str,
     provider_build_id: str,
     provider_build_attempt_id: str,
     input_snapshot_id: str,
@@ -38,7 +39,7 @@ def publish_evaluation_provider(
     execution_count: int,
     completed_at: datetime | None = None,
 ) -> ProviderPublicationResult:
-    """Make one EVALUATE result selectable without changing a portfolio."""
+    """Publish one contract-compatible EVALUATE result outside serving."""
     accepted_at = completed_at or datetime.now(timezone.utc)
     invocation = {
         "contract_version": PROVIDER_CONTRACT_VERSION,
@@ -48,6 +49,7 @@ def publish_evaluation_provider(
         "provider_build_id": provider_build_id,
         "provider_id": provider_id,
         "provider_version": provider_version,
+        "use_case": use_case,
         "run_date": run_date.isoformat(),
     }
     context = ProviderContext(
@@ -61,7 +63,7 @@ def publish_evaluation_provider(
         model_uri=model_uri,
         bindings_json="{}",
         capability="account_ad",
-        use_case="advert_ranking",
+        use_case=use_case,
         invocation_checksum=hashlib.sha256(
             json.dumps(
                 invocation,

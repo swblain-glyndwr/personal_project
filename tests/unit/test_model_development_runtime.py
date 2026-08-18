@@ -79,6 +79,7 @@ def test_retry_reuses_ready_build_without_calling_trainer(monkeypatch):
         def train(self, *_args):
             pytest.fail("retry must not retrain")
 
+    validated = []
     actual, reused = runtime.train_or_reuse_model(
         object(),
         catalog="catalog",
@@ -87,10 +88,12 @@ def test_retry_reuses_ready_build_without_calling_trainer(monkeypatch):
         receipt=receipt,
         training_frame=object(),
         trainer=Trainer(),
+        ready_build_validator=validated.append,
     )
 
     assert actual == ready
     assert reused is True
+    assert validated == [ready]
 
 
 def test_new_build_records_training_then_ready(monkeypatch):

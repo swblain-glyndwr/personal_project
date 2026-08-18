@@ -24,6 +24,7 @@ SQL_ROOT = PROJECT_ROOT / "sql" / "model_development"
 TRAINING_RECEIPT_TABLE = "next_uk_nextads_training_set_receipts"
 MODEL_BUILD_TABLE = "next_uk_nextads_model_builds"
 EXTERNAL_SCORE_RECEIPT_TABLE = "next_uk_nextads_external_score_receipts"
+EVALUATION_CANDIDATE_TABLE = "next_uk_nextads_model_evaluation_candidates"
 TABLE_CONTRACTS = {
     TRAINING_RECEIPT_TABLE: (
         SQL_ROOT / "create_table_next_uk_nextads_training_set_receipts.sql"
@@ -31,6 +32,10 @@ TABLE_CONTRACTS = {
     MODEL_BUILD_TABLE: SQL_ROOT / "create_table_next_uk_nextads_model_builds.sql",
     EXTERNAL_SCORE_RECEIPT_TABLE: (
         SQL_ROOT / "create_table_next_uk_nextads_external_score_receipts.sql"
+    ),
+    EVALUATION_CANDIDATE_TABLE: (
+        SQL_ROOT
+        / "create_table_next_uk_nextads_model_evaluation_candidates.sql"
     ),
 }
 
@@ -155,6 +160,73 @@ def persist_model_build(
         operation="model_build",
     )
     return target
+
+
+def persist_evaluation_candidates(
+    spark: Any,
+    candidates: Any,
+    *,
+    catalog: str,
+    schema: str,
+    model_build_id: str,
+    training_receipt_id: str,
+    provider_id: str,
+    use_case: str,
+    run_date: Any,
+    git_commit: str,
+    account_column: str = "account_number",
+    advert_column: str = "advert_id",
+    route_column: str = "route",
+    location_column: str = "location",
+) -> Any:
+    """Persist a scoped EVALUATE artefact outside serving portfolios."""
+    from pyspark.sql import functions as F
+
+    required = {
+        account_column,
+        advert_column,
+        route_column,
+        location_column,
+        "Score",
+        "ProviderRank",
+    }
+    missing = sorted(required.difference(candidates.columns))
+    if missing:
+        raise ValueError(
+            "Evaluation candidates are missing columns: "
+            + ", ".join(missing)
+        )
+    target = table_path(catalog, schema, EVALUATION_CANDIDATE_TABLE)
+    frame = candidates.select(
+        F.lit(model_build_id).cast("string").alias("model_build_id"),
+        F.lit(training_receipt_id)
+        .cast("string")
+        .alias("training_receipt_id"),
+        F.lit(provider_id).cast("string").alias("provider_id"),
+        F.lit(use_case).cast("string").alias("use_case"),
+        F.lit(run_date).cast("date").alias("run_date"),
+        F.col(account_column).cast("string").alias("account_number"),
+        F.col(route_column).cast("string").alias("route"),
+        F.col(location_column).cast("string").alias("location"),
+        F.col(advert_column).cast("string").alias("advert_id"),
+        F.col("Score").cast("double").alias("score"),
+        F.col("ProviderRank").cast("int").alias("provider_rank"),
+        F.current_timestamp().alias("created_at"),
+    )
+    return replace_scope_by_name(
+        frame,
+        target,
+        {"model_build_id": model_build_id},
+        frame.columns,
+        spark=spark,
+        build_id=model_build_id,
+        attempt_id=training_receipt_id,
+        git_commit=git_commit,
+        commit_metadata={
+            "operation": "model_evaluation_candidates",
+            "use_case": use_case,
+        },
+    )
 
 
 def persist_external_score_output_receipt(
@@ -287,6 +359,7 @@ def load_ready_model_build(
 
 
 __all__ = [
+    "EVALUATION_CANDIDATE_TABLE",
     "EXTERNAL_SCORE_RECEIPT_TABLE",
     "MODEL_BUILD_TABLE",
     "TRAINING_RECEIPT_TABLE",
@@ -296,6 +369,7 @@ __all__ = [
     "load_ready_training_set_receipt",
     "persist_model_build",
     "persist_external_score_output_receipt",
+    "persist_evaluation_candidates",
     "persist_training_set_receipt",
     "table_path",
 ]

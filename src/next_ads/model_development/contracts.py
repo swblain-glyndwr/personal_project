@@ -89,6 +89,7 @@ class FeatureLookupSpec:
     selected_columns: tuple[str, ...]
     key_mapping: tuple[tuple[str, str], ...]
     observation_timestamp: str
+    availability_lag_days: int = 0
     renames: tuple[tuple[str, str], ...] = ()
     defaults: tuple[tuple[str, str | int | float | bool | None], ...] = ()
 
@@ -102,6 +103,14 @@ class FeatureLookupSpec:
             "observation_timestamp",
             _text(self.observation_timestamp, "observation_timestamp"),
         )
+        if (
+            isinstance(self.availability_lag_days, bool)
+            or not isinstance(self.availability_lag_days, int)
+            or self.availability_lag_days < 0
+        ):
+            raise ValueError(
+                "availability_lag_days must be a non-negative integer"
+            )
         mapping = _pairs(self.key_mapping, "key_mapping")
         if not mapping:
             raise ValueError("key_mapping must contain at least one key")
@@ -147,6 +156,7 @@ class FeatureLookupSpec:
             "selected_columns": self.selected_columns,
             "key_mapping": self.key_mapping,
             "observation_timestamp": self.observation_timestamp,
+            "availability_lag_days": self.availability_lag_days,
             "renames": self.renames,
             "defaults": self.defaults,
         }
@@ -159,6 +169,8 @@ class TrainingObservationSpec:
     feature_id: str
     selected_columns: tuple[str, ...]
     observation_timestamp: str
+    context_features: tuple[str, ...] = ()
+    label_maturity_column: str | None = None
     filters: tuple[tuple[str, str | int | float | bool], ...] = ()
 
     def __post_init__(self) -> None:
@@ -170,6 +182,31 @@ class TrainingObservationSpec:
         if timestamp not in selected:
             raise ValueError("Observation timestamp must be a selected column")
         object.__setattr__(self, "observation_timestamp", timestamp)
+        context_features = tuple(self.context_features)
+        if context_features:
+            context_features = _names(context_features, "context_features")
+        unknown_context = sorted(set(context_features).difference(selected))
+        if unknown_context:
+            raise ValueError(
+                "Observation context features are not selected: "
+                + ", ".join(unknown_context)
+            )
+        if timestamp in context_features:
+            raise ValueError(
+                "Observation timestamp cannot be used as a model feature"
+            )
+        object.__setattr__(self, "context_features", context_features)
+        maturity_column = _optional_text(
+            self.label_maturity_column,
+            "label_maturity_column",
+        )
+        if maturity_column is not None and maturity_column not in selected:
+            raise ValueError(
+                "Label maturity column must be selected from observations"
+            )
+        if maturity_column in context_features:
+            raise ValueError("Label maturity cannot be used as a model feature")
+        object.__setattr__(self, "label_maturity_column", maturity_column)
         filters = _pairs(self.filters, "filters")
         unknown = sorted(set(name for name, _value in filters).difference(selected))
         if unknown:
@@ -189,6 +226,8 @@ class TrainingObservationSpec:
             "feature_id": self.feature_id,
             "selected_columns": self.selected_columns,
             "observation_timestamp": self.observation_timestamp,
+            "context_features": self.context_features,
+            "label_maturity_column": self.label_maturity_column,
             "filters": self.filters,
         }
 
@@ -211,6 +250,8 @@ class ModelDefinition:
     trainer: str
     score_provider: str
     candidate_adapter: str
+    evaluation_use_case: str = "advert_ranking"
+    evaluation_scope: tuple[tuple[str, tuple[str, ...]], ...] = ()
     activation_mode: str = EVALUATE
 
     def __post_init__(self) -> None:
@@ -233,6 +274,39 @@ class ModelDefinition:
             )
         metrics = _names(self.success_metrics, "success_metrics")
         object.__setattr__(self, "success_metrics", metrics)
+        object.__setattr__(
+            self,
+            "evaluation_use_case",
+            _text(self.evaluation_use_case, "evaluation_use_case"),
+        )
+        evaluation_scope = _pairs(
+            self.evaluation_scope,
+            "evaluation_scope",
+        )
+        scope_columns = set()
+        normalised_scope = []
+        for column, values in evaluation_scope:
+            scope_columns.add(column)
+            if not isinstance(values, tuple):
+                raise ValueError("Evaluation scope values must be tuples")
+            normalised_scope.append(
+                (column, _names(values, f"evaluation_scope.{column}"))
+            )
+        unknown_scope = sorted(
+            scope_columns.difference(
+                self.training_observation.selected_columns
+            )
+        )
+        if unknown_scope:
+            raise ValueError(
+                "Evaluation scope columns are not selected observations: "
+                + ", ".join(unknown_scope)
+            )
+        object.__setattr__(
+            self,
+            "evaluation_scope",
+            tuple(normalised_scope),
+        )
         observation_keys = _names(
             self.observation_keys,
             "observation_keys",
@@ -260,6 +334,31 @@ class ModelDefinition:
         if len(feature_ids) != len(set(feature_ids)):
             raise ValueError("A model definition cannot repeat a feature lookup")
         object.__setattr__(self, "feature_lookups", lookups)
+        output_columns = list(self.training_observation.context_features)
+        for lookup in lookups:
+            renames = dict(lookup.renames)
+            output_columns.extend(
+                renames.get(column, column)
+                for column in lookup.selected_columns
+            )
+        duplicate_outputs = sorted(
+            name for name in set(output_columns) if output_columns.count(name) > 1
+        )
+        if duplicate_outputs:
+            raise ValueError(
+                "Model feature columns must be unique: "
+                + ", ".join(duplicate_outputs)
+            )
+        forbidden_outputs = sorted(
+            set(output_columns).intersection(
+                {*self.observation_keys, self.label}
+            )
+        )
+        if forbidden_outputs:
+            raise ValueError(
+                "Model feature columns collide with keys or label: "
+                + ", ".join(forbidden_outputs)
+            )
         if self.activation_mode != EVALUATE:
             raise ValueError(
                 "New model definitions must remain EVALUATE until a separate "
@@ -284,8 +383,22 @@ class ModelDefinition:
             "trainer": self.trainer,
             "score_provider": self.score_provider,
             "candidate_adapter": self.candidate_adapter,
+            "evaluation_use_case": self.evaluation_use_case,
+            "evaluation_scope": self.evaluation_scope,
             "activation_mode": self.activation_mode,
         }
+
+    @property
+    def model_feature_columns(self) -> tuple[str, ...]:
+        """Return only explicitly declared, prediction-time-safe inputs."""
+        columns = list(self.training_observation.context_features)
+        for lookup in self.feature_lookups:
+            renames = dict(lookup.renames)
+            columns.extend(
+                renames.get(column, column)
+                for column in lookup.selected_columns
+            )
+        return tuple(columns)
 
     @property
     def checksum(self) -> str:

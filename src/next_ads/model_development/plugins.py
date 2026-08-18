@@ -29,13 +29,13 @@ class SparkAccountAdvertScoreProvider:
     advert_column: str = "advert_id"
     probability_column: str = "probability"
 
-    def score(
+    def _predictions(
         self,
         definition: ModelDefinition,
         model_build: ModelBuild,
         feature_frame: Any,
     ) -> Any:
-        """Load the numeric registered version recorded by ModelBuild."""
+        """Load the numeric registered version and score declared rows once."""
         if model_build.status != "READY" or not model_build.model_uri:
             raise ValueError("Scoring requires a READY exact model build")
         if (
@@ -48,9 +48,67 @@ class SparkAccountAdvertScoreProvider:
         from pyspark.sql import functions as F
 
         model = mlflow.spark.load_model(model_build.model_uri)
-        predictions = model.transform(feature_frame).withColumn(
+        return model.transform(feature_frame).withColumn(
             "__model_pctr",
             vector_to_array(F.col(self.probability_column)).getItem(1),
+        )
+
+    def _latest_predictions(
+        self,
+        definition: ModelDefinition,
+        predictions: Any,
+        *,
+        scope_columns: tuple[str, ...] = (),
+    ) -> Any:
+        from pyspark.sql import Window
+        from pyspark.sql import functions as F
+
+        observation_timestamp = (
+            definition.training_observation.observation_timestamp
+        )
+        required = {
+            self.account_column,
+            self.advert_column,
+            observation_timestamp,
+            *scope_columns,
+        }
+        missing = sorted(required.difference(predictions.columns))
+        if missing:
+            raise ValueError(
+                "Shopping Bag scoring is missing exposure columns: "
+                + ", ".join(missing)
+            )
+        latest_order = [
+            F.col(observation_timestamp).desc_nulls_last(),
+            *(
+                F.col(column).cast("string").desc_nulls_last()
+                for column in definition.observation_keys
+            ),
+        ]
+        latest = Window.partitionBy(
+            self.account_column,
+            self.advert_column,
+            *scope_columns,
+        ).orderBy(*latest_order)
+        return (
+            predictions.withColumn(
+                "__model_latest_exposure",
+                F.row_number().over(latest),
+            )
+            .where(F.col("__model_latest_exposure") == F.lit(1))
+            .drop("__model_latest_exposure")
+        )
+
+    def score(
+        self,
+        definition: ModelDefinition,
+        model_build: ModelBuild,
+        feature_frame: Any,
+    ) -> Any:
+        """Emit one account-advert signal for the canonical provider contract."""
+        predictions = self._latest_predictions(
+            definition,
+            self._predictions(definition, model_build, feature_frame),
         )
         return adapt_account_entity_scores(
             predictions,
@@ -63,6 +121,64 @@ class SparkAccountAdvertScoreProvider:
             raw_score_column="__model_pctr",
             score_column="__model_pctr",
         )
+
+    def score_with_evaluation_scope(
+        self,
+        definition: ModelDefinition,
+        model_build: ModelBuild,
+        feature_frame: Any,
+        *,
+        scope_columns: tuple[str, ...],
+    ) -> tuple[Any, Any]:
+        """Return canonical signals plus location-preserving EVALUATE scores."""
+        from pyspark.sql import Window
+        from pyspark.sql import functions as F
+
+        predictions = self._predictions(definition, model_build, feature_frame)
+        scoped_predictions = self._latest_predictions(
+            definition,
+            predictions,
+            scope_columns=scope_columns,
+        ).persist()
+        canonical_predictions = self._latest_predictions(
+            definition,
+            scoped_predictions,
+        )
+        canonical = adapt_account_entity_scores(
+            canonical_predictions,
+            provider_build_id=model_build.model_build_id,
+            provider_id=definition.provider_id,
+            entity_type="ad",
+            run_date=self.run_date,
+            account_column=self.account_column,
+            entity_column=self.advert_column,
+            raw_score_column="__model_pctr",
+            score_column="__model_pctr",
+        )
+        scoped = scoped_predictions
+        rank = Window.partitionBy(
+            self.account_column,
+            *scope_columns,
+        ).orderBy(
+            F.col("__model_pctr").desc_nulls_last(),
+            F.col(self.advert_column).cast("string").asc(),
+        )
+        scoped = scoped.withColumn(
+            "ProviderRank",
+            F.row_number().over(rank),
+        ).select(
+            F.lit(model_build.model_build_id).alias("ProviderBuildID"),
+            F.col(self.account_column).cast("string").alias("AccountNumber"),
+            F.lit("ad").alias("EntityType"),
+            F.col(self.advert_column).cast("string").alias("EntityID"),
+            F.lit(definition.provider_id).alias("ProviderID"),
+            F.lit(self.run_date).cast("date").alias("RunDate"),
+            F.col("__model_pctr").cast("double").alias("RawScore"),
+            F.col("__model_pctr").cast("double").alias("Score"),
+            "ProviderRank",
+            *scope_columns,
+        )
+        return canonical, scoped
 
 
 @dataclass(frozen=True)
@@ -102,6 +218,7 @@ class AccountAdvertCandidateAdapter:
 
     account_column: str = "AccountNumber"
     advert_column: str = "UniqueAdID"
+    scope_filters: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
     def apply(self, provider_scores: Any, eligible_candidates: Any) -> Any:
         """Filter scores to eligibility and rerank after that filtering."""
@@ -115,10 +232,12 @@ class AccountAdvertCandidateAdapter:
             "ProviderID",
             "RawScore",
             "Score",
+            *(column for column, _values in self.scope_filters),
         }
         missing_scores = sorted(required_scores.difference(provider_scores.columns))
+        scope_columns = tuple(column for column, _values in self.scope_filters)
         missing_candidates = sorted(
-            {self.account_column, self.advert_column}.difference(
+            {self.account_column, self.advert_column, *scope_columns}.difference(
                 eligible_candidates.columns
             )
         )
@@ -127,7 +246,12 @@ class AccountAdvertCandidateAdapter:
                 "Candidate adaptation is missing columns: "
                 + ", ".join([*missing_scores, *missing_candidates])
             )
-        eligible = eligible_candidates.alias("eligible")
+        eligible = eligible_candidates
+        for column, allowed_values in self.scope_filters:
+            if not allowed_values:
+                raise ValueError(f"Candidate scope is empty for {column}")
+            eligible = eligible.where(F.col(column).isin(*allowed_values))
+        eligible = eligible.alias("eligible")
         scores = provider_scores.alias("scores")
         joined = eligible.join(
             scores,
@@ -141,7 +265,15 @@ class AccountAdvertCandidateAdapter:
             ),
             how="inner",
         )
-        rank = Window.partitionBy(self.account_column).orderBy(
+        for column in scope_columns:
+            joined = joined.where(
+                F.col(f"eligible.{column}").cast("string")
+                == F.col(f"scores.{column}").cast("string")
+            )
+        rank = Window.partitionBy(
+            self.account_column,
+            *scope_columns,
+        ).orderBy(
             F.col("Score").desc_nulls_last(),
             F.col(self.advert_column).cast("string").asc(),
         )

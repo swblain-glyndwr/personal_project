@@ -88,7 +88,7 @@ def _external_receipt():
     )
 
 
-def test_setup_creates_the_three_model_development_receipt_tables():
+def test_setup_creates_receipts_builds_and_scoped_evaluation_candidates():
     class Spark:
         def __init__(self):
             self.queries = []
@@ -107,9 +107,13 @@ def test_setup_creates_the_three_model_development_receipt_tables():
         "marketingdata_dev.Stephen_Blain.next_uk_nextads_model_builds",
         "marketingdata_dev.Stephen_Blain."
         "next_uk_nextads_external_score_receipts",
+        "marketingdata_dev.Stephen_Blain."
+        "next_uk_nextads_model_evaluation_candidates",
     )
-    assert len(spark.queries) == 3
+    assert len(spark.queries) == 4
     assert all("CREATE TABLE IF NOT EXISTS" in query for query in spark.queries)
+    assert "route STRING NOT NULL" in spark.queries[-1]
+    assert "location STRING NOT NULL" in spark.queries[-1]
 
 
 def test_training_receipt_is_replaced_by_deterministic_receipt_id(monkeypatch):

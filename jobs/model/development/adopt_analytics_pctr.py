@@ -164,6 +164,7 @@ def main() -> None:
         scores,
         provider_id="analytics_pctr",
         provider_version="analytics_pctr/v1",
+        use_case="advert_ranking",
         provider_build_id=provider_build_id,
         provider_build_attempt_id=receipt.receipt_id,
         input_snapshot_id=receipt.receipt_id,

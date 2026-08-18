@@ -33,6 +33,7 @@ def test_evaluation_provider_uses_the_existing_canonical_contract(monkeypatch):
         "scores",
         provider_id="shopping_bag_pctr",
         provider_version="shopping_bag_pctr/v1",
+        use_case="shopping_bag_advert_ranking",
         provider_build_id="build",
         provider_build_attempt_id="attempt",
         input_snapshot_id="receipt",
@@ -51,7 +52,7 @@ def test_evaluation_provider_uses_the_existing_canonical_contract(monkeypatch):
     assert [name for name, _ in calls] == ["validate", "stage", "publish"]
     context = calls[1][1]["context"]
     assert context.capability == "account_ad"
-    assert context.use_case == "advert_ranking"
+    assert context.use_case == "shopping_bag_advert_ranking"
     assert context.input_snapshot_id == "receipt"
     assert calls[2][1]["signals_delta_version"] == 7
     assert calls[2][1]["provider_config"] == {

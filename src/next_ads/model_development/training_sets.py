@@ -31,6 +31,13 @@ class TrainingSetBuildResult:
 
     frame: Any
     receipt: TrainingSetReceipt
+    row_count: int
+    positive_label_count: int
+
+    @property
+    def positive_label_rate(self) -> float:
+        """Return the observed positive rate recorded for walkthrough evidence."""
+        return self.positive_label_count / self.row_count
 
 
 def validate_snapshot_time_boundary(
@@ -75,6 +82,61 @@ def _date_window(frame: Any, timestamp_column: str) -> tuple[date, date]:
     if row is None or row["start"] is None or row["end"] is None:
         raise ValueError("Training observations have no usable timestamps")
     return row["start"], row["end"]
+
+
+def _validate_label_maturity(
+    frame: Any,
+    *,
+    maturity_column: str | None,
+    label_end: date,
+) -> None:
+    """Reject labels whose full outcome window is not available."""
+    if maturity_column is None:
+        return
+    from pyspark.sql import functions as F
+
+    if maturity_column not in frame.columns:
+        raise ValueError(f"Label maturity column is missing: {maturity_column}")
+    invalid = frame.where(
+        F.col(maturity_column).isNull()
+        | (F.to_date(F.col(maturity_column)) > F.lit(label_end))
+    ).limit(1)
+    if invalid.collect():
+        raise ValueError(
+            "Training observations contain labels that are not mature by "
+            f"{label_end.isoformat()}"
+        )
+
+
+def summarise_binary_labels(frame: Any, label: str) -> tuple[int, int]:
+    """Validate the binary target and return exact row/positive counts."""
+    from pyspark.sql import functions as F
+
+    row = frame.agg(
+        F.count(F.lit(1)).cast("long").alias("row_count"),
+        F.sum(F.when(F.col(label) == F.lit(1), 1).otherwise(0))
+        .cast("long")
+        .alias("positive_count"),
+        F.sum(
+            F.when(
+                F.col(label).isNull() | (~F.col(label).isin(0, 1)),
+                1,
+            ).otherwise(0)
+        )
+        .cast("long")
+        .alias("invalid_count"),
+    ).first()
+    if row is None or not row["row_count"]:
+        raise ValueError("Training observations are empty")
+    if row["invalid_count"]:
+        raise ValueError("Training label must contain only non-null 0 or 1 values")
+    row_count = int(row["row_count"])
+    positive_count = int(row["positive_count"] or 0)
+    if positive_count in {0, row_count}:
+        raise ValueError(
+            "Binary model training requires both positive and negative labels"
+        )
+    return row_count, positive_count
 
 
 def _lookup_output_names(lookup: FeatureLookupSpec) -> tuple[str, ...]:
@@ -148,7 +210,10 @@ def _apply_point_in_time_lookup(
         )
     condition = condition & (
         F.col("feature._lookup_feature_time")
-        <= F.col(f"observation.{lookup.observation_timestamp}")
+        <= (
+            F.col(f"observation.{lookup.observation_timestamp}")
+            - F.expr(f"INTERVAL {lookup.availability_lag_days} DAYS")
+        )
     )
     joined = observations.alias("observation").join(
         feature_projection.alias("feature"),
@@ -269,6 +334,16 @@ def _read_feature_history(
     return history, tuple(bindings)
 
 
+def _require_training_safe_feature(registry: Any, feature_id: str) -> Any:
+    """Refuse labels or predictors not approved for model training."""
+    feature = registry.table_spec(feature_id)
+    if feature.training_safe is not True:
+        raise ValueError(
+            f"Feature {feature_id} is not approved for model training"
+        )
+    return feature
+
+
 def build_training_set(
     spark: Any,
     definition: ModelDefinition,
@@ -303,6 +378,11 @@ def build_training_set(
     )
     if label_end < observation_end:
         raise ValueError("label_end cannot predate the observation window")
+    _validate_label_maturity(
+        observations,
+        maturity_column=definition.training_observation.label_maturity_column,
+        label_end=label_end,
+    )
     reference_dates = _normalise_feature_reference_dates(
         feature_reference_date=feature_reference_date,
         feature_reference_dates=feature_reference_dates,
@@ -318,6 +398,7 @@ def build_training_set(
     for binding in observation_bindings:
         validate_snapshot_time_boundary(binding, observation_end)
     for lookup in definition.feature_lookups:
+        feature = _require_training_safe_feature(registry, lookup.feature_id)
         feature_frame, ready_bindings = _read_feature_history(
             spark,
             feature_id=lookup.feature_id,
@@ -328,7 +409,6 @@ def build_training_set(
         )
         for ready_binding in ready_bindings:
             validate_snapshot_time_boundary(ready_binding, observation_end)
-        feature = registry.table_spec(lookup.feature_id)
         if not feature.timestamp_key:
             raise ValueError(
                 f"Point-in-time lookup needs a timestamp key: {lookup.feature_id}"
@@ -344,6 +424,19 @@ def build_training_set(
             _training_feature_binding(ready_binding)
             for ready_binding in ready_bindings
         )
+
+    missing_features = sorted(
+        set(definition.model_feature_columns).difference(training_frame.columns)
+    )
+    if missing_features:
+        raise ValueError(
+            "Training frame is missing declared model features: "
+            + ", ".join(missing_features)
+        )
+    row_count, positive_count = summarise_binary_labels(
+        training_frame,
+        definition.label,
+    )
 
     completed_at = datetime.now(timezone.utc)
     unique_bindings = {}
@@ -378,7 +471,12 @@ def build_training_set(
         created_at=completed_at,
         completed_at=completed_at,
     )
-    return TrainingSetBuildResult(training_frame, receipt)
+    return TrainingSetBuildResult(
+        training_frame,
+        receipt,
+        row_count,
+        positive_count,
+    )
 
 
 def build_training_set_from_feature_store(
@@ -387,6 +485,7 @@ def build_training_set_from_feature_store(
     *,
     catalog: str,
     schema: str,
+    observation_reference_dates: tuple[str | date, ...],
     feature_reference_dates: tuple[str | date, ...],
     label_end: date,
     code_sha: str,
@@ -395,21 +494,28 @@ def build_training_set_from_feature_store(
     from pyspark.sql import functions as F
     from next_ads.features import load_feature_store_registry
 
-    reference_dates = _normalise_feature_reference_dates(
+    observation_dates = _normalise_feature_reference_dates(
+        feature_reference_date=None,
+        feature_reference_dates=observation_reference_dates,
+    )
+    lookup_dates = _normalise_feature_reference_dates(
         feature_reference_date=None,
         feature_reference_dates=feature_reference_dates,
     )
     registry = load_feature_store_registry()
     observation_spec = definition.training_observation
+    feature = _require_training_safe_feature(
+        registry,
+        observation_spec.feature_id,
+    )
     observations, bindings = _read_feature_history(
         spark,
         feature_id=observation_spec.feature_id,
         catalog=catalog,
         schema=schema,
-        reference_dates=reference_dates,
+        reference_dates=observation_dates,
         registry=registry,
     )
-    feature = registry.table_spec(observation_spec.feature_id)
     if feature.timestamp_key != observation_spec.observation_timestamp:
         raise ValueError(
             "Training observation timestamp does not match its feature contract"
@@ -431,7 +537,7 @@ def build_training_set_from_feature_store(
         observations,
         catalog=catalog,
         schema=schema,
-        feature_reference_dates=reference_dates,
+        feature_reference_dates=lookup_dates,
         observation_bindings=bindings,
         label_end=label_end,
         code_sha=code_sha,
@@ -442,5 +548,6 @@ __all__ = [
     "TrainingSetBuildResult",
     "build_training_set",
     "build_training_set_from_feature_store",
+    "summarise_binary_labels",
     "validate_snapshot_time_boundary",
 ]

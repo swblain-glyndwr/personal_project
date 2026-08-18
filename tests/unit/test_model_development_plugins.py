@@ -50,11 +50,18 @@ def test_shopping_bag_definition_resolves_without_orchestration_changes():
         definition,
         run_date=date(2026, 8, 11),
     )
-    adapter = plugins.candidate_adapter(definition)
+    adapter = plugins.candidate_adapter(
+        definition,
+        scope_filters=definition.evaluation_scope,
+    )
 
     assert isinstance(trainer, SparkBinaryClassifierTrainer)
     assert isinstance(scorer, SparkAccountAdvertScoreProvider)
     assert isinstance(adapter, AccountAdvertCandidateAdapter)
+    assert adapter.scope_filters == (
+        ("route", ("v1", "v2")),
+        ("location", ("SB1", "SB2", "ShoppingBagPage")),
+    )
 
 
 def test_analytics_definition_resolves_its_external_score_adapter():

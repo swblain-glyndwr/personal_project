@@ -22,6 +22,7 @@ from next_ads.model_development.training_sets import (
     TrainingSetBuildResult,
     build_training_set,
     build_training_set_from_feature_store,
+    summarise_binary_labels,
     validate_snapshot_time_boundary,
 )
 from next_ads.model_development.store import (
@@ -31,6 +32,7 @@ from next_ads.model_development.store import (
     load_ready_training_set_receipt,
     persist_model_build,
     persist_external_score_output_receipt,
+    persist_evaluation_candidates,
     persist_training_set_receipt,
 )
 from next_ads.model_development.runtime import (
@@ -41,6 +43,8 @@ from next_ads.model_development.spark_training import (
     SparkBinaryClassifierTrainer,
     artifact_directory_digest,
     deterministic_train_validation_split,
+    temporal_train_validation_split,
+    temporal_validation_cutoff,
 )
 from next_ads.model_development.external_outputs import (
     ExternalModelComponent,
@@ -56,8 +60,12 @@ from next_ads.model_development.plugins import (
     SparkAccountAdvertScoreProvider,
 )
 from next_ads.model_development.promotion import (
+    REGISTERED_MODEL_COPY,
+    SOURCE_ALIAS_REHEARSAL,
     ModelPromotionReceipt,
     promote_exact_model_build,
+    promote_exact_registered_version,
+    validate_registered_model_build,
 )
 from next_ads.model_development.provider_adoption import (
     PROVIDER_CONTRACT_VERSION,
@@ -79,6 +87,8 @@ __all__ = [
     "ModelPluginRegistry",
     "ModelPromotionReceipt",
     "PROVIDER_CONTRACT_VERSION",
+    "REGISTERED_MODEL_COPY",
+    "SOURCE_ALIAS_REHEARSAL",
     "ScoreProvider",
     "SparkBinaryClassifierTrainer",
     "SparkAccountAdvertScoreProvider",
@@ -90,7 +100,10 @@ __all__ = [
     "TrainingSetBuildResult",
     "build_training_set",
     "build_training_set_from_feature_store",
+    "summarise_binary_labels",
     "deterministic_train_validation_split",
+    "temporal_train_validation_split",
+    "temporal_validation_cutoff",
     "adapt_external_advert_scores",
     "bind_external_score_output",
     "verify_external_model_components",
@@ -103,8 +116,11 @@ __all__ = [
     "model_build_id",
     "persist_model_build",
     "persist_external_score_output_receipt",
+    "persist_evaluation_candidates",
     "persist_training_set_receipt",
     "promote_exact_model_build",
+    "promote_exact_registered_version",
+    "validate_registered_model_build",
     "publish_evaluation_provider",
     "train_or_reuse_model",
     "validate_snapshot_time_boundary",

@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
 import json
-from typing import Any
+from typing import Any, Callable
 
 from next_ads.model_development.contracts import (
     ModelBuild,
@@ -69,6 +69,7 @@ def train_or_reuse_model(
     receipt: TrainingSetReceipt,
     training_frame: Any,
     trainer: Trainer,
+    ready_build_validator: Callable[[ModelBuild], None] | None = None,
 ) -> tuple[ModelBuild, bool]:
     """Train once, persist failure, and reuse the exact READY build on retry."""
     if receipt.status != "READY":
@@ -91,6 +92,8 @@ def train_or_reuse_model(
             definition=definition,
             receipt=receipt,
         )
+        if ready_build_validator is not None:
+            ready_build_validator(existing)
         return existing, True
 
     started_at = datetime.now(timezone.utc)

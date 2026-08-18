@@ -1,9 +1,11 @@
 import hashlib
+from datetime import date
 
 import pytest
 
 from next_ads.model_development.spark_training import (
     artifact_directory_digest,
+    temporal_validation_cutoff,
 )
 
 
@@ -31,3 +33,15 @@ def test_artifact_digest_rejects_empty_or_missing_artifacts(tmp_path):
         artifact_directory_digest(empty)
     with pytest.raises(ValueError, match="does not exist"):
         artifact_directory_digest(tmp_path / "missing")
+
+
+def test_temporal_validation_holds_out_the_latest_whole_dates():
+    dates = tuple(date(2026, 8, day) for day in range(1, 11))
+
+    assert temporal_validation_cutoff(dates, validation_percent=20) == date(
+        2026,
+        8,
+        9,
+    )
+    with pytest.raises(ValueError, match="at least two dates"):
+        temporal_validation_cutoff((date(2026, 8, 1),))

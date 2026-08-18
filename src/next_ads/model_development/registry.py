@@ -43,6 +43,7 @@ def _lookup(raw: dict[str, Any]) -> FeatureLookupSpec:
         selected_columns=tuple(raw["selected_columns"]),
         key_mapping=_pairs(raw["key_mapping"], "key_mapping"),
         observation_timestamp=raw["observation_timestamp"],
+        availability_lag_days=raw.get("availability_lag_days", 0),
         renames=_pairs(raw.get("renames"), "renames"),
         defaults=_pairs(raw.get("defaults"), "defaults"),
     )
@@ -53,8 +54,23 @@ def _observation(raw: dict[str, Any]) -> TrainingObservationSpec:
         feature_id=raw["feature_id"],
         selected_columns=tuple(raw["selected_columns"]),
         observation_timestamp=raw["observation_timestamp"],
+        context_features=tuple(raw.get("context_features", ())),
+        label_maturity_column=raw.get("label_maturity_column"),
         filters=_pairs(raw.get("filters"), "filters"),
     )
+
+
+def _scope(value: Any) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, dict):
+        raise ValueError("evaluation_scope must be a mapping")
+    result = []
+    for column, allowed in value.items():
+        if not isinstance(allowed, list):
+            raise ValueError("evaluation_scope values must be lists")
+        result.append((str(column), tuple(str(item) for item in allowed)))
+    return tuple(result)
 
 
 def _definition(raw: dict[str, Any]) -> ModelDefinition:
@@ -75,6 +91,8 @@ def _definition(raw: dict[str, Any]) -> ModelDefinition:
         trainer=raw["trainer"],
         score_provider=raw["score_provider"],
         candidate_adapter=raw["candidate_adapter"],
+        evaluation_use_case=raw.get("evaluation_use_case", "advert_ranking"),
+        evaluation_scope=_scope(raw.get("evaluation_scope")),
         activation_mode=raw.get("activation_mode", "EVALUATE"),
     )
 

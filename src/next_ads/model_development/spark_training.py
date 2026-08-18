@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,15 @@ from next_ads.model_development.contracts import (
     TrainingSetReceipt,
 )
 from next_ads.model_development.runtime import model_build_id
+
+
+MODEL_EVALUATION_METRICS = (
+    "auc_pr",
+    "auc_roc",
+    "log_loss",
+    "calibration_gap",
+    "lift_at_5_percent",
+)
 
 
 def artifact_directory_digest(path: str | Path) -> str:
@@ -64,6 +74,108 @@ def deterministic_train_validation_split(
     if not train.limit(1).collect() or not validation.limit(1).collect():
         raise ValueError("Deterministic split produced an empty dataset")
     return train, validation
+
+
+def temporal_validation_cutoff(
+    observation_dates: tuple[Any, ...],
+    *,
+    validation_percent: int = 20,
+) -> Any:
+    """Choose whole latest dates for validation, never random future leakage."""
+    if not 1 <= validation_percent <= 50:
+        raise ValueError("validation_percent must be between 1 and 50")
+    dates = tuple(sorted(set(observation_dates)))
+    if len(dates) < 2:
+        raise ValueError(
+            "Temporal validation requires observations from at least two dates"
+        )
+    validation_dates = max(
+        1,
+        math.ceil(len(dates) * validation_percent / 100),
+    )
+    validation_dates = min(validation_dates, len(dates) - 1)
+    return dates[-validation_dates]
+
+
+def temporal_train_validation_split(
+    frame: Any,
+    *,
+    timestamp_column: str,
+    validation_percent: int = 20,
+) -> tuple[Any, Any, Any]:
+    """Train on earlier exposure dates and validate on later exposure dates."""
+    from pyspark.sql import functions as F
+
+    if timestamp_column not in frame.columns:
+        raise ValueError(
+            f"Temporal validation is missing timestamp: {timestamp_column}"
+        )
+    rows = (
+        frame.select(F.to_date(F.col(timestamp_column)).alias("observation_date"))
+        .where(F.col("observation_date").isNotNull())
+        .distinct()
+        .orderBy("observation_date")
+        .collect()
+    )
+    cutoff = temporal_validation_cutoff(
+        tuple(row["observation_date"] for row in rows),
+        validation_percent=validation_percent,
+    )
+    observation_date = F.to_date(F.col(timestamp_column))
+    train = frame.where(observation_date < F.lit(cutoff))
+    validation = frame.where(observation_date >= F.lit(cutoff))
+    if not train.limit(1).collect() or not validation.limit(1).collect():
+        raise ValueError("Temporal split produced an empty dataset")
+    return train, validation, cutoff
+
+
+def _probability_metrics(
+    predictions: Any,
+    *,
+    label_column: str,
+    probability_column: str,
+) -> dict[str, float]:
+    """Return interpretable pCTR checks from one temporal holdout."""
+    from pyspark.ml.functions import vector_to_array
+    from pyspark.sql import functions as F
+
+    scored = predictions.withColumn(
+        "__model_probability",
+        vector_to_array(F.col(probability_column)).getItem(1).cast("double"),
+    )
+    probability = F.least(
+        F.lit(1.0 - 1e-15),
+        F.greatest(F.lit(1e-15), F.col("__model_probability")),
+    )
+    label = F.col(label_column).cast("double")
+    row = scored.agg(
+        F.count(F.lit(1)).alias("rows"),
+        F.avg(label).alias("observed_rate"),
+        F.avg(probability).alias("predicted_rate"),
+        F.avg(
+            -(label * F.log(probability))
+            - ((F.lit(1.0) - label) * F.log(F.lit(1.0) - probability))
+        ).alias("log_loss"),
+    ).first()
+    if row is None or not row["rows"]:
+        raise ValueError("Validation predictions are empty")
+    observed_rate = float(row["observed_rate"])
+    predicted_rate = float(row["predicted_rate"])
+    top_rows = max(1, math.ceil(int(row["rows"]) * 0.05))
+    top = (
+        scored.orderBy(F.col("__model_probability").desc())
+        .limit(top_rows)
+        .agg(F.avg(label).alias("top_rate"))
+        .first()
+    )
+    top_rate = float(top["top_rate"])
+    return {
+        "log_loss": float(row["log_loss"]),
+        "calibration_gap": abs(predicted_rate - observed_rate),
+        "observed_click_rate": observed_rate,
+        "predicted_click_rate": predicted_rate,
+        "lift_at_5_percent": top_rate / observed_rate,
+    }
 
 
 class SparkBinaryClassifierTrainer:
@@ -118,14 +230,22 @@ class SparkBinaryClassifierTrainer:
         )
         if missing:
             raise ValueError("Training frame is missing: " + ", ".join(missing))
-        train, validation = deterministic_train_validation_split(
+        train, validation, validation_start = temporal_train_validation_split(
             training_frame,
-            keys=definition.observation_keys,
+            timestamp_column=(
+                definition.training_observation.observation_timestamp
+            ),
             validation_percent=self.validation_percent,
         )
-        excluded = set(definition.observation_keys).union({definition.label})
+        from next_ads.model_development.training_sets import (
+            summarise_binary_labels,
+        )
+
+        summarise_binary_labels(train, definition.label)
+        summarise_binary_labels(validation, definition.label)
+        feature_columns = definition.model_feature_columns
         feature_fields = [
-            field for field in training_frame.schema.fields if field.name not in excluded
+            training_frame.schema[field_name] for field_name in feature_columns
         ]
         string_columns = [
             field.name for field in feature_fields if isinstance(field.dataType, StringType)
@@ -220,6 +340,8 @@ class SparkBinaryClassifierTrainer:
                     "model_definition_checksum": definition.checksum,
                     "runtime_profile": definition.runtime_profile,
                     "training_receipt_id": training_receipt.receipt_id,
+                    "validation_strategy": "latest_observation_dates",
+                    "validation_start_date": validation_start.isoformat(),
                 }
             )
             mlflow.log_text(
@@ -246,9 +368,17 @@ class SparkBinaryClassifierTrainer:
                 roc_auc = float(roc_evaluator.evaluate(predictions))
                 metrics[f"{candidate_name}_auc_pr"] = pr_auc
                 metrics[f"{candidate_name}_auc_roc"] = roc_auc
+                for metric_name, metric_value in _probability_metrics(
+                    predictions,
+                    label_column=definition.label,
+                    probability_column="probability",
+                ).items():
+                    metrics[f"{candidate_name}_{metric_name}"] = metric_value
                 if best is None or pr_auc > best[0]:
                     best = (pr_auc, candidate_name, fitted)
             assert best is not None
+            for metric_name in MODEL_EVALUATION_METRICS:
+                metrics[metric_name] = metrics[f"{best[1]}_{metric_name}"]
             mlflow.log_metrics(metrics)
             mlflow.log_param("selected_candidate", best[1])
             mlflow.spark.log_model(best[2], artifact_path="model")
@@ -263,6 +393,17 @@ class SparkBinaryClassifierTrainer:
         client = MlflowClient()
         artifact_path = client.download_artifacts(run_id, "model")
         digest = artifact_directory_digest(artifact_path)
+        for key, value in {
+            "nextads.artifact_digest": digest,
+            "nextads.model_build_id": build_id,
+            "nextads.training_receipt_id": training_receipt.receipt_id,
+        }.items():
+            client.set_model_version_tag(
+                name=self.registered_model_name,
+                version=version,
+                key=key,
+                value=value,
+            )
         client.set_registered_model_alias(
             name=self.registered_model_name,
             alias="dev_candidate",
@@ -289,6 +430,9 @@ class SparkBinaryClassifierTrainer:
 
 __all__ = [
     "SparkBinaryClassifierTrainer",
+    "MODEL_EVALUATION_METRICS",
     "artifact_directory_digest",
     "deterministic_train_validation_split",
+    "temporal_train_validation_split",
+    "temporal_validation_cutoff",
 ]

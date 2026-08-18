@@ -24,6 +24,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_preprod.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml
