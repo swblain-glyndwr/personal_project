@@ -56,6 +56,7 @@ from next_ads.model_development import (
     persist_evaluation_candidates,
     promote_exact_model_build,
     publish_evaluation_provider,
+    recover_registered_model_build,
     train_or_reuse_model,
     validate_registered_model_build,
 )
@@ -190,6 +191,12 @@ def main() -> None:
         ready_build_validator=lambda ready: validate_registered_model_build(
             mlflow_client,
             ready,
+        ),
+        ready_build_recovery=lambda: recover_registered_model_build(
+            mlflow_client,
+            registered_model_name=trainer.registered_model_name,
+            definition=definition,
+            receipt=training.receipt,
         ),
     )
     promotion = None

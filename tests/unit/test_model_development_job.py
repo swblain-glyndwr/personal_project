@@ -94,6 +94,8 @@ def test_model_job_uses_receipts_plugins_and_exact_promotion():
     assert "persist_training_set_receipt" in source
     assert "train_or_reuse_model" in source
     assert "promote_exact_model_build" in source
+    assert "recover_registered_model_build" in source
+    assert "ready_build_recovery=" in source
     assert "persist_evaluation_candidates" in source
     assert "provider_id=definition.provider_id" in source
     assert "use_case=definition.evaluation_use_case" in source

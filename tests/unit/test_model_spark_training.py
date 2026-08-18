@@ -1,10 +1,12 @@
 import hashlib
 from datetime import date
+import inspect
 from types import SimpleNamespace
 
 import pytest
 
 from next_ads.model_development.spark_training import (
+    SparkBinaryClassifierTrainer,
     artifact_directory_digest,
     log_spark_model_with_signature,
     temporal_validation_cutoff,
@@ -37,6 +39,15 @@ def test_artifact_digest_rejects_empty_or_missing_artifacts(tmp_path):
         artifact_directory_digest(empty)
     with pytest.raises(ValueError, match="does not exist"):
         artifact_directory_digest(tmp_path / "missing")
+
+
+def test_trainer_uses_unity_catalog_safe_version_tags():
+    source = inspect.getsource(SparkBinaryClassifierTrainer.train)
+
+    assert "MODEL_VERSION_TAG_ARTIFACT_DIGEST" in source
+    assert "MODEL_VERSION_TAG_BUILD_ID" in source
+    assert "MODEL_VERSION_TAG_TRAINING_RECEIPT_ID" in source
+    assert '"nextads.' not in source
 
 
 def test_temporal_validation_holds_out_the_latest_whole_dates():

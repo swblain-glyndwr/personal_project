@@ -70,6 +70,7 @@ def train_or_reuse_model(
     training_frame: Any,
     trainer: Trainer,
     ready_build_validator: Callable[[ModelBuild], None] | None = None,
+    ready_build_recovery: Callable[[], ModelBuild | None] | None = None,
 ) -> tuple[ModelBuild, bool]:
     """Train once, persist failure, and reuse the exact READY build on retry."""
     if receipt.status != "READY":
@@ -95,6 +96,26 @@ def train_or_reuse_model(
         if ready_build_validator is not None:
             ready_build_validator(existing)
         return existing, True
+
+    recovered = (
+        ready_build_recovery() if ready_build_recovery is not None else None
+    )
+    if recovered is not None:
+        _validate_ready_build(
+            recovered,
+            expected_id=expected_id,
+            definition=definition,
+            receipt=receipt,
+        )
+        if ready_build_validator is not None:
+            ready_build_validator(recovered)
+        persist_model_build(
+            spark,
+            catalog=catalog,
+            schema=schema,
+            build=recovered,
+        )
+        return recovered, True
 
     started_at = datetime.now(timezone.utc)
     building = ModelBuild(

@@ -7,8 +7,19 @@ from datetime import datetime, timezone
 import re
 from typing import Any, Callable
 
-from next_ads.model_development.contracts import ModelBuild
+from next_ads.model_development.contracts import (
+    MODEL_VERSION_TAG_ARTIFACT_DIGEST,
+    MODEL_VERSION_TAG_BUILD_ID,
+    MODEL_VERSION_TAG_SOURCE_MODEL_NAME,
+    MODEL_VERSION_TAG_SOURCE_MODEL_VERSION,
+    MODEL_VERSION_TAG_TRAINING_RECEIPT_ID,
+    ModelBuild,
+    ModelDefinition,
+    TrainingSetReceipt,
+)
+from next_ads.model_development.runtime import model_build_id
 from next_ads.model_development.spark_training import (
+    MODEL_EVALUATION_METRICS,
     artifact_directory_digest,
 )
 
@@ -18,6 +29,35 @@ _EXACT_MODEL_URI = re.compile(r"models:/([^/@\s]+)/([1-9][0-9]*)")
 REGISTERED_MODEL_COPY = "REGISTERED_MODEL_COPY"
 SOURCE_ALIAS_REHEARSAL = "SOURCE_ALIAS_REHEARSAL"
 PROMOTION_MODES = frozenset({REGISTERED_MODEL_COPY, SOURCE_ALIAS_REHEARSAL})
+_LEGACY_MODEL_VERSION_TAGS = {
+    MODEL_VERSION_TAG_ARTIFACT_DIGEST: "nextads.artifact_digest",
+    MODEL_VERSION_TAG_BUILD_ID: "nextads.model_build_id",
+    MODEL_VERSION_TAG_SOURCE_MODEL_NAME: "nextads.source_model_name",
+    MODEL_VERSION_TAG_SOURCE_MODEL_VERSION: "nextads.source_model_version",
+    MODEL_VERSION_TAG_TRAINING_RECEIPT_ID: "nextads.training_receipt_id",
+}
+
+
+def _model_version_tag(tags: dict[str, str], key: str) -> str | None:
+    return tags.get(key) or tags.get(_LEGACY_MODEL_VERSION_TAGS[key])
+
+
+def _set_model_version_tags(
+    client: Any,
+    *,
+    model_name: str,
+    version: int | str,
+    tags: dict[str, str],
+) -> None:
+    for key, value in tags.items():
+        if "." in key or "=" in key:
+            raise ValueError(f"Unity Catalog model tag key is invalid: {key}")
+        client.set_model_version_tag(
+            name=model_name,
+            version=version,
+            key=key,
+            value=value,
+        )
 
 
 def _exact_registered_model_uri(model_name: str, version: int | str) -> str:
@@ -61,6 +101,104 @@ def registered_model_artifact_digest(
     return artifact_directory_digest(artifact_path)
 
 
+def recover_registered_model_build(
+    client: Any,
+    *,
+    registered_model_name: str,
+    definition: ModelDefinition,
+    receipt: TrainingSetReceipt,
+) -> ModelBuild | None:
+    """Recover an exact version created before its READY receipt was saved."""
+    expected_build_id = model_build_id(definition, receipt)
+    expected_params = {
+        "model_build_id": expected_build_id,
+        "model_definition_checksum": definition.checksum,
+        "runtime_profile": definition.runtime_profile,
+        "training_receipt_id": receipt.receipt_id,
+    }
+    matches = []
+    for summary in client.search_model_versions(
+        f"name='{registered_model_name}'"
+    ):
+        version = client.get_model_version(
+            registered_model_name,
+            summary.version,
+        )
+        run_id = getattr(version, "run_id", None)
+        if not run_id:
+            continue
+        run = client.get_run(run_id)
+        params = getattr(run.data, "params", {}) or {}
+        if all(params.get(key) == value for key, value in expected_params.items()):
+            matches.append((version, run))
+    if not matches:
+        return None
+    if len(matches) != 1:
+        versions = sorted(int(match[0].version) for match in matches)
+        raise ValueError(
+            "Multiple registered model versions match one model build: "
+            f"{versions}"
+        )
+
+    version, run = matches[0]
+    if str(getattr(run.info, "status", "")).upper() != "FINISHED":
+        raise ValueError("Recovered MLflow run is not FINISHED")
+    version_status = str(getattr(version, "status", "READY")).upper()
+    if not version_status.endswith("READY"):
+        raise ValueError("Recovered registered model version is not READY")
+    metrics = {
+        str(name): float(value)
+        for name, value in (getattr(run.data, "metrics", {}) or {}).items()
+    }
+    missing_metrics = sorted(set(MODEL_EVALUATION_METRICS) - set(metrics))
+    if missing_metrics:
+        raise ValueError(
+            "Recovered MLflow run is missing metrics: "
+            + ", ".join(missing_metrics)
+        )
+    numeric_version = int(version.version)
+    model_uri = _exact_registered_model_uri(
+        registered_model_name,
+        numeric_version,
+    )
+    digest = registered_model_artifact_digest(model_uri)
+    start_time = getattr(run.info, "start_time", None)
+    end_time = getattr(run.info, "end_time", None)
+    if start_time is None or end_time is None:
+        raise ValueError("Recovered MLflow run has incomplete timestamps")
+    _set_model_version_tags(
+        client,
+        model_name=registered_model_name,
+        version=numeric_version,
+        tags={
+            MODEL_VERSION_TAG_ARTIFACT_DIGEST: digest,
+            MODEL_VERSION_TAG_BUILD_ID: expected_build_id,
+            MODEL_VERSION_TAG_TRAINING_RECEIPT_ID: receipt.receipt_id,
+        },
+    )
+    client.set_registered_model_alias(
+        name=registered_model_name,
+        alias="dev_candidate",
+        version=numeric_version,
+    )
+    return ModelBuild(
+        model_build_id=expected_build_id,
+        model_name=definition.model_name,
+        training_receipt_id=receipt.receipt_id,
+        model_definition_checksum=definition.checksum,
+        runtime_profile=definition.runtime_profile,
+        status="READY",
+        created_at=datetime.fromtimestamp(start_time / 1000, timezone.utc),
+        mlflow_run_id=run.info.run_id,
+        registered_model_name=registered_model_name,
+        registered_model_version=numeric_version,
+        model_uri=model_uri,
+        artifact_digest=digest,
+        metrics=tuple(sorted(metrics.items())),
+        completed_at=datetime.fromtimestamp(end_time / 1000, timezone.utc),
+    )
+
+
 def validate_registered_model_build(client: Any, build: ModelBuild) -> None:
     """Verify a READY receipt still resolves to the exact MLflow artifact."""
     if (
@@ -75,9 +213,15 @@ def validate_registered_model_build(client: Any, build: ModelBuild) -> None:
         build.registered_model_version,
     )
     tags = version.tags or {}
-    if tags.get("nextads.model_build_id") != build.model_build_id:
+    if (
+        _model_version_tag(tags, MODEL_VERSION_TAG_BUILD_ID)
+        != build.model_build_id
+    ):
         raise ValueError("Registered model version has a different build ID")
-    if tags.get("nextads.artifact_digest") != build.artifact_digest:
+    if (
+        _model_version_tag(tags, MODEL_VERSION_TAG_ARTIFACT_DIGEST)
+        != build.artifact_digest
+    ):
         raise ValueError("Registered model version has a different digest tag")
     source_model_uri = _exact_registered_model_uri(
         build.registered_model_name,
@@ -143,8 +287,9 @@ def _existing_destination_version(
             destination_model_name,
             summary.version,
         )
-        if (version.tags or {}).get(
-            "nextads.model_build_id"
+        if _model_version_tag(
+            version.tags or {},
+            MODEL_VERSION_TAG_BUILD_ID,
         ) == model_build_id:
             return version
     return None
@@ -173,8 +318,14 @@ def promote_exact_registered_version(
         source_model_version,
     )
     source_tags = source.tags or {}
-    model_build_id = source_tags.get("nextads.model_build_id")
-    expected_digest = source_tags.get("nextads.artifact_digest")
+    model_build_id = _model_version_tag(
+        source_tags,
+        MODEL_VERSION_TAG_BUILD_ID,
+    )
+    expected_digest = _model_version_tag(
+        source_tags,
+        MODEL_VERSION_TAG_ARTIFACT_DIGEST,
+    )
     if not model_build_id:
         raise ValueError("Source model version has no NextAds build ID")
     if not expected_digest or _DIGEST.fullmatch(expected_digest) is None:
@@ -211,18 +362,17 @@ def promote_exact_registered_version(
     )
     if destination_digest != source_digest:
         raise ValueError("Destination artifact bytes differ from the source")
-    for key, value in {
-        "nextads.model_build_id": model_build_id,
-        "nextads.artifact_digest": source_digest,
-        "nextads.source_model_name": source_model_name,
-        "nextads.source_model_version": str(source_model_version),
-    }.items():
-        client.set_model_version_tag(
-            name=destination_model_name,
-            version=destination.version,
-            key=key,
-            value=value,
-        )
+    _set_model_version_tags(
+        client,
+        model_name=destination_model_name,
+        version=destination.version,
+        tags={
+            MODEL_VERSION_TAG_BUILD_ID: model_build_id,
+            MODEL_VERSION_TAG_ARTIFACT_DIGEST: source_digest,
+            MODEL_VERSION_TAG_SOURCE_MODEL_NAME: source_model_name,
+            MODEL_VERSION_TAG_SOURCE_MODEL_VERSION: str(source_model_version),
+        },
+    )
     client.set_registered_model_alias(
         name=destination_model_name,
         alias=alias,
@@ -325,17 +475,14 @@ def promote_exact_model_build(
             "Promoted artifact digest does not match the source model build"
         )
     if not reused or promotion_mode == SOURCE_ALIAS_REHEARSAL:
-        client.set_model_version_tag(
-            name=destination_model_name,
+        _set_model_version_tags(
+            client,
+            model_name=destination_model_name,
             version=destination.version,
-            key="nextads.model_build_id",
-            value=build.model_build_id,
-        )
-        client.set_model_version_tag(
-            name=destination_model_name,
-            version=destination.version,
-            key="nextads.artifact_digest",
-            value=build.artifact_digest,
+            tags={
+                MODEL_VERSION_TAG_BUILD_ID: build.model_build_id,
+                MODEL_VERSION_TAG_ARTIFACT_DIGEST: build.artifact_digest,
+            },
         )
     client.set_registered_model_alias(
         name=destination_model_name,
@@ -365,6 +512,7 @@ __all__ = [
     "ModelPromotionReceipt",
     "promote_exact_model_build",
     "promote_exact_registered_version",
+    "recover_registered_model_build",
     "registered_model_artifact_digest",
     "validate_registered_model_build",
 ]

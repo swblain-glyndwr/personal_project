@@ -1,10 +1,19 @@
 import hashlib
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 
-from next_ads.model_development.contracts import ModelBuild
+from next_ads.model_development.contracts import (
+    MODEL_VERSION_TAG_ARTIFACT_DIGEST,
+    MODEL_VERSION_TAG_BUILD_ID,
+    MODEL_VERSION_TAG_TRAINING_RECEIPT_ID,
+    ModelBuild,
+    TrainingFeatureBinding,
+    TrainingSetReceipt,
+)
+from next_ads.model_development.registry import load_model_definition
+from next_ads.model_development.runtime import model_build_id
 import next_ads.model_development.promotion as promotion
 
 
@@ -23,6 +32,37 @@ def _build():
         model_uri="models:/catalog.dev.model/2",
         artifact_digest="b" * 64,
         completed_at=datetime(2026, 8, 17, 1, tzinfo=timezone.utc),
+    )
+
+
+def _training_receipt(definition):
+    now = datetime(2026, 8, 17, tzinfo=timezone.utc)
+    return TrainingSetReceipt(
+        receipt_id="receipt-1",
+        model_name=definition.model_name,
+        model_definition_checksum=definition.checksum,
+        feature_bindings=(
+            TrainingFeatureBinding(
+                feature_id="feature",
+                feature_snapshot_id="snapshot",
+                feature_snapshot_attempt_id="attempt",
+                backing_table="catalog.schema.feature",
+                delta_version=1,
+                row_count=10,
+                schema_checksum="b" * 64,
+                value_checksum="c" * 64,
+            ),
+        ),
+        observation_start=date(2026, 8, 5),
+        observation_end=date(2026, 8, 6),
+        label_end=date(2026, 8, 14),
+        schema_checksum="d" * 64,
+        data_checksum="e" * 64,
+        code_sha="abc123",
+        leakage_status="PASS",
+        status="READY",
+        created_at=now,
+        completed_at=now,
     )
 
 
@@ -165,7 +205,125 @@ def test_promotion_copies_and_verifies_the_exact_artifact(monkeypatch):
         "models:/catalog.integration.model/7",
     ]
     assert len(client.tags) == 2
+    assert {tag["key"] for tag in client.tags} == {
+        MODEL_VERSION_TAG_ARTIFACT_DIGEST,
+        MODEL_VERSION_TAG_BUILD_ID,
+    }
+    assert all("." not in tag["key"] and "=" not in tag["key"] for tag in client.tags)
     assert client.aliases[0]["version"] == 7
+
+
+class RecoveryClient(Client):
+    def __init__(self, *, definition, receipt, versions=(1,), mismatch=False):
+        super().__init__()
+        self.definition = definition
+        self.receipt = receipt
+        self.versions = versions
+        self.mismatch = mismatch
+
+    def search_model_versions(self, _query):
+        return [SimpleNamespace(version=version) for version in self.versions]
+
+    def get_model_version(self, _name, version):
+        return SimpleNamespace(
+            version=version,
+            run_id=f"run-{version}",
+            status="READY",
+            tags={},
+        )
+
+    def get_run(self, run_id):
+        params = {
+            "model_build_id": model_build_id(self.definition, self.receipt),
+            "model_definition_checksum": self.definition.checksum,
+            "runtime_profile": self.definition.runtime_profile,
+            "training_receipt_id": self.receipt.receipt_id,
+        }
+        if self.mismatch:
+            params["training_receipt_id"] = "different"
+        metrics = {
+            name: 0.1 for name in promotion.MODEL_EVALUATION_METRICS
+        }
+        return SimpleNamespace(
+            info=SimpleNamespace(
+                run_id=run_id,
+                status="FINISHED",
+                start_time=1_755_388_800_000,
+                end_time=1_755_392_400_000,
+            ),
+            data=SimpleNamespace(params=params, metrics=metrics),
+        )
+
+
+def test_recovery_reuses_untagged_registered_version(monkeypatch):
+    definition = load_model_definition("shopping_bag_pctr")
+    receipt = _training_receipt(definition)
+    client = RecoveryClient(definition=definition, receipt=receipt)
+    monkeypatch.setattr(
+        promotion,
+        "registered_model_artifact_digest",
+        lambda _uri: "f" * 64,
+    )
+
+    recovered = promotion.recover_registered_model_build(
+        client,
+        registered_model_name="catalog.schema.model",
+        definition=definition,
+        receipt=receipt,
+    )
+
+    assert recovered is not None
+    assert recovered.registered_model_version == 1
+    assert recovered.mlflow_run_id == "run-1"
+    assert recovered.model_build_id == model_build_id(definition, receipt)
+    assert {tag["key"] for tag in client.tags} == {
+        MODEL_VERSION_TAG_ARTIFACT_DIGEST,
+        MODEL_VERSION_TAG_BUILD_ID,
+        MODEL_VERSION_TAG_TRAINING_RECEIPT_ID,
+    }
+    assert client.aliases == [
+        {
+            "name": "catalog.schema.model",
+            "alias": "dev_candidate",
+            "version": 1,
+        }
+    ]
+
+
+def test_recovery_rejects_mismatch_or_multiple_versions(monkeypatch):
+    definition = load_model_definition("shopping_bag_pctr")
+    receipt = _training_receipt(definition)
+    monkeypatch.setattr(
+        promotion,
+        "registered_model_artifact_digest",
+        lambda _uri: "f" * 64,
+    )
+    mismatch = RecoveryClient(
+        definition=definition,
+        receipt=receipt,
+        mismatch=True,
+    )
+    assert (
+        promotion.recover_registered_model_build(
+            mismatch,
+            registered_model_name="catalog.schema.model",
+            definition=definition,
+            receipt=receipt,
+        )
+        is None
+    )
+    duplicates = RecoveryClient(
+        definition=definition,
+        receipt=receipt,
+        versions=(1, 2),
+    )
+    with pytest.raises(ValueError, match="Multiple registered model versions"):
+        promotion.recover_registered_model_build(
+            duplicates,
+            registered_model_name="catalog.schema.model",
+            definition=definition,
+            receipt=receipt,
+        )
 
 
 def test_promotion_retry_reuses_the_tagged_destination(monkeypatch):

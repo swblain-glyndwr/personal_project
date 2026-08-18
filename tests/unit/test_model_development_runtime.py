@@ -96,6 +96,41 @@ def test_retry_reuses_ready_build_without_calling_trainer(monkeypatch):
     assert validated == [ready]
 
 
+def test_retry_recovers_registered_version_before_retraining(monkeypatch):
+    definition = load_model_definition("analytics_pctr")
+    receipt = _receipt(definition)
+    ready = _ready_build(definition, receipt)
+    persisted = []
+    monkeypatch.setattr(runtime, "load_ready_model_build", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        runtime,
+        "persist_model_build",
+        lambda *_a, **kwargs: persisted.append(kwargs["build"]),
+    )
+
+    class Trainer:
+        def train(self, *_args):
+            pytest.fail("a recovered registered version must not be retrained")
+
+    validated = []
+    actual, reused = runtime.train_or_reuse_model(
+        object(),
+        catalog="catalog",
+        schema="schema",
+        definition=definition,
+        receipt=receipt,
+        training_frame=object(),
+        trainer=Trainer(),
+        ready_build_validator=validated.append,
+        ready_build_recovery=lambda: ready,
+    )
+
+    assert actual == ready
+    assert reused is True
+    assert persisted == [ready]
+    assert validated == [ready]
+
+
 def test_new_build_records_training_then_ready(monkeypatch):
     definition = load_model_definition("analytics_pctr")
     receipt = _receipt(definition)

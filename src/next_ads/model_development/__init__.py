@@ -65,6 +65,7 @@ from next_ads.model_development.promotion import (
     ModelPromotionReceipt,
     promote_exact_model_build,
     promote_exact_registered_version,
+    recover_registered_model_build,
     validate_registered_model_build,
 )
 from next_ads.model_development.provider_adoption import (
@@ -120,6 +121,7 @@ __all__ = [
     "persist_training_set_receipt",
     "promote_exact_model_build",
     "promote_exact_registered_version",
+    "recover_registered_model_build",
     "validate_registered_model_build",
     "publish_evaluation_provider",
     "train_or_reuse_model",

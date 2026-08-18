@@ -11,6 +11,9 @@ from typing import Any
 
 from next_ads.model_development.contracts import (
     DBR_15_4_SPARK_CPU,
+    MODEL_VERSION_TAG_ARTIFACT_DIGEST,
+    MODEL_VERSION_TAG_BUILD_ID,
+    MODEL_VERSION_TAG_TRAINING_RECEIPT_ID,
     ModelBuild,
     ModelDefinition,
     TrainingSetReceipt,
@@ -480,9 +483,11 @@ class SparkBinaryClassifierTrainer:
         artifact_path = client.download_artifacts(run_id, "model")
         digest = artifact_directory_digest(artifact_path)
         for key, value in {
-            "nextads.artifact_digest": digest,
-            "nextads.model_build_id": build_id,
-            "nextads.training_receipt_id": training_receipt.receipt_id,
+            MODEL_VERSION_TAG_ARTIFACT_DIGEST: digest,
+            MODEL_VERSION_TAG_BUILD_ID: build_id,
+            MODEL_VERSION_TAG_TRAINING_RECEIPT_ID: (
+                training_receipt.receipt_id
+            ),
         }.items():
             client.set_model_version_tag(
                 name=self.registered_model_name,

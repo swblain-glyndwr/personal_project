@@ -22,6 +22,11 @@ VALID_RECEIPT_STATUSES = frozenset({READY, FAILED})
 VALID_MODEL_BUILD_STATUSES = frozenset(
     {"TRAINING", "READY", "FAILED"}
 )
+MODEL_VERSION_TAG_ARTIFACT_DIGEST = "nextads_artifact_digest"
+MODEL_VERSION_TAG_BUILD_ID = "nextads_model_build_id"
+MODEL_VERSION_TAG_TRAINING_RECEIPT_ID = "nextads_training_receipt_id"
+MODEL_VERSION_TAG_SOURCE_MODEL_NAME = "nextads_source_model_name"
+MODEL_VERSION_TAG_SOURCE_MODEL_VERSION = "nextads_source_model_version"
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _DEFAULT_VALUE_TYPES = (str, int, float, bool, type(None))
 
