@@ -101,6 +101,7 @@ def main(
         results,
         history_table=config.tables_write.advert_quality_metrics,
         latest_table=config.tables_write.advert_quality_metrics_latest,
+        scope={"process_version": ROUTE},
         key_columns=["UniqueAdID", "rundate"],
         run_date=RUN_DATE,
         columns=[*results.columns, "rundate"],
