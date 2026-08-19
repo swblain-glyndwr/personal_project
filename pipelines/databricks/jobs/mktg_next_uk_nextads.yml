@@ -108,6 +108,14 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --run_date
             - "{{job.parameters.run_date}}"
+            - --item-num-threshold
+            - "10"
+            - --item-coverage
+            - "0.75"
+            - --theme-coverage
+            - "0.5"
+            - --image-item-coverage
+            - "0.7"
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         max_retries: 2
@@ -189,6 +197,14 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --run_date
             - "{{job.parameters.run_date}}"
+            - --item-num-threshold
+            - "10"
+            - --item-coverage
+            - "0.75"
+            - --theme-coverage
+            - "0.5"
+            - --image-item-coverage
+            - "0.7"
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         max_retries: 2

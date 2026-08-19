@@ -41,6 +41,10 @@ def main(
     ROUTE: str,
     RUN_DATE: str,
     LOG_LEVEL: str,
+    ITEM_NUM_THRESHOLD: int = 10,
+    ITEM_COVERAGE: float = 0.75,
+    THEME_COVERAGE: float = 0.5,
+    IMAGE_ITEM_COVERAGE: float = 0.7,
 ):
     configure_logging(
         log_level=LOG_LEVEL
@@ -79,7 +83,14 @@ def main(
         RUN_DATE,
     )
 
-    adqualityaudit = AdvertQualityAudit(RUN_DATE, ROUTE)
+    adqualityaudit = AdvertQualityAudit(
+        RUN_DATE,
+        ROUTE,
+        ITEM_NUM_THRESHOLD,
+        ITEM_COVERAGE,
+        THEME_COVERAGE,
+        IMAGE_ITEM_COVERAGE,
+    )
     adqualityaudit.resolve_quality_audit_tables(config)
     adqualityaudit.validate_audit_tables_date(spark)
     adqualityaudit.run_all_validation_checks(spark)
@@ -109,6 +120,10 @@ def parse_args():
         "ROUTE": jobparser.get_arg("--route"),
         "RUN_DATE": jobparser.get_arg("--run_date"),
         "LOG_LEVEL": jobparser.get_arg("--log_level"),
+        "ITEM_NUM_THRESHOLD": jobparser.get_arg("--item-num-threshold"),
+        "ITEM_COVERAGE": jobparser.get_arg("--item-coverage"),
+        "THEME_COVERAGE": jobparser.get_arg("--theme-coverage"),
+        "IMAGE_ITEM_COVERAGE": jobparser.get_arg("--image-item-coverage"),
     }
 
 

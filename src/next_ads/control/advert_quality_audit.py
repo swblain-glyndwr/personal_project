@@ -14,10 +14,10 @@ class AdvertQualityAudit:
         self,
         rundate: str,
         route: str,
-        ad_item_num_threshold: int = 10,
-        item_perc_coverage_threshold: float = 0.75,
-        theme_coverage_threshold: float = 0.5,
-        ad_image_items_match_threshold: float = 0.7,
+        ad_item_num_threshold: int,
+        item_perc_coverage_threshold: float,
+        theme_coverage_threshold: float,
+        ad_image_items_match_threshold: float,
     ):
         self.rundate: str = rundate
         self.route: str = route
