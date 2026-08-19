@@ -98,7 +98,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: load_control_sheet_v1
         spark_python_task:
-          python_file: ../../../jobs/nextads_control/quality_audit_ads.py
+          python_file: ../../../jobs/nextads_control/quality_audit_adverts.py
           parameters:
             - --route
             - "v1"
@@ -179,7 +179,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         depends_on:
           - task_key: process_control_sheet_v2
         spark_python_task:
-          python_file: ../../../jobs/nextads_control/quality_audit_ads.py
+          python_file: ../../../jobs/nextads_control/quality_audit_adverts.py
           parameters:
             - --route
             - "v2"
