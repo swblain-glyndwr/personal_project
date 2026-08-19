@@ -105,11 +105,13 @@ class AdvertQualityAudit:
     def advert_item_identification(self, spark: SparkSession):
         """Determine the number of items behind each provided advert"""
         logger.info("Auditing the number of items returned for adverts")
-        control_sheet = spark.table(self.control_sheet_tbl).select(
-            "UniqueAdId", "Themes"
+        control_sheet = (
+            spark.table(self.control_sheet_tbl)
+            .select("UniqueAdId", "Themes")
+            .distinct()
         )
-        sort_order = spark.table(self.ad_item_tbl)
 
+        sort_order = spark.table(self.ad_item_tbl)
         self.ad_number_items = (
             sort_order.join(control_sheet.alias("c"), on="UniqueAdID")
             .withColumn("Ad_assigned_theme", F.lower(F.col("c.Themes")))
@@ -266,8 +268,6 @@ class AdvertQualityAudit:
                 f"highest_{alias}_perc",
                 F.round(F.col(f"highest_{alias}_perc") / divider, 2),
             )
-
-        
 
         self.best_themes_from_items = assigned_ads.drop("Total_items")
 
