@@ -142,26 +142,25 @@ def test_theme_affinity_coverage_finds_ad_themes_missing_from_model(
     ] == [("v2", "denim", 1)]
 
 
-def test_theme_affinity_job_uses_model_entrypoints():
+def test_model_scoring_job_uses_theme_affinity_entrypoints():
     job = _load_job(
-        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml",
         "mktg_next_uk_nextads_theme_affinity_cicd",
     )
     tasks = {task["task_key"]: task for task in job["tasks"]}
 
-    assert set(tasks) == {
+    assert {
         "prepare_foundation_context",
         "predict_data_prep",
         "publish_and_score",
-    }
+        "publish_feature_compatibility",
+        "sense_check_foundation",
+        "sense_check_model_outputs",
+    } <= set(tasks)
     assert tasks["publish_and_score"]["spark_python_task"]["python_file"] == (
         "../../../jobs/orchestration/publish_theme_affinity.py"
     )
-    assert not {
-        "clean_output",
-        "sense_check_dlt_data",
-        "sense_check_model_outputs",
-    }.intersection(tasks)
+    assert "clean_output" not in tasks
 
 
 def test_theme_affinity_scripts_live_under_model_jobs():

@@ -1,6 +1,6 @@
 # NextAds Job And Table Data Flow
 
-This is the inclusive entry point for every NextAds job declared under `pipelines/databricks/jobs`: 42 jobs across 38 YAML definition files in this checkout. It covers the operational assignment and delivery route, reporting, realtime data, Feature Store, model development and research, model lifecycle, validation and table operations. Each row shows what a job consumes and what tables, external outputs, validation evidence or model artifacts it produces.
+This is the inclusive entry point for every NextAds job declared under `pipelines/databricks/jobs`: 39 jobs across 35 YAML definition files in this checkout. It covers the operational assignment and delivery route, reporting, realtime data, Feature Store, model development and research, model lifecycle, validation and table operations. Each row shows what a job consumes and what tables, external outputs, validation evidence or model artifacts it produces.
 
 The page stays at a human-readable route level. Linked documents own detailed keys, schemas, schedules, runtime evidence and operating instructions. Physical catalogs and schemas vary by bundle target; table names below are logical names. An in-flight job being declared on a feature branch does not prove that it is deployed, scheduled or proven in a shared environment.
 
@@ -9,8 +9,8 @@ The page stays at a human-readable route level. Linked documents own detailed ke
 ```mermaid
 flowchart LR
   operational["Operational sources<br/>accounts, web/app activity, adverts, results"]
-  theme_inputs["Theme Inputs job<br/>accepted scoring-input snapshot"]
-  providers["Theme Affinity and Markov jobs<br/>accepted score-provider builds"]
+  scoring_inputs["Main NextAds job<br/>PREPARE_SCORING_INPUTS operation"]
+  providers["Generic model-scoring and Markov jobs<br/>accepted score-provider builds"]
   foundation["Candidate Foundation job<br/>cells, exposure and feedback"]
   control["v1/v2 control sheets"]
   data_pull["CMS and sort-order data pull"]
@@ -24,7 +24,7 @@ flowchart LR
   payload["Bloomreach payload export"]
   compatibility["Candidate compatibility<br/>and assignment validation"]
 
-  operational --> theme_inputs --> providers
+  operational --> scoring_inputs --> providers
   operational --> foundation
   control --> candidates
   data_pull --> candidates
@@ -42,12 +42,11 @@ flowchart LR
 
 | Job | Consumes | Produces |
 | --- | --- | --- |
-| [`mktg_next_uk_nextads_theme_inputs`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_inputs.yml) | Authoritative theme mapping, item attributes and product/control inputs | `next_uk_nextads_theme_mapping`, `next_uk_nextads_theme_mapping_latest`, `next_uk_nextads_attribute_set`, `next_uk_nextads_attribute_set_latest`, `next_uk_nextads_item_attributes_latest`, `next_uk_nextads_item_themes`, `next_uk_nextads_item_themes_latest`, `next_uk_nextads_scoring_input_theme_mapping_raw`, `next_uk_nextads_scoring_input_item_themes`, `next_uk_nextads_scoring_input_snapshots` and `next_uk_nextads_scoring_input_snapshot_sources` |
-| [`mktg_next_uk_nextads_theme_affinity`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml) | One accepted scoring-input snapshot plus Theme Affinity preparation sources | Ranked account-theme foundation, `next_uk_nextads_scoring_foundation_builds`, `next_uk_nextads_scoring_foundation_outputs`, `next_uk_nextads_scoring_foundation_run_contexts`, `next_uk_nextads_score_provider_signals`, `next_uk_nextads_score_provider_builds` and `next_uk_nextads_score_provider_run_contexts` |
+| [`mktg_next_uk_nextads_model_scoring`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml) | A declared `model_name`; the current `theme_affinity` implementation calls the main NextAds job with `operation=PREPARE_SCORING_INPUTS` for the same `run_date`, then consumes the accepted snapshot and Theme Affinity preparation sources | Ranked account-theme foundation, `next_uk_nextads_scoring_foundation_builds`, `next_uk_nextads_scoring_foundation_outputs`, `next_uk_nextads_scoring_foundation_run_contexts`, `next_uk_nextads_score_provider_signals`, `next_uk_nextads_score_provider_builds`, `next_uk_nextads_score_provider_run_contexts`, legacy provider/feature compatibility outputs and both sense-check summaries |
 | [`mktg_next_uk_nextads_markov_scoring`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml) | One accepted scoring-input snapshot plus web/app activity, views and baskets | An optional shadow build in the same score-provider tables, plus Markov compatibility outputs such as theme transitions and next-theme scores |
 | [`mktg_next_uk_nextads_candidate_foundation`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml) | Account populations, existing cell assignments, web/app activity and advert-result history | `next_uk_nextads_customer_cells_fixed_latest`, fixed-cell history, transient/latest cells, `next_uk_nextads_customer_cells_latest`, `next_uk_nextads_candidate_repeat_ad_exposure`, `next_uk_nextads_candidate_ad_feedback`, `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` |
 | [`mktg_next_uk_nextads_data_pull`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml) | Landed v2 advert IDs plus CMS and sort-order sources | `nextads_sort_order_v2_latest`, `nextads_sort_order_v2`, `next_uk_nextads_cms_content_latest` and `next_uk_nextads_cms_content` |
-| [`mktg_next_uk_nextads_candidate_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads.yml) | v1/v2 control sheets, one accepted Candidate Foundation, accepted scoring snapshots/provider builds, CMS and sort order | Versioned control/exclusion tables, scoring portfolios/entries, `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores`, `next_uk_nextads_candidate_ad_sets`, and the exclusions Cosmos container; it then runs both page-build jobs |
+| [`mktg_next_uk_nextads_candidate_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads.yml) | With `operation=PREPARE_SCORING_INPUTS`, authoritative theme mapping, item attributes and product/control inputs; with the default `operation=CANDIDATE_BUILD`, v1/v2 control sheets, one accepted Candidate Foundation, accepted scoring snapshots/provider builds, CMS and sort order | The preparation operation writes the accepted scoring-input snapshot and its exact source bindings; the candidate operation writes versioned control/exclusion tables, scoring portfolios/entries, `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores`, `next_uk_nextads_candidate_ad_sets` and the exclusions Cosmos container, then runs both page-build jobs |
 | [`mktg_next_uk_nextads_page_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml) | One accepted v1 candidate attempt, pinned customer cells, v1 control, NextGen assignments and advert results | `next_uk_nextads_assignments_build_staging`, `next_uk_nextads_assignments`, `next_uk_nextads_assignments_latest` and assignment-build events; then MASID and PLP child jobs |
 | [`mktg_next_uk_nextads_masid_handoff`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml) | `next_uk_nextads_assignments_latest` | Validation/alert result only; no table write |
 | [`mktg_next_uk_nextads_plp_gs_delivery`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml) | v1 raw/latest control, PLP placement and multipage-location tables | `next_uk_nextads_plp_gs_latest`, the territory-specific latest table and the configured delivery file |
@@ -57,10 +56,12 @@ flowchart LR
 
 ### Candidate Build Task Inputs And Outputs
 
-The candidate-build job orchestrates the v1 and v2 candidate routes. It does not calculate customer cells or train a model; it selects accepted upstream versions and keeps the v1 and v2 paths separate.
+The shared main NextAds job validates its `operation` before entering either branch. Its scheduled 18:00 default is `CANDIDATE_BUILD`, which orchestrates the v1 and v2 candidate routes without calculating customer cells or training a model. The generic model-scoring job calls the same job earlier with `PREPARE_SCORING_INPUTS`, which runs only the theme-mapping, item-attribute and accepted-snapshot tasks for the same logical date.
 
 | Stage and tasks | Consumes | Produces or triggers |
 | --- | --- | --- |
+| `validate_operation` and `prepare_scoring_inputs_operation` | Exact `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS` value | Selects one mutually exclusive task branch; invalid operations fail before route writes |
+| `land_authoritative_theme_mapping`, `refresh_item_attributes`, `build_authoritative_item_themes` and `accept_scoring_inputs` | Authoritative theme mapping, item attributes, product/control inputs, exact landing identity and `run_date` | Physical theme inputs plus `next_uk_nextads_scoring_input_theme_mapping_raw`, `next_uk_nextads_scoring_input_item_themes`, `next_uk_nextads_scoring_input_snapshots` and `next_uk_nextads_scoring_input_snapshot_sources`; these tasks run only for `PREPARE_SCORING_INPUTS` |
 | `select_candidate_foundation` | `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` | Pinned customer-cell, exposure and feedback table versions in task values; no table write |
 | `load_control_sheet_v1` and `audit_control_sheet_v1` | v1 Google control, PLP placement and multipage inputs | v1 raw/history/latest control tables, PLP raw/history/latest tables, `next_uk_nextads_control_sheet`, `next_uk_nextads_control_sheet_latest`, `next_uk_nextads_multipage_locations` and `next_uk_nextads_multipage_locations_latest`; audit is read-only |
 | `load_control_sheet_v2`, `trigger_data_pull_for_CMS_pull`, `process_control_sheet_v2` and `audit_control_sheet_v2` | v2 Google control/exclusions, refreshed CMS content, sort order and product catalog | v2 raw/history/latest control tables, `next_uk_nextads_exclusions`, `next_uk_nextads_exclusions_latest`, `next_uk_nextads_control_sheet_v2` and `next_uk_nextads_control_sheet_latest_v2`; audit is read-only |
@@ -91,8 +92,11 @@ These jobs support the assignment route. They either measure what was delivered,
 flowchart LR
   operational["Existing operational data<br/>customer, advert, control, web and assignment tables"]
   theme["Existing Theme Affinity outputs"]
-  analytics_source["Analytics pCTR source job"]
-  feature_store["Centrally owned Feature Store job"]
+  subgraph feature_store_job["Centrally owned Feature Store job"]
+    analytics_source["Internal Analytics pCTR source tasks<br/>and exact receipt"]
+    feature_store["Registered feature builders<br/>snapshot publication and quality"]
+    analytics_source --> feature_store
+  end
   features["READY Feature Store snapshots"]
   declaration["Model declaration<br/>nextads_models.yaml"]
   model_dev["Generic model-development job<br/>BUILD / RESEARCH / REVIEW_SELECT / EVALUATE"]
@@ -107,7 +111,6 @@ flowchart LR
   operational --> analytics_source
   operational --> feature_store
   theme --> feature_store
-  analytics_source --> feature_store
   feature_store --> features
   declaration --> model_dev
   features --> model_dev
@@ -127,20 +130,18 @@ The hard boundary is intentional: these in-flight jobs can build features, run d
 | Route | Job | Consumes | Produces |
 | --- | --- | --- | --- |
 | Legacy Analytics pCTR | [`mktg_next_uk_nextads_analytics_pctr`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml) | Operational web/session, purchase, assignment, control and item-theme data plus two registered pCTR models | The legacy `next_uk_nextAds_analytics_pctr_features`, predictions and latest-predictions tables; the job is currently paused |
-| Feature source | [`mktg_next_uk_nextads_analytics_pctr_feature_source`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_feature_source.yml) | Web/session activity, account-linked browsing, purchases, current adverts and Theme Affinity sources | `next_uk_nextads_analytics_pctr_features` plus `next_uk_nextads_analytics_pctr_feature_source_receipts` |
-| Full feature refresh | [`mktg_next_uk_nextads_feature_store`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml) | Operational warehouse sources, Theme Affinity outputs and the receipted Analytics pCTR feature source | The registered Feature Store tables, compatibility views, build/snapshot metadata and quality events described below |
+| Full feature refresh | [`mktg_next_uk_nextads_feature_store`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml) | Operational warehouse sources and Theme Affinity outputs; its internal Analytics pCTR source tasks build and receipt the exact same-run source version before preflight | `next_uk_nextads_analytics_pctr_features`, `next_uk_nextads_analytics_pctr_feature_source_receipts`, the registered Feature Store tables, compatibility views, build/snapshot metadata and quality events described below |
 | Generic model lifecycle | [`mktg_next_uk_nextads_model_development`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml) | An `operation`, a `model_name` declared in [`nextads_models.yaml`](../../configs/models/nextads_models.yaml), READY Feature Store snapshots and only the identifiers required by that operation | `BUILD` creates a training receipt, model build, registered model version and evaluation candidates; `RESEARCH` creates the immutable research frame, candidate evidence and recommendation; `REVIEW_SELECT` records the reviewed decision, evaluates the selected candidate on the held-out test split and registers it; `EVALUATE` writes isolated scoring evidence |
 | Optional generic model discovery | [`mktg_next_uk_nextads_model_discovery`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml) | A declared `model_name`, one exact research build and its immutable research-frame version | Bounded AutoML experiment, trials, leaderboard/recipe associations and a discovery receipt; no model registration or activation |
 | Embedding runtime proof | [`mktg_next_uk_nextads_product_embedding_runtime_smoke`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_product_embedding_runtime_smoke.yml) | Synthetic advert-item frames, the approved embedding contract/runtime and one exact registered embedding model | Two read-only smoke manifests; no table or model-alias write |
 | Exact model movement | [`mktg_next_uk_nextads_model_import_dev_integration`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml) and [`mktg_next_uk_nextads_model_import_preprod`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_preprod.yml) | One exact source model version or alias | A digest-checked copy of that registered model in the next environment; no data tables |
 
-## Theme Affinity Model And Compatibility Job Inputs And Outputs
+## Theme Affinity Model And Monitoring Job Inputs And Outputs
 
-The operational Theme Affinity scoring job appears in the assignment route above. These additional jobs train, compare, move or monitor its models, or publish legacy table shapes for consumers that have not moved to the canonical provider contract. They are retained because they own established operational, compatibility or environment-movement responsibilities; they are not the template for a new data-science model, which uses the generic declared lifecycle.
+The generic model-scoring job in the assignment route owns operational Theme Affinity scoring and both compatibility-publication branches when `model_name=theme_affinity`. The additional jobs below train, compare, move or monitor its models. They are retained because they own established environment-movement or monitoring responsibilities; they are not the template for a new data-science model, which uses the generic declared lifecycle and generic scoring route.
 
 | Job | Consumes | Produces |
 | --- | --- | --- |
-| [`mktg_next_uk_nextads_theme_feature_compatibility`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_feature_compatibility.yml) | One exact READY Theme Affinity provider build and the matching Lakeflow feature relations | Legacy full/latest model tables, the inference log, four physical feature tables and two independent sense-check summaries |
 | [`mktg_next_uk_nextads_theme_affinity_model_train`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml) | A configured labelled training table | GPU XGBoost MLflow run and registered Theme Affinity model version; no data table |
 | [`mktg_next_uk_nextads_theme_affinity_model_train_spark`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml) | A configured labelled training table | Spark XGBoost MLflow run and registered Theme Affinity model version; no data table |
 | [`mktg_next_uk_nextads_theme_affinity_model_import_dev`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml) | One reviewed DEV Integration model version or alias | The matching registered model version in the PREPROD namespace; no data table |
@@ -199,7 +200,7 @@ These are control, evidence and evaluation tables rather than reusable model fea
 
 | Data contract | Written by | Read by / purpose |
 | --- | --- | --- |
-| `next_uk_nextads_analytics_pctr_feature_source_receipts` | Analytics pCTR feature-source job | Pins the source table, Delta version, date, schema and producing run for Feature Store publication |
+| `next_uk_nextads_analytics_pctr_feature_source_receipts` | Internal `receipt_analytics_pctr_feature_source` task in the Feature Store job | Pins the source table, Delta version, date, schema and producing Feature Store run before publication |
 | `next_uk_nextads_feature_builds`, `next_uk_nextads_feature_build_sources`, `next_uk_nextads_feature_build_outputs` | Feature builders | Records each build attempt and its exact input/output Delta versions |
 | `next_uk_nextads_feature_snapshots`, `next_uk_nextads_feature_snapshot_bindings` | Successful feature publication | Lets model jobs resolve only complete READY groups instead of moving latest tables |
 | `next_uk_nextads_training_set_receipts` | Generic model lifecycle | Reproduces the exact feature bindings, observation dates and label boundary used for training |

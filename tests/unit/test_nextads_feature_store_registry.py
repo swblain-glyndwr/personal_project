@@ -913,7 +913,8 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         "mktg_next_uk_nextads_feature_store"
     ]
     assert "schedule" not in job
-    assert job["timeout_seconds"] == 43200
+    assert job["timeout_seconds"] == 82800
+    assert job["max_concurrent_runs"] == 1
     personal_job = job_config["targets"]["DEV"]["resources"]["jobs"][
         "mktg_next_uk_nextads_feature_store"
     ]
@@ -930,6 +931,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         "timezone_id": "Europe/London",
         "pause_status": "UNPAUSED",
     }
+    assert scheduled_job["max_concurrent_runs"] == 1
     assert job["job_clusters"] == "${var.job_clusters_config}"
     assert job["parameters"] == [
         {"name": "reference_date", "default": "${var.feature_store_reference_date}"},
@@ -1010,7 +1012,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     )
     assert preflight_task["depends_on"] == [
         {"task_key": "create_feature_store_tables"},
-        {"task_key": "refresh_analytics_pctr_feature_source"},
+        {"task_key": "receipt_analytics_pctr_feature_source"},
     ]
     for task_key in ("build_account_features", "build_advert_features"):
         task = next(task for task in job["tasks"] if task["task_key"] == task_key)
@@ -1039,7 +1041,11 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
     for task in job["tasks"]:
         if (
             "spark_python_task" not in task
-            or task["task_key"] == "create_feature_store_tables"
+            or task["task_key"]
+            in {
+                "create_feature_store_tables",
+                "receipt_analytics_pctr_feature_source",
+            }
         ):
             continue
         parameters = task["spark_python_task"]["parameters"]
@@ -1125,7 +1131,11 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         in task["spark_python_task"]["parameters"]
         for task in job["tasks"]
         if "spark_python_task" in task
-        if task["task_key"] != "resolve_feature_store_reference_date"
+        if task["task_key"]
+        not in {
+            "resolve_feature_store_reference_date",
+            "receipt_analytics_pctr_feature_source",
+        }
     )
     embedding_task = next(
         task
@@ -1207,9 +1217,19 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         for task in job["tasks"]
         if "spark_python_task" in task
         if task["task_key"] not in embedding_task_keys
-        if task["task_key"] != "resolve_feature_store_reference_date"
+        if task["task_key"]
+        not in {
+            "resolve_feature_store_reference_date",
+            "receipt_analytics_pctr_feature_source",
+        }
     )
     assert resolver_task["timeout_seconds"] == 1800
+    receipt_task = next(
+        task
+        for task in job["tasks"]
+        if task["task_key"] == "receipt_analytics_pctr_feature_source"
+    )
+    assert receipt_task["timeout_seconds"] == 1800
     assert all(
         task["job_cluster_key"] == "next_ads_job_cluster_D16ads_v5_2_2"
         for task in job["tasks"]
@@ -1230,21 +1250,28 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         if "spark_python_task" in task
     )
 
-    refresh_task = next(
-        task
-        for task in job["tasks"]
-        if task["task_key"] == "refresh_analytics_pctr_feature_source"
-    )
-    assert refresh_task["depends_on"] == [
-        {"task_key": "create_feature_store_tables"}
+    assert receipt_task["depends_on"] == [
+        {"task_key": "analytics_pctr_combine_features"}
     ]
-    assert refresh_task["run_job_task"]["job_id"] == (
-        "${resources.jobs."
-        "mktg_next_uk_nextads_analytics_pctr_feature_source.id}"
-    )
-    assert refresh_task["run_job_task"]["job_parameters"][
-        "reference_date"
+    receipt_parameters = receipt_task["spark_python_task"]["parameters"]
+    assert receipt_parameters[
+        receipt_parameters.index("--reference_date") + 1
     ] == resolved_reference_date
+    assert receipt_parameters[
+        receipt_parameters.index("--source_binding") + 1
+    ] == "{{job.parameters.analytics_pctr_source_binding}}"
+    assert receipt_parameters[
+        receipt_parameters.index("--source_catalog") + 1
+    ] == "${var.mktgdata_catalog}"
+    assert receipt_parameters[
+        receipt_parameters.index("--source_schema") + 1
+    ] == "{{job.parameters.analytics_pctr_source_schema}}"
+    assert receipt_parameters[
+        receipt_parameters.index("--producing_job_run_id") + 1
+    ] == "{{job.run_id}}"
+    assert receipt_parameters[
+        receipt_parameters.index("--receipt_correlation_id") + 1
+    ] == "{{job.run_id}}"
     affinity_task = next(
         task
         for task in job["tasks"]
@@ -1256,9 +1283,6 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
             "--analytics_pctr_receipt_correlation_id"
         )
         + 1
-    ] == "{{job.run_id}}"
-    assert refresh_task["run_job_task"]["job_parameters"][
-        "receipt_correlation_id"
     ] == "{{job.run_id}}"
     receipt_tasks = [
         task
@@ -1279,8 +1303,7 @@ def test_feature_store_job_has_shared_dev_schedule_and_no_prod_targets():
         )
 
 
-def test_analytics_pctr_feature_source_is_source_only_and_uses_dbr_15_4():
-    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+def test_analytics_pctr_feature_source_is_internal_and_uses_shared_dbr_15_4():
     source_path = (
         PROJECT_ROOT
         / "pipelines"
@@ -1288,62 +1311,177 @@ def test_analytics_pctr_feature_source_is_source_only_and_uses_dbr_15_4():
         / "jobs"
         / "mktg_next_uk_nextads_analytics_pctr_feature_source.yml"
     )
-    source_config = yaml.safe_load(source_path.read_text())
-
-    assert (
-        "pipelines/databricks/jobs/"
-        "mktg_next_uk_nextads_analytics_pctr_feature_source.yml"
-        in bundle_config["include"]
+    job_config = yaml.safe_load(
+        (
+            PROJECT_ROOT
+            / "pipelines"
+            / "databricks"
+            / "jobs"
+            / "mktg_next_uk_nextads_feature_store.yml"
+        ).read_text()
     )
-    assert set(source_config["targets"]) == {"DEV", "DEV_FEATURE_STORE"}
-    job = source_config["analytics_pctr_feature_source_config"][
-        "mktg_next_uk_nextads_analytics_pctr_feature_source"
+    job = job_config["nextads_feature_store_config"][
+        "mktg_next_uk_nextads_feature_store"
     ]
-    task_keys = [task["task_key"] for task in job["tasks"]]
-    assert task_keys == [
-        "resolve_reference_date",
-        "base_sessions",
-        "core_datasets",
-        "customer_advert_base",
-        "session_aggregation",
-        "ctr_metrics",
-        "page_views",
-        "purchases",
-        "customer_ad_exposure",
-        "view_advert_affinity",
-        "feature_build",
-        "validate_source_receipt",
+
+    assert not source_path.exists()
+    source_task_keys = [
+        task["task_key"]
+        for task in job["tasks"]
+        if task["task_key"].startswith("analytics_pctr_")
+        or task["task_key"] == "receipt_analytics_pctr_feature_source"
     ]
-    assert "predict" not in task_keys
+    assert source_task_keys == [
+        "analytics_pctr_base_sessions",
+        "analytics_pctr_core_datasets",
+        "analytics_pctr_customer_advert_base",
+        "analytics_pctr_session_aggregation",
+        "analytics_pctr_ctr_metrics",
+        "analytics_pctr_page_views",
+        "analytics_pctr_purchases",
+        "analytics_pctr_customer_ad_exposure",
+        "analytics_pctr_view_advert_affinity",
+        "analytics_pctr_combine_features",
+        "receipt_analytics_pctr_feature_source",
+    ]
+    source_tasks = [
+        task for task in job["tasks"] if task["task_key"] in source_task_keys
+    ]
+    assert all("run_job_task" not in task for task in job["tasks"])
+    assert not any("predict" in task_key for task_key in source_task_keys)
     assert all(
         task["job_cluster_key"] == "next_ads_job_cluster_D32ads_v5_1_4"
-        for task in job["tasks"]
+        for task in source_tasks
     )
-    assert job["tasks"][1]["notebook_task"]["base_parameters"][
-        "start_date"
-    ] == "{{tasks.resolve_reference_date.values.reference_date}}"
-    assert job["tasks"][-1]["depends_on"] == [
-        {"task_key": "feature_build"}
+    assert source_tasks[0]["depends_on"] == [
+        {"task_key": "create_feature_store_tables"}
     ]
-    receipt_parameters = job["tasks"][-1]["spark_python_task"]["parameters"]
+    assert source_tasks[1]["depends_on"] == [
+        {"task_key": "analytics_pctr_base_sessions"}
+    ]
+    assert source_tasks[2]["depends_on"] == [
+        {"task_key": "analytics_pctr_core_datasets"}
+    ]
+    assert source_tasks[0]["notebook_task"]["base_parameters"][
+        "start_date"
+    ] == "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+    parallel_task_keys = {
+        "analytics_pctr_session_aggregation",
+        "analytics_pctr_ctr_metrics",
+        "analytics_pctr_page_views",
+        "analytics_pctr_purchases",
+        "analytics_pctr_customer_ad_exposure",
+        "analytics_pctr_view_advert_affinity",
+    }
+    assert all(
+        task["depends_on"]
+        == [{"task_key": "analytics_pctr_customer_advert_base"}]
+        for task in source_tasks
+        if task["task_key"] in parallel_task_keys
+    )
+    combine_task = next(
+        task
+        for task in source_tasks
+        if task["task_key"] == "analytics_pctr_combine_features"
+    )
+    assert {dependency["task_key"] for dependency in combine_task["depends_on"]} == (
+        parallel_task_keys
+    )
+    receipt_task = source_tasks[-1]
+    assert receipt_task["depends_on"] == [
+        {"task_key": "analytics_pctr_combine_features"}
+    ]
+    receipt_parameters = receipt_task["spark_python_task"]["parameters"]
+    assert receipt_task["spark_python_task"] == {
+        "python_file": (
+            "../../../jobs/features/nextads/"
+            "validate_analytics_pctr_source.py"
+        ),
+        "parameters": [
+            "--reference_date",
+            "{{tasks.resolve_feature_store_reference_date.values.reference_date}}",
+            "--source_binding",
+            "{{job.parameters.analytics_pctr_source_binding}}",
+            "--source_catalog",
+            "${var.mktgdata_catalog}",
+            "--source_schema",
+            "{{job.parameters.analytics_pctr_source_schema}}",
+            "--producing_job_run_id",
+            "{{job.run_id}}",
+            "--receipt_correlation_id",
+            "{{job.run_id}}",
+            "--log_level",
+            "INFO",
+        ],
+    }
     assert receipt_parameters[
         receipt_parameters.index("--producing_job_run_id") + 1
     ] == "{{job.run_id}}"
     assert receipt_parameters[
         receipt_parameters.index("--receipt_correlation_id") + 1
-    ] == "{{job.parameters.receipt_correlation_id}}"
+    ] == "{{job.run_id}}"
 
-    notebook_tasks = [
-        task["notebook_task"]
-        for task in job["tasks"]
-        if "notebook_task" in task
+    notebook_source_tasks = [
+        task for task in source_tasks if "notebook_task" in task
     ]
-    assert notebook_tasks
-    assert all(
-        task["base_parameters"]["catalog_schema_prefix"]
-        == "{{job.parameters.output_catalog}}.{{job.parameters.output_schema}}"
-        for task in notebook_tasks
+    notebook_tasks = [task["notebook_task"] for task in notebook_source_tasks]
+    output_namespace = (
+        "${var.mktgdata_catalog}."
+        "{{job.parameters.analytics_pctr_source_schema}}"
     )
+    resolved_date = (
+        "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+    )
+    table_prefix = "next_uk_nextads_analytics_pctr"
+    notebook_names = (
+        "00_base_sessions",
+        "01_core_datasets",
+        "02_customer_advert_base-predictions",
+        "03_session_aggregation",
+        "04_ctr_metrics",
+        "05_page_views",
+        "06_purchases",
+        "07_customer_advert_exposure",
+        "08_view_advert_affinity",
+        "09_combining_data",
+    )
+    notebook_root = "${workspace.file_path}/experiments/analytics_pctr/SQL/"
+    assert [task["notebook_path"] for task in notebook_tasks] == [
+        notebook_root + name for name in notebook_names
+    ]
+    assert all(task["source"] == "WORKSPACE" for task in notebook_tasks)
+    parameters_by_key = {
+        task["task_key"]: task["notebook_task"]["base_parameters"]
+        for task in notebook_source_tasks
+    }
+    assert all(
+        parameters["catalog_schema_prefix"] == output_namespace
+        and parameters["table_prefix"] == table_prefix
+        for parameters in parameters_by_key.values()
+    )
+    dated_tasks = {
+        "analytics_pctr_base_sessions",
+        "analytics_pctr_core_datasets",
+        "analytics_pctr_customer_advert_base",
+    }
+    annual_lookback_tasks = dated_tasks | {"analytics_pctr_purchases"}
+    assert all(
+        parameters_by_key[task_key]["start_date"] == resolved_date
+        and parameters_by_key[task_key]["end_date"] == resolved_date
+        for task_key in dated_tasks
+    )
+    assert all(
+        parameters["lookback_period"] == "30"
+        for task_key, parameters in parameters_by_key.items()
+        if task_key != "analytics_pctr_combine_features"
+    )
+    assert all(
+        parameters_by_key[task_key]["year_lookback_period"] == "365"
+        for task_key in annual_lookback_tasks
+    )
+    assert parameters_by_key["analytics_pctr_combine_features"][
+        "output_table_name"
+    ] == "_features"
 
 
 def test_analytics_pctr_notebooks_cannot_default_to_ds_sandbox():

@@ -6,7 +6,6 @@ bundle:
   name: next-ads
 
 include:
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_inputs.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml
@@ -16,8 +15,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_inputs.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_feature_compatibility.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
@@ -38,7 +36,6 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml
   - pipelines/databricks/jobs/table_size_monitoring.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_feature_source.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml
   - pipelines/databricks/jobs/dev_setup.yml

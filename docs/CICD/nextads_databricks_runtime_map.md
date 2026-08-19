@@ -2,7 +2,7 @@
 
 Status: Working note
 
-Architecture view refreshed: 2026-08-18. Observed runtime evidence last refreshed from Databricks: 2026-07-03.
+Architecture view refreshed: 2026-08-19. Observed runtime evidence last refreshed from Databricks: 2026-07-03.
 
 This page describes the NextAds Databricks bundle shape from a data-science perspective: what runs, when it runs, which tasks it calls, which jobs wait for child jobs, and where reusable model-building routes sit alongside the operational delivery routes.
 
@@ -31,7 +31,7 @@ flowchart LR
 
   subgraph INPUTS["INPUTS AND FOUNDATIONS"]
     direction TB
-    theme_inputs["theme_inputs<br/>mapping + attributes"]:::input
+    theme_inputs["main NextAds job<br/>PREPARE_SCORING_INPUTS<br/>mapping + attributes"]:::input
     input_snapshot[("READY scoring input<br/>exact source Delta versions<br/>schema receipts + Git identity")]:::state
     candidate_foundation["candidate_foundation<br/>cells + exposure + feedback"]:::input
     foundation_snapshot[("READY candidate foundation<br/>exact source and output versions")]:::state
@@ -43,12 +43,17 @@ flowchart LR
 
   subgraph SCORING["SCORING PROVIDERS"]
     direction TB
-    ranked["Theme Affinity shared compute<br/>publish ranked foundation once<br/>predict from that exact version"]:::scoring
+    ranked["generic model_scoring<br/>theme_affinity implementation<br/>publish and predict from one exact version"]:::scoring
     markov["Markov single build-and-publish task<br/>shadow; independently runnable"]:::scoring
     challenger["Any themed or non-themed model<br/>calculate output, then use<br/>the same provider adapter"]:::scoring
     provider_boundary[("Canonical provider signals<br/>one distributed Delta write per build<br/>exact commit receipt; READY last")]:::state
+    provider_compat["legacy provider compatibility<br/>and model-output sense check"]:::operations
+    feature_compat["feature compatibility tables<br/>and foundation sense check"]:::operations
 
     ranked --> provider_boundary
+    provider_boundary --> provider_compat
+    provider_boundary --> feature_compat
+    ranked -. same-date source relations .-> feature_compat
     markov -. optional shadow .-> provider_boundary
     challenger -. configured provider .-> provider_boundary
   end
@@ -94,7 +99,6 @@ flowchart LR
   end
 
   subgraph OPERATIONS["ASYNCHRONOUS COMPATIBILITY, VALIDATION AND RETENTION"]
-    theme_compat["17:00 Theme Affinity compatibility<br/>legacy provider and feature tables<br/>plus independent sense checks"]:::operations
     candidate_compat["21:00 candidate compatibility<br/>and assignment validation<br/>read exact READY candidates"]:::operations
     maintenance["05:00 retention<br/>not a build dependency"]:::operations
   end
@@ -120,7 +124,6 @@ flowchart LR
   candidate_v2 -. no ready manifest .-> keep_v2
   publish_v1 --> v1_delivery
   publish_v2 --> v2_delivery
-  provider_boundary -. exact READY version .-> theme_compat
   candidate_attempt_v1 -. exact READY version .-> candidate_compat
   candidate_attempt_v2 -. exact READY version .-> candidate_compat
   maintenance -. retention only .-> candidate_attempt_v1
@@ -147,10 +150,10 @@ flowchart TD
   results["07:15 results"]:::reporting
   realtime_results["07:30 realtime results"]:::reporting
   legacy_pctr["10:00 legacy Analytics pCTR<br/>DEV schedule paused"]:::reporting
-  theme_inputs["12:15 theme inputs"]:::sharedModel
-  theme_affinity["13:00 theme_affinity"]:::sharedModel
+  model_scoring["12:15 model_scoring<br/>model_name=theme_affinity"]:::sharedModel
+  theme_inputs["main NextAds child job<br/>PREPARE_SCORING_INPUTS"]:::sharedTask
+  theme_affinity["Theme Affinity scoring<br/>provider + compatibility"]:::sharedModel
   markov["13:00 markov_scoring<br/>optional shadow"]:::sharedModel
-  theme_compat["17:00 Theme Affinity compatibility<br/>and sense checks"]:::reporting
   candidate_foundation["16:00 candidate_foundation"]:::sharedTask
   candidate["18:00 candidate_build"]:::sharedTask
   candidate_compat["21:00 candidate compatibility"]:::reporting
@@ -162,14 +165,12 @@ flowchart TD
   masid["masid_handoff"]:::v1
   payload["payload_export"]:::v2
   plp["plp_gs_delivery"]:::v1
-  feature_store["21:00 feature_store<br/>DEV_FEATURE_STORE only"]:::sharedModel
-  analytics_source["Analytics pCTR feature source<br/>synchronous child job"]:::sharedModel
+  feature_store["21:00 feature_store<br/>internal Analytics pCTR source build + receipt<br/>DEV_FEATURE_STORE only"]:::sharedModel
   realtime_data["23:00 realtime data"]:::reporting
 
-  theme_inputs --> theme_affinity
+  model_scoring --> theme_inputs --> theme_affinity
   theme_inputs --> markov
   results -. advert-result feedback .-> candidate_foundation
-  theme_affinity -. exact READY provider .-> theme_compat
   theme_affinity -. same-day or accepted fallback provider .-> candidate
   candidate_foundation --> candidate
   markov -. optional evaluation .-> candidate
@@ -180,8 +181,7 @@ flowchart TD
   page_build --> masid
   page_build --> plp
   page_build_v2 --> payload
-  theme_compat -. compatible feature tables .-> feature_store
-  feature_store --> analytics_source
+  theme_affinity -. compatible feature tables .-> feature_store
 ```
 
 The diagram includes every schedule declared by the current job YAML. It does not imply that target-specific schedules coexist in one workspace: the legacy Analytics pCTR schedule is paused, table monitoring is DEV-only, and the shared Feature Store schedule exists only in `DEV_FEATURE_STORE`.
@@ -194,12 +194,10 @@ The diagram includes every schedule declared by the current job YAML. It does no
 | 07:15 | `mktg_next_uk_nextads_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 07:30 | `mktg_next_uk_nextads_realtime_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 10:00 | `mktg_next_uk_nextads_analytics_pctr` | `DEV` | Paused |
-| 12:15 | `mktg_next_uk_nextads_theme_inputs` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
-| 13:00 | `mktg_next_uk_nextads_theme_affinity` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 12:15 | `mktg_next_uk_nextads_model_scoring` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared; currently `model_name=theme_affinity`, with a synchronous same-date call to the main NextAds `PREPARE_SCORING_INPUTS` operation before scoring and compatibility publication |
 | 13:00 | `mktg_next_uk_nextads_markov_scoring` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 16:00 | `mktg_next_uk_nextads_candidate_foundation` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
-| 17:00 | `mktg_next_uk_nextads_theme_feature_compatibility` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
-| 18:00 | `mktg_next_uk_nextads_candidate_build` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
+| 18:00 | `mktg_next_uk_nextads_candidate_build` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared with default `operation=CANDIDATE_BUILD`; its `PREPARE_SCORING_INPUTS` operation is invoked earlier as a child run rather than separately scheduled |
 | 18:00 | `mktg_next_uk_nextads_realtime_inputs` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 18:00 | `mktg_next_uk_nextads_table_monitoring` | `DEV` | Declared |
 | 21:00 | `mktg_next_uk_nextads_candidate_compatibility` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
@@ -221,12 +219,12 @@ These measurements were captured on 2026-07-03 against the earlier job graph. Th
 | Results | PROD | `326879697801368` | 07:15 daily | `1016879679282989` | 2h 1m 6s; 2h 12m 17s; 2h 1m 37s |
 | Realtime inputs | PROD | `510370009427574` | 18:00 daily | `384313899991554` | 20m 23s; 18m 26s; 19m 15s |
 | Realtime results | PROD | `36753739041122` | 07:30 daily | `276035162295688` | 9m 21s; 11m 23s; 9m 2s |
-| Theme Affinity | PROD | `27892907532455` | 09:00 at the observation date; current bundle 13:00 | `11890698402594` | 3h 14m 33s; 3h 41m 37s; 4h 2m 16s |
+| Historical Theme Affinity job | PROD | `27892907532455` | 09:00 at the observation date; replaced in the current bundle by 12:15 generic model scoring | `11890698402594` | 3h 14m 33s; 3h 41m 37s; 4h 2m 16s |
 | Feature store | DEV | `643939878851484` | 21:00 daily in `DEV_FEATURE_STORE` | None found in recent successful runs | No recent successful durations found |
 
 ## Candidate Build Task Graph
 
-This is the evening candidate route. It selects one accepted candidate foundation shared by v1 and v2, while each route independently captures its control input, resolves a declared scoring portfolio and publishes an accepted candidate attempt from its serving entries. Theme Inputs, Candidate Foundation, Theme Affinity and Markov scoring are upstream jobs rather than candidate-task implementations.
+This is the main NextAds job's scheduled `CANDIDATE_BUILD` operation. It selects one accepted candidate foundation shared by v1 and v2, while each route independently captures its control input, resolves a declared scoring portfolio and publishes an accepted candidate attempt from its serving entries. The same job's `PREPARE_SCORING_INPUTS` operation is an earlier child run of generic model scoring; Candidate Foundation, generic model scoring and Markov scoring remain upstream of the evening candidate branch.
 
 Each route audit and coverage task reports business findings without hiding technical failures. Missing themes are surfaced for follow-up and naturally cannot produce theme-matched candidates; an unreadable control or pinned provider snapshot stops only the affected route before mapping.
 
@@ -350,15 +348,17 @@ The following timings are the pre-bulk baseline from successful run `72449736621
 
 The delivery jobs remain single-purpose and independently runnable, but the nightly page route waits for `masid_handoff_check`, `Export_for_Bloomreach`, and `nextads_plp_gs`. Compatibility and quality alerts no longer delay or revoke a canonical READY build.
 
-## Theme Affinity Route
+## Generic Scheduled Model-Scoring Route
 
-Theme Affinity is its own scheduled production model route. It is not part of the feature-store refresh and it is not triggered by candidate build. Its outputs can become inputs to later operational or model-building work, but the current job remains a standalone scheduled route.
+`mktg_next_uk_nextads_model_scoring` is the scheduled operational scoring route and is parameterised by `model_name`. The current implementation is `theme_affinity`. It starts at 12:15, validates the declared provider, synchronously calls the main NextAds job with `operation=PREPARE_SCORING_INPUTS` for the same date, then scores and publishes both compatibility branches and their sense checks. It is separate from Feature Store source building and from the main job's 18:00 `CANDIDATE_BUILD` operation.
 
 ```mermaid
 flowchart TD
-  prepare_foundation_context --> predict_data_prep
+  validate_model_scoring_request --> prepare_scoring_inputs["main NextAds child<br/>PREPARE_SCORING_INPUTS"]
+  prepare_scoring_inputs --> prepare_foundation_context --> predict_data_prep
   predict_data_prep --> publish_and_score["publish_and_score<br/>ranked once; predict in memory<br/>provider signals once; READY last"]
-  publish_and_score -. exact_READY_version .-> provider_compatibility["17:00 compatibility + sense checks"]
+  publish_and_score --> provider_compatibility["provider compatibility<br/>then model-output sense check"]
+  publish_and_score --> feature_compatibility["feature compatibility<br/>then foundation sense check"]
 ```
 
 The following is the pre-rewrite timing from run `11890698402594`; it is a baseline, not the current task graph:
@@ -370,7 +370,7 @@ The following is the pre-rewrite timing from run `11890698402594`; it is a basel
 | Prior foundation copy | 2h 16m | 36m 12s | `predict_data_prep` |
 | Prior model prediction | 2h 53m | 9m 17s | Prior foundation copy |
 | `publish_and_score` | After Lakeflow | Capture three-run DEV median | `predict_data_prep` |
-| Async compatibility and sense checks | 17:00 | Independently monitored | Exact READY provider |
+| Compatibility publication and sense checks | After `publish_and_score` | Capture three-run DEV median | Exact READY provider and matching Lakeflow feature relations |
 
 ## Results Route
 
@@ -395,7 +395,7 @@ flowchart TD
 
 ## Feature Store Route
 
-The Feature Store job is deliberately separate from the operational PROD delivery routes. It is scheduled at 21:00 only in `DEV_FEATURE_STORE`, writes reusable model-building tables in `marketingdata_dev.nextads_feature_store`, and does not publish assignments, delivery payloads or production scores. Its complete task graph is maintained once in [`feature_store_flow.md`](../architecture/feature_store_flow.md); its job and table inputs and outputs are in [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md).
+The Feature Store job is deliberately separate from operational model scoring and PROD delivery. It is scheduled at 21:00 only in `DEV_FEATURE_STORE`, runs the retained Analytics pCTR source-building notebooks and exact receipt inside its own task graph, writes reusable model-building tables in `marketingdata_dev.nextads_feature_store`, and does not publish assignments, delivery payloads or production scores. Its complete task graph is maintained once in [`feature_store_flow.md`](../architecture/feature_store_flow.md); its job and table inputs and outputs are in [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md).
 
 ## Manual DEV Declared Model Route
 

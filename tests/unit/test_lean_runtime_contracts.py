@@ -139,7 +139,7 @@ def test_same_provider_is_expanded_without_duplicating_its_spark_graph():
 
 def test_scoring_job_graphs_keep_modularity_without_extra_clusters():
     theme = _job(
-        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml",
         "mktg_next_uk_nextads_theme_affinity_cicd",
     )
     markov = _job(
@@ -148,9 +148,16 @@ def test_scoring_job_graphs_keep_modularity_without_extra_clusters():
     )
 
     assert [task["task_key"] for task in theme["tasks"]] == [
+        "validate_model_scoring_request",
+        "prepare_scoring_inputs",
+        "use_theme_affinity_scoring",
         "prepare_foundation_context",
         "predict_data_prep",
         "publish_and_score",
+        "publish_provider_compatibility",
+        "publish_feature_compatibility",
+        "sense_check_foundation",
+        "sense_check_model_outputs",
     ]
     assert [task["task_key"] for task in markov["tasks"]] == [
         "build_and_publish_markov",
@@ -264,11 +271,10 @@ def test_page_routes_use_one_fixed_four_worker_photon_task():
     assert "max_workers: 4" in cluster
 
 
-def test_compatibility_runs_asynchronously_from_ready_versions():
+def test_provider_compatibility_follows_ready_model_scoring():
     provider = _job(
-        "pipelines/databricks/jobs/"
-        "mktg_next_uk_nextads_theme_feature_compatibility.yml",
-        "mktg_next_uk_nextads_theme_feature_compatibility_cicd",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml",
+        "mktg_next_uk_nextads_theme_affinity_cicd",
     )
     candidate = _job(
         "pipelines/databricks/jobs/"
@@ -276,11 +282,14 @@ def test_compatibility_runs_asynchronously_from_ready_versions():
         "mktg_next_uk_nextads_candidate_compatibility_cicd",
     )
 
-    assert provider["schedule"]["quartz_cron_expression"] == "0 0 17 * * ?"
+    assert provider["schedule"]["quartz_cron_expression"] == "0 15 12 * * ?"
     assert candidate["schedule"]["quartz_cron_expression"] == "0 0 21 * * ?"
+    provider_tasks = {task["task_key"]: task for task in provider["tasks"]}
+    assert provider_tasks["publish_provider_compatibility"]["depends_on"] == [
+        {"task_key": "publish_and_score"}
+    ]
     assert "publish_provider_compatibility.py" in _read(
-        "pipelines/databricks/jobs/"
-        "mktg_next_uk_nextads_theme_feature_compatibility.yml"
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml"
     )
     assert "publish_candidate_compatibility.py" in _read(
         "pipelines/databricks/jobs/"

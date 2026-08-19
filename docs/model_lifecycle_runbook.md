@@ -102,7 +102,7 @@ After the import job completes, record the PREPROD model version created under: 
 
 Use the normal PREPROD release validation route to prove that the imported model works in the workflow that will consume it. This is wider than just copying the model or loading it in isolation: run the model's PREPROD batch job, serving path, notebook workflow or equivalent operational route, then review that route's output and sense checks.
 
-For the Theme Affinity reference path, this means running the PREPROD `mktg_next_uk_nextads_theme_affinity` job with the `model_uri` job parameter set to the imported PREPROD model version or alias. The job parameter defaults from `theme_affinity_model_uri` and is passed to the Theme Affinity prediction task as `--model_uri`, so the validation run loads the reviewed imported model rather than the default/current model. Example URI:
+For the Theme Affinity reference path, this means running the PREPROD `mktg_next_uk_nextads_model_scoring` job with `model_name=theme_affinity` and the `model_uri` job parameter set to the imported PREPROD model version or alias. The job parameter defaults from `theme_affinity_model_uri` and is passed to the Theme Affinity scoring implementation as `--model_uri`, so the validation run loads the reviewed imported model rather than the default/current model. Example URI:
 
 ```text
 models:/marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker/<version>
@@ -114,7 +114,7 @@ or:
 models:/marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker@preprod_spark_xgboost
 ```
 
-Review the full Theme Affinity run evidence: DLT/data-prep status, prediction task status, clean-output task status, model sense checks and output-table movement. For future models, use the same principle with that model's own consuming workflow and equivalent operational checks. Keep the PREPROD run ids, model URI, output tables and review outcome in the release evidence.
+Review the full generic scoring run evidence: request validation, same-date `PREPARE_SCORING_INPUTS` child run, Lakeflow/data-prep status, canonical provider publication, both compatibility branches, both sense checks and output-table movement. For future supported models, use the same generic job with that model's declared implementation and equivalent operational checks. Keep the PREPROD run ids, model name, model URI, output tables and review outcome in the release evidence.
 
 ## 6. Promote PREPROD Version To PROD
 
@@ -136,7 +136,7 @@ After the promotion job completes, record the PROD model version created under: 
 
 ## 7. Production Selection And Monitoring
 
-Promotion registers the model and sets the `prod` alias. It does not by itself prove the production scoring output has changed. In the Theme Affinity reference path, confirm the deployed `theme_affinity_model_uri` used by `mktg_next_uk_nextads_theme_affinity` points to the intended production model URI before treating the challenger as live. Future models need the equivalent serving or scoring URI check.
+Promotion registers the model and sets the `prod` alias. It does not by itself prove the production scoring output has changed. In the Theme Affinity reference path, confirm the deployed `theme_affinity_model_uri` used by `mktg_next_uk_nextads_model_scoring` with `model_name=theme_affinity` points to the intended production model URI before treating the challenger as live. Future models need the equivalent generic scoring declaration and deployed model-reference check.
 
 After production output exists for the model under review:
 

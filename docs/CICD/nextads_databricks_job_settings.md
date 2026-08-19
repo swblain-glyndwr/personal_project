@@ -18,16 +18,20 @@ This page explains the runtime settings declared in [`pipelines/databricks/jobs/
 
 ## Job-Specific Settings
 
-### `mktg_next_uk_nextads_theme_inputs`
+### `mktg_next_uk_nextads_model_scoring`
 
-Scheduled at 12:15 Europe/London. It lands the agreed theme mapping and refreshes item attributes in parallel, builds the authoritative item-theme table, then accepts one scoring-input snapshot after the physical inputs have succeeded. `run_date` defaults to `{{job.start_time.iso_date}}`; use an explicit `YYYY-MM-DD` only for a controlled historical run.
+Scheduled at 12:15 Europe/London and parameterised by `model_name`. The current supported value is `theme_affinity`. The job validates that name against the repository scoring declaration, calls the main NextAds job with `operation=PREPARE_SCORING_INPUTS` and the same `run_date`, then runs the resolved scoring implementation and both compatibility branches. A future implementation extends this generic route instead of adding another saved scoring job.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
-| `land_authoritative_theme_mapping` | `client`, `job_env`, `run_date`, Git/task identity | Lands the configured theme mapping and returns its exact landing ID and Delta version. |
-| `refresh_item_attributes` | `client`, `job_env`, date-gated attribute refresh, `run_date` | Refreshes item attributes independently of theme-mapping landing. |
-| `build_authoritative_item_themes` | `client`, `job_env`, date-gated theme refresh, mapping config and exact landing values | Runs only after both input branches and builds the item-theme source used by providers. |
-| `accept_scoring_inputs` | `client`, `job_env`, `run_date`, exact landing values and Git/task identity | Writes the accepted scoring-input snapshot after its source bindings are available. |
+| `validate_model_scoring_request` | `model_name` | Requires an exact declared provider and supported implementation before any operational write; currently resolves only `theme_affinity`. |
+| `prepare_scoring_inputs` | Native child job with `operation=PREPARE_SCORING_INPUTS` and the same `run_date` | Calls `mktg_next_uk_nextads_candidate_build`, waits for its input-preparation branch and does not enter candidate generation. |
+| `use_theme_affinity_scoring` | Implementation returned by request validation | Selects the current Theme Affinity implementation; an unsupported implementation fails validation rather than silently using this branch. |
+| `prepare_foundation_context` | `run_date`, `input_snapshot_id`, publication namespaces/prefixes and run identity | Pins the accepted scoring-input snapshot and opens the exact foundation context. |
+| `predict_data_prep` | Theme Affinity Lakeflow pipeline | Builds the complete, ranked and feature relations for the pinned context. |
+| `publish_and_score` | `model_uri`, exact context/pipeline/run identity and publication namespaces/prefixes | Publishes the ranked foundation once, scores from that exact version, writes canonical provider signals and records `READY_FOR_NEXTADS` last. |
+| `publish_provider_compatibility` and `publish_feature_compatibility` | Exact `run_date`, provider id, source/target namespaces and feature suffixes | Publish legacy model-output and four feature table shapes in parallel after canonical scoring succeeds. |
+| `sense_check_model_outputs` and `sense_check_foundation` | Exact compatibility outputs and configured baselines | Independently validate both compatibility branches; a later failure cannot revoke the already accepted provider manifest. |
 
 ### `mktg_next_uk_nextads_candidate_foundation`
 
@@ -43,12 +47,18 @@ Scheduled at 16:00 Europe/London. It prepares the shared customer inputs before 
 
 ### `mktg_next_uk_nextads_candidate_build`
 
-Nightly NextAds candidate-generation graph. It selects the accepted Candidate Foundation produced by the separate 16:00 job, loads and audits the independent v1/v2 control sheets, resolves the configured provider selection for each route, maps the selected scores to adverts, and waits for the route-specific page-build jobs. Candidate rows are accepted through an internal manifest before the page job receives their exact attempt ID. Theme Inputs and Theme Affinity are separate upstream jobs. Markov is an independently runnable shadow provider and candidate publication does not wait for it.
+Scheduled at 18:00 Europe/London with `operation=CANDIDATE_BUILD` by default. That branch selects the accepted Candidate Foundation produced by the separate 16:00 job, loads and audits the independent v1/v2 control sheets, resolves the configured provider selection for each route, maps the selected scores to adverts, and waits for the route-specific page-build jobs. The same saved job also exposes `PREPARE_SCORING_INPUTS` for the generic model-scoring caller; that mutually exclusive branch prepares theme inputs and stops before candidate work. Model scoring remains upstream, and Markov remains an independently runnable shadow provider that candidate publication does not wait for.
 
-The candidate job parameter `run_date` defaults to `{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. The `v1_portfolio_policy_id` and `v2_portfolio_policy_id` parameters default to the declared route policies. The parameters cannot name an undeclared policy or override a higher-precedence matching policy. A v1 control or required-provider failure cannot block the v2 route, and the reverse is also true. Business coverage findings remain warning-only; technical inability to run an audit or read the pinned provider output fails only that route.
+The `operation` parameter accepts only `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS`; invalid values fail before route writes. `run_date` defaults to `{{job.start_time.iso_date}}` and is forwarded to both page-build jobs in the candidate branch. The `v1_portfolio_policy_id` and `v2_portfolio_policy_id` parameters default to the declared route policies. The parameters cannot name an undeclared policy or override a higher-precedence matching policy. A v1 control or required-provider failure cannot block the v2 route, and the reverse is also true. Business coverage findings remain warning-only; technical inability to run an audit or read the pinned provider output fails only that route.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
+| `validate_operation` | `operation` | Fails closed unless the value is exactly `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS`. |
+| `prepare_scoring_inputs_operation` | Validated operation | Routes the run to one mutually exclusive branch. |
+| `land_authoritative_theme_mapping` | `client`, `job_env`, `run_date`, Git/task identity | In `PREPARE_SCORING_INPUTS`, lands the configured theme mapping and returns its exact landing ID and Delta version. |
+| `refresh_item_attributes` | `client`, `job_env`, date-gated attribute refresh, `run_date` | In `PREPARE_SCORING_INPUTS`, refreshes item attributes independently of theme-mapping landing. |
+| `build_authoritative_item_themes` | `client`, `job_env`, date-gated theme refresh, mapping config and exact landing values | Runs after both preparation branches and builds the item-theme source used by providers. |
+| `accept_scoring_inputs` | `client`, `job_env`, `run_date`, exact landing values and Git/task identity | Writes the accepted scoring-input snapshot and ends the preparation operation. |
 | `select_candidate_foundation` | `client`, `job_env`, `run_date`, foundation snapshot selection and task attempt | Selects one accepted Candidate Foundation for the run and passes its exact table/version bindings to both routes. |
 | `load_control_sheet_v1` | `client`, `job_env`, `run_date` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
 | `audit_control_sheet_v1` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Reports business findings as warnings. A technical audit failure stops v1 before mapping. |
@@ -79,7 +89,7 @@ Independent 21:00 compatibility and validation job. Its v1 and v2 branches selec
 
 ### `mktg_next_uk_nextads_markov_scoring`
 
-Independent Markov score-provider graph. It starts at 13:00 Europe/London and waits for the same accepted daily scoring input for up to 90 minutes. That accepted input carries the item-theme mapping produced by the separate theme input job; Markov does not refresh the mapping itself. It has its own failure alert and a 26,100-second job deadline, so a delayed run cannot continue beyond 20:15. A Markov failure remains outside the candidate-build failure domain because Markov is registered as a shadow provider, not selected for serving.
+Independent Markov score-provider graph. It starts at 13:00 Europe/London and waits for the accepted daily scoring input for up to 90 minutes. That input carries the item-theme mapping produced through the main NextAds `PREPARE_SCORING_INPUTS` operation invoked by the 12:15 generic model-scoring job; Markov does not refresh the mapping itself. It has its own failure alert and a 26,100-second job deadline, so a delayed run cannot continue beyond 20:15. A Markov failure remains outside the candidate-build failure domain because Markov is registered as a shadow provider, not selected for serving.
 
 Before a non-training run starts, Markov resolves the existing transition matrix from the production read catalog, rejects an empty model, and records its exact Delta table and version in the provider context and build identity. DEV scoring therefore uses the same immutable transition model as the current route while every scoring event, provider signal, receipt and compatibility output continues to write only to the named DEV schema.
 
@@ -171,7 +181,7 @@ These are fixed-parameter wrappers around `table_operations.py`.
 
 ### `mktg_next_uk_nextads_feature_store`
 
-Shared DEV feature-store build.
+Shared DEV feature-store build. The retained Analytics pCTR source SQL, source validation and exact receipt now run as internal tasks before Feature Store preflight; there is no standalone source saved job.
 
 | Setting | Meaning | Options / format |
 | --- | --- | --- |
@@ -180,6 +190,8 @@ Shared DEV feature-store build.
 | `theme_source_catalog`, `theme_source_schema` | Theme source namespace. | Existing Unity Catalog catalog/schema. |
 | `theme_table_prefix` | Prefix for theme source tables. | Physical Delta prefix, for example `next_uk_nextads_account_theme_foundation`. |
 | `theme_training_reference_date` | Reference date for theme-affinity training input. | `current` or `YYYY-MM-DD`. |
+| `analytics_pctr_source_binding` | Repository declaration for the expected Analytics pCTR source table and schema. | Target-provided config path. |
+| `analytics_pctr_source_schema` | Schema where the internal Analytics pCTR notebook chain builds its source tables. | Target-provided schema; the source catalog is the bundle marketing-data catalog. |
 | `recreate_feature_tables` | Recreate feature-store tables before building. | `false` by default; use `true` only for intentional table rebuilds. |
 | Fixed task settings | `catalog`, `schema`, `manage_principal`, `all_privileges_principal`, `replace_reference_date`, `log_level` | Set by bundle variables/job definition; only change with feature-store ownership review. |
 
@@ -189,33 +201,9 @@ These are the centrally owned feature and model routes around the shared Feature
 
 | Job | Operator-selected settings | Notes / options |
 | --- | --- | --- |
-| `mktg_next_uk_nextads_analytics_pctr_feature_source` | `reference_date`, output/source catalog and schema, `source_binding`, Theme Affinity source namespace/prefix, `receipt_correlation_id` | Builds one receipted Analytics pCTR source version for later Feature Store use. |
 | `mktg_next_uk_nextads_model_development` | `operation`, declared `model_name`, then only that operation's fields | `BUILD` requires observation dates, feature dates and `label_end`; `RESEARCH` requires `label_end` and takes split dates from the declaration; `REVIEW_SELECT` requires the exact research build, candidate, reviewer and reason; `EVALUATE` requires the exact model build and run date and accepts bounded evaluation overrides. The job rejects irrelevant fields before starting the operation. |
 | `mktg_next_uk_nextads_model_discovery` | `enabled`, declared `model_name`, exact `research_build_id` and `timeout_minutes` | Centrally owned separate-runtime discovery. It is disabled by default; when enabled, the timeout must be 1-120 minutes (30 by default), discovery uses the exact receipted research frame and no model is registered or activated. |
 | `mktg_next_uk_nextads_product_embedding_runtime_smoke` | `log_level` | Read-only advert-item bridge and registered embedding runtime proof. |
-
-### `mktg_next_uk_nextads_theme_affinity`
-
-Operational Theme Affinity preparation and scoring graph. It contains three tasks: prepare the pinned foundation context, run the Lakeflow preparation, then publish the ranked foundation and provider signals on one Spark task. The accepted provider build is recorded READY last. This job is a shared upstream producer for candidate mapping and does not depend on either v1 or v2 control sheets; the route split happens later inside `mktg_next_uk_nextads_candidate_build`.
-
-| Setting | Meaning | Options / format |
-| --- | --- | --- |
-| `run_date` | Logical date for the foundation and provider build. | Defaults to `{{job.start_time.iso_date}}`; use `YYYY-MM-DD` for a controlled rerun. |
-| `input_snapshot_id` | Accepted Theme Inputs snapshot to use. | `same_day` by default, or an explicit accepted snapshot ID for a pinned rerun. |
-| `publish_source_namespace`, `publish_target_namespace` | Source Lakeflow and target canonical namespaces. | `catalog.schema`. |
-| `publish_source_table_prefix`, `publish_target_table_prefix` | Source staging and target canonical table prefixes. | Prefix string without suffix. |
-| `model_uri` | Model used for prediction. | Job parameter defaulting to `${var.theme_affinity_model_uri}`; override per validation run with the reviewed MLflow model URI or alias. |
-
-### `mktg_next_uk_nextads_theme_feature_compatibility`
-
-Independent 17:00 compatibility and monitoring graph. One branch reads the exact READY Theme Affinity provider build for the requested date and publishes the existing model-output table shapes before its model-output sense check. The other branch publishes the four Lakeflow feature table shapes before its foundation sense check. Failures alert independently and do not revoke or delay the accepted provider build.
-
-| Setting | Meaning | Options / format |
-| --- | --- | --- |
-| `run_date` | Exact provider and feature date to publish. | Defaults to `{{job.start_time.iso_date}}`; use the original build date for a controlled repair. |
-| `source_namespace`, `target_namespace` | Lakeflow source and compatibility target namespaces. | `catalog.schema`. |
-| `source_table_prefix`, `target_table_prefix` | Staging source and compatibility target prefixes. | Prefix string without suffix. |
-| `table_suffixes` | Lakeflow feature outputs copied by the feature branch. | Bundle variable containing the four required suffixes. |
 
 ### Theme Affinity Model Lifecycle Job Settings
 

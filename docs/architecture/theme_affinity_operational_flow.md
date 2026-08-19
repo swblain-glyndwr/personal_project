@@ -1,18 +1,25 @@
 # Theme Affinity Operational Flow
 
-Theme Affinity is one implementation of the shared NextAds account-theme scoring contract. It produces the same provider table shape that Markov or a future themed model can produce, and the candidate routes select an exact accepted provider build rather than reading whichever preparation table happens to be latest.
+Theme Affinity is the first implementation behind the generic `mktg_next_uk_nextads_model_scoring` job. The job is parameterised by `model_name`, validates the repository scoring declaration before any operational write, and currently accepts `theme_affinity`. It produces the same provider table shape that Markov or a future supported model can produce, and the candidate routes select an exact accepted provider build rather than reading whichever preparation table happens to be latest.
 
 ```mermaid
 flowchart TD
-  subgraph inputs["12:15 accepted scoring inputs"]
-    theme_mapping["theme mapping"]
-    item_themes["item themes and attributes"]
-    input_ready["READY scoring-input snapshot<br/>exact Delta versions"]
-    theme_mapping --> input_ready
-    item_themes --> input_ready
+  subgraph scoring_job["12:15 mktg_next_uk_nextads_model_scoring"]
+    validate["validate model_name<br/>resolve supported implementation"]
+    call_inputs["call main NextAds job<br/>operation=PREPARE_SCORING_INPUTS<br/>same run_date"]
+    validate --> call_inputs
   end
 
-  subgraph provider["13:00 Theme Affinity"]
+  subgraph inputs["Main NextAds scoring-input operation"]
+    theme_mapping["land authoritative theme mapping"]
+    attributes["refresh item attributes"]
+    item_themes["build authoritative item themes"]
+    input_ready["READY scoring-input snapshot<br/>exact Delta versions"]
+    theme_mapping --> item_themes
+    attributes --> item_themes --> input_ready
+  end
+
+  subgraph provider["Generic scoring job: theme_affinity implementation"]
     context["prepare_foundation_context<br/>bind the accepted input snapshot"]
     lakeflow["predict_data_prep<br/>Lakeflow complete, ranked, feature tables<br/>and one build marker"]
     ranked["publish ranked foundation once<br/>ordinary Delta table + exact receipt"]
@@ -22,7 +29,7 @@ flowchart TD
     context --> lakeflow --> ranked --> predict --> signals --> ready
   end
 
-  subgraph compatibility["17:00 independent compatibility"]
+  subgraph compatibility["Post-scoring compatibility branches in the same job"]
     legacy["publish exact-date legacy model tables"]
     feature_copy["publish four exact-date feature tables"]
     model_check["model-output sense check"]
@@ -37,19 +44,28 @@ flowchart TD
     monitoring["quality and results monitoring"]
   end
 
+  call_inputs --> theme_mapping
+  call_inputs --> attributes
   input_ready --> context
   ready --> candidate
-  ready -. exact requested date .-> legacy
-  lakeflow -. same requested date .-> feature_copy
+  ready --> legacy
+  ready --> feature_copy
+  lakeflow -. same-date source relations .-> feature_copy
   ranked --> feature_store
   legacy --> feature_store
   feature_copy --> feature_store
   ready --> monitoring
 ```
 
-## 13:00 Theme Affinity Outputs
+## Generic Model-Scoring Request And Input Preparation
 
-The job has three tasks: `prepare_foundation_context`, `predict_data_prep` and `publish_and_score`. The first task waits for and records the accepted scoring-input snapshot. Lakeflow then calculates its internal `complete`, `ranked`, `advanced_features`, `customer_features`, `customer_segments`, `popularity_metrics` and `build_marker` relations for that exact context.
+The scheduled job starts at 12:15 Europe/London with `model_name=theme_affinity`. `validate_model_scoring_request` resolves the declared provider and fails closed if the name or implementation is unsupported. A future supported model extends the declaration and shared implementation dispatch; it does not get another saved job.
+
+`prepare_scoring_inputs` calls `mktg_next_uk_nextads_candidate_build` with `operation=PREPARE_SCORING_INPUTS` and the same `run_date`. That branch of the main NextAds job lands the theme mapping, refreshes item attributes, builds authoritative item themes and accepts the exact scoring-input snapshot. It does not run the 18:00 candidate-building tasks. The main job's own scheduled run keeps `operation=CANDIDATE_BUILD` as its default.
+
+## Theme Affinity Scoring Outputs
+
+After the input child job succeeds, `prepare_foundation_context` records the accepted scoring-input snapshot. Lakeflow then calculates its internal `complete`, `ranked`, `advanced_features`, `customer_features`, `customer_segments`, `popularity_metrics` and `build_marker` relations for that exact context.
 
 `publish_and_score` validates the build marker, copies only `next_uk_nextads_account_theme_foundation_stage_ranked` into the ordinary Delta table `next_uk_nextads_account_theme_foundation_ranked`, and records the exact Delta transaction. The Lakeflow `complete` relation remains available inside the pipeline calculation, but there is no second physical `next_uk_nextads_account_theme_foundation_complete` publication on the provider critical path.
 
@@ -61,13 +77,13 @@ Configuration, typed manifest tables, the accepted input binding and the Lakeflo
 
 No full-table content checksum or post-write data rescan is part of this path. The evidence retained for each physical publication is its build and attempt identity, Git commit, schema checksum, row count from Delta operation metrics, exact Delta version and write receipt. Context cleanup after a ready provider is best effort and cannot revoke the accepted build.
 
-## 17:00 Compatibility Outputs
+## Compatibility Outputs In The Generic Scoring Job
 
-`mktg_next_uk_nextads_theme_feature_compatibility` is separate from Theme Affinity and has two parallel publication branches. `publish_provider_compatibility` selects the exact accepted Theme Affinity build for the requested historical date and derives `next_uk_nextads_theme_affinity_model_full`, `next_uk_nextads_theme_affinity_inference_log` and `next_uk_nextads_theme_affinity_model_latest` from that exact provider-signal version. `publish_feature_compatibility` copies the same date from the Lakeflow relations into the ordinary Delta tables ending `_advanced_features`, `_customer_features`, `_customer_segments` and `_popularity_metrics`.
+After `publish_and_score` records the canonical provider build, the generic scoring job runs two parallel publication branches. `publish_provider_compatibility` selects the exact accepted Theme Affinity build for the requested date and derives `next_uk_nextads_theme_affinity_model_full`, `next_uk_nextads_theme_affinity_inference_log` and `next_uk_nextads_theme_affinity_model_latest` from that exact provider-signal version. `publish_feature_compatibility` copies the same date from the Lakeflow relations into the ordinary Delta tables ending `_advanced_features`, `_customer_features`, `_customer_segments` and `_popularity_metrics`.
 
 Each branch has its own downstream sense check. The feature copies are created as explicit Delta tables from their Spark schemas rather than with `CREATE TABLE LIKE` against Lakeflow relations. Empty or missing rows for the requested date fail before the destination date is replaced.
 
-This job does not gate Theme Affinity readiness, candidate generation, page assignment or delivery. A compatibility failure can delay the model-building Feature Store or its comparison evidence, but it cannot revoke the accepted provider build or yesterday's live assignments.
+The compatibility branches run after canonical readiness, so a later compatibility or sense-check failure makes the scoring job visibly fail but cannot revoke the accepted provider build or yesterday's live assignments. Candidate selection still uses the exact provider manifest, while the model-building Feature Store requires the compatibility data it reads.
 
 ## Feature Store Consumption Boundary
 

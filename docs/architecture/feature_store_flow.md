@@ -1,6 +1,6 @@
 # Feature Store Job Flow
 
-This page shows the dependency order inside `mktg_next_uk_nextads_feature_store`. For the inclusive inputs-and-outputs guide covering all 42 NextAds jobs declared in this checkout, start with [`nextads_job_table_flow.md`](nextads_job_table_flow.md).
+This page shows the dependency order inside `mktg_next_uk_nextads_feature_store`. For the inclusive inputs-and-outputs guide covering all 39 NextAds jobs declared in this checkout, start with [`nextads_job_table_flow.md`](nextads_job_table_flow.md).
 
 The shared route runs in the `DEV_FEATURE_STORE` target and writes to `marketingdata_dev.nextads_feature_store`. It is a model-building layer, not part of live production delivery.
 
@@ -9,7 +9,6 @@ flowchart TD
   subgraph sources["Source data and artifacts"]
     operational["Operational warehouse sources<br/>customer, control, item, web, actions and assignments"]
     theme_source["Theme Affinity outputs"]
-    analytics_source["Analytics pCTR source tables"]
     embedding_model["Registered product-embedding model"]
     historical["Historical Theme Affinity preparation<br/>explicit training date only"]
   end
@@ -17,7 +16,11 @@ flowchart TD
   subgraph job["mktg_next_uk_nextads_feature_store"]
     resolve["resolve_feature_store_reference_date"]
     create["create_feature_store_tables"]
-    analytics["refresh_analytics_pctr_feature_source<br/>child job"]
+    analytics_base["analytics_pctr_base_sessions"]
+    analytics_core["analytics_pctr_core_datasets<br/>and customer-advert base"]
+    analytics_parallel["session, CTR, page-view, purchase,<br/>exposure and affinity branches"]
+    analytics_combine["analytics_pctr_combine_features"]
+    analytics_receipt["receipt_analytics_pctr_feature_source<br/>exact Delta version"]
     preflight["preflight_feature_store_sources"]
     account["build_account_features"]
     advert["build_advert_features"]
@@ -44,10 +47,11 @@ flowchart TD
 
   operational --> resolve
   resolve --> create
-  create --> analytics
-  analytics_source --> analytics
+  create --> analytics_base
+  operational --> analytics_base
+  analytics_base --> analytics_core --> analytics_parallel --> analytics_combine --> analytics_receipt
   create --> preflight
-  analytics --> preflight
+  analytics_receipt --> preflight
   operational --> preflight
   theme_source --> preflight
 
@@ -101,10 +105,13 @@ flowchart TD
   advert_semantic --> metadata
   seasonal --> metadata
   training --> metadata
+  analytics_receipt --> metadata
   quality --> events
 ```
 
-The job keeps reusable feature creation separate from final scoring and decisioning. It does not create production rankings, assignments or delivery payloads.
+The retained Analytics pCTR SQL now runs as source-building tasks inside this job. The receipt task pins the combined source before preflight and publication, so there is no separate Analytics pCTR source saved job or child-job dependency.
+
+The job keeps reusable source and feature creation separate from final model scoring and decisioning. It does not create production rankings, assignments or delivery payloads.
 
 ## Declared Model Consumption And Research Boundary
 
