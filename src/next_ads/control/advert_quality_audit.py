@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from pyspark.sql import DataFrame, Window, SparkSession
 from pyspark.sql import functions as F
@@ -92,12 +92,12 @@ class AdvertQualityAudit:
             if not table_rundate:
                 raise ValueError(f"No data in table {table}")
 
-            if rundate - table_rundate == 1:
+            if rundate - table_rundate == timedelta(days=1):
                 logger.warning(
                     f"Rundate mismatch in table:{table}, reference_date:{rundate}, table date: {table_rundate}"
                 )
 
-            elif rundate - table_rundate != 0:
+            elif rundate - table_rundate != timedelta(days=0):
                 raise ValueError(
                     f"Rundate mismatch in table:{table}, reference_date:{rundate}, table date: {table_rundate}"
                 )
