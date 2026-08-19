@@ -443,18 +443,77 @@ def test_effective_plan_resolves_both_reviewed_and_automatic_builds(
     )
 
 
-def test_entrypoint_bootstraps_before_project_or_runtime_imports():
+def test_entrypoint_bootstraps_without_project_or_custom_library_imports():
     source = inspect.getsource(discovery)
     bootstrap = source.index("sys.path.insert(0")
     project_import = source.index("from next_ads")
 
     assert bootstrap < project_import
     pre_bootstrap = source[:bootstrap]
-    assert "from dsutils" not in pre_bootstrap
+    assert "dsutils" not in pre_bootstrap
     assert "dynaconf" not in pre_bootstrap.lower()
     assert "databricks.automl" not in pre_bootstrap
     assert "register_model" not in source
     assert "set_registered_model_alias" not in source
+
+
+def test_entrypoint_resolves_bundle_root_for_python_and_databricks_exec():
+    expected_python_root = (
+        discovery.Path(discovery.__file__).resolve().parents[3]
+    )
+
+    assert discovery.resolve_project_root(discovery.__file__) == (
+        expected_python_root
+    )
+    databricks_root = discovery.resolve_project_root(
+        None,
+        (
+            "/Users/test/.bundle/next-ads/DEV/test/files/"
+            "jobs/model/research/run_automl_discovery.py"
+        ),
+    )
+
+    assert databricks_root.as_posix() == (
+        "/Workspace/Users/test/.bundle/next-ads/DEV/test/files"
+    )
+
+
+def test_entrypoint_uses_injected_databricks_handle_without_custom_libraries():
+    value = SimpleNamespace(
+        get=lambda: (
+            "/Users/test/.bundle/next-ads/DEV/test/files/"
+            "jobs/model/research/run_automl_discovery.py"
+        )
+    )
+    context = SimpleNamespace(notebookPath=lambda: value)
+    notebook = SimpleNamespace(getContext=lambda: context)
+    entry_point = SimpleNamespace(
+        getDbutils=lambda: SimpleNamespace(notebook=lambda: notebook)
+    )
+    dbutils_handle = SimpleNamespace(
+        notebook=SimpleNamespace(entry_point=entry_point)
+    )
+
+    root = discovery.resolve_project_root(
+        None,
+        dbutils_handle=dbutils_handle,
+    )
+
+    assert root.as_posix() == (
+        "/Workspace/Users/test/.bundle/next-ads/DEV/test/files"
+    )
+
+
+def test_entrypoint_requires_databricks_handle_when_file_is_unavailable(
+    monkeypatch,
+):
+    monkeypatch.delitem(discovery.__dict__, "dbutils", raising=False)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Databricks execution requires an injected dbutils handle",
+    ):
+        discovery.resolve_project_root(None)
 
 
 def test_frame_binding_uses_every_recorded_delta_receipt_field():

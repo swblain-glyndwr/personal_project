@@ -14,7 +14,34 @@ import sys
 from typing import Any
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+def resolve_project_root(
+    script_file: str | None,
+    notebook_path: str | None = None,
+    dbutils_handle: Any | None = None,
+) -> Path:
+    """Resolve the bundle root for Python and Databricks execution."""
+    if script_file:
+        return Path(script_file).resolve().parents[3]
+    if notebook_path is None:
+        if dbutils_handle is None:
+            dbutils_handle = globals().get("dbutils")
+        if dbutils_handle is None:
+            raise RuntimeError(
+                "Databricks execution requires an injected dbutils handle"
+            )
+        notebook_path = (
+            dbutils_handle.notebook.entry_point.getDbutils()
+            .notebook()
+            .getContext()
+            .notebookPath()
+            .get()
+        )
+    if not notebook_path.startswith("/Workspace"):
+        notebook_path = "/Workspace" + notebook_path
+    return Path(notebook_path).parents[3]
+
+
+PROJECT_ROOT = resolve_project_root(globals().get("__file__"))
 SRC_ROOT = PROJECT_ROOT / "src"
 if not (SRC_ROOT / "next_ads").is_dir():
     raise RuntimeError(f"Canonical NextAds package not found under {SRC_ROOT}")
