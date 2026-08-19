@@ -122,6 +122,9 @@ def _estimator(candidate: CandidateSpec, label_column: str) -> Any:
         "featuresCol": "features",
         "labelCol": label_column,
         "predictionCol": "prediction",
+    }
+    probabilistic_common = {
+        **common,
         "probabilityCol": "probability",
         "rawPredictionCol": "rawPrediction",
     }
@@ -129,7 +132,10 @@ def _estimator(candidate: CandidateSpec, label_column: str) -> Any:
         from pyspark.ml.classification import LogisticRegression
 
         defaults = {"maxIter": 50, "regParam": 0.01, "elasticNetParam": 0.0}
-        return LogisticRegression(**common, **{**defaults, **parameters})
+        return LogisticRegression(
+            **probabilistic_common,
+            **{**defaults, **parameters},
+        )
     if candidate.plugin == "spark_random_forest":
         from pyspark.ml.classification import RandomForestClassifier
 
@@ -139,7 +145,10 @@ def _estimator(candidate: CandidateSpec, label_column: str) -> Any:
             "minInstancesPerNode": 20,
             "seed": candidate.seed,
         }
-        return RandomForestClassifier(**common, **{**defaults, **parameters})
+        return RandomForestClassifier(
+            **probabilistic_common,
+            **{**defaults, **parameters},
+        )
     if candidate.plugin == "spark_gradient_boosted_trees":
         from pyspark.ml.classification import GBTClassifier
 
@@ -149,6 +158,8 @@ def _estimator(candidate: CandidateSpec, label_column: str) -> Any:
             "stepSize": 0.05,
             "seed": candidate.seed,
         }
+        # Spark GBT inherits the probability and rawPrediction output defaults,
+        # but its Python constructor does not accept either column argument.
         return GBTClassifier(**common, **{**defaults, **parameters})
     if candidate.plugin == "spark_xgboost":
         from xgboost.spark import SparkXGBClassifier

@@ -780,6 +780,24 @@ def _optional_evidence(
     return evidence
 
 
+def _candidate_optional_evidence(
+    optional_evidence: Mapping[str, Mapping[str, Any]],
+    training_evaluation: Mapping[str, Any],
+) -> dict[str, Mapping[str, Any]]:
+    """Add aggregate-only evidence not already held by standard artifacts."""
+    evidence = dict(optional_evidence)
+    evidence["training_evaluation"] = {
+        "status": COMPLETE,
+        "evidence": {
+            "profile": training_evaluation["profile"],
+            "metrics": training_evaluation["metrics"],
+        },
+    }
+    for identifier, result in evidence.items():
+        validate_optional_evidence_result(result, identifier=identifier)
+    return evidence
+
+
 def _model_artifact_manifest_digest(
     client: Any,
     *,
@@ -1968,29 +1986,9 @@ def _run_model_research_impl(
                             },
                             feature_names,
                         )
-                        optional.update(
-                            {
-                                "training_evaluation": {
-                                    "status": COMPLETE,
-                                    "evidence": {
-                                        "profile": training_evaluation[
-                                            "profile"
-                                        ],
-                                        "metrics": training_evaluation[
-                                            "metrics"
-                                        ],
-                                    },
-                                },
-                                "feature_name_mapping": {
-                                    "status": COMPLETE,
-                                    "evidence": {
-                                        "features": [
-                                            item.__dict__
-                                            for item in feature_mapping
-                                        ]
-                                    },
-                                },
-                            }
+                        optional = _candidate_optional_evidence(
+                            optional,
+                            training_evaluation,
                         )
                         candidate_root = (
                             root / "candidates" / candidate.candidate_id

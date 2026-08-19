@@ -370,6 +370,113 @@ def test_custom_candidate_mapping_uses_declared_feature_names(monkeypatch):
     ]
 
 
+def test_builtin_candidate_mapping_stays_in_standard_explanation_evidence():
+    mapping = (
+        research_runtime.FeatureNameMapping(0, "advert_ctr_30d"),
+        research_runtime.FeatureNameMapping(1, "device", "mobile"),
+    )
+    explanation = research_runtime.produce_global_explanation(
+        "spark_gradient_boosted_trees",
+        SimpleNamespace(featureImportances=(0.8, 0.2)),
+        mapping,
+    )
+    optional = research_runtime._candidate_optional_evidence(
+        {},
+        {
+            "profile": {"rows": 100, "positives": 10, "negatives": 90},
+            "metrics": {"auc_pr": 0.2, "log_loss": 0.1},
+        },
+    )
+
+    assert set(optional) == {"training_evaluation"}
+    assert explanation.as_dict()["features"] == [
+        {
+            "feature": "advert_ctr_30d",
+            "source_column": "advert_ctr_30d",
+            "category": None,
+            "vector_index": 0,
+            "importance": 0.8,
+            "absolute_importance": 0.8,
+        },
+        {
+            "feature": "device=mobile",
+            "source_column": "device",
+            "category": "mobile",
+            "vector_index": 1,
+            "importance": 0.2,
+            "absolute_importance": 0.2,
+        },
+    ]
+    with pytest.raises(ValueError, match="record-shaped row lists"):
+        research_runtime.validate_optional_evidence_result(
+            {
+                "status": research_runtime.COMPLETE,
+                "evidence": {
+                    "features": explanation.as_dict()["features"],
+                },
+            },
+            identifier="feature_name_mapping",
+        )
+
+
+def test_gbt_estimator_uses_supported_constructor_and_default_output_columns(
+    monkeypatch,
+):
+    from pyspark.ml import classification
+
+    captured = {}
+    estimator = SimpleNamespace(
+        getProbabilityCol=lambda: "probability",
+        getRawPredictionCol=lambda: "rawPrediction",
+    )
+
+    def construct_gbt(
+        *,
+        featuresCol,
+        labelCol,
+        predictionCol,
+        maxIter,
+        maxDepth,
+        stepSize,
+        seed,
+    ):
+        captured.update(
+            {
+                "featuresCol": featuresCol,
+                "labelCol": labelCol,
+                "predictionCol": predictionCol,
+                "maxIter": maxIter,
+                "maxDepth": maxDepth,
+                "stepSize": stepSize,
+                "seed": seed,
+            }
+        )
+        return estimator
+
+    monkeypatch.setattr(classification, "GBTClassifier", construct_gbt)
+    candidate = CandidateSpec(
+        candidate_id="gradient_boosted_trees",
+        plugin="spark_gradient_boosted_trees",
+        parameters={"maxIter": 60, "maxDepth": 5, "stepSize": 0.05},
+        seed=1729,
+    )
+
+    result = spark_research._estimator(candidate, "clicked")
+
+    assert result is estimator
+    assert captured == {
+        "featuresCol": "features",
+        "labelCol": "clicked",
+        "predictionCol": "prediction",
+        "maxIter": 60,
+        "maxDepth": 5,
+        "stepSize": 0.05,
+        "seed": 1729,
+    }
+    assert result.getProbabilityCol() == "probability"
+    assert result.getRawPredictionCol() == "rawPrediction"
+
+
 def test_claim_owner_is_stable_across_task_attempts():
     assert research_runtime._claim_owner_id("job-7:task-1:0") == "job-7"
     assert research_runtime._claim_owner_id("job-7:task-2:1") == "job-7"
