@@ -14,6 +14,7 @@ from next_ads.common.delta_writes import (
     KeyValidationSummary,
     replace_scope_by_name,
     replace_table_by_name,
+    replace_and_update_scope_by_name,
     validate_unique_non_null_keys,
 )
 from dsutils.logtools import get_logger
@@ -196,13 +197,15 @@ def publish_history_and_latest(
             history_write = None
             logger.info("No history table provided-skipping")
         logger.info("Writing latest table")
+
         if scope:
-            latest_write = replace_scope_by_name(
+            latest_write = replace_and_update_scope_by_name(
                 prepared,
                 latest_table,
                 _scope,
                 selected_columns,
                 spark=spark,
+                delete_scope={run_date_column: resolved_run_date},
             )
         else:
             latest_write = replace_table_by_name(
