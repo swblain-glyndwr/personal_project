@@ -154,7 +154,6 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | Stage | What It Does |
 |-------|---|
 | **CI** | Runs unit tests, linting, validation |
-| **Integration Tests** | Runs integration tests using the configured production-side route |
 | **Deploy DEV** | Deploys to DEV workspace, tags jobs with git info |
 | **Deploy DEV Integration** | Deploys `develop` to the shared `DEV_INTEGRATION` target |
 | **Deploy DEV Feature Store** | Deploys the scheduled shared DEV feature-store target only |

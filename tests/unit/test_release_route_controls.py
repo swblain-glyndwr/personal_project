@@ -105,6 +105,17 @@ def test_deployment_pipeline_has_develop_only_dev_integration_route():
     )
 
 
+def test_deployment_pipeline_has_no_prod_integration_stage():
+    config = load_yaml("azure-pipelines.yml")
+    stages = {stage["stage"]: stage for stage in config["stages"]}
+
+    assert "IntegrationTests" not in stages
+    assert (
+        "Integration Tests on PROD"
+        not in (PROJECT_ROOT / "azure-pipelines.yml").read_text()
+    )
+
+
 def test_deployment_pipeline_has_develop_only_dev_feature_store_route():
     config = load_yaml("azure-pipelines.yml")
     stages = {stage["stage"]: stage for stage in config["stages"]}

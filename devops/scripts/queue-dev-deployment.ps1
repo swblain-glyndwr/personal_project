@@ -123,7 +123,6 @@ try {
             recreateDevIntegrationTables = $false
         }
         stagesToSkip = @(
-            "IntegrationTests"
             "DestroyDEV"
             "DestroyDEVIntegration"
             "DeployDEVIntegration"

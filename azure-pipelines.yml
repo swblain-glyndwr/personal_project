@@ -34,22 +34,6 @@ stages:
           target: 'DEV'
           databricksClusterId: $(DATABRICKS_CLUSTER_ID_15_4)
 
-  - stage: IntegrationTests
-    displayName: 'Integration Tests on PROD'
-    variables:
-    - group: Production
-    dependsOn: [] # to run in parallel with CI
-    jobs:
-      - template: devops/templates/run-tests.yml
-        parameters:
-          pythonVersion: $(PYTHON_VERSION)
-          AzureBuildAgentPool: $(agentpool_prod)
-          azureSubscription: $(serviceConnectionName_prod)
-          KeyVaultName: $(strKeyVaultName)
-          testType: 'integration'
-          target: 'PROD'
-          databricksClusterId: $(DATABRICKS_CLUSTER_ID_15_4)
-
   - stage: DestroyDEV
     displayName: 'Destroy DEV'
     dependsOn:
