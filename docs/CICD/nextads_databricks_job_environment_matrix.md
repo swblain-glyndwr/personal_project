@@ -17,8 +17,7 @@ This page records the bundle targets in which each of the 51 NextAds jobs is dec
 
 ## Job Availability By Bundle Target
 
-Jobs are grouped only when their target set and release boundary are identical.
-Every declared job name appears once below.
+Jobs are grouped only when their target set and release boundary are identical. Every declared job name appears once below.
 
 | Job group | Declared jobs | Targets | Boundary |
 | --- | --- | --- | --- |
@@ -37,16 +36,9 @@ Every declared job name appears once below.
 
 ## Bundle Resource Declaration Rules
 
-- `DEV_FEATURE_STORE` contains exactly
-  `mktg_next_uk_nextads_feature_store` and
-  `mktg_next_uk_nextads_analytics_pctr_feature_source`.
-- A job with a `pipeline_task` is declared only where the referenced pipeline
-  resource also exists.
-- Jobs called through `${resources.jobs.<job_key>.id}` are declared in the same
-  target as their caller.
-- Personal DEV Feature Store and model jobs remain manual, author-schema scoped
-  and limited to their declared concurrency.
-- PREPROD and PROD model movement uses exact reviewed versions; registering or
-  copying a version does not select it for live scoring.
-- New job files use explicit target blocks unless a review agrees that the job
-  belongs in every target.
+- `DEV_FEATURE_STORE` contains exactly `mktg_next_uk_nextads_feature_store` and `mktg_next_uk_nextads_analytics_pctr_feature_source`.
+- A job with a `pipeline_task` is declared only where the referenced pipeline resource also exists.
+- Jobs called through `${resources.jobs.<job_key>.id}` are declared in the same target as their caller.
+- Personal DEV Feature Store and model jobs remain manual, author-schema scoped and limited to their declared concurrency.
+- PREPROD and PROD model movement uses exact reviewed versions; registering or copying a version does not select it for live scoring.
+- New job files use explicit target blocks unless a review agrees that the job belongs in every target.

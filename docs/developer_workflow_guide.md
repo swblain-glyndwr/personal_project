@@ -37,8 +37,7 @@ databricks workspace list /root -t DEV
 databricks workspace list /root -t PROD
 ```
 
-If local Databricks auth has expired, refresh the named CLI profiles used by
-the bundle:
+If local Databricks auth has expired, refresh the named CLI profiles used by the bundle:
 
 ```bash
 databricks auth login --host https://adb-6694370232251359.19.azuredatabricks.net/ -p SANDBOX
@@ -47,9 +46,7 @@ databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net
 databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net/ -p PROD
 ```
 
-`DEV` and `SANDBOX` share the same workspace host, and `PREPROD` and `PROD`
-share the same production host. For bundle commands, pass an explicit profile
-to avoid ambiguous-profile resolution:
+`DEV` and `SANDBOX` share the same workspace host, and `PREPROD` and `PROD` share the same production host. For bundle commands, pass an explicit profile to avoid ambiguous-profile resolution:
 
 ```bash
 databricks bundle validate --target DEV --profile DEV
@@ -169,8 +166,7 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 
 > NOTE: The deployment pipeline is still manually queued. Select the intended branch or tag explicitly; branch conditions prevent PREPROD from running outside `release/*` and PROD from running outside tags.
 
-For the Databricks jobs expected in each bundle target, see
-[`CICD/nextads_databricks_job_environment_matrix.md`](CICD/nextads_databricks_job_environment_matrix.md).
+For the Databricks jobs expected in each bundle target, see [`CICD/nextads_databricks_job_environment_matrix.md`](CICD/nextads_databricks_job_environment_matrix.md).
 
 #### DEV Integration Smoke Check
 

@@ -2,12 +2,7 @@
 
 Status: Working reference
 
-This page explains the runtime settings declared in
-[`pipelines/databricks/jobs/`](../../pipelines/databricks/jobs/). For the data
-consumed and produced by every job, see
-[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md). For
-target availability and release-route rules, see
-[`nextads_databricks_job_environment_matrix.md`](nextads_databricks_job_environment_matrix.md).
+This page explains the runtime settings declared in [`pipelines/databricks/jobs/`](../../pipelines/databricks/jobs/). For the data consumed and produced by every job, see [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md). For target availability and release-route rules, see [`nextads_databricks_job_environment_matrix.md`](nextads_databricks_job_environment_matrix.md).
 
 ## Settings Shared By Multiple Jobs
 
@@ -190,9 +185,7 @@ Shared DEV feature-store build.
 
 ### Supporting Feature And Model Job Settings
 
-These are manual or bounded jobs around the shared Feature Store route. Exact
-table and model defaults remain in the linked job definitions; the list below
-records the settings an operator is expected to select deliberately.
+These are manual or bounded jobs around the shared Feature Store route. Exact table and model defaults remain in the linked job definitions; the list below records the settings an operator is expected to select deliberately.
 
 | Job | Operator-selected settings | Notes / options |
 | --- | --- | --- |
@@ -245,9 +238,7 @@ Independent 17:00 compatibility and monitoring graph. One branch reads the exact
 | `mktg_next_uk_nextads_theme_affinity_model_promote` | `source_model_name`, `source_model_version`, `source_alias`, `target_model_name`, `target_alias` | Promotes reviewed PREPROD model into PROD namespace. Provide the reviewed `source_model_version` where possible. If it is blank, `source_alias` must resolve to the reviewed source version. |
 | `mktg_next_uk_nextads_theme_affinity_model_monitor` | `baseline_table`, `candidate_table`, `sample_limit`, `log_level` | Compares two model output tables. `sample_limit` is an integer row cap. |
 
-For the data-science operating sequence, evidence to capture and stop
-conditions, see
-[`model_lifecycle_runbook.md`](../model_lifecycle_runbook.md).
+For the data-science operating sequence, evidence to capture and stop conditions, see [`model_lifecycle_runbook.md`](../model_lifecycle_runbook.md).
 
 ### `mktg_next_uk_nextads_theme_affinity_quality_monitor_setup`
 

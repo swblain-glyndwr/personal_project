@@ -2,11 +2,7 @@
 
 This is the inclusive entry point for every NextAds job declared under `pipelines/databricks/jobs`: 51 jobs across 47 YAML definition files in this checkout. It covers the operational assignment and delivery route, reporting, realtime data, Feature Store, model development and research, model lifecycle, validation and table operations. Each row shows what a job consumes and what tables, external outputs, validation evidence or model artifacts it produces.
 
-The page stays at a human-readable route level. Linked documents own detailed
-keys, schemas, schedules, runtime evidence and operating instructions. Physical
-catalogs and schemas vary by bundle target; table names below are logical names.
-An in-flight job being declared on a feature branch does not prove that it is
-deployed, scheduled or proven in a shared environment.
+The page stays at a human-readable route level. Linked documents own detailed keys, schemas, schedules, runtime evidence and operating instructions. Physical catalogs and schemas vary by bundle target; table names below are logical names. An in-flight job being declared on a feature branch does not prove that it is deployed, scheduled or proven in a shared environment.
 
 ## Assignment And Delivery Route
 
@@ -61,9 +57,7 @@ flowchart LR
 
 ### Candidate Build Task Inputs And Outputs
 
-The candidate-build job orchestrates the v1 and v2 candidate routes. It does
-not calculate customer cells or train a model; it selects accepted upstream
-versions and keeps the v1 and v2 paths separate.
+The candidate-build job orchestrates the v1 and v2 candidate routes. It does not calculate customer cells or train a model; it selects accepted upstream versions and keeps the v1 and v2 paths separate.
 
 | Stage and tasks | Consumes | Produces or triggers |
 | --- | --- | --- |
@@ -76,16 +70,11 @@ versions and keeps the v1 and v2 paths separate.
 | `map_theme_scores_to_ads_v1` and `map_theme_scores_to_ads_v2` | Selected provider signals, matching control, pinned customer cells, repeat exposure and advert feedback | Route-specific accepted attempts in `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores` and `next_uk_nextads_candidate_ad_sets` |
 | `run_page_build_v1` and `run_page_build_v2` | Exact candidate, provider, scoring-input and Candidate Foundation identities from the preceding tasks | Synchronous v1/v2 page-build child jobs and their delivery children |
 
-The exact task dependencies and failure boundaries are kept in
-[`v1_v2_parallel_route.md`](v1_v2_parallel_route.md), while the time-based
-operational hand-offs are in
-[`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md).
+The exact task dependencies and failure boundaries are kept in [`v1_v2_parallel_route.md`](v1_v2_parallel_route.md), while the time-based operational hand-offs are in [`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md).
 
 ## Reporting, Validation, Realtime And Retention Job Inputs And Outputs
 
-These jobs support the assignment route. They either measure what was
-delivered, prepare realtime inputs, validate accepted outputs or retain the
-bounded history needed by the route.
+These jobs support the assignment route. They either measure what was delivered, prepare realtime inputs, validate accepted outputs or retain the bounded history needed by the route.
 
 | Job | Consumes | Produces |
 | --- | --- | --- |
@@ -167,10 +156,7 @@ The hard boundary is intentional: these in-flight jobs can build features, train
 
 ## Theme Affinity Model And Compatibility Job Inputs And Outputs
 
-The operational Theme Affinity scoring job appears in the assignment route above.
-These additional jobs train, compare, move or monitor its models, or publish
-legacy table shapes for consumers that have not moved to the canonical provider
-contract.
+The operational Theme Affinity scoring job appears in the assignment route above. These additional jobs train, compare, move or monitor its models, or publish legacy table shapes for consumers that have not moved to the canonical provider contract.
 
 | Job | Consumes | Produces |
 | --- | --- | --- |
@@ -182,16 +168,11 @@ contract.
 | [`mktg_next_uk_nextads_theme_affinity_model_monitor`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml) | Configured baseline and candidate model-output tables | Comparison metrics and run evidence; no table write |
 | [`mktg_next_uk_nextads_theme_affinity_quality_monitor_setup`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml) | One configured model-output table and monitor settings | A Databricks quality-monitor definition and its managed profile/drift assets |
 
-The exact publication and compatibility boundary is described in
-[`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md), and
-the environment movement boundary is described in
-[`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md).
+The exact publication and compatibility boundary is described in [`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md), and the environment movement boundary is described in [`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md).
 
 ## Environment And Table Operations Job Inputs And Outputs
 
-These jobs support the data routes but do not represent another modelling or
-assignment path. Table-operation jobs act only on the target and table set
-selected for that run.
+These jobs support the data routes but do not represent another modelling or assignment path. Table-operation jobs act only on the target and table set selected for that run.
 
 | Job | Consumes | Produces |
 | --- | --- | --- |
@@ -207,12 +188,7 @@ selected for that run.
 
 ## Feature Store Builder Inputs And Output Tables
 
-The Feature Store job groups related builders so that downstream models consume
-named data products rather than reimplementing source joins. Exact grain, keys,
-date columns, ownership and refresh expectations remain in
-[`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) and the
-executable registry
-[`nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml).
+The Feature Store job groups related builders so that downstream models consume named data products rather than reimplementing source joins. Exact grain, keys, date columns, ownership and refresh expectations remain in [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) and the executable registry [`nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml).
 
 | Builder group | Primary inputs | Output tables |
 | --- | --- | --- |
@@ -225,16 +201,11 @@ executable registry
 | Historical Theme Affinity training | Historical Theme Affinity preparation tables and future-window basket targets; only when an explicit historical date is supplied | `next_uk_nextads_fs_theme_affinity_training_input` |
 | Quality | Every registered physical feature table and compatibility view | `next_uk_nextads_fs_feature_quality_events` |
 
-The job also maintains the read-only compatibility views
-`next_uk_nextads_theme_affinity_features_latest` and
-`next_uk_nextads_pctr_features_latest`. The detailed task order and parallel
-branches are shown once in [`feature_store_flow.md`](feature_store_flow.md).
+The job also maintains the read-only compatibility views `next_uk_nextads_theme_affinity_features_latest` and `next_uk_nextads_pctr_features_latest`. The detailed task order and parallel branches are shown once in [`feature_store_flow.md`](feature_store_flow.md).
 
 ## Shopping Bag Builder Inputs And Output Tables
 
-The Shopping Bag preparation jobs are intentionally narrower than the complete
-Feature Store refresh. They exist so a model author can prepare only the inputs
-needed for the worked Shopping Bag challenger.
+The Shopping Bag preparation jobs are intentionally narrower than the complete Feature Store refresh. They exist so a model author can prepare only the inputs needed for the worked Shopping Bag challenger.
 
 | Builder | Primary inputs | Output tables |
 | --- | --- | --- |
@@ -244,8 +215,7 @@ needed for the worked Shopping Bag challenger.
 
 ## Cross-Job Control, Evidence And Evaluation Tables
 
-These are control, evidence and evaluation tables rather than reusable model
-features. They make the handoff between jobs reproducible.
+These are control, evidence and evaluation tables rather than reusable model features. They make the handoff between jobs reproducible.
 
 | Data contract | Written by | Read by / purpose |
 | --- | --- | --- |
@@ -281,16 +251,9 @@ features. They make the handoff between jobs reproducible.
 
 ## References And Linkages
 
-- Job definitions, parameters and target availability:
-  [`pipelines/databricks/jobs/`](../../pipelines/databricks/jobs/).
-- V1/v2 task dependencies and failure boundaries:
-  [`v1_v2_parallel_route.md`](v1_v2_parallel_route.md).
-- Scheduled job and table hand-offs:
-  [`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md).
-- Feature names, builders, keys and compatibility-view links:
-  [`configs/features/nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml).
-- Model inputs, trainers, providers and evaluation links:
-  [`configs/models/nextads_models.yaml`](../../configs/models/nextads_models.yaml).
-- Physical Feature Store and model-evidence schema references:
-  [`sql/features/nextads/`](../../sql/features/nextads/) and
-  [`sql/model_development/`](../../sql/model_development/).
+- Job definitions, parameters and target availability: [`pipelines/databricks/jobs/`](../../pipelines/databricks/jobs/).
+- V1/v2 task dependencies and failure boundaries: [`v1_v2_parallel_route.md`](v1_v2_parallel_route.md).
+- Scheduled job and table hand-offs: [`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md).
+- Feature names, builders, keys and compatibility-view links: [`configs/features/nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml).
+- Model inputs, trainers, providers and evaluation links: [`configs/models/nextads_models.yaml`](../../configs/models/nextads_models.yaml).
+- Physical Feature Store and model-evidence schema references: [`sql/features/nextads/`](../../sql/features/nextads/) and [`sql/model_development/`](../../sql/model_development/).

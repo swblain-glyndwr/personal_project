@@ -17,12 +17,7 @@
 
 ## Using Accepted Features In A Model
 
-The implemented Shopping Bag route demonstrates how the Feature Store is used
-without making it part of customer serving. Its preparation job publishes
-observed click labels, 90-day account activity and advert features for explicit
-dates. The model job then resolves only READY snapshots, records their exact
-Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the
-selected DEV model version in MLflow.
+The implemented Shopping Bag route demonstrates how the Feature Store is used without making it part of customer serving. Its preparation job publishes observed click labels, 90-day account activity and advert features for explicit dates. The model job then resolves only READY snapshots, records their exact Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the selected DEV model version in MLflow.
 
 An optional research declaration in `nextads_models.yaml` uses the same accepted-snapshot boundary for candidate comparison. The DEV research job creates one immutable, PII-reduced frame from the exact training receipt and logs one parent MLflow run with a separate nested run for each candidate. The current Shopping Bag declaration supplies logistic regression, random forest, gradient-boosted trees and Spark XGBoost, plus a non-selectable prevalence baseline.
 
@@ -50,8 +45,7 @@ ACTIVE=18 COMPATIBILITY=4 SCAFFOLD=0
 | `COMPATIBILITY` | 4 | Older model-facing shapes retained while consumers move to logical contracts. |
 | `SCAFFOLD` | 0 | No registered physical contract is presented as an unimplemented feature. |
 
-These are repository contract states. They do not, by themselves, prove that a
-particular environment or date has a READY snapshot.
+These are repository contract states. They do not, by themselves, prove that a particular environment or date has a READY snapshot.
 
 The registry contains 22 physical contracts and two compatibility views.
 
@@ -66,9 +60,7 @@ The registry contains 22 physical contracts and two compatibility views.
 | 4 | `ENVIRONMENT_PARITY` | The same logical graph is bound to the agreed release locations. |
 | 5 | `OFFLINE_ACTIVATED` | Scheduling and alerts are enabled only after manual parity proof. |
 
-An empty table shell is not a populated feature. An on-demand contract is not
-exempt from evidence; it is proved through an explicit dated run rather than a
-daily schedule.
+An empty table shell is not a populated feature. An on-demand contract is not exempt from evidence; it is proved through an explicit dated run rather than a daily schedule.
 
 ## Feature Store Documentation Map
 
@@ -110,15 +102,11 @@ Every accepted build follows the same boundary:
 3. Write one feature partition or whole latest table atomically.
 4. Validate schema, keys, rows, freshness, drift and value checksum.
 5. Record the exact output Delta version and write receipt.
-6. Mark the feature group and overall snapshot `READY` only after all required
-   outputs pass.
+6. Mark the feature group and overall snapshot `READY` only after all required outputs pass.
 
-A failed first attempt has no READY snapshot. A failed retry leaves the earlier
-READY snapshot selectable.
+A failed first attempt has no READY snapshot. A failed retry leaves the earlier READY snapshot selectable.
 
-Model code uses `read_ready_feature`, which opens the exact backing-table Delta
-version recorded in the snapshot. A direct physical-table read does not provide
-the same reproducibility guarantee.
+Model code uses `read_ready_feature`, which opens the exact backing-table Delta version recorded in the snapshot. A direct physical-table read does not provide the same reproducibility guarantee.
 
 ## Repository Contract Plan Commands
 
@@ -150,8 +138,7 @@ Planner state is not live-run evidence.
 
 ## Registry-Driven Runtime Quality Audit
 
-The final quality task derives its scope from the same registry and reports one
-result for every implemented physical contract in scope.
+The final quality task derives its scope from the same registry and reports one result for every implemented physical contract in scope.
 
 | Audit field | Meaning |
 | --- | --- |
@@ -160,18 +147,13 @@ result for every implemented physical contract in scope.
 | `dev_complete` | Every intended contract and both views meet the DEV gate. |
 | `BLOCKED` | A view or table still depends on missing contracts. |
 
-On-demand contracts are reported as skipped on the normal daily route unless
-an explicit historical date is supplied. This keeps the audit honest rather
-than claiming that an unrequested training build ran.
+On-demand contracts are reported as skipped on the normal daily route unless an explicit historical date is supplied. This keeps the audit honest rather than claiming that an unrequested training build ran.
 
-The quality table's own persisted row uses `MANIFEST_ONLY`: a row cannot contain
-the Delta version created by writing itself. The deterministic manifest emitted
-after the write contains the resulting quality-table version.
+The quality table's own persisted row uses `MANIFEST_ONLY`: a row cannot contain the Delta version created by writing itself. The deterministic manifest emitted after the write contains the resulting quality-table version.
 
 ## Current DEV Shopping Bag Evidence
 
-These runs prove a complete model-author slice without starting the full
-Feature Store job.
+These runs prove a complete model-author slice without starting the full Feature Store job.
 
 | Evidence | Result |
 | --- | --- |
@@ -182,29 +164,20 @@ Feature Store job.
 | [Identical retry 1082000054818636](https://adb-6694370232251359.19.azuredatabricks.net/?o=6694370232251359#job/383960843241650/run/1082000054818636) | Reused the same receipt, build, MLflow run, version and digest; no version 4 was created. |
 | [Isolated EVALUATE 1040614784030488](https://adb-6694370232251359.19.azuredatabricks.net/?o=6694370232251359#job/763237716435981/run/1040614784030488) | READY bounded scoring build for 10,000 accounts and both SB1/SB2; 398,964 score rows; no serving output changed. |
 
-This is personal DEV proof. It does not claim PREPROD, PROD, realtime or online
-Feature Store activation.
+This is personal DEV proof. It does not claim PREPROD, PROD, realtime or online Feature Store activation.
 
 ## Feature Table Design Ownership
 
-The complete physical catalogue, compatibility views, grain, keys, dates,
-cadence, ownership and training-safety boundary are maintained once in
-[`feature_store_table_design.md`](feature_store_table_design.md). The executable
-form is [`nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml).
-The counts in Current Repository Status are derived from that registry.
+The complete physical catalogue, compatibility views, grain, keys, dates, cadence, ownership and training-safety boundary are maintained once in [`feature_store_table_design.md`](feature_store_table_design.md). The executable form is [`nextads_feature_store.yaml`](../../configs/features/nextads_feature_store.yaml). The counts in Current Repository Status are derived from that registry.
 
 ## Runtime Dependencies And Activation Boundaries
 
-- DEV Feature Engineering and Unity Catalog permissions must allow the run-as
-  identity to create or update the declared personal/shared targets.
-- Source assignment, control-sheet, item, session, page and action contracts
-  must remain available for the requested dates.
-- App Shopping Bag telemetry needs separate route and CMS validation before it
-  joins the worked web V1 label.
+- DEV Feature Engineering and Unity Catalog permissions must allow the run-as identity to create or update the declared personal/shared targets.
+- Source assignment, control-sheet, item, session, page and action contracts must remain available for the requested dates.
+- App Shopping Bag telemetry needs separate route and CMS validation before it joins the worked web V1 label.
 - The Analytics pCTR adopter remains separate from the Shopping Bag model.
 - The current two-date proof is not sufficient evidence for a serving decision.
-- PREPROD, PROD, realtime and online publication require separate evidence and
-  activation routes.
+- PREPROD, PROD, realtime and online publication require separate evidence and activation routes.
 
 ## Feature Store Delivery Acceptance Criteria
 

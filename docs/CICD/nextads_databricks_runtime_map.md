@@ -184,10 +184,7 @@ flowchart TD
   feature_store --> analytics_source
 ```
 
-The diagram includes every schedule declared by the current job YAML. It does
-not imply that target-specific schedules coexist in one workspace: the legacy
-Analytics pCTR schedule is paused, table monitoring is DEV-only, and the shared
-Feature Store schedule exists only in `DEV_FEATURE_STORE`.
+The diagram includes every schedule declared by the current job YAML. It does not imply that target-specific schedules coexist in one workspace: the legacy Analytics pCTR schedule is paused, table monitoring is DEV-only, and the shared Feature Store schedule exists only in `DEV_FEATURE_STORE`.
 
 ### Declared Schedule Inventory
 
@@ -398,15 +395,7 @@ flowchart TD
 
 ## Feature Store Route
 
-The Feature Store job is deliberately separate from the operational PROD
-delivery routes. It is scheduled at 21:00 only in `DEV_FEATURE_STORE`, writes
-reusable model-building tables in
-`marketingdata_dev.nextads_feature_store`, and does not publish assignments,
-delivery payloads or production scores. Its complete task graph is maintained
-once in
-[`feature_store_flow.md`](../architecture/feature_store_flow.md); its job and
-table inputs and outputs are in
-[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md).
+The Feature Store job is deliberately separate from the operational PROD delivery routes. It is scheduled at 21:00 only in `DEV_FEATURE_STORE`, writes reusable model-building tables in `marketingdata_dev.nextads_feature_store`, and does not publish assignments, delivery payloads or production scores. Its complete task graph is maintained once in [`feature_store_flow.md`](../architecture/feature_store_flow.md); its job and table inputs and outputs are in [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md).
 
 ## Manual DEV Model Research Route
 
