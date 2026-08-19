@@ -179,6 +179,140 @@ def test_training_set_builder_reaches_feature_lookups_and_receipt_creation():
     assert "return TrainingSetBuildResult" in source
 
 
+def test_receipt_window_uses_session_date_for_cross_midnight_exposures(
+    monkeypatch,
+):
+    definition = load_model_definition("shopping_bag_pctr")
+
+    class Frame:
+        def __init__(self, rows, columns=None):
+            self.rows = tuple(rows)
+            self.columns = list(
+                columns if columns is not None else rows[0].keys()
+            )
+
+    observations = Frame(
+        (
+            {
+                **{
+                    column: None
+                    for column in (
+                        definition.training_observation.selected_columns
+                    )
+                },
+                "exposure_id": "exposure-1",
+                "label_horizon_days": 0,
+                "session_date": date(2026, 8, 7),
+                "exposure_timestamp": datetime(
+                    2026,
+                    8,
+                    6,
+                    22,
+                    46,
+                    tzinfo=timezone.utc,
+                ),
+                "clicked": 0,
+            },
+            {
+                **{
+                    column: None
+                    for column in (
+                        definition.training_observation.selected_columns
+                    )
+                },
+                "exposure_id": "exposure-2",
+                "label_horizon_days": 0,
+                "session_date": date(2026, 8, 7),
+                "exposure_timestamp": datetime(
+                    2026,
+                    8,
+                    6,
+                    22,
+                    47,
+                    tzinfo=timezone.utc,
+                ),
+                "clicked": 1,
+            },
+        )
+    )
+    ready_binding = _binding(date(2026, 8, 6))
+
+    def date_window(frame, column):
+        values = tuple(row[column] for row in frame.rows)
+        return min(values), max(values)
+
+    def apply_lookup(
+        frame,
+        _feature_frame,
+        lookup,
+        **_kwargs,
+    ):
+        return Frame(
+            frame.rows,
+            (*frame.columns, *training_sets._lookup_output_names(lookup)),
+        )
+
+    monkeypatch.setattr(
+        "next_ads.features.load_feature_store_registry",
+        lambda: object(),
+    )
+    monkeypatch.setattr(
+        training_sets,
+        "validate_unique_non_null_keys",
+        lambda *_args: None,
+    )
+    monkeypatch.setattr(training_sets, "_date_window", date_window)
+    monkeypatch.setattr(
+        training_sets,
+        "_validate_label_maturity",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        training_sets,
+        "_require_training_safe_feature",
+        lambda *_args: SimpleNamespace(timestamp_key="reference_date"),
+    )
+    monkeypatch.setattr(
+        training_sets,
+        "_read_feature_history",
+        lambda *_args, **_kwargs: (Frame(({},), ()), (ready_binding,)),
+    )
+    monkeypatch.setattr(
+        training_sets,
+        "_apply_point_in_time_lookup",
+        apply_lookup,
+    )
+    monkeypatch.setattr(
+        training_sets,
+        "summarise_binary_labels",
+        lambda *_args: (2, 1),
+    )
+    monkeypatch.setattr(
+        training_sets,
+        "schema_checksum",
+        lambda *_args: "d" * 64,
+    )
+    monkeypatch.setattr(
+        training_sets,
+        "feature_value_checksum",
+        lambda *_args: "e" * 64,
+    )
+
+    result = training_sets.build_training_set(
+        object(),
+        definition,
+        observations,
+        catalog="catalog",
+        schema="schema",
+        feature_reference_date="2026-08-06",
+        label_end=date(2026, 8, 7),
+        code_sha="sha",
+    )
+
+    assert result.receipt.observation_start == date(2026, 8, 7)
+    assert result.receipt.observation_end == date(2026, 8, 7)
+
+
 def test_point_in_time_lookup_applies_the_declared_availability_lag():
     source = inspect.getsource(training_sets._apply_point_in_time_lookup)
 

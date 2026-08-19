@@ -91,9 +91,17 @@ def feature_audit_scope(
             "kind": "REQUESTED_PARTITION",
             "date": training_reference_date,
         }
-    if feature.timestamp_key:
+    if feature.snapshot_date_key:
         return {"kind": "REQUESTED_PARTITION", "date": reference_date}
     return {"kind": "WHOLE_TABLE", "date": None}
+
+
+def _filter_snapshot_date(dataframe, feature, scope_date: str):
+    """Limit an audit read to the feature's declared snapshot date."""
+    return dataframe.where(
+        F.to_date(F.col(feature.snapshot_date_key))
+        == F.lit(scope_date).cast("date")
+    )
 
 
 def _canonical_data_type(data_type: str) -> str:
@@ -599,9 +607,10 @@ def _audit_feature(
             expected_schema,
         )
         if scope["kind"] == "REQUESTED_PARTITION":
-            dataframe = dataframe.where(
-                F.col(feature.timestamp_key)
-                == F.lit(scope["date"]).cast("date")
+            dataframe = _filter_snapshot_date(
+                dataframe,
+                feature,
+                str(scope["date"]),
             )
 
         (
@@ -787,12 +796,13 @@ def _audit_implemented_compatibility_view(
         )
         if (
             scope_date is not None
-            and source_feature.timestamp_key
-            and source_feature.timestamp_key in dataframe.columns
+            and source_feature.snapshot_date_key
+            and source_feature.snapshot_date_key in dataframe.columns
         ):
-            dataframe = dataframe.where(
-                F.col(source_feature.timestamp_key)
-                == F.lit(scope_date).cast("date")
+            dataframe = _filter_snapshot_date(
+                dataframe,
+                source_feature,
+                str(scope_date),
             )
         (
             row_count,

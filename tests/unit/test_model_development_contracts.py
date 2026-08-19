@@ -118,6 +118,7 @@ def test_observation_contract_keeps_maturity_and_audit_fields_out_of_features():
         feature_id="shopping_bag_labels",
         selected_columns=(
             "exposure_id",
+            "session_date",
             "exposure_timestamp",
             "location",
             "clicked",
@@ -126,9 +127,26 @@ def test_observation_contract_keeps_maturity_and_audit_fields_out_of_features():
         observation_timestamp="exposure_timestamp",
         context_features=("location",),
         label_maturity_column="label_maturity_date",
+        observation_date_column="session_date",
     )
 
     assert observation.context_features == ("location",)
+    assert observation.observation_date_column == "session_date"
+    assert observation.as_dict()["observation_date_column"] == "session_date"
+    legacy = TrainingObservationSpec(
+        feature_id="shopping_bag_labels",
+        selected_columns=("exposure_timestamp", "clicked"),
+        observation_timestamp="exposure_timestamp",
+    )
+    assert legacy.observation_date_column == "exposure_timestamp"
+    assert "observation_date_column" not in legacy.as_dict()
+    with pytest.raises(ValueError, match="date column must be selected"):
+        TrainingObservationSpec(
+            feature_id="shopping_bag_labels",
+            selected_columns=("exposure_timestamp", "clicked"),
+            observation_timestamp="exposure_timestamp",
+            observation_date_column="session_date",
+        )
     with pytest.raises(ValueError, match="Label maturity"):
         TrainingObservationSpec(
             feature_id="shopping_bag_labels",

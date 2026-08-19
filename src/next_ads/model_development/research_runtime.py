@@ -450,8 +450,12 @@ def prepare_research_frame(
     from pyspark.sql import functions as F
 
     timestamp = definition.training_observation.observation_timestamp
+    observation_date_column = (
+        definition.training_observation.observation_date_column
+    )
     required = {
         timestamp,
+        observation_date_column,
         definition.label,
         *definition.observation_keys,
         *definition.model_feature_columns,
@@ -463,7 +467,7 @@ def prepare_research_frame(
             + ", ".join(missing)
         )
     prepared = training_frame.withColumn(
-        "observation_date", F.to_date(F.col(timestamp))
+        "observation_date", F.to_date(F.col(observation_date_column))
     )
     expected_dates = {
         value.isoformat() for value in plan_observation_dates(plan)

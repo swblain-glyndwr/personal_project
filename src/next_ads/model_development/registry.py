@@ -64,6 +64,7 @@ def _observation(raw: dict[str, Any]) -> TrainingObservationSpec:
         context_features=tuple(raw.get("context_features", ())),
         label_maturity_column=raw.get("label_maturity_column"),
         filters=_pairs(raw.get("filters"), "filters"),
+        observation_date_column=raw.get("observation_date_column"),
     )
 
 

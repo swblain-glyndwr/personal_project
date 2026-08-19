@@ -99,9 +99,9 @@ def read_ready_feature(
         raise ValueError(
             f"READY binding schema no longer matches {feature_id}"
         )
-    if feature.timestamp_key:
+    if feature.snapshot_date_key:
         frame = frame.where(
-            F.to_date(F.col(feature.timestamp_key))
+            F.to_date(F.col(feature.snapshot_date_key))
             == F.lit(binding.reference_date)
         )
     actual_rows = frame.count()

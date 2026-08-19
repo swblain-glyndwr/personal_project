@@ -195,6 +195,128 @@ def test_research_entrypoint_requires_one_prior_feature_date_per_observation():
         )
 
 
+def test_research_split_uses_session_date_for_cross_midnight_exposures(
+    monkeypatch,
+):
+    from pyspark.sql import functions as F
+
+    base_definition = _definition()
+    definition = replace(
+        base_definition,
+        training_observation=replace(
+            base_definition.training_observation,
+            selected_columns=(
+                *base_definition.training_observation.selected_columns,
+                "session_date",
+            ),
+            observation_date_column="session_date",
+        ),
+    )
+    plan = replace(
+        load_model_research_plan("shopping_bag_pctr"),
+        slices=(),
+    )
+
+    class Frame:
+        def __init__(self, rows, columns=None):
+            self.rows = tuple(dict(row) for row in rows)
+            self.columns = list(
+                columns if columns is not None else rows[0].keys()
+            )
+
+        def withColumn(self, name, expression):  # noqa: N802
+            kind, source = expression
+            assert kind == "to_date"
+            rows = []
+            for row in self.rows:
+                value = row[source]
+                logical_date = (
+                    value.date() if isinstance(value, datetime) else value
+                )
+                rows.append({**row, name: logical_date})
+            columns = (
+                (*self.columns, name)
+                if name not in self.columns
+                else self.columns
+            )
+            return Frame(rows, columns)
+
+        def select(self, *columns):
+            return Frame(
+                tuple(
+                    {column: row[column] for column in columns}
+                    for row in self.rows
+                ),
+                columns,
+            )
+
+        def distinct(self):
+            unique = []
+            seen = set()
+            for row in self.rows:
+                identity = tuple(row[column] for column in self.columns)
+                if identity not in seen:
+                    unique.append(row)
+                    seen.add(identity)
+            return Frame(unique, self.columns)
+
+        def collect(self):
+            return list(self.rows)
+
+    rows = tuple(
+        {
+            "row_key": f"row-{day}",
+            "session_date": date(2026, 8, day),
+            "observed_at": (
+                datetime(2026, 8, 8, 22, 46, tzinfo=timezone.utc)
+                if day == 9
+                else datetime(2026, 8, day, 12, 0, tzinfo=timezone.utc)
+            ),
+            "label": day % 2,
+            "feature": float(day),
+        }
+        for day in range(5, 12)
+    )
+    captured = {}
+
+    monkeypatch.setattr(F, "col", lambda name: ("column", name))
+    monkeypatch.setattr(
+        F,
+        "to_date",
+        lambda expression: ("to_date", expression[1]),
+    )
+
+    def pack(frame, *, plan, **_kwargs):
+        captured["frame"] = frame
+        captured["plan"] = plan
+        return frame
+
+    monkeypatch.setattr(research_runtime, "pack_research_frame", pack)
+    monkeypatch.setattr(
+        research_runtime,
+        "declared_research_schemas",
+        lambda *_args, **_kwargs: "schemas",
+    )
+
+    packed, schemas, frame_plan = research_runtime.prepare_research_frame(
+        Frame(rows),
+        definition=definition,
+        plan=plan,
+        logical_research_build_id="research",
+        research_attempt_id="research-attempt",
+        logical_research_frame_id="frame",
+        research_frame_attempt_id="frame-attempt",
+        training_receipt_id="receipt",
+    )
+
+    assert packed is captured["frame"]
+    assert schemas == "schemas"
+    validation_row = captured["frame"].rows[4]
+    assert validation_row["observed_at"].date() == date(2026, 8, 8)
+    assert validation_row["observation_date"] == date(2026, 8, 9)
+    assert "2026-08-09" in frame_plan.validation_dates
+
+
 def test_runtime_preserves_declared_slice_values_and_thresholds():
     plan = load_model_research_plan("shopping_bag_pctr")
     assert plan is not None

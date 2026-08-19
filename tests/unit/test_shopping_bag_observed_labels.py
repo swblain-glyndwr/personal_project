@@ -511,4 +511,5 @@ def test_observed_label_contract_marks_exposure_time_as_timeseries_key():
         "exposure_timestamp",
     ]
     assert feature["timestamp_key"] == "exposure_timestamp"
+    assert feature["snapshot_date_key"] == "session_date"
     assert "exposure_timestamp TIMESERIES" in ddl

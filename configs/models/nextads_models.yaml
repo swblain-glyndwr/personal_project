@@ -97,6 +97,7 @@ models:
     training_observation:
       feature_id: next_uk_nextads_fs_shopping_bag_click_labels
       observation_timestamp: exposure_timestamp
+      observation_date_column: session_date
       selected_columns:
         - exposure_id
         - account_number

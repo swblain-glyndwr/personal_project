@@ -107,6 +107,12 @@ def test_offline_plan_reports_builders_dependencies_and_missing_contracts():
     assert observed_labels["task_dependencies"] == [
         "create_observed_label_table"
     ]
+    assert observed_labels["timestamp_key"] == "exposure_timestamp"
+    assert observed_labels["snapshot_date_key"] == "session_date"
+
+    account_profile = features["next_uk_nextads_fs_account_profile"]
+    assert account_profile["timestamp_key"] == "reference_date"
+    assert account_profile["snapshot_date_key"] == "reference_date"
 
 
 def test_compatibility_view_plan_reports_contract_readiness_not_live_state():

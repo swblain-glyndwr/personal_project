@@ -246,12 +246,12 @@ def test_model_definition_exposes_research_without_changing_legacy_payload():
     )
 
 
-def test_optional_research_does_not_change_legacy_model_checksums():
+def test_model_checksums_pin_legacy_default_and_declared_logical_date():
     assert load_model_definition("analytics_pctr").checksum == (
         "f8713412c4213260d49c97d275ae0627510ea956ab1d29f25c97af09b5deeb7b"
     )
     assert load_model_definition("shopping_bag_pctr").checksum == (
-        "1a822c816c9b864e08422d022802d760c2288927722ff0b6fa0a19ad82c75488"
+        "00ed7ee0044f6b36fc117a4572463a81947478f761e84d7ec96f251fc547a1f2"
     )
 
 

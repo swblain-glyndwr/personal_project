@@ -103,6 +103,7 @@ def test_model_job_uses_receipts_plugins_and_exact_promotion():
     assert "score_with_evaluation_scope" in source
     assert "adapter.apply(evaluation_scores, eligible)" in source
     assert "temporal_train_validation_split" in source
+    assert "training_observation.observation_date_column" in source
     assert "evaluation_frame.select" in source
     assert '"evaluation_mode": "HISTORICAL_TEMPORAL_HOLDOUT"' in source
     assert "ModelPluginRegistry" in source

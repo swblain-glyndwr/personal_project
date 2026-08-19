@@ -160,7 +160,7 @@ def main() -> None:
         temporal_train_validation_split(
             training.frame,
             timestamp_column=(
-                definition.training_observation.observation_timestamp
+                definition.training_observation.observation_date_column
             ),
             validation_percent=trainer.validation_percent,
         )

@@ -398,7 +398,7 @@ def main() -> None:
                 catalog=target_catalog,
                 schema=target_schema,
                 reference_date=reference_date,
-                reference_date_column=table.timestamp_key,
+                reference_date_column=table.snapshot_date_key,
                 replace_reference_date=replace_reference_date,
                 mode=table.write_mode,
                 registry=registry,

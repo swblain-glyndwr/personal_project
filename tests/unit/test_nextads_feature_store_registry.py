@@ -172,6 +172,23 @@ def test_every_physical_feature_store_table_has_sql_contract_with_keys():
         assert set(table.primary_keys).issubset(columns)
         if table.timestamp_key:
             assert table.timestamp_key in columns
+        if table.snapshot_date_key:
+            assert table.snapshot_date_key in columns
+
+
+def test_snapshot_date_key_defaults_to_timestamp_key_unless_declared():
+    registry = load_feature_store_registry()
+    account_profile = registry.table_spec(
+        "next_uk_nextads_fs_account_profile"
+    )
+    observed_labels = registry.table_spec(
+        "next_uk_nextads_fs_shopping_bag_click_labels"
+    )
+
+    assert account_profile.timestamp_key == "reference_date"
+    assert account_profile.snapshot_date_key == "reference_date"
+    assert observed_labels.timestamp_key == "exposure_timestamp"
+    assert observed_labels.snapshot_date_key == "session_date"
 
 
 def test_theme_affinity_model_input_preserves_current_feature_columns():

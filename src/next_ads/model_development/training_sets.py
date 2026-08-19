@@ -68,19 +68,23 @@ def _training_feature_binding(
     )
 
 
-def _date_window(frame: Any, timestamp_column: str) -> tuple[date, date]:
+def _date_window(
+    frame: Any,
+    observation_date_column: str,
+) -> tuple[date, date]:
     from pyspark.sql import functions as F
 
-    if timestamp_column not in frame.columns:
+    if observation_date_column not in frame.columns:
         raise ValueError(
-            f"Observation timestamp column is missing: {timestamp_column}"
+            "Observation date column is missing: "
+            f"{observation_date_column}"
         )
     row = frame.agg(
-        F.min(F.to_date(F.col(timestamp_column))).alias("start"),
-        F.max(F.to_date(F.col(timestamp_column))).alias("end"),
+        F.min(F.to_date(F.col(observation_date_column))).alias("start"),
+        F.max(F.to_date(F.col(observation_date_column))).alias("end"),
     ).first()
     if row is None or row["start"] is None or row["end"] is None:
-        raise ValueError("Training observations have no usable timestamps")
+        raise ValueError("Training observations have no usable dates")
     return row["start"], row["end"]
 
 
@@ -415,10 +419,9 @@ def build_training_set(
             "The first generic training route requires one observation "
             "timestamp shared by all lookups"
         )
-    observation_timestamp = next(iter(observation_timestamps))
     observation_start, observation_end = _date_window(
         observations,
-        observation_timestamp,
+        definition.training_observation.observation_date_column,
     )
     if label_end < observation_end:
         raise ValueError("label_end cannot predate the observation window")

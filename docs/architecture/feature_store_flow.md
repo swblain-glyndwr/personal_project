@@ -155,6 +155,14 @@ bindings. Feature timestamps must be valid for the observation time, including
 the declared one-day availability lag for Shopping Bag account activity. The
 receipt records those bindings before training starts.
 
+Shopping Bag label snapshots use `session_date` as their daily snapshot scope,
+while `exposure_timestamp` remains the Feature Store time-series key and exact
+point-in-time observation timestamp. The model declaration also uses
+`session_date` for the training receipt window and research split date. Feature
+joins continue to use `exposure_timestamp`, so a session that crosses a calendar
+boundary stays in its declared snapshot and split without weakening the
+point-in-time join.
+
 The compatible model-development job compares logistic regression and
 gradient-boosted trees inside one MLflow run, registers the selected DEV
 version and reuses that exact build on an identical retry.

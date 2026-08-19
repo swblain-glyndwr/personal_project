@@ -180,6 +180,7 @@ class TrainingObservationSpec:
     context_features: tuple[str, ...] = ()
     label_maturity_column: str | None = None
     filters: tuple[tuple[str, str | int | float | bool], ...] = ()
+    observation_date_column: str | None = None
 
     def __post_init__(self) -> None:
         """Require explicit modelling columns and scalar row filters."""
@@ -192,6 +193,21 @@ class TrainingObservationSpec:
         if timestamp not in selected:
             raise ValueError("Observation timestamp must be a selected column")
         object.__setattr__(self, "observation_timestamp", timestamp)
+        observation_date_column = _optional_text(
+            self.observation_date_column,
+            "observation_date_column",
+        )
+        if observation_date_column is None:
+            observation_date_column = timestamp
+        if observation_date_column not in selected:
+            raise ValueError(
+                "Observation date column must be selected from observations"
+            )
+        object.__setattr__(
+            self,
+            "observation_date_column",
+            observation_date_column,
+        )
         context_features = tuple(self.context_features)
         if context_features:
             context_features = _names(context_features, "context_features")
@@ -204,6 +220,10 @@ class TrainingObservationSpec:
         if timestamp in context_features:
             raise ValueError(
                 "Observation timestamp cannot be used as a model feature"
+            )
+        if observation_date_column in context_features:
+            raise ValueError(
+                "Observation date column cannot be used as a model feature"
             )
         object.__setattr__(self, "context_features", context_features)
         maturity_column = _optional_text(
@@ -236,7 +256,7 @@ class TrainingObservationSpec:
         object.__setattr__(self, "filters", filters)
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "feature_id": self.feature_id,
             "selected_columns": self.selected_columns,
             "observation_timestamp": self.observation_timestamp,
@@ -244,6 +264,11 @@ class TrainingObservationSpec:
             "label_maturity_column": self.label_maturity_column,
             "filters": self.filters,
         }
+        if self.observation_date_column != self.observation_timestamp:
+            payload["observation_date_column"] = (
+                self.observation_date_column
+            )
+        return payload
 
 
 @dataclass(frozen=True)

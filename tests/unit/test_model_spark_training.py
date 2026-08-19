@@ -50,6 +50,12 @@ def test_trainer_uses_unity_catalog_safe_version_tags():
     assert "registered_model_artifact_digest(registered_model_uri)" in source
     assert "client.download_artifacts" not in source
     assert '"nextads.' not in source
+    assert (
+        "definition.training_observation.observation_date_column" in source
+    )
+    assert (
+        "definition.training_observation.observation_timestamp" not in source
+    )
 
 
 def test_temporal_validation_holds_out_the_latest_whole_dates():
