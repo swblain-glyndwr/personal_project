@@ -31,12 +31,16 @@ def build_item_attribute_catalog(
             F.when(
                 F.lower(F.col("next_gender")).contains("newborn"), "newborn"
             )
-            .when(F.lower(F.col("gender")).isin("women", "men", "unisex"), "adult")
+            .when(
+                F.lower(F.col("gender")).isin("women", "men", "unisex"),
+                "adult",
+            )
             .when(
                 F.lower(F.col("next_gender")).contains("older"), "kids_older"
             )
             .when(
-                F.lower(F.col("next_gender")).contains("younger"), "kids_younger"
+                F.lower(F.col("next_gender")).contains("younger"),
+                "kids_younger",
             )
             .otherwise(F.lit(None)),
         )
@@ -46,7 +50,9 @@ def build_item_attribute_catalog(
                 F.lower(F.col("next_department")).contains("wear"), "fashion"
             )
             .when(F.lower(F.col("next_department")).contains("home"), "home")
-            .when(F.lower(F.col("next_department")).contains("beauty"), "beauty")
+            .when(
+                F.lower(F.col("next_department")).contains("beauty"), "beauty"
+            )
             .otherwise(F.lit(None)),
         )
         .withColumn(
@@ -93,7 +99,11 @@ def build_recent_catalog(
     reference_date=None,
 ) -> DataFrame:
     """Filter product catalogue rows to the configured attribute lookback."""
-    cutoff_date = F.lit(reference_date).cast("date") if reference_date else F.current_date()
+    cutoff_date = (
+        F.lit(reference_date).cast("date")
+        if reference_date
+        else F.current_date()
+    )
     return df_product_catalog.where(
         F.col("end_date") > F.date_sub(cutoff_date, lookback_days)
     )
@@ -105,7 +115,11 @@ def build_recent_basket_items(
     reference_date=None,
 ) -> DataFrame:
     """Return distinct recent basket item/order pairs."""
-    cutoff_date = F.lit(reference_date).cast("date") if reference_date else F.current_date()
+    cutoff_date = (
+        F.lit(reference_date).cast("date")
+        if reference_date
+        else F.current_date()
+    )
     return (
         df_baskets.where(
             F.col("orderdate") > F.date_sub(cutoff_date, lookback_days)
@@ -122,7 +136,11 @@ def count_recent_baskets(
     reference_date=None,
 ) -> int:
     """Count distinct recent baskets for legacy prevalence metrics."""
-    cutoff_date = F.lit(reference_date).cast("date") if reference_date else F.current_date()
+    cutoff_date = (
+        F.lit(reference_date).cast("date")
+        if reference_date
+        else F.current_date()
+    )
     return (
         df_baskets.where(
             F.col("orderdate") > F.date_sub(cutoff_date, lookback_days)
@@ -133,7 +151,9 @@ def count_recent_baskets(
     )
 
 
-def extract_attribute_values(df_catalog: DataFrame, attribute: str) -> DataFrame:
+def extract_attribute_values(
+    df_catalog: DataFrame, attribute: str
+) -> DataFrame:
     """Explode and normalise one configured product attribute."""
     return (
         df_catalog.select("pid", attribute)
@@ -267,10 +287,9 @@ def build_attributes_master(
     df_attributes_master = spark.createDataFrame([], attr_schema)
 
     for attribute, df_attribute in attribute_dfs.items():
-        df_attr = (
-            df_attribute.select("pid", F.lit(attribute).alias("attribute"), "value")
-            .distinct()
-        )
+        df_attr = df_attribute.select(
+            "pid", F.lit(attribute).alias("attribute"), "value"
+        ).distinct()
         df_attributes_master = df_attributes_master.unionByName(df_attr)
 
     return df_attributes_master
@@ -306,9 +325,9 @@ def build_bigquery_item_attributes(
         .withColumn("URL", F.regexp_replace("URL", "#", "/"))
     )
 
-    product_catalog_with_nov = (
-        product_catalog_latest.join(nov_scores, on="pid", how="left").distinct()
-    )
+    product_catalog_with_nov = product_catalog_latest.join(
+        nov_scores, on="pid", how="left"
+    ).distinct()
 
     attributes_pivot = (
         df_attributes_master.groupBy("pid")

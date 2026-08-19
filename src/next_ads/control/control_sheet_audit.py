@@ -285,7 +285,9 @@ def _text(column_name: str):
 
 
 def _labelled(label: str, column):
-    return F.concat(F.lit(f"{label}="), F.coalesce(column.cast("string"), F.lit("")))
+    return F.concat(
+        F.lit(f"{label}="), F.coalesce(column.cast("string"), F.lit(""))
+    )
 
 
 def _example(*parts):
@@ -293,7 +295,9 @@ def _example(*parts):
 
 
 def _parsed_date(df: DataFrame, column_name: str, date_format: str):
-    field = next(field for field in df.schema.fields if field.name == column_name)
+    field = next(
+        field for field in df.schema.fields if field.name == column_name
+    )
     if isinstance(field.dataType, DateType):
         return F.col(column_name)
     return F.try_to_timestamp(
@@ -312,7 +316,9 @@ def _finding_frame(
 ) -> DataFrame:
     example_counts = (
         rows.select(
-            F.coalesce(example.cast("string"), F.lit("<null>")).alias("_example")
+            F.coalesce(example.cast("string"), F.lit("<null>")).alias(
+                "_example"
+            )
         )
         .groupBy("_example")
         .agg(F.count(F.lit(1)).alias("_occurrences"))
@@ -497,8 +503,7 @@ def _raw_finding_frames(
     frames.append(
         _finding_frame(
             placement_values.where(
-                F.col("_InWindow")
-                & ~F.col("_Value").isin("", "TRUE", "FALSE")
+                F.col("_InWindow") & ~F.col("_Value").isin("", "TRUE", "FALSE")
             ),
             severity=WARNING,
             code="INVALID_PLACEMENT_FLAG",
@@ -513,9 +518,7 @@ def _raw_finding_frames(
 
     frames.append(
         _finding_frame(
-            raw.where(
-                F.col("_InWindow") & ~F.col("_HasSelectedPlacement")
-            ),
+            raw.where(F.col("_InWindow") & ~F.col("_HasSelectedPlacement")),
             severity=WARNING,
             code="ACTIVE_WITH_NO_SELECTED_PLACEMENT",
             example=ad_example,
@@ -528,8 +531,7 @@ def _raw_finding_frames(
             _finding_frame(
                 raw.where(
                     F.col("_InWindow")
-                    &
-                    (_text("AudienceOnly") != "")
+                    & (_text("AudienceOnly") != "")
                     & ~_text("AudienceOnly").isin(
                         *spec.allowed_audience_values
                     )
@@ -545,8 +547,7 @@ def _raw_finding_frames(
             _finding_frame(
                 raw.where(
                     F.col("_InWindow")
-                    &
-                    (_text("AdVariant") != "")
+                    & (_text("AdVariant") != "")
                     & ~_text("AdVariant").isin(*spec.allowed_ad_variants)
                 ),
                 severity=WARNING,
@@ -628,8 +629,7 @@ def _processed_finding_frames(
     effective_date = F.lit(spec.effective_date)
 
     invalid_scope = processed.where(
-        (F.col("_Scope") == "")
-        | ~F.col("_Scope").isin(*spec.expected_scopes)
+        (F.col("_Scope") == "") | ~F.col("_Scope").isin(*spec.expected_scopes)
     )
     out_of_window = processed.where(
         F.col("_StartDate").isNull()
@@ -760,9 +760,7 @@ def _cms_external_page_id(cms_latest: DataFrame):
     if "externalPageId" in cms_latest.columns:
         return _text("externalPageId")
     if "cms_data" not in cms_latest.columns:
-        raise ValueError(
-            "cms_latest must contain cms_data or externalPageId"
-        )
+        raise ValueError("cms_latest must contain cms_data or externalPageId")
 
     cms_data_type = next(
         field.dataType
@@ -843,8 +841,7 @@ def _cms_target_url(cms_latest: DataFrame):
         return F.trim(
             F.coalesce(
                 F.col(
-                    "cms_data.data.placements"
-                    "[0].content[0].items[0].target"
+                    "cms_data.data.placements[0].content[0].items[0].target"
                 ).cast("string"),
                 F.lit(""),
             )
@@ -1014,9 +1011,7 @@ def _canonical_raw_by_id(
             F.sha2(F.to_json(F.struct(*signature_columns)), 256),
         )
         .groupBy("_UniqueAdID")
-        .agg(
-            F.sort_array(F.collect_set("_Signature")).alias("_Signatures")
-        )
+        .agg(F.sort_array(F.collect_set("_Signature")).alias("_Signatures"))
     )
 
 
@@ -1051,8 +1046,7 @@ def _raw_change_finding_frames(
                 how="inner",
             )
             .where(
-                F.col("current._Signatures")
-                != F.col("previous._Signatures")
+                F.col("current._Signatures") != F.col("previous._Signatures")
             )
             .select("_UniqueAdID")
         )
@@ -1094,9 +1088,7 @@ def _processed_routes(
             _text("UniqueAdID").alias("_UniqueAdID"),
             _text(scope_column).alias("_Scope"),
         )
-        .where(
-            (F.col("_UniqueAdID") != "") & (F.col("_Scope") != "")
-        )
+        .where((F.col("_UniqueAdID") != "") & (F.col("_Scope") != ""))
         .groupBy("_UniqueAdID", "_Scope")
         .agg(F.count(F.lit(1)).alias("_SourceRows"))
     )
@@ -1267,9 +1259,7 @@ def audit_control_sheet(
     )
     try:
         rows = combined.orderBy(
-            F.when(F.col("severity") == WARNING, F.lit(0)).otherwise(
-                F.lit(1)
-            ),
+            F.when(F.col("severity") == WARNING, F.lit(0)).otherwise(F.lit(1)),
             F.col("code"),
         ).collect()
     finally:
