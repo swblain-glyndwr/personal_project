@@ -2,13 +2,7 @@
 
 Status: Working agreement
 
-This page records the bundle targets in which each of the 51 NextAds jobs is
-declared in this checkout. It describes repository availability, not proof that
-a job is deployed, enabled or successfully run in an environment. For job
-inputs and outputs, see
-[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); for
-schedules and child-job relationships, see
-[`nextads_databricks_runtime_map.md`](nextads_databricks_runtime_map.md).
+This page records the bundle targets in which each of the 51 NextAds jobs is declared in this checkout. It describes repository availability, not proof that a job is deployed, enabled or successfully run in an environment. For job inputs and outputs, see [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); for schedules and child-job relationships, see [`nextads_databricks_runtime_map.md`](nextads_databricks_runtime_map.md).
 
 ## Bundle Target And Release Policy
 

@@ -1,11 +1,6 @@
 # NextAds Job And Table Data Flow
 
-This is the inclusive entry point for every NextAds job declared under
-`pipelines/databricks/jobs`: 51 jobs across 47 YAML definition files in this
-checkout. It covers the operational assignment and delivery route, reporting,
-realtime data, Feature Store, model development and research, model lifecycle,
-validation and table operations. Each row shows what a job consumes and what tables,
-external outputs, validation evidence or model artifacts it produces.
+This is the inclusive entry point for every NextAds job declared under `pipelines/databricks/jobs`: 51 jobs across 47 YAML definition files in this checkout. It covers the operational assignment and delivery route, reporting, realtime data, Feature Store, model development and research, model lifecycle, validation and table operations. Each row shows what a job consumes and what tables, external outputs, validation evidence or model artifacts it produces.
 
 The page stays at a human-readable route level. Linked documents own detailed
 keys, schemas, schedules, runtime evidence and operating instructions. Physical
@@ -147,12 +142,7 @@ flowchart LR
   model_evaluation -. "not activated by these jobs" .-> live
 ```
 
-The hard boundary is intentional: these in-flight jobs can build features,
-train or adopt models, and write evaluation evidence. They do not add a provider
-to a serving portfolio and do not write live assignments or delivery payloads.
-The research, reviewed-selection and AutoML jobs are manual and DEV-only. The
-selected research model has no connection to the model-import path in this
-route.
+The hard boundary is intentional: these in-flight jobs can build features, train or adopt models, and write evaluation evidence. They do not add a provider to a serving portfolio and do not write live assignments or delivery payloads. The research, reviewed-selection and AutoML jobs are manual and DEV-only. The selected research model has no connection to the model-import path in this route.
 
 ### Feature Store And Model Development Job Inputs And Outputs
 

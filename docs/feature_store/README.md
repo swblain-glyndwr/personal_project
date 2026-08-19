@@ -24,50 +24,17 @@ dates. The model job then resolves only READY snapshots, records their exact
 Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the
 selected DEV model version in MLflow.
 
-An optional research declaration in `nextads_models.yaml` uses the same
-accepted-snapshot boundary for candidate comparison. The DEV research job
-creates one immutable, PII-reduced frame from the exact training receipt and
-logs one parent MLflow run with a separate nested run for each candidate. The
-current Shopping Bag declaration supplies logistic regression, random forest,
-gradient-boosted trees and Spark XGBoost, plus a non-selectable prevalence
-baseline.
+An optional research declaration in `nextads_models.yaml` uses the same accepted-snapshot boundary for candidate comparison. The DEV research job creates one immutable, PII-reduced frame from the exact training receipt and logs one parent MLflow run with a separate nested run for each candidate. The current Shopping Bag declaration supplies logistic regression, random forest, gradient-boosted trees and Spark XGBoost, plus a non-selectable prevalence baseline.
 
-Every completed candidate receives the same train and validation metrics,
-precision-recall, ROC, calibration, lift/gain, score-distribution, confusion,
-slice and feature-coverage evidence. Its explanation uses signed coefficients,
-native tree importance, XGBoost gain and bounded contributions, or deterministic
-permutation importance as appropriate. Vector positions are mapped back to
-declared feature and category names. Missing mandatory evidence prevents that
-candidate from being selected, and low-volume slices are marked insufficient.
+Every completed candidate receives the same train and validation metrics, precision-recall, ROC, calibration, lift/gain, score-distribution, confusion, slice and feature-coverage evidence. Its explanation uses signed coefficients, native tree importance, XGBoost gain and bounded contributions, or deterministic permutation importance as appropriate. Vector positions are mapped back to declared feature and category names. Missing mandatory evidence prevents that candidate from being selected, and low-volume slices are marked insufficient.
 
-The parent run records the model definition, research plan, training receipt,
-exact feature versions, temporal profile, candidate comparison, automatic
-recommendation and hashed artifact manifest. Candidate selection is
-deterministic on validation PR-AUC, validation log loss and candidate ID. The
-current Shopping Bag plan requires a separate reviewed selection with an exact
-research build ID, candidate ID, reviewer and reason. Only that selected child
-receives untouched test evidence and model registration.
+The parent run records the model definition, research plan, training receipt, exact feature versions, temporal profile, candidate comparison, automatic recommendation and hashed artifact manifest. Candidate selection is deterministic on validation PR-AUC, validation log loss and candidate ID. The current Shopping Bag plan requires a separate reviewed selection with an exact research build ID, candidate ID, reviewer and reason. Only that selected child receives untouched test evidence and model registration.
 
-Candidate implementations may use the supplied aliases or a reviewed class
-under `next_ads.*`; fitting and standard scoring are their only responsibilities.
-Optional evidence extensions receive bounded aggregate evidence. Candidate
-plug-ins do not own data splitting, required evidence, selection, registration
-or provider publication. Identical retries reconcile the existing research
-frame, parent and child runs, decision and registered version instead of
-creating duplicates.
+Candidate implementations may use the supplied aliases or a reviewed class under `next_ads.*`; fitting and standard scoring are their only responsibilities. Optional evidence extensions receive bounded aggregate evidence. Candidate plug-ins do not own data splitting, required evidence, selection, registration or provider publication. Identical retries reconcile the existing research frame, parent and child runs, decision and registered version instead of creating duplicates.
 
-AutoML discovery is a separate, manually enabled DEV job. It reads the exact
-research frame, exposes only the research train and validation periods, stores
-its experiment and recipe associations in a receipt, and does not register or
-activate a winner.
+AutoML discovery is a separate, manually enabled DEV job. It reads the exact research frame, exposes only the research train and validation periods, stores its experiment and recipe associations in a receipt, and does not register or activate a winner.
 
-The separate Shopping Bag evaluation job reads one exact READY model build and
-an accepted candidate build, then writes isolated evaluation tables. It does
-not update a serving portfolio, assignment or payload. The complete job and
-table boundary is shown in
-[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); the
-Feature Store publication and model-consumption boundary is shown in
-[`feature_store_flow.md`](../architecture/feature_store_flow.md).
+The separate Shopping Bag evaluation job reads one exact READY model build and an accepted candidate build, then writes isolated evaluation tables. It does not update a serving portfolio, assignment or payload. The complete job and table boundary is shown in [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); the Feature Store publication and model-consumption boundary is shown in [`feature_store_flow.md`](../architecture/feature_store_flow.md).
 
 ## Registry Contract Status
 

@@ -38,12 +38,7 @@ SQL logic -> Spark DataFrame builder -> feature job entrypoint
 -> write_feature_table -> Databricks Feature Engineering table
 ```
 
-For a date-partitioned READY snapshot, `snapshot_date_key` defines which rows
-belong to the requested snapshot date. It defaults to `timestamp_key`. Declare
-the two separately when the daily business date differs from the exact event
-time used for point-in-time lookups. Shopping Bag click labels are scoped by
-`session_date`, while `exposure_timestamp` remains their Feature Store
-time-series key.
+For a date-partitioned READY snapshot, `snapshot_date_key` defines which rows belong to the requested snapshot date. It defaults to `timestamp_key`. Declare the two separately when the daily business date differs from the exact event time used for point-in-time lookups. Shopping Bag click labels are scoped by `session_date`, while `exposure_timestamp` remains their Feature Store time-series key.
 
 ## Review Evidence
 
