@@ -42,7 +42,7 @@ model_research_automl_job: &model_research_automl_job
           - --timeout_minutes
           - "{{job.parameters.timeout_minutes}}"
           - --experiment_path
-          - ${workspace.root_path}/model_discovery/{{job.parameters.model_name}}/automl
+          - ${workspace.root_path}/{{job.parameters.model_name}}_automl
           - --code_sha
           - ${var.git_commit_sha}
           - --orchestration_run_id

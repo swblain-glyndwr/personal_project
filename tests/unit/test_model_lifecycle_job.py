@@ -22,7 +22,7 @@ def _args(**updates) -> argparse.Namespace:
         "feature_schema": "personal",
         "model_catalog": "marketingdata_dev",
         "model_schema": "personal",
-        "experiment_root": "/Workspace/model_development",
+        "experiment_root": "/Workspace/bundle-root",
         "observation_reference_dates": "2026-08-05,2026-08-06",
         "feature_reference_dates": "2026-08-04,2026-08-05",
         "label_end": "2026-08-19",
@@ -120,7 +120,7 @@ def test_build_derives_registry_experiment_and_provider_names():
         "marketingdata_dev.personal.nextads_shopping_bag_pctr"
     )
     assert handler_args.experiment_path == (
-        "/Workspace/model_development/shopping_bag_pctr/build"
+        "/Workspace/bundle-root/shopping_bag_pctr"
     )
     assert handler_args.provider_signals_table.endswith(
         ".next_uk_nextads_score_provider_signals"
@@ -173,6 +173,9 @@ def test_research_uses_declared_dates_and_policy_without_repeating_them():
     assert len(features) == 7
     assert handler_args.train_reference_dates is None
     assert handler_args.selection_mode is None
+    assert handler_args.experiment_path == (
+        "/Workspace/bundle-root/shopping_bag_pctr_research"
+    )
 
 
 def test_research_rejects_unknown_candidate_before_handler_or_writes(
@@ -353,6 +356,11 @@ def test_automl_remains_separate_generic_non_registering_discovery():
     assert job["max_concurrent_runs"] == 1
     assert job["timeout_seconds"] == 9000
     assert "shopping_bag" not in resource.read_text()
+    task_parameters = task["spark_python_task"]["parameters"]
+    experiment_index = task_parameters.index("--experiment_path")
+    assert task_parameters[experiment_index + 1] == (
+        "${workspace.root_path}/{{job.parameters.model_name}}_automl"
+    )
     assert (
         "register_model"
         not in (

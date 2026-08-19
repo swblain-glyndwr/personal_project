@@ -179,7 +179,10 @@ def _registered_model_name(args: argparse.Namespace) -> str:
 
 def _experiment_path(args: argparse.Namespace, operation: str) -> str:
     root = _text(args.experiment_root).rstrip("/")
-    return f"{root}/{_text(args.model_name)}/{operation.lower()}"
+    model_name = _text(args.model_name)
+    # MLflow creates the experiment, but not missing workspace directories.
+    suffix = "" if operation == BUILD else f"_{operation.lower()}"
+    return f"{root}/{model_name}{suffix}"
 
 
 def _table(args: argparse.Namespace, name: str) -> str:

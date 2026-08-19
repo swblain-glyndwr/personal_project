@@ -30,7 +30,13 @@ def test_generic_automl_job_is_manual_dev_only():
     assert automl_job["job_clusters"] == (
         "${var.model_research_automl_job_clusters_config}"
     )
-    assert "libraries" not in automl_job["tasks"][0]
+    task = automl_job["tasks"][0]
+    assert "libraries" not in task
+    parameters = task["spark_python_task"]["parameters"]
+    experiment_index = parameters.index("--experiment_path")
+    assert parameters[experiment_index + 1] == (
+        "${workspace.root_path}/{{job.parameters.model_name}}_automl"
+    )
 
 
 def test_model_research_dependencies_and_clusters_are_isolated():

@@ -131,7 +131,8 @@ def test_model_job_is_manual_dev_evidence_only():
     assert 'feature_reference_dates\n      default: ""' in bundle_job
     assert 'label_end\n      default: ""' in bundle_job
     assert "promotion" not in bundle_job
-    assert "${workspace.root_path}/model_development" in bundle_job
+    assert "- ${workspace.root_path}" in bundle_job
+    assert "${workspace.root_path}/model_development" not in bundle_job
     assert "${workspace.root_path}/experiments/" not in bundle_job
     assert "model_schema" in bundle_job
     assert "run_declared_model_operation.py" in bundle_job

@@ -62,7 +62,7 @@ model_development_job: &model_development_job
           - --model_schema
           - ${var.user_schema}
           - --experiment_root
-          - ${workspace.root_path}/model_development
+          - ${workspace.root_path}
           - --observation_reference_dates
           - "{{job.parameters.observation_reference_dates}}"
           - --feature_reference_dates
