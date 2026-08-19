@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 from datetime import date, timedelta
 import json
 import logging
@@ -50,10 +49,7 @@ from next_ads.model_development import (
     load_model_research_plan,
     persist_training_set_receipt,
 )
-from next_ads.model_development.research_contracts import (
-    AUTO,
-    REVIEW_REQUIRED,
-)
+from next_ads.model_development.research_contracts import AUTO, REVIEW_REQUIRED
 from next_ads.model_development.research_runtime import (
     plan_observation_dates,
     run_model_research,
@@ -65,31 +61,31 @@ LOGGER = logging.getLogger(__name__)
 EVIDENCE_PREFIX = "MODEL_RESEARCH_EVIDENCE="
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", required=True)
     parser.add_argument("--feature_catalog", required=True)
     parser.add_argument("--feature_schema", required=True)
     parser.add_argument("--model_catalog", required=True)
     parser.add_argument("--model_schema", required=True)
-    parser.add_argument("--train_reference_dates", required=True)
-    parser.add_argument("--validation_reference_dates", required=True)
-    parser.add_argument("--test_reference_dates", required=True)
-    parser.add_argument("--feature_reference_dates", required=True)
+    parser.add_argument("--train_reference_dates")
+    parser.add_argument("--validation_reference_dates")
+    parser.add_argument("--test_reference_dates")
+    parser.add_argument("--feature_reference_dates")
     parser.add_argument("--label_end", required=True)
     parser.add_argument("--registered_model_name", required=True)
     parser.add_argument("--experiment_path", required=True)
     parser.add_argument(
         "--selection_mode",
         choices=(AUTO, REVIEW_REQUIRED),
-        required=True,
+        default=None,
     )
     parser.add_argument("--code_sha", required=True)
     parser.add_argument("--orchestration_run_id", type=int, required=True)
     parser.add_argument("--task_run_id", type=int, required=True)
     parser.add_argument("--execution_count", type=int, required=True)
     parser.add_argument("--log_level", default="INFO")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def _dates(value: str, field_name: str) -> tuple[date, ...]:
@@ -133,29 +129,72 @@ def _assert_declared_feature_dates(plan, feature_dates) -> None:
         )
 
 
-def main() -> None:
-    args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
-    train_dates = _dates(args.train_reference_dates, "train_reference_dates")
-    validation_dates = _dates(
-        args.validation_reference_dates,
-        "validation_reference_dates",
-    )
-    test_dates = _dates(args.test_reference_dates, "test_reference_dates")
-    feature_dates = _dates(
-        args.feature_reference_dates,
-        "feature_reference_dates",
-    )
+def _declared_dates(plan):
+    """Derive every research split and feature date from the declaration."""
+    split = plan.temporal_split
+
+    def inclusive(start: date, end: date) -> tuple[date, ...]:
+        return tuple(
+            start + timedelta(days=offset)
+            for offset in range((end - start).days + 1)
+        )
+
+    train = inclusive(split.train_start, split.train_end)
+    validation = inclusive(split.validate_start, split.validate_end)
+    test = inclusive(split.test_start, split.test_end)
+    observations = (*train, *validation, *test)
+    features = tuple(value - timedelta(days=1) for value in observations)
+    return train, validation, test, features
+
+
+def run_research(
+    args: argparse.Namespace,
+    *,
+    spark=None,
+) -> dict[str, object]:
+    """Run the exact dates and policy in one declared research plan."""
     definition = load_model_definition(args.model_name)
     declared_plan = load_model_research_plan(args.model_name)
     if declared_plan is None:
         raise ValueError(
             f"Model has no declared research plan: {args.model_name}"
         )
-    plan = replace(declared_plan, selection_policy=args.selection_mode)
-    _assert_declared_dates(plan, train_dates, validation_dates, test_dates)
-    _assert_declared_feature_dates(plan, feature_dates)
-    spark = configure_spark()
+    plan = declared_plan
+    if getattr(args, "selection_mode", None) not in (
+        None,
+        plan.selection_policy,
+    ):
+        raise ValueError(
+            "selection_mode must match the reviewed research declaration"
+        )
+    train_dates, validation_dates, test_dates, feature_dates = _declared_dates(
+        plan
+    )
+    supplied_date_fields = (
+        ("train_reference_dates", train_dates),
+        ("validation_reference_dates", validation_dates),
+        ("test_reference_dates", test_dates),
+        ("feature_reference_dates", feature_dates),
+    )
+    supplied = {
+        name: _dates(value, name)
+        for name, _expected in supplied_date_fields
+        if (value := getattr(args, name, None)) is not None
+    }
+    if supplied:
+        _assert_declared_dates(
+            plan,
+            supplied.get("train_reference_dates", train_dates),
+            supplied.get("validation_reference_dates", validation_dates),
+            supplied.get("test_reference_dates", test_dates),
+        )
+        _assert_declared_feature_dates(
+            plan,
+            supplied.get("feature_reference_dates", feature_dates),
+        )
+    label_end = date.fromisoformat(args.label_end)
+    if spark is None:
+        spark = configure_spark()
     create_model_development_tables(
         spark,
         catalog=args.model_catalog,
@@ -178,7 +217,7 @@ def main() -> None:
         feature_reference_dates=tuple(
             value.isoformat() for value in feature_dates
         ),
-        label_end=date.fromisoformat(args.label_end),
+        label_end=label_end,
         code_sha=args.code_sha,
         include_feature_audit_columns=True,
     )
@@ -256,6 +295,14 @@ def main() -> None:
         "status": result.research_build.status,
         "training_receipt_id": training.receipt.receipt_id,
     }
+    return evidence
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Run declared research and emit bounded evidence."""
+    args = parse_args(argv)
+    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    evidence = run_research(args)
     LOGGER.info(
         "%s%s",
         EVIDENCE_PREFIX,

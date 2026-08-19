@@ -2,12 +2,11 @@
 
 Status: Working runbook
 
-This is the current DS-facing path for testing the Next Ads model lifecycle process. Theme Affinity is the worked example because it is the first model wired into the new lifecycle jobs; use it as a guideline for new models rather than as a signal that this process belongs only to Theme Affinity. The concrete job names, model names and table names below are Theme Affinity-specific and should be replaced by the equivalent model-specific resources as new models adopt the lifecycle.
+This is the current DS-facing path for testing the Next Ads model lifecycle process. New DEV model work is declared in `configs/models/nextads_models.yaml` and run through the centrally owned `mktg_next_uk_nextads_model_development` job. Theme Affinity remains the worked operational example later in this runbook, but its existing training, movement and monitoring resources are transitional controls rather than a template for creating more model-specific saved jobs.
 
 This runbook documents the jobs as they operate today. Do not run PREPROD or PROD model movement without release-owner agreement.
 
-For the visual model movement path, see
-[architecture/mlflow_model_lifecycle.md](architecture/mlflow_model_lifecycle.md).
+For the visual model movement path, see [architecture/mlflow_model_lifecycle.md](architecture/mlflow_model_lifecycle.md).
 
 ## Reference Files
 
@@ -17,8 +16,8 @@ For the visual model movement path, see
 - Theme Affinity config-to-lifecycle mapping example: [`src/next_ads/ranking/theme_affinity/lifecycle_spec.py`](../src/next_ads/ranking/theme_affinity/lifecycle_spec.py)
 - Theme Affinity Spark training example: [`src/next_ads/ranking/theme_affinity/mlflow_lifecycle.py`](../src/next_ads/ranking/theme_affinity/mlflow_lifecycle.py)
 - Theme Affinity GPU training example: [`src/next_ads/ranking/theme_affinity/gpu_xgboost_lifecycle.py`](../src/next_ads/ranking/theme_affinity/gpu_xgboost_lifecycle.py)
-- Model lifecycle job resources: [`pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml)
-- Theme Affinity training examples: [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml)
+- Generic DEV model lifecycle resource: [`pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml)
+- Existing Theme Affinity transition resources: [`pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml)
 
 ## Principles
 
@@ -30,15 +29,13 @@ For the visual model movement path, see
 
 ## 1. Personal DEV Proof
 
-Use this step to prove the branch, data contract and model evidence before the change is merged. The Theme Affinity job names below are the current lifecycle test path. Future models should follow the same shape by adding a model-specific training job and a small config-mapping function that turns that model's config into the shared `ModelLifecycleSpec`.
+Use this step to prove the branch, data contract and model evidence before the change is merged. Add the model declaration and reusable plug-ins, then use the generic lifecycle job; do not add a model-specific job resource.
 
 1. Deploy or use the `DEV` target for the feature branch.
-2. Confirm the training input is a labelled training table, not an unlabelled scoring snapshot. The job parameter is `input_table`; the bundle default is `${var.theme_affinity_training_input_table}`.
-3. Run one challenger training job:
-   - `mktg_next_uk_nextads_theme_affinity_model_train_spark` for the preferred Spark XGBoost route.
-   - `mktg_next_uk_nextads_theme_affinity_model_train` only when the GPU/local XGBoost route is the modelling choice.
-4. In MLflow, review the experiment `/Shared/mlflow/nextads/dev/experiments/theme_affinity_ranker`.
-5. Record the Databricks run id, MLflow run id, registered model name, model version, alias and evidence summary.
+2. Confirm `configs/models/nextads_models.yaml` declares the labelled observation source, point-in-time feature lookups, split policy, trainer and evidence contract.
+3. Run `mktg_next_uk_nextads_model_development` with the declared `model_name` and `operation=BUILD`, or use `operation=RESEARCH` followed by `operation=REVIEW_SELECT` when candidate comparison and human review are required.
+4. In MLflow, review the model's derived personal-DEV experiment path and the immutable training or research receipts.
+5. Record the Databricks run id, MLflow run id, registered model name, exact model version and evidence summary. The generic DEV job does not set or move an alias.
 
 Minimum evidence to check for any model using this lifecycle:
 
@@ -46,7 +43,7 @@ Minimum evidence to check for any model using this lifecycle:
 - positive and negative labels exist in train, validation and test splits;
 - ranking metrics are non-zero and make sense for the challenger objective;
 - `sample_profile.json` and training evidence plots are present;
-- the registered model alias matches the backend, such as `dev_spark_xgboost` or `dev_gpu_xgboost`.
+- the registered model version and artifact URI match the immutable build or reviewed-selection receipt, with existing aliases unchanged.
 
 If the job fails because the training frame has no positive labels, the input table is probably an unlabelled scoring table. Stop and fix the input before trying to train again. The exact label-quality checks may differ for future models, but each model must have equivalent evidence that its training data is valid.
 
@@ -55,7 +52,7 @@ If the job fails because the training frame has no positive labels, the input ta
 Open the feature PR into `develop`. The PR should include:
 
 - the DEV run id and MLflow run id;
-- the registered model version and alias created in DEV;
+- the registered model version created in DEV and the before/after alias state;
 - the training input table used;
 - the key ranking metrics and artifact checks;
 - whether the Spark or GPU backend is proposed for integration.

@@ -1,21 +1,17 @@
-# Optional bounded DEV-only AutoML discovery. It never registers or activates a model.
+# Optional bounded DEV-only model discovery. It never registers or activates a model.
 model_research_automl_job: &model_research_automl_job
-  name: mktg_next_uk_nextads_model_research_automl
+  name: mktg_next_uk_nextads_model_discovery
   queue:
     enabled: true
   parameters:
     - name: enabled
       default: "false"
+    - name: model_name
+      default: REQUIRED
     - name: research_build_id
       default: REQUIRED
-    - name: model_catalog
-      default: ${var.mktgdata_catalog}
-    - name: model_schema
-      default: ${var.user_schema}
     - name: timeout_minutes
       default: "30"
-    - name: experiment_path
-      default: ${workspace.root_path}/shopping_bag_pctr_automl
   job_clusters: ${var.model_research_automl_job_clusters_config}
   tags:
     deployed_at: ${var.deploy_timestamp}
@@ -24,7 +20,7 @@ model_research_automl_job: &model_research_automl_job
     deployed_by: ${var.deployed_by}
     department: marketing
     project: nextads
-    domain: model_research_discovery
+    domain: model_discovery
     activation_mode: EVALUATE
   max_concurrent_runs: 1
   timeout_seconds: 9000
@@ -35,16 +31,18 @@ model_research_automl_job: &model_research_automl_job
         parameters:
           - --enabled
           - "{{job.parameters.enabled}}"
+          - --model_name
+          - "{{job.parameters.model_name}}"
           - --research_build_id
           - "{{job.parameters.research_build_id}}"
           - --model_catalog
-          - "{{job.parameters.model_catalog}}"
+          - ${var.mktgdata_catalog}
           - --model_schema
-          - "{{job.parameters.model_schema}}"
+          - ${var.user_schema}
           - --timeout_minutes
           - "{{job.parameters.timeout_minutes}}"
           - --experiment_path
-          - "{{job.parameters.experiment_path}}"
+          - ${workspace.root_path}/model_discovery/{{job.parameters.model_name}}/automl
           - --code_sha
           - ${var.git_commit_sha}
           - --orchestration_run_id

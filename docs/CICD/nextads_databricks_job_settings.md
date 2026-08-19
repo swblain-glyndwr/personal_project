@@ -183,25 +183,16 @@ Shared DEV feature-store build.
 | `recreate_feature_tables` | Recreate feature-store tables before building. | `false` by default; use `true` only for intentional table rebuilds. |
 | Fixed task settings | `catalog`, `schema`, `manage_principal`, `all_privileges_principal`, `replace_reference_date`, `log_level` | Set by bundle variables/job definition; only change with feature-store ownership review. |
 
-### Supporting Feature And Model Job Settings
+### Shared Feature And Generic Model Job Settings
 
-These are manual or bounded jobs around the shared Feature Store route. Exact table and model defaults remain in the linked job definitions; the list below records the settings an operator is expected to select deliberately.
+These are the centrally owned feature and model routes around the shared Feature Store. A data scientist declares a model in `configs/models/nextads_models.yaml` and selects an operation on the generic job; a model, use case or experiment does not get its own saved job.
 
 | Job | Operator-selected settings | Notes / options |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_analytics_pctr_feature_source` | `reference_date`, output/source catalog and schema, `source_binding`, Theme Affinity source namespace/prefix, `receipt_correlation_id` | Builds one receipted Analytics pCTR source version for later Feature Store use. |
-| `mktg_next_uk_nextads_analytics_pctr_snapshot_verification` | `reference_date`, feature/source/Theme namespaces, exact source binding and receipt, `failure_injection`, `expect_current_attempt_ready` | Bounded publication and failure-retention proof for the three pCTR feature contracts. |
-| `mktg_next_uk_nextads_analytics_pctr_prediction_verification` | `catalog_schema_prefix`, `table_prefix`, `lookback_period`, `affinity_weighting_factor`, two exact model URIs | Runs the existing pCTR scorer against a selected DEV table prefix. |
-| `mktg_next_uk_nextads_analytics_pctr_adoption` | Exact source table/version/date/run, receipt namespace, provider tables, classifier/regressor model URIs and run IDs | Adopts an existing prediction version into isolated `EVALUATE`; it does not select a serving provider. |
-| `mktg_next_uk_nextads_shopping_bag_feature_preparation` | `reference_date`, `label_end`, `feature_reference_date`, source namespace | Builds the bounded account, advert and observed-label inputs used by the worked example. |
-| `mktg_next_uk_nextads_shopping_bag_label_publication` | `reference_date`, `label_end`, source namespace | Publishes one bounded mature observed-label window. |
-| `mktg_next_uk_nextads_model_development` | `model_name`, feature/model namespaces, observation and feature dates, `label_end`, registered model/experiment names, provider tables, promotion settings | `promotion_mode` remains disabled for the model-author proof; activation is a separate reviewed change. |
-| `mktg_next_uk_nextads_model_research` | `model_name`, feature/model namespaces, exact train/validation/test date lists, feature dates, `label_end`, registered model name, experiment path, `selection_mode` | Runs the declared candidates against one exact receipt. The Shopping Bag declaration uses `REVIEW_REQUIRED`, so the job records its recommendation and stops without registering a model. |
-| `mktg_next_uk_nextads_model_research_selection` | Exact `research_build_id`, `candidate_id`, `written_reason`, `reviewed_by`, model namespace and registered model name | Records the reviewed decision, evaluates the selected candidate on the withheld test split and registers only that candidate. |
-| `mktg_next_uk_nextads_model_research_automl` | `enabled`, exact `research_build_id`, model namespace, `timeout_minutes`, experiment path | Disabled by default. When enabled, the timeout must be 1-120 minutes (30 by default); discovery uses the receipted research frame and does not register a model. |
-| `mktg_next_uk_nextads_model_development_runtime_smoke` | Fixed invalid-future-binding smoke inputs | Read-only runtime and leakage-guard proof; no operator-selected data scope. |
+| `mktg_next_uk_nextads_model_development` | `operation`, declared `model_name`, then only that operation's fields | `BUILD` requires observation dates, feature dates and `label_end`; `RESEARCH` requires `label_end` and takes split dates from the declaration; `REVIEW_SELECT` requires the exact research build, candidate, reviewer and reason; `EVALUATE` requires the exact model build and run date and accepts bounded evaluation overrides. The job rejects irrelevant fields before starting the operation. |
+| `mktg_next_uk_nextads_model_discovery` | `enabled`, declared `model_name`, exact `research_build_id` and `timeout_minutes` | Centrally owned separate-runtime discovery. It is disabled by default; when enabled, the timeout must be 1-120 minutes (30 by default), discovery uses the exact receipted research frame and no model is registered or activated. |
 | `mktg_next_uk_nextads_product_embedding_runtime_smoke` | `log_level` | Read-only advert-item bridge and registered embedding runtime proof. |
-| `mktg_next_uk_nextads_shopping_bag_ongoing_evaluation` | Exact `model_build_id`, run/feature dates and namespaces, accepted candidate tables/attempt, serving slot and account limit | Writes repeated evaluation evidence only; it does not change serving candidates. |
 
 ### `mktg_next_uk_nextads_theme_affinity`
 

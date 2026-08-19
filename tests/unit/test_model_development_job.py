@@ -6,7 +6,7 @@ import yaml
 from jobs.model.development import run_declared_model as job
 
 
-def test_model_job_does_not_promote_by_default(monkeypatch):
+def test_model_job_has_no_promotion_arguments(monkeypatch):
     monkeypatch.setattr(
         sys,
         "argv",
@@ -47,7 +47,7 @@ def test_model_job_does_not_promote_by_default(monkeypatch):
         ],
     )
 
-    assert job.parse_args().promotion_mode == "NONE"
+    assert not hasattr(job.parse_args(), "promotion_mode")
 
 
 def test_model_job_accepts_one_or_more_exact_feature_dates():
@@ -68,7 +68,9 @@ def test_model_job_publishes_canonical_but_adapts_scoped_scores():
 
     class Provider:
         def score(self, *_args, **_kwargs):
-            pytest.fail("Scoped model must not discard location before adaptation")
+            pytest.fail(
+                "Scoped model must not discard location before adaptation"
+            )
 
         def score_with_evaluation_scope(self, *args, **kwargs):
             assert args == (Definition, "build", "training")
@@ -87,13 +89,13 @@ def test_model_job_publishes_canonical_but_adapts_scoped_scores():
     assert columns == ("location",)
 
 
-def test_model_job_uses_receipts_plugins_and_exact_promotion():
+def test_model_job_uses_receipts_plugins_without_promotion():
     source = job.Path(job.__file__).read_text()
 
     assert "build_training_set_from_feature_store" in source
     assert "persist_training_set_receipt" in source
     assert "train_or_reuse_model" in source
-    assert "promote_exact_model_build" in source
+    assert "promote_exact_model_build" not in source
     assert "recover_registered_model_build" in source
     assert "ready_build_recovery=" in source
     assert "persist_evaluation_candidates" in source
@@ -122,15 +124,17 @@ def test_model_job_is_manual_dev_evidence_only():
     ).read_text()
 
     assert "activation_mode: EVALUATE" in bundle_job
-    assert "provider_builds_table" in bundle_job
+    assert "operation\n      default: REQUIRED" in bundle_job
+    assert "model_name\n      default: REQUIRED" in bundle_job
     assert "{{task.run_id}}" in bundle_job
-    assert "observation_reference_dates\n      default: REQUIRED" in bundle_job
-    assert "feature_reference_dates\n      default: REQUIRED" in bundle_job
-    assert "label_end\n      default: REQUIRED" in bundle_job
-    assert "default: NONE" in bundle_job
-    assert "${workspace.root_path}/shopping_bag_pctr" in bundle_job
+    assert 'observation_reference_dates\n      default: ""' in bundle_job
+    assert 'feature_reference_dates\n      default: ""' in bundle_job
+    assert 'label_end\n      default: ""' in bundle_job
+    assert "promotion" not in bundle_job
+    assert "${workspace.root_path}/model_development" in bundle_job
     assert "${workspace.root_path}/experiments/" not in bundle_job
     assert "model_schema" in bundle_job
+    assert "run_declared_model_operation.py" in bundle_job
     assert "schedule:" not in bundle_job
     assert "mktg_next_uk_nextads.yml" not in bundle_job
     assert "PROD:" not in bundle_job
@@ -138,8 +142,12 @@ def test_model_job_is_manual_dev_evidence_only():
 
 def test_generic_preprod_import_is_release_scoped_and_allowlisted():
     project_root = job.Path(job.__file__).resolve().parents[3]
-    resource = project_root / "pipelines" / "databricks" / "jobs" / (
-        "mktg_next_uk_nextads_model_import_preprod.yml"
+    resource = (
+        project_root
+        / "pipelines"
+        / "databricks"
+        / "jobs"
+        / ("mktg_next_uk_nextads_model_import_preprod.yml")
     )
     config = yaml.safe_load(resource.read_text())
     promotion_job = config["model_import_preprod_config"][
@@ -148,8 +156,9 @@ def test_generic_preprod_import_is_release_scoped_and_allowlisted():
     parameters = promotion_job["tasks"][0]["spark_python_task"]["parameters"]
 
     assert set(config["targets"]) == {"PREPROD"}
-    assert "../../../jobs/model/development/promote_exact_model.py" == (
-        promotion_job["tasks"][0]["spark_python_task"]["python_file"]
+    assert (
+        "../../../jobs/model/development/promote_exact_model.py"
+        == (promotion_job["tasks"][0]["spark_python_task"]["python_file"])
     )
     assert "marketingdata_dev.nextads_integration." in parameters
     assert "marketingdata_prod.ds_sandbox." in parameters

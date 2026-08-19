@@ -6,7 +6,6 @@ import inspect
 from types import SimpleNamespace
 
 import pytest
-import yaml
 
 from jobs.model.research import select_research_candidate as selection_job
 from next_ads.model_development.contracts import (
@@ -192,7 +191,7 @@ def _model_build(decision) -> ModelBuild:
     )
 
 
-def test_cli_and_job_resource_require_review_identity_and_reason():
+def test_cli_requires_review_identity_and_reason():
     parsed = selection_job.parse_args(
         [
             "--research_build_id",
@@ -231,21 +230,6 @@ def test_cli_and_job_resource_require_review_identity_and_reason():
                 "REQUIRED",
             ]
         )
-
-    resource = yaml.safe_load(
-        (
-            selection_job.PROJECT_ROOT
-            / "pipelines"
-            / "databricks"
-            / "jobs"
-            / "mktg_next_uk_nextads_model_research_selection.yml"
-        ).read_text()
-    )["model_research_selection_job"]
-    parameters = {item["name"] for item in resource["parameters"]}
-    task_parameters = resource["tasks"][0]["spark_python_task"]["parameters"]
-    assert {"candidate_id", "written_reason", "reviewed_by"} <= parameters
-    assert "selected_candidate_id" not in parameters
-    assert "--reviewed_by" in task_parameters
 
 
 def test_entrypoint_bootstraps_before_repository_runtime_imports():

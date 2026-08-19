@@ -11,34 +11,15 @@ def _yaml(path: Path):
     return yaml.safe_load(path.read_text())
 
 
-def test_model_research_jobs_are_manual_dev_only():
-    research = _yaml(JOBS_ROOT / "mktg_next_uk_nextads_model_research.yml")
-    selection = _yaml(
-        JOBS_ROOT / "mktg_next_uk_nextads_model_research_selection.yml"
-    )
+def test_generic_automl_job_is_manual_dev_only():
     automl = _yaml(
         JOBS_ROOT / "mktg_next_uk_nextads_model_research_automl.yml"
     )
 
-    assert set(research["targets"]) == {"DEV"}
-    assert set(selection["targets"]) == {"DEV"}
     assert set(automl["targets"]) == {"DEV"}
-    for config in (research, selection, automl):
-        assert "schedule" not in next(
-            value for key, value in config.items() if key.endswith("_job")
-        )
-
-    research_job = research["model_research_job"]
-    assert research_job["job_clusters"] == (
-        "${var.model_research_job_clusters_config}"
+    assert "schedule" not in next(
+        value for key, value in automl.items() if key.endswith("_job")
     )
-    assert all(
-        task["libraries"] == "${var.model_research_libraries}"
-        for task in research_job["tasks"]
-    )
-    assert research_job["tasks"][1]["depends_on"] == [
-        {"task_key": "smoke_model_research_runtime"}
-    ]
 
     automl_job = automl["model_research_automl_job"]
     defaults = {
@@ -102,21 +83,9 @@ def test_model_research_dependencies_and_clusters_are_isolated():
     assert automl["num_workers"] == 4
 
 
-def test_research_resources_are_included_once_and_scoring_can_load_xgboost():
+def test_automl_resource_is_included_once_and_scoring_can_load_xgboost():
     bundle = (PROJECT_ROOT / "databricks.yml").read_text()
-    resources = (
-        "mktg_next_uk_nextads_model_research.yml",
-        "mktg_next_uk_nextads_model_research_selection.yml",
-        "mktg_next_uk_nextads_model_research_automl.yml",
-    )
-    for resource in resources:
-        assert bundle.count(resource) == 1
-
-    ongoing = (
-        JOBS_ROOT / "mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml"
-    ).read_text()
-    assert "libraries: ${var.model_research_libraries}" in ongoing
-    assert "libraries: ${var.model_development_libraries}" not in ongoing
+    assert bundle.count("mktg_next_uk_nextads_model_research_automl.yml") == 1
 
     model_config = _yaml(
         PROJECT_ROOT / "configs" / "models" / "nextads_models.yaml"

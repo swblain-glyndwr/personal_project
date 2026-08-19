@@ -520,11 +520,6 @@ class SparkBinaryClassifierTrainer:
                 key=key,
                 value=value,
             )
-        client.set_registered_model_alias(
-            name=self.registered_model_name,
-            alias="dev_candidate",
-            version=version,
-        )
         completed_at = datetime.now(timezone.utc)
         return ModelBuild(
             model_build_id=build_id,

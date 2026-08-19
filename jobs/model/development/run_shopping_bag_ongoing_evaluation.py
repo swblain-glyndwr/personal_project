@@ -74,12 +74,12 @@ from next_ads.model_development.store import load_ready_model_build
 
 
 LOGGER = logging.getLogger(__name__)
-EVIDENCE_PREFIX = "SHOPPING_BAG_ONGOING_EVALUATION_EVIDENCE="
+EVIDENCE_PREFIX = "MODEL_ONGOING_EVALUATION_EVIDENCE="
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", default="shopping_bag_pctr")
+    parser.add_argument("--model_name", required=True)
     parser.add_argument("--model_build_id", required=True)
     parser.add_argument("--run_date", required=True)
     parser.add_argument("--feature_catalog", required=True)
@@ -101,7 +101,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task_run_id", type=int, required=True)
     parser.add_argument("--execution_count", type=int, required=True)
     parser.add_argument("--log_level", default="INFO")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def _feature_reference_dates(
@@ -163,17 +163,24 @@ def _load_model_build(args, spark, definition):
     return build
 
 
-def main() -> None:
-    args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
-    if args.model_name != "shopping_bag_pctr":
-        raise ValueError("This isolated route supports only shopping_bag_pctr")
+def run_evaluation(
+    args: argparse.Namespace,
+    *,
+    spark=None,
+) -> dict[str, object]:
+    """Run the bounded evaluator declared by the model use case."""
     run_date = date.fromisoformat(args.run_date)
     feature_reference_dates = _feature_reference_dates(
         args.feature_reference_dates
     )
-    spark = configure_spark()
     definition = load_model_definition(args.model_name)
+    if definition.evaluation_use_case != "shopping_bag_advert_ranking":
+        raise ValueError(
+            "No ongoing evaluator is registered for use case: "
+            f"{definition.evaluation_use_case}"
+        )
+    if spark is None:
+        spark = configure_spark()
     create_ongoing_evaluation_tables(
         spark,
         catalog=args.model_catalog,
@@ -365,6 +372,14 @@ def main() -> None:
         "scoring_build_id": build_id,
         "status": READY,
     }
+    return evidence
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Run one declared ongoing evaluation and emit bounded evidence."""
+    args = parse_args(argv)
+    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    evidence = run_evaluation(args)
     LOGGER.info(
         "%s%s",
         EVIDENCE_PREFIX,

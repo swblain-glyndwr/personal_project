@@ -397,31 +397,32 @@ flowchart TD
 
 The Feature Store job is deliberately separate from the operational PROD delivery routes. It is scheduled at 21:00 only in `DEV_FEATURE_STORE`, writes reusable model-building tables in `marketingdata_dev.nextads_feature_store`, and does not publish assignments, delivery payloads or production scores. Its complete task graph is maintained once in [`feature_store_flow.md`](../architecture/feature_store_flow.md); its job and table inputs and outputs are in [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md).
 
-## Manual DEV Model Research Route
+## Manual DEV Declared Model Route
 
-The model-research jobs are unscheduled and declared only in the personal `DEV` target. They use exact READY snapshots and remain separate from the operational scoring and assignment graph.
+The centrally owned model-lifecycle and model-discovery jobs are unscheduled and declared only in the personal `DEV` target. A data scientist supplies a declared `model_name` and selects the supported operation rather than adding a saved job for the model, feature theme or experiment. Both routes use exact READY snapshots and remain separate from the operational scoring and assignment graph.
 
 ```mermaid
 flowchart LR
+  declaration["Model and research declaration<br/>nextads_models.yaml"]
   snapshots["READY Feature Store snapshots"]
-  research["Model research<br/>parent and nested MLflow runs"]
-  receipts["Immutable research and candidate receipts"]
-  selection["Reviewed selection"]
-  selected["Selected registered DEV model"]
-  evaluation["Isolated Shopping Bag evaluation"]
-  automl["Optional bounded AutoML discovery"]
+  lifecycle["Generic model-development job<br/>BUILD / RESEARCH / REVIEW_SELECT / EVALUATE"]
+  receipts["Immutable build, research,<br/>selection and evaluation evidence"]
+  model["Registered DEV model"]
+  discovery["Generic optional model discovery<br/>separate ML runtime"]
   live["Serving portfolios, assignments and payloads"]
 
-  snapshots --> research --> receipts --> selection --> selected --> evaluation
-  receipts -. "disabled by default" .-> automl
-  evaluation -. "no write" .-> live
+  declaration --> lifecycle
+  snapshots --> lifecycle --> receipts
+  lifecycle --> model
+  receipts -. "disabled by default" .-> discovery
+  receipts -. "no activation" .-> live
 ```
 
-The current Shopping Bag research plan requires reviewed selection. The research job logs the automatic recommendation and stops without registration; the selection job requires the exact research build and candidate IDs, reviewer and written reason before test evaluation and registration. The AutoML job is a separate manually enabled discovery route over the exact research frame. It does not receive the research test period and does not register a model.
+`BUILD` receives observation dates, feature dates and `label_end`; `RESEARCH` receives `label_end` and takes train, validation, test, feature-date and selection-policy rules from the model declaration; `REVIEW_SELECT` receives the exact research build, candidate, reviewer and reason; `EVALUATE` receives the exact model build and run date plus optional bounded evaluation overrides. The job derives DEV namespaces, registered-model names, control tables and MLflow paths and has no promotion, alias or environment-copy capability. The separately deployed generic discovery job requires a declared model and exact research build, never receives the research test period and never registers or activates a model.
 
 ## Job And Table Ownership Boundaries
 
-New NextAds model work should decide which layer it belongs to before adding a job or table:
+New NextAds model work should first extend the repository declaration and the appropriate centrally owned route. Add a saved job only for a stable operational responsibility with distinct ownership, scheduling or runtime needs that the shared contract cannot represent:
 
 | Layer | Use it for | Do not use it for |
 | --- | --- | --- |

@@ -85,9 +85,11 @@ poetry run pytest tests/unit/test_specific_file.py -v
 
 ### **Phase 3: Deploy Code to DEV with Databricks CLI**
 
-Deploy your code as job to DEV environment before committing to Git. Create a developer specific feature job for light testing.
+Deploy the existing bundle to the personal DEV target before committing to Git. Use the centrally owned job for the responsibility you are testing; do not create a developer-, model-, theme- or experiment-specific saved job for ordinary data-science work.
 
 Do not use PREPROD for ordinary feature branch testing. PREPROD is the Release Owner route for an agreed `release/*` candidate.
+
+For model work, add or update the model and optional research declaration in `configs/models/nextads_models.yaml`, add reusable feature contracts through the Feature Store registry and builders, and use `mktg_next_uk_nextads_model_development`. A new saved job requires a stable operational responsibility with distinct ownership, scheduling or runtime needs that the centrally owned route cannot represent.
 
 ```bash
 # Step 1: Source environment variables
@@ -106,7 +108,7 @@ databricks bundle plan -t DEV --profile DEV
 databricks bundle deploy -t DEV --profile DEV
 ```
 
-Run the job manually in Databricks UI and verify successful completion.
+Run the relevant centrally owned job manually in the Databricks UI and verify successful completion.
 
 ---
 
@@ -183,6 +185,19 @@ After the feature-store route has merged to `develop`, run the deployment pipeli
 The shared feature-store job writes reusable model-building features to `marketingdata_dev.nextads_feature_store` and reads stable Theme Affinity source outputs from `marketingdata_prod.warehouse`. It is scheduled daily at 21:00 Europe/London; run it manually after deployment when immediate validation or repair evidence is needed.
 
 Feature branches can deploy a separate personal Feature Store job through `git deploy-dev`. That copy has no schedule, permits one run at a time and writes only to the last commit author's DEV schema. Use it for branch-level runtime validation. `DEV_FEATURE_STORE` remains the sole scheduled shared copy and is deployed only from `develop`.
+
+#### Declared Model Development
+
+The normal model-author workflow is declaration plus parameter selection, not creation of another Databricks job. Add or update `configs/models/nextads_models.yaml`, deploy the feature branch to personal `DEV`, then run `mktg_next_uk_nextads_model_development` with a declared `model_name` and one operation:
+
+| Operation | Supply | Result |
+| --- | --- | --- |
+| `BUILD` | `observation_reference_dates`, `feature_reference_dates`, `label_end` | Point-in-time training receipt, selected build and registered personal-DEV model version. |
+| `RESEARCH` | `label_end` | Candidate comparison using train, validation, test, feature-date and selection-policy rules from the declaration. |
+| `REVIEW_SELECT` | `research_build_id`, `candidate_id`, `written_reason`, `reviewed_by` | Durable reviewed decision, selected-only test evaluation and registered personal-DEV model version. |
+| `EVALUATE` | `model_build_id`, `run_date`; optional feature dates, account limit, serving slot and candidate-build attempt | Isolated evaluation evidence with no serving, assignment or payload change. |
+
+The job derives the personal DEV namespaces, registered-model name, control tables and MLflow path. It cannot promote, set an alias or copy a model to another environment. For optional AutoML, run the centrally owned `mktg_next_uk_nextads_model_discovery` job with `enabled=true`, the same declared `model_name`, an exact `research_build_id` and an optional bounded timeout; its separate ML runtime never registers or activates a model.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 

@@ -1358,34 +1358,6 @@ def test_analytics_pctr_notebooks_cannot_default_to_ds_sandbox():
             assert "OUTPUT_LOCATION_REQUIRED" in source
 
 
-def test_analytics_pctr_snapshot_proof_is_personal_dev_only_and_focused():
-    bundle_config = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
-    relative_path = (
-        "pipelines/databricks/jobs/"
-        "mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml"
-    )
-    config = yaml.safe_load((PROJECT_ROOT / relative_path).read_text())
-
-    assert relative_path in bundle_config["include"]
-    assert set(config["targets"]) == {"DEV"}
-    job_config = config["analytics_pctr_snapshot_verification_config"][
-        "mktg_next_uk_nextads_analytics_pctr_snapshot_verification"
-    ]
-    assert [task["task_key"] for task in job_config["tasks"]] == [
-        "prepare_pctr_feature_tables",
-        "publish_pctr_feature_snapshot",
-        "verify_readable_ready_snapshot",
-    ]
-    setup_parameters = job_config["tasks"][0]["spark_python_task"][
-        "parameters"
-    ]
-    assert setup_parameters.count("--table") == 3
-    assert setup_parameters[setup_parameters.index("--recreate_tables") + 1] == (
-        "false"
-    )
-    assert job_config["tasks"][-1]["run_if"] == "ALL_DONE"
-
-
 def test_account_feature_task_uses_theme_affinity_source_outputs():
     source = (
         PROJECT_ROOT

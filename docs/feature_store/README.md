@@ -12,24 +12,24 @@
 | Ownership | Logical contracts, builders, quality rules and model lookups remain in this repository. |
 | Serving mode | Batch/offline first. Realtime and online publication are separate work. |
 | Shared DEV | `marketingdata_dev.nextads_feature_store`. |
-| Personal proof | Model-author runs write to the author's `marketingdata_dev` schema. |
+| Personal proof | Model-author validation writes to the author's `marketingdata_dev` schema through centrally owned jobs. |
 | Customer impact | Feature and `EVALUATE` jobs do not change a serving portfolio, assignment or payload. |
 
 ## Using Accepted Features In A Model
 
-The implemented Shopping Bag route demonstrates how the Feature Store is used without making it part of customer serving. Its preparation job publishes observed click labels, 90-day account activity and advert features for explicit dates. The model job then resolves only READY snapshots, records their exact Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the selected DEV model version in MLflow.
+The implemented Shopping Bag declaration demonstrates how the Feature Store is used without making it part of customer serving. Accepted feature builders publish observed click labels, 90-day account activity and advert features for explicit dates. The centrally owned model-development job then resolves only READY snapshots, records their exact Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the selected DEV model version in MLflow. A data scientist adds or changes the declaration rather than adding a model-specific Databricks job.
 
-An optional research declaration in `nextads_models.yaml` uses the same accepted-snapshot boundary for candidate comparison. The DEV research job creates one immutable, PII-reduced frame from the exact training receipt and logs one parent MLflow run with a separate nested run for each candidate. The current Shopping Bag declaration supplies logistic regression, random forest, gradient-boosted trees and Spark XGBoost, plus a non-selectable prevalence baseline.
+An optional research section in `nextads_models.yaml` uses the same accepted-snapshot boundary for candidate comparison. The generic research operation creates one immutable, PII-reduced frame from the exact training receipt and logs one parent MLflow run with a separate nested run for each candidate. The current Shopping Bag declaration supplies logistic regression, random forest, gradient-boosted trees and Spark XGBoost, plus a non-selectable prevalence baseline.
 
 Every completed candidate receives the same train and validation metrics, precision-recall, ROC, calibration, lift/gain, score-distribution, confusion, slice and feature-coverage evidence. Its explanation uses signed coefficients, native tree importance, XGBoost gain and bounded contributions, or deterministic permutation importance as appropriate. Vector positions are mapped back to declared feature and category names. Missing mandatory evidence prevents that candidate from being selected, and low-volume slices are marked insufficient.
 
-The parent run records the model definition, research plan, training receipt, exact feature versions, temporal profile, candidate comparison, automatic recommendation and hashed artifact manifest. Candidate selection is deterministic on validation PR-AUC, validation log loss and candidate ID. The current Shopping Bag plan requires a separate reviewed selection with an exact research build ID, candidate ID, reviewer and reason. Only that selected child receives untouched test evidence and model registration.
+The parent run records the model definition, research plan, training receipt, exact feature versions, temporal profile, candidate comparison, automatic recommendation and hashed artifact manifest. Candidate selection is deterministic on validation PR-AUC, validation log loss and candidate ID. The current Shopping Bag plan requires a reviewed selection with an exact research build ID, candidate ID, reviewer and reason. Only that selected child receives untouched test evidence and model registration.
 
 Candidate implementations may use the supplied aliases or a reviewed class under `next_ads.*`; fitting and standard scoring are their only responsibilities. Optional evidence extensions receive bounded aggregate evidence. Candidate plug-ins do not own data splitting, required evidence, selection, registration or provider publication. Identical retries reconcile the existing research frame, parent and child runs, decision and registered version instead of creating duplicates.
 
-AutoML discovery is a separate, manually enabled DEV job. It reads the exact research frame, exposes only the research train and validation periods, stores its experiment and recipe associations in a receipt, and does not register or activate a winner.
+AutoML discovery remains a centrally owned, manually enabled generic DEV job because it requires a separate ML runtime. It reads the exact declared research frame, exposes only the research train and validation periods, stores its experiment and recipe associations in a receipt, and does not register or activate a winner.
 
-The separate Shopping Bag evaluation job reads one exact READY model build and an accepted candidate build, then writes isolated evaluation tables. It does not update a serving portfolio, assignment or payload. The complete job and table boundary is shown in [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); the Feature Store publication and model-consumption boundary is shown in [`feature_store_flow.md`](../architecture/feature_store_flow.md).
+The generic model-development route can read one exact READY model build and an accepted candidate build, then write isolated evaluation tables. It does not update a serving portfolio, assignment or payload. The complete job and table boundary is shown in [`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); the Feature Store publication and model-consumption boundary is shown in [`feature_store_flow.md`](../architecture/feature_store_flow.md).
 
 ## Registry Contract Status
 
@@ -83,12 +83,8 @@ An empty table shell is not a populated feature. An on-demand contract is not ex
 | `jobs/table_operations/create_feature_store_tables.py` | Safe Feature Engineering table creation. |
 | `jobs/features/nextads/` | Builders, preflight, quality checks and the read-only plan. |
 | `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` | Personal, Integration and shared DEV Feature Store graph. |
-| `pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_feature_preparation.yml` | Manual account, advert and observed-label inputs for the Shopping Bag model example. |
-| `pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml` | Manual declared model training, DEV MLflow registration and retry. |
-| `pipelines/databricks/jobs/mktg_next_uk_nextads_model_research.yml` | Manual DEV candidate comparison with one parent MLflow run and nested candidate runs. |
-| `pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_selection.yml` | Manual reviewed selection, selected-only test evaluation and registration. |
-| `pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml` | Disabled-by-default bounded AutoML discovery against an exact research frame. |
-| `pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml` | Manual isolated Shopping Bag candidate scoring. |
+| `pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml` | Centrally owned generic DEV lifecycle for declared model build, research, reviewed selection and isolated evaluation. |
+| `pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml` | Centrally owned, disabled-by-default generic AutoML discovery against an exact declared research frame. |
 | `configs/models/nextads_models.yaml` | Model problems, lookups, runtimes, plug-ins and optional research plans. |
 | `jobs/model/research/` and `src/next_ads/model_development/research_*.py` | Research entrypoints, contracts, evaluation, evidence, explanations, selection and retry handling. |
 | `sql/model_development/` | Training, research, candidate, selection, AutoML and model-build control/evidence tables. |
@@ -151,9 +147,9 @@ On-demand contracts are reported as skipped on the normal daily route unless an 
 
 The quality table's own persisted row uses `MANIFEST_ONLY`: a row cannot contain the Delta version created by writing itself. The deterministic manifest emitted after the write contains the resulting quality-table version.
 
-## Current DEV Shopping Bag Evidence
+## Historical DEV Shopping Bag Evidence
 
-These runs prove a complete model-author slice without starting the full Feature Store job.
+These completed runs prove the model-author slice used while the generic lifecycle was being established. Their temporary proof-job resources are not part of the supported data-scientist workflow.
 
 | Evidence | Result |
 | --- | --- |
@@ -175,7 +171,7 @@ The complete physical catalogue, compatibility views, grain, keys, dates, cadenc
 - DEV Feature Engineering and Unity Catalog permissions must allow the run-as identity to create or update the declared personal/shared targets.
 - Source assignment, control-sheet, item, session, page and action contracts must remain available for the requested dates.
 - App Shopping Bag telemetry needs separate route and CMS validation before it joins the worked web V1 label.
-- The Analytics pCTR adopter remains separate from the Shopping Bag model.
+- Analytics pCTR adoption remains separate from the Shopping Bag model declaration.
 - The current two-date proof is not sufficient evidence for a serving decision.
 - PREPROD, PROD, realtime and online publication require separate evidence and activation routes.
 

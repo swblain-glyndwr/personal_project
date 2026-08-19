@@ -1,19 +1,11 @@
 from pathlib import Path
 
 import pytest
-import yaml
 
 from jobs.model.development import run_shopping_bag_ongoing_evaluation as job
 
 
 PROJECT_ROOT = Path(job.__file__).resolve().parents[3]
-BUNDLE_PATH = (
-    PROJECT_ROOT
-    / "pipelines"
-    / "databricks"
-    / "jobs"
-    / ("mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml")
-)
 
 
 def test_job_accepts_auto_or_exact_feature_dates():
@@ -78,46 +70,6 @@ def test_job_scores_exact_inputs_and_publishes_ready_last():
     assert "mktg_next_uk_nextads.yml" not in source
     assert "assignment" not in source.lower()
     assert "payload" not in source.lower()
-
-
-def test_bundle_is_manual_dev_only_and_separate_from_customer_jobs():
-    config = yaml.safe_load(BUNDLE_PATH.read_text())
-    resource = config["shopping_bag_ongoing_evaluation_job"]
-    task = resource["tasks"][0]
-    text = BUNDLE_PATH.read_text()
-
-    assert set(config["targets"]) == {"DEV"}
-    assert resource["tags"]["activation_mode"] == "EVALUATE"
-    assert resource["tags"]["model"] == "shopping_bag_pctr"
-    assert task["spark_python_task"]["python_file"].endswith(
-        "run_shopping_bag_ongoing_evaluation.py"
-    )
-    assert task["job_cluster_key"] == "next_ads_job_cluster_D32ads_v5_1_4"
-    assert resource["parameters"][0] == {
-        "name": "model_build_id",
-        "default": "REQUIRED",
-    }
-    assert resource["parameters"][1] == {
-        "name": "run_date",
-        "default": "{{job.start_time.iso_date}}",
-    }
-    assert {"name": "account_limit", "default": "10000"} in resource[
-        "parameters"
-    ]
-    parameters = task["spark_python_task"]["parameters"]
-    assert "--v2_candidate_build_attempt_id" not in parameters
-    account_limit_index = parameters.index("--account_limit")
-    assert parameters[account_limit_index + 1] == (
-        "{{job.parameters.account_limit}}"
-    )
-    assert "schedule:" not in text
-    assert "PROD:" not in text
-    assert "assign" not in text.lower()
-    assert "payload" not in text.lower()
-    assert (
-        str(BUNDLE_PATH.relative_to(PROJECT_ROOT)).replace("\\", "/")
-        in (PROJECT_ROOT / "databricks.yml").read_text()
-    )
 
 
 def test_history_tables_preserve_model_candidate_and_feature_provenance():

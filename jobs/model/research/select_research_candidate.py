@@ -121,6 +121,7 @@ def _execution_count(value: str) -> int:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse one explicit, human-reviewed selection."""
     parser = argparse.ArgumentParser()
+    parser.add_argument("--model_name")
     parser.add_argument(
         "--research_build_id", type=_required_text, required=True
     )
@@ -707,16 +708,6 @@ def _load_research_inputs(
     TrainingSetReceipt,
     tuple[CandidateEvaluation, ...],
 ]:
-    create_model_development_tables(
-        spark,
-        catalog=args.model_catalog,
-        schema=args.model_schema,
-    )
-    create_research_tables(
-        spark,
-        catalog=args.model_catalog,
-        schema=args.model_schema,
-    )
     build = load_selectable_research_build(
         spark,
         catalog=args.model_catalog,
@@ -727,6 +718,11 @@ def _load_research_inputs(
         raise ValueError(
             "No AWAITING_SELECTION or READY research build exists for "
             f"{args.research_build_id}"
+        )
+    expected_model_name = getattr(args, "model_name", None)
+    if expected_model_name and build.model_name != expected_model_name:
+        raise ValueError(
+            "Research build does not belong to the requested model"
         )
     definition = load_model_definition(build.model_name)
     plan = _effective_review_plan(
@@ -755,6 +751,16 @@ def _load_research_inputs(
         build,
         receipt,
         evaluations,
+    )
+    create_model_development_tables(
+        spark,
+        catalog=args.model_catalog,
+        schema=args.model_schema,
+    )
+    create_research_tables(
+        spark,
+        catalog=args.model_catalog,
+        schema=args.model_schema,
     )
     return definition, plan, build, receipt, evaluations
 

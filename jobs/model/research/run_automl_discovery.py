@@ -165,6 +165,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse the manual DEV discovery job parameters."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--enabled", type=parse_enabled, default="false")
+    parser.add_argument("--model_name", required=True)
     parser.add_argument("--research_build_id", required=True)
     parser.add_argument("--model_catalog", required=True)
     parser.add_argument("--model_schema", required=True)
@@ -801,11 +802,6 @@ def run_discovery(
     spark: Any,
 ) -> dict[str, Any]:
     """Run or reuse one frame-pinned, non-registering discovery attempt."""
-    create_research_tables(
-        spark,
-        catalog=args.model_catalog,
-        schema=args.model_schema,
-    )
     build = load_selectable_research_build(
         spark,
         catalog=args.model_catalog,
@@ -816,6 +812,11 @@ def run_discovery(
         raise ValueError(
             "No completed research build is available for AutoML discovery: "
             f"{args.research_build_id}"
+        )
+    expected_model_name = getattr(args, "model_name", build.model_name)
+    if build.model_name != expected_model_name:
+        raise ValueError(
+            "Research build does not belong to the requested model"
         )
     definition = load_model_definition(build.model_name)
     plan = _effective_research_plan(
@@ -831,6 +832,11 @@ def run_discovery(
         raise ValueError(
             "Research plan does not declare Databricks AutoML discovery"
         )
+    create_research_tables(
+        spark,
+        catalog=args.model_catalog,
+        schema=args.model_schema,
+    )
     binding = _frame_binding(build)
     request_checksum = _request_checksum(
         timeout_minutes=args.timeout_minutes,

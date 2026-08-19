@@ -1,6 +1,6 @@
 # NextAds Job And Table Data Flow
 
-This is the inclusive entry point for every NextAds job declared under `pipelines/databricks/jobs`: 51 jobs across 47 YAML definition files in this checkout. It covers the operational assignment and delivery route, reporting, realtime data, Feature Store, model development and research, model lifecycle, validation and table operations. Each row shows what a job consumes and what tables, external outputs, validation evidence or model artifacts it produces.
+This is the inclusive entry point for every NextAds job declared under `pipelines/databricks/jobs`: 42 jobs across 38 YAML definition files in this checkout. It covers the operational assignment and delivery route, reporting, realtime data, Feature Store, model development and research, model lifecycle, validation and table operations. Each row shows what a job consumes and what tables, external outputs, validation evidence or model artifacts it produces.
 
 The page stays at a human-readable route level. Linked documents own detailed keys, schemas, schedules, runtime evidence and operating instructions. Physical catalogs and schemas vary by bundle target; table names below are logical names. An in-flight job being declared on a feature branch does not prove that it is deployed, scheduled or proven in a shared environment.
 
@@ -92,18 +92,14 @@ flowchart LR
   operational["Existing operational data<br/>customer, advert, control, web and assignment tables"]
   theme["Existing Theme Affinity outputs"]
   analytics_source["Analytics pCTR source job"]
-  feature_store["Feature Store jobs"]
+  feature_store["Centrally owned Feature Store job"]
   features["READY Feature Store snapshots"]
-  model_dev["Model development job"]
-  research["Model research job"]
-  research_evidence["Immutable research frame, receipts<br/>and nested MLflow runs"]
-  reviewed_selection["Reviewed selection job"]
-  automl["Optional AutoML discovery job"]
-  analytics_adopt["Analytics pCTR adoption job"]
+  declaration["Model declaration<br/>nextads_models.yaml"]
+  model_dev["Generic model-development job<br/>BUILD / RESEARCH / REVIEW_SELECT / EVALUATE"]
+  research_evidence["Immutable research, selection<br/>and nested MLflow evidence"]
+  automl["Generic optional AutoML discovery job"]
   model_evaluation["Evaluation-only provider and candidate tables"]
-  ongoing["Shopping Bag ongoing evaluation job"]
   model_registry["Registered model version"]
-  selected_research_model["Selected registered DEV model"]
   promotion["Exact model import jobs"]
   next_env["Registered model in the next environment"]
   live["Existing candidate, assignment and delivery route"]
@@ -113,25 +109,18 @@ flowchart LR
   theme --> feature_store
   analytics_source --> feature_store
   feature_store --> features
+  declaration --> model_dev
   features --> model_dev
   model_dev --> model_registry
   model_dev --> model_evaluation
-  features --> research --> research_evidence
-  research_evidence --> reviewed_selection --> selected_research_model
+  model_dev --> research_evidence
   research_evidence -. "disabled by default" .-> automl
-  analytics_source --> analytics_adopt
-  analytics_adopt --> model_evaluation
-  model_registry --> ongoing
-  selected_research_model --> ongoing
-  features --> ongoing
-  operational --> ongoing
-  ongoing --> model_evaluation
   model_registry --> promotion --> next_env
 
   model_evaluation -. "not activated by these jobs" .-> live
 ```
 
-The hard boundary is intentional: these in-flight jobs can build features, train or adopt models, and write evaluation evidence. They do not add a provider to a serving portfolio and do not write live assignments or delivery payloads. The research, reviewed-selection and AutoML jobs are manual and DEV-only. The selected research model has no connection to the model-import path in this route.
+The hard boundary is intentional: these in-flight jobs can build features, run declared model lifecycle operations and write evaluation evidence. They do not add a provider to a serving portfolio and do not write live assignments or delivery payloads. A data scientist changes `nextads_models.yaml` and runs the centrally owned manual DEV lifecycle job rather than adding a saved job for each model or experiment. AutoML remains a separate centrally owned manual DEV job because it needs a different runtime. A selected research model has no connection to the model-import path in this route.
 
 ### Feature Store And Model Development Job Inputs And Outputs
 
@@ -140,23 +129,14 @@ The hard boundary is intentional: these in-flight jobs can build features, train
 | Legacy Analytics pCTR | [`mktg_next_uk_nextads_analytics_pctr`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml) | Operational web/session, purchase, assignment, control and item-theme data plus two registered pCTR models | The legacy `next_uk_nextAds_analytics_pctr_features`, predictions and latest-predictions tables; the job is currently paused |
 | Feature source | [`mktg_next_uk_nextads_analytics_pctr_feature_source`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_feature_source.yml) | Web/session activity, account-linked browsing, purchases, current adverts and Theme Affinity sources | `next_uk_nextads_analytics_pctr_features` plus `next_uk_nextads_analytics_pctr_feature_source_receipts` |
 | Full feature refresh | [`mktg_next_uk_nextads_feature_store`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml) | Operational warehouse sources, Theme Affinity outputs and the receipted Analytics pCTR feature source | The registered Feature Store tables, compatibility views, build/snapshot metadata and quality events described below |
-| Bounded pCTR proof | [`mktg_next_uk_nextads_analytics_pctr_snapshot_verification`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml) | One exact Analytics pCTR source receipt plus supporting operational sources | The three Analytics pCTR feature tables and one readable READY snapshot |
-| Shopping Bag inputs | [`mktg_next_uk_nextads_shopping_bag_feature_preparation`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_feature_preparation.yml) | Web activity, advert/control data and observed assignment/click data | Shopping Bag account activity, advert features and observed click labels |
-| Shopping Bag label proof | [`mktg_next_uk_nextads_shopping_bag_label_publication`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_label_publication.yml) | Observed browsing, assignment and click data for an explicit label window | `next_uk_nextads_fs_shopping_bag_click_labels` and its feature-build evidence |
-| Existing pCTR scoring proof | [`mktg_next_uk_nextads_analytics_pctr_prediction_verification`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_prediction_verification.yml) | `next_uk_nextAds_analytics_pctr_features` and two exact registered model versions | `next_uk_nextAds_analytics_pctr_predictions` and `next_uk_nextAds_analytics_pctr_predictions_latest` |
-| Existing pCTR adoption | [`mktg_next_uk_nextads_analytics_pctr_adoption`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_adoption.yml) | One exact Analytics pCTR prediction-table version and its two registered model versions | External-score receipt, canonical score-provider signals and an `EVALUATE` provider build |
-| Generic model build | [`mktg_next_uk_nextads_model_development`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml) | Declared READY Feature Store snapshots and labels from [`nextads_models.yaml`](../../configs/models/nextads_models.yaml) | Training receipt, model build, registered model version, evaluation candidates and `EVALUATE` provider signals/build |
-| Model research | [`mktg_next_uk_nextads_model_research`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research.yml) | One declared research plan, exact train/validation/test dates and READY Feature Store snapshots | PII-reduced research frame, research and candidate receipts, one parent MLflow run, nested candidate runs, comparable validation evidence and an automatic recommendation; the current Shopping Bag plan stops awaiting reviewed selection |
-| Reviewed research selection | [`mktg_next_uk_nextads_model_research_selection`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_selection.yml) | Exact research build and candidate IDs, reviewer and written reason | Durable selection receipt, selected-only test evidence and one registered DEV model version |
-| Optional AutoML discovery | [`mktg_next_uk_nextads_model_research_automl`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml) | One exact research build and its immutable research-frame version | Bounded discovery experiment, trials, leaderboard/recipe associations and a discovery receipt; no model registration or activation |
-| Runtime proof | [`mktg_next_uk_nextads_model_development_runtime_smoke`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development_runtime_smoke.yml) | Runtime libraries and a deliberately invalid future feature binding | Validation result only; it must not create a training receipt or model build |
+| Generic model lifecycle | [`mktg_next_uk_nextads_model_development`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml) | An `operation`, a `model_name` declared in [`nextads_models.yaml`](../../configs/models/nextads_models.yaml), READY Feature Store snapshots and only the identifiers required by that operation | `BUILD` creates a training receipt, model build, registered model version and evaluation candidates; `RESEARCH` creates the immutable research frame, candidate evidence and recommendation; `REVIEW_SELECT` records the reviewed decision, evaluates the selected candidate on the held-out test split and registers it; `EVALUATE` writes isolated scoring evidence |
+| Optional generic model discovery | [`mktg_next_uk_nextads_model_discovery`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml) | A declared `model_name`, one exact research build and its immutable research-frame version | Bounded AutoML experiment, trials, leaderboard/recipe associations and a discovery receipt; no model registration or activation |
 | Embedding runtime proof | [`mktg_next_uk_nextads_product_embedding_runtime_smoke`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_product_embedding_runtime_smoke.yml) | Synthetic advert-item frames, the approved embedding contract/runtime and one exact registered embedding model | Two read-only smoke manifests; no table or model-alias write |
-| Ongoing Shopping Bag evaluation | [`mktg_next_uk_nextads_shopping_bag_ongoing_evaluation`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml) | One READY model build, READY feature snapshots and one accepted candidate build | Evaluation scoring-build and score tables; no serving candidate tables are changed |
 | Exact model movement | [`mktg_next_uk_nextads_model_import_dev_integration`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml) and [`mktg_next_uk_nextads_model_import_preprod`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_preprod.yml) | One exact source model version or alias | A digest-checked copy of that registered model in the next environment; no data tables |
 
 ## Theme Affinity Model And Compatibility Job Inputs And Outputs
 
-The operational Theme Affinity scoring job appears in the assignment route above. These additional jobs train, compare, move or monitor its models, or publish legacy table shapes for consumers that have not moved to the canonical provider contract.
+The operational Theme Affinity scoring job appears in the assignment route above. These additional jobs train, compare, move or monitor its models, or publish legacy table shapes for consumers that have not moved to the canonical provider contract. They are retained because they own established operational, compatibility or environment-movement responsibilities; they are not the template for a new data-science model, which uses the generic declared lifecycle.
 
 | Job | Consumes | Produces |
 | --- | --- | --- |
@@ -203,9 +183,9 @@ The Feature Store job groups related builders so that downstream models consume 
 
 The job also maintains the read-only compatibility views `next_uk_nextads_theme_affinity_features_latest` and `next_uk_nextads_pctr_features_latest`. The detailed task order and parallel branches are shown once in [`feature_store_flow.md`](feature_store_flow.md).
 
-## Shopping Bag Builder Inputs And Output Tables
+## On-Demand Feature Builder Inputs And Output Tables
 
-The Shopping Bag preparation jobs are intentionally narrower than the complete Feature Store refresh. They exist so a model author can prepare only the inputs needed for the worked Shopping Bag challenger.
+The repository retains focused builder entrypoints for on-demand feature contracts. They are implementation units, not separately deployed model-specific saved jobs; accepted reusable work should be incorporated into the centrally owned Feature Store route.
 
 | Builder | Primary inputs | Output tables |
 | --- | --- | --- |
@@ -222,17 +202,17 @@ These are control, evidence and evaluation tables rather than reusable model fea
 | `next_uk_nextads_analytics_pctr_feature_source_receipts` | Analytics pCTR feature-source job | Pins the source table, Delta version, date, schema and producing run for Feature Store publication |
 | `next_uk_nextads_feature_builds`, `next_uk_nextads_feature_build_sources`, `next_uk_nextads_feature_build_outputs` | Feature builders | Records each build attempt and its exact input/output Delta versions |
 | `next_uk_nextads_feature_snapshots`, `next_uk_nextads_feature_snapshot_bindings` | Successful feature publication | Lets model jobs resolve only complete READY groups instead of moving latest tables |
-| `next_uk_nextads_training_set_receipts` | Generic model-development and model-research jobs | Reproduces the exact feature bindings, observation dates and label boundary used for training |
-| `next_uk_nextads_model_research_claims`, `next_uk_nextads_automl_discovery_claims` | Model-research and AutoML jobs | Fences concurrent retries and records recoverable lease/checkpoint state; these are control tables rather than immutable evidence |
-| `next_uk_nextads_model_research_frames` | Model-research job | Stores the PII-reduced train/validation/test frame under an exact Delta version, checksum and hashed row identity |
-| `next_uk_nextads_model_research_builds`, `next_uk_nextads_candidate_evaluations` | Model-research job | Records the immutable experiment identity, parent/child MLflow runs, candidate metrics, evidence manifests and completion status |
-| `next_uk_nextads_model_selection_decisions` | Model-research or reviewed-selection job | Records the automatic recommendation, selected candidate, mode, reviewer/reason where applicable and selected model-build link |
-| `next_uk_nextads_automl_discovery_receipts` | Optional AutoML discovery job | Pins the discovery request to the exact research-frame version and records its experiment, trials and leaderboard/recipe associations |
-| `next_uk_nextads_model_builds` | Generic model-development or selected research route | Identifies the definition, training receipt, MLflow run, registered version and artifact digest; nullable research columns link selected builds to their research, decision and candidate receipts |
-| `next_uk_nextads_external_score_receipts` | Analytics pCTR adoption job | Proves the exact externally produced prediction table and model versions that were adopted |
-| `next_uk_nextads_score_provider_signals`, `next_uk_nextads_score_provider_builds` | Generic model-development or Analytics adoption job | Holds canonical evaluation-only scores and their selectable build identity |
-| `next_uk_nextads_model_evaluation_candidates` | Generic model-development job | Stores the deterministic historical challenger result for review |
-| `next_uk_nextads_model_evaluation_scoring_builds`, `next_uk_nextads_model_evaluation_scores` | Shopping Bag ongoing-evaluation job | Records repeated scoring evidence against accepted candidate builds without publishing serving candidates |
+| `next_uk_nextads_training_set_receipts` | Generic model lifecycle | Reproduces the exact feature bindings, observation dates and label boundary used for training |
+| `next_uk_nextads_model_research_claims`, `next_uk_nextads_automl_discovery_claims` | Generic model lifecycle and model discovery | Fences concurrent retries and records recoverable lease/checkpoint state; these are control tables rather than immutable evidence |
+| `next_uk_nextads_model_research_frames` | Generic model lifecycle `RESEARCH` operation | Stores the PII-reduced train/validation/test frame under an exact Delta version, checksum and hashed row identity |
+| `next_uk_nextads_model_research_builds`, `next_uk_nextads_candidate_evaluations` | Generic model lifecycle `RESEARCH` operation | Records the immutable experiment identity, parent/child MLflow runs, candidate metrics, evidence manifests and completion status |
+| `next_uk_nextads_model_selection_decisions` | Generic model lifecycle `RESEARCH` and `REVIEW_SELECT` operations | Records the automatic recommendation, selected candidate, mode, reviewer/reason where applicable and selected model-build link |
+| `next_uk_nextads_automl_discovery_receipts` | Optional generic model-discovery job | Pins the discovery request to the exact research-frame version and records its experiment, trials and leaderboard/recipe associations |
+| `next_uk_nextads_model_builds` | Generic model lifecycle `BUILD` or selected-research route | Identifies the definition, training receipt, MLflow run, registered version and artifact digest; nullable research columns link selected builds to their research, decision and candidate receipts |
+| `next_uk_nextads_external_score_receipts` | Explicit external-score adoption implementation | Proves the exact externally produced prediction table and model versions that were adopted |
+| `next_uk_nextads_score_provider_signals`, `next_uk_nextads_score_provider_builds` | Generic model lifecycle or explicit external-score adoption implementation | Holds canonical evaluation-only scores and their selectable build identity |
+| `next_uk_nextads_model_evaluation_candidates` | Generic model lifecycle `BUILD` operation | Stores the deterministic historical challenger result for review |
+| `next_uk_nextads_model_evaluation_scoring_builds`, `next_uk_nextads_model_evaluation_scores` | Generic model lifecycle `EVALUATE` operation | Records repeated scoring evidence against accepted candidate builds without publishing serving candidates |
 
 ## Where To Go Next
 
@@ -245,7 +225,7 @@ These are control, evidence and evaluation tables rather than reusable model fea
 | What order do the Feature Store tasks run in? | [`feature_store_flow.md`](feature_store_flow.md) |
 | What is each feature table's grain, key and refresh expectation? | [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) |
 | What is implemented, proven in DEV or still blocked? | [Feature Store README](../feature_store/README.md) and [`migration_backlog.md`](../feature_store/migration_backlog.md) |
-| How do accepted features become comparable candidate evidence, a selected DEV model and isolated evaluation scores? | [`feature_store_flow.md`](feature_store_flow.md#current-model-consumption-and-research-boundary) |
+| How do accepted features become comparable candidate evidence, a selected DEV model and isolated evaluation scores? | [`feature_store_flow.md`](feature_store_flow.md#declared-model-consumption-and-research-boundary) |
 | How does Theme Affinity operate today? | [`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md) |
 | How are exact model versions promoted? | [`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md) |
 

@@ -45,8 +45,6 @@ from dsutils.dbc import configure_spark
 from next_ads.features.feature_builds import feature_value_checksum
 from next_ads.model_development import (
     ModelPluginRegistry,
-    REGISTERED_MODEL_COPY,
-    SOURCE_ALIAS_REHEARSAL,
     summarise_binary_labels,
     temporal_train_validation_split,
     build_training_set_from_feature_store,
@@ -54,7 +52,6 @@ from next_ads.model_development import (
     load_model_definition,
     persist_training_set_receipt,
     persist_evaluation_candidates,
-    promote_exact_model_build,
     publish_evaluation_provider,
     recover_registered_model_build,
     train_or_reuse_model,
@@ -66,7 +63,7 @@ LOGGER = logging.getLogger(__name__)
 MANIFEST_PREFIX = "MODEL_DEVELOPMENT_EVIDENCE="
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", required=True)
     parser.add_argument("--feature_catalog", required=True)
@@ -81,18 +78,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--experiment_path", required=True)
     parser.add_argument("--provider_signals_table", required=True)
     parser.add_argument("--provider_builds_table", required=True)
-    parser.add_argument("--promotion_model_name", default=None)
-    parser.add_argument("--promotion_alias", default="integration_candidate")
-    parser.add_argument(
-        "--promotion_mode",
-        choices=(REGISTERED_MODEL_COPY, SOURCE_ALIAS_REHEARSAL, "NONE"),
-        default="NONE",
-    )
     parser.add_argument("--orchestration_run_id", type=int, required=True)
     parser.add_argument("--task_run_id", type=int, required=True)
     parser.add_argument("--execution_count", type=int, required=True)
     parser.add_argument("--log_level", default="INFO")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def _reference_dates(value: str) -> tuple[str, ...]:
@@ -121,11 +111,15 @@ def _score_outputs(definition, build, training_frame, score_provider):
     return canonical, canonical, scope_columns
 
 
-def main() -> None:
-    args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
-    spark = configure_spark()
+def run_model(
+    args: argparse.Namespace,
+    *,
+    spark=None,
+) -> dict[str, object]:
+    """Build one declared model without promotion or alias mutation."""
     definition = load_model_definition(args.model_name)
+    if spark is None:
+        spark = configure_spark()
     create_model_development_tables(
         spark,
         catalog=args.model_catalog,
@@ -139,9 +133,7 @@ def main() -> None:
         observation_reference_dates=_reference_dates(
             args.observation_reference_dates
         ),
-        feature_reference_dates=_reference_dates(
-            args.feature_reference_dates
-        ),
+        feature_reference_dates=_reference_dates(args.feature_reference_dates),
         label_end=date.fromisoformat(args.label_end),
         code_sha=args.code_sha,
     )
@@ -199,17 +191,6 @@ def main() -> None:
             receipt=training.receipt,
         ),
     )
-    promotion = None
-    promotion_reused = None
-    if args.promotion_mode != "NONE":
-        promotion, promotion_reused = promote_exact_model_build(
-            mlflow_client,
-            build,
-            destination_model_name=(args.promotion_model_name or None),
-            alias=args.promotion_alias,
-            promotion_mode=args.promotion_mode,
-        )
-
     run_date = training.receipt.observation_end
     score_provider = plugins.score_provider(
         definition,
@@ -237,7 +218,9 @@ def main() -> None:
     first_checksum = feature_value_checksum(first_candidates)
     second_checksum = feature_value_checksum(second_candidates)
     if first_checksum != second_checksum:
-        raise ValueError("Candidate adapter output changed for identical inputs")
+        raise ValueError(
+            "Candidate adapter output changed for identical inputs"
+        )
 
     publication = publish_evaluation_provider(
         spark,
@@ -307,18 +290,26 @@ def main() -> None:
         "positive_label_count": training.positive_label_count,
         "positive_label_rate": training.positive_label_rate,
         "provider_build_status": publication.build.status,
-        "promotion": promotion.__dict__ if promotion else None,
-        "promotion_reused": promotion_reused,
         "runtime_profile": build.runtime_profile,
         "status": build.status,
         "training_row_count": training.row_count,
         "training_receipt_id": training.receipt.receipt_id,
         "use_case": definition.evaluation_use_case,
     }
+    return evidence
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Run one declared build and emit bounded evidence."""
+    args = parse_args(argv)
+    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    evidence = run_model(args)
     LOGGER.info(
         "%s%s",
         MANIFEST_PREFIX,
-        json.dumps(evidence, default=str, sort_keys=True, separators=(",", ":")),
+        json.dumps(
+            evidence, default=str, sort_keys=True, separators=(",", ":")
+        ),
     )
 
 
