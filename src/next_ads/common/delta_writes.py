@@ -596,9 +596,9 @@ def atomic_replace_where_by_name(
             build_delete_statement(
                 target_table=target_table, delete_scope=delete_scope
             )
-        )
+        
         if delete_scope
-        else lambda source_view, selected_columns: (
+        else 
             build_replace_where_statement(
                 target_table=target_table,
                 source_view=source_view,
