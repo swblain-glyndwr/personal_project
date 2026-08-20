@@ -724,10 +724,20 @@ def main(
         else:
             logger.info("Bloomreach import trigger is disabled")
 
-        exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
-                         where roamingprofileid is not null
-                         and trim(roamingprofileid)!=''
-                         and (next_ads is not null)""")
+        EXPONEA_CUSTOMERS = spark.table(config.tables_read.exponea_customers)
+
+        exponea_cust = (
+            EXPONEA_CUSTOMERS.filter(
+                F.col("roamingprofileid").isNotNull()
+                & (F.trim(F.col("roamingprofileid")) != "")
+                & F.col("next_ads").isNotNull()
+            )
+            .select(
+                F.trim(F.col("roamingprofileid")).alias("roamingprofileid")
+            )
+            .distinct()
+        )
+
         in_exp_notin_source = exponea_cust.join(
             df_latest_payload, ["roamingprofileid"], "left_anti"
         )  # GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
