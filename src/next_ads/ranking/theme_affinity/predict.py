@@ -1,9 +1,13 @@
 from pathlib import Path
 
 
+PREDICTION_PARTITIONS = 128
+
+
 def _install_numpy_pickle_compat():
     try:
         import numpy._core.multiarray  # noqa: F401
+
         return
     except ModuleNotFoundError:
         pass
@@ -11,7 +15,9 @@ def _install_numpy_pickle_compat():
     import importlib
     import sys
 
-    sys.modules.setdefault("numpy._core", importlib.import_module("numpy.core"))
+    sys.modules.setdefault(
+        "numpy._core", importlib.import_module("numpy.core")
+    )
     sys.modules.setdefault(
         "numpy._core.multiarray",
         importlib.import_module("numpy.core.multiarray"),
@@ -49,7 +55,9 @@ def _load_mlflow_model(mlflow, model_uri: str, allow_spark: bool = False):
             raise xgboost_error
 
 
-def _predict_with_model(model_kind, model, raw_feature_pdf, encoders, model_input_cols):
+def _predict_with_model(
+    model_kind, model, raw_feature_pdf, encoders, model_input_cols
+):
     if model_kind == "pyfunc":
         return model.predict(raw_feature_pdf[model_input_cols])
 
@@ -73,38 +81,41 @@ def _predict_with_model(model_kind, model, raw_feature_pdf, encoders, model_inpu
     return model.predict(dmatrix)
 
 
-def run_prediction(spark, runtime):
+def build_predictions(spark, runtime):
     import mlflow
     from pyspark.sql import functions as F
+    from next_ads.ranking.theme_affinity.config import (
+        read_runtime_foundation_output,
+    )
 
     _configure_mlflow_for_model_uri(mlflow, runtime.model_uri)
     model_config = runtime.config.ranking_model
-    model_tables = runtime.config.ranking_model_tables
     model_input_cols = list(model_config.model_input_cols)
     output_cols = list(model_config.predict_table_cols)
-    prediction_input_cols = _prediction_input_columns(model_input_cols, output_cols)
+    prediction_input_cols = _prediction_input_columns(
+        model_input_cols, output_cols
+    )
     rank_threshold = int(model_config.predict_rank_filter_threshold)
 
     predict_input = (
-        spark.table(model_tables.predict_input_table)
+        read_runtime_foundation_output(spark, runtime, "ranked")
+        .filter(F.col("rundate") == F.lit(runtime.run_date))
         .filter(F.col("simple_rules_rank") <= rank_threshold)
         .select(*prediction_input_cols)
         .withColumnRenamed("theme_clean", "theme")
         .repartition(
-            int(spark.conf.get("spark.default.parallelism", "200")),
+            PREDICTION_PARTITIONS,
             "account_number",
         )
     )
 
-    prediction_schema = (
-        predict_input.select(
-            F.col("account_number"),
-            F.col("theme"),
-            F.col("month"),
-            F.col("baskets_behavior__recency_rank"),
-            F.lit(0.0).cast("float").alias("prediction"),
-        ).schema
-    )
+    prediction_schema = predict_input.select(
+        F.col("account_number"),
+        F.col("theme"),
+        F.col("month"),
+        F.col("baskets_behavior__recency_rank"),
+        F.lit(0.0).cast("float").alias("prediction"),
+    ).schema
     model_kind, model = _load_mlflow_model(
         mlflow,
         runtime.model_uri,
@@ -118,13 +129,7 @@ def run_prediction(spark, runtime):
             F.col("baskets_behavior__recency_rank"),
             F.col("prediction").cast("float").alias("prediction"),
         )
-        (
-            predictions.select(*output_cols)
-            .write.mode("overwrite")
-            .option("overwriteSchema", "true")
-            .saveAsTable(model_tables.predict_output_table)
-        )
-        return
+        return predictions.select(*output_cols)
 
     encoder_path = (
         runtime.project_root
@@ -139,12 +144,7 @@ def run_prediction(spark, runtime):
         _predict_partition(runtime.model_uri, encoder_path, model_input_cols),
         schema=prediction_schema,
     )
-    (
-        predictions.select(*output_cols)
-        .write.mode("overwrite")
-        .option("overwriteSchema", "true")
-        .saveAsTable(model_tables.predict_output_table)
-    )
+    return predictions.select(*output_cols)
 
 
 def _prediction_input_columns(model_input_cols, output_cols):

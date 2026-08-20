@@ -1,5 +1,11 @@
-import pytest
+import threading
+import time
+from types import SimpleNamespace
 
+import pytest
+from pyspark.sql.types import LongType, StructField, StructType
+
+import next_ads.ranking.theme_affinity.publish_outputs as publish_outputs_module
 from next_ads.ranking.theme_affinity.publish_outputs import (
     DEFAULT_PUBLISH_TABLE_SUFFIXES,
     parse_table_suffixes,
@@ -7,59 +13,67 @@ from next_ads.ranking.theme_affinity.publish_outputs import (
 )
 
 
-class FakeWriter:
-    def __init__(self, spark, source_table):
-        self.spark = spark
-        self.source_table = source_table
-        self.format_value = None
-        self.mode_value = None
-        self.options = {}
-
-    def format(self, value):
-        self.format_value = value
-        return self
-
-    def mode(self, value):
-        self.mode_value = value
-        return self
-
-    def option(self, key, value):
-        self.options[key] = value
-        return self
-
-    def saveAsTable(self, table_name):  # noqa: N802 - mirrors Spark API
-        self.spark.writes.append(
-            {
-                "source_table": self.source_table,
-                "target_table": table_name,
-                "format": self.format_value,
-                "mode": self.mode_value,
-                "options": self.options,
-            }
-        )
-
-
 class FakeDataFrame:
-    def __init__(self, spark, table_name):
+    def __init__(self, spark, table_name, row_count=1):
         self.spark = spark
         self.table_name = table_name
+        self.row_count = row_count
+        self.columns = ["id"]
+        self.schema = StructType([StructField("id", LongType(), True)])
 
-    @property
-    def write(self):
-        return FakeWriter(self.spark, self.table_name)
+    def where(self, _condition):
+        return self
+
+    def limit(self, _rows):
+        return self
+
+    def count(self):
+        return self.row_count
 
 
 class FakeSpark:
-    def __init__(self, existing_tables):
+    def __init__(self, existing_tables, empty_tables=()):
         self.existing_tables = set(existing_tables)
+        self.empty_tables = set(empty_tables)
         self.table_reads = []
         self.writes = []
+        self.sql_statements = []
+        self.catalog = SimpleNamespace(
+            tableExists=lambda table: table in self.existing_tables
+        )
 
     def table(self, table_name):
         self.table_reads.append(table_name)
         if table_name not in self.existing_tables:
             raise RuntimeError(f"missing table: {table_name}")
-        return FakeDataFrame(self, table_name)
+        return FakeDataFrame(
+            self,
+            table_name,
+            row_count=0 if table_name in self.empty_tables else 1,
+        )
+
+    def sql(self, statement):
+        self.sql_statements.append(statement)
+
+
+@pytest.fixture(autouse=True)
+def atomic_table_replacement(monkeypatch):
+    def replace(df, table, scope, columns, *, spark):
+        spark.writes.append(
+            {
+                "source_table": df.table_name,
+                "target_table": table,
+                "scope": scope,
+                "columns": columns,
+                "operation": "replace_scope_by_name",
+            }
+        )
+
+    monkeypatch.setattr(
+        publish_outputs_module,
+        "replace_scope_by_name",
+        replace,
+    )
 
 
 def test_parse_table_suffixes_uses_default_contract():
@@ -68,11 +82,18 @@ def test_parse_table_suffixes_uses_default_contract():
 
 
 def test_parse_table_suffixes_ignores_empty_values():
-    assert parse_table_suffixes("ranked, complete,,popularity_metrics") == (
-        "ranked",
-        "complete",
+    assert parse_table_suffixes(
+        "advanced_features, customer_features,,popularity_metrics"
+    ) == (
+        "advanced_features",
+        "customer_features",
         "popularity_metrics",
     )
+
+
+def test_parse_table_suffixes_rejects_foundation_owned_outputs():
+    with pytest.raises(ValueError, match="Foundation-owned outputs"):
+        parse_table_suffixes("advanced_features,ranked")
 
 
 def test_publish_outputs_noops_when_namespaces_match():
@@ -83,11 +104,13 @@ def test_publish_outputs_noops_when_namespaces_match():
         source_namespace="marketingdata_prod.warehouse",
         target_namespace="marketingdata_prod.warehouse",
         table_prefix="next_uk_nextads_theme_affinity_predict",
+        run_date="2026-08-04",
     )
 
     assert published == []
     assert spark.table_reads == []
     assert spark.writes == []
+    assert spark.sql_statements == []
 
 
 def test_publish_outputs_writes_when_namespace_matches_but_target_prefix_differs():
@@ -107,6 +130,7 @@ def test_publish_outputs_writes_when_namespace_matches_but_target_prefix_differs
         table_prefix=source_prefix,
         target_table_prefix=target_prefix,
         table_suffixes=("ranked",),
+        run_date="2026-08-04",
     )
 
     assert published == [f"{namespace}.{target_prefix}_ranked"]
@@ -114,10 +138,16 @@ def test_publish_outputs_writes_when_namespace_matches_but_target_prefix_differs
         {
             "source_table": f"{namespace}.{source_prefix}_ranked",
             "target_table": f"{namespace}.{target_prefix}_ranked",
-            "format": "delta",
-            "mode": "overwrite",
-            "options": {"overwriteSchema": "true"},
+            "scope": {"reference_date": "2026-08-04"},
+            "columns": ["id"],
+            "operation": "replace_scope_by_name",
         }
+    ]
+    assert spark.sql_statements == [
+        "CREATE TABLE IF NOT EXISTS "
+        f"`marketingdata_prod`.`ds_sandbox`.`{target_prefix}_ranked` (\n"
+        "  `id` bigint\n"
+        ") USING DELTA"
     ]
 
 
@@ -139,28 +169,169 @@ def test_publish_outputs_writes_delta_tables_for_configured_suffixes():
         target_namespace=target_namespace,
         table_prefix=table_prefix,
         table_suffixes=suffixes,
+        run_date="2026-08-04",
     )
 
     assert published == [
         f"{target_namespace}.{table_prefix}_ranked",
         f"{target_namespace}.{table_prefix}_complete",
     ]
-    assert spark.writes == [
-        {
-            "source_table": f"{source_namespace}.{table_prefix}_ranked",
-            "target_table": f"{target_namespace}.{table_prefix}_ranked",
-            "format": "delta",
-            "mode": "overwrite",
-            "options": {"overwriteSchema": "true"},
-        },
+    assert sorted(spark.writes, key=lambda write: write["target_table"]) == [
         {
             "source_table": f"{source_namespace}.{table_prefix}_complete",
             "target_table": f"{target_namespace}.{table_prefix}_complete",
-            "format": "delta",
-            "mode": "overwrite",
-            "options": {"overwriteSchema": "true"},
+            "scope": {"reference_date": "2026-08-04"},
+            "columns": ["id"],
+            "operation": "replace_scope_by_name",
+        },
+        {
+            "source_table": f"{source_namespace}.{table_prefix}_ranked",
+            "target_table": f"{target_namespace}.{table_prefix}_ranked",
+            "scope": {"reference_date": "2026-08-04"},
+            "columns": ["id"],
+            "operation": "replace_scope_by_name",
         },
     ]
+    assert sorted(spark.sql_statements) == sorted(
+        [
+            "CREATE TABLE IF NOT EXISTS "
+            f"`marketingdata_prod`.`warehouse`.`{table_prefix}_ranked` (\n"
+            "  `id` bigint\n"
+            ") USING DELTA",
+            "CREATE TABLE IF NOT EXISTS "
+            f"`marketingdata_prod`.`warehouse`.`{table_prefix}_complete` (\n"
+            "  `id` bigint\n"
+            ") USING DELTA",
+        ]
+    )
+
+
+def test_publish_outputs_bootstraps_delta_target_without_lakeflow_like():
+    source_namespace = "marketingdata_prod.ds_sandbox"
+    target_namespace = "marketingdata_prod.warehouse"
+    table_prefix = "next_uk_nextads_theme_affinity_predict"
+    spark = FakeSpark(
+        existing_tables={
+            f"{source_namespace}.{table_prefix}_customer_features"
+        }
+    )
+
+    publish_theme_affinity_outputs(
+        spark,
+        source_namespace=source_namespace,
+        target_namespace=target_namespace,
+        table_prefix=table_prefix,
+        table_suffixes=("customer_features",),
+        run_date="2026-08-07",
+    )
+
+    assert len(spark.sql_statements) == 1
+    assert "USING DELTA" in spark.sql_statements[0]
+    assert " LIKE " not in spark.sql_statements[0]
+
+
+def test_publish_outputs_runs_concurrently_with_bounded_workers_and_order(
+    monkeypatch,
+):
+    source_namespace = "marketingdata_prod.ds_sandbox"
+    target_namespace = "marketingdata_prod.warehouse"
+    table_prefix = "next_uk_nextads_theme_affinity_predict"
+    suffixes = ("ranked", "complete", "customer_features")
+    spark = FakeSpark(
+        existing_tables={
+            f"{source_namespace}.{table_prefix}_{suffix}"
+            for suffix in suffixes
+        }
+    )
+    lock = threading.Lock()
+    workers_started = threading.Event()
+    active_workers = 0
+    peak_workers = 0
+
+    def replace(df, table, scope, columns, *, spark):
+        nonlocal active_workers, peak_workers
+        with lock:
+            active_workers += 1
+            peak_workers = max(peak_workers, active_workers)
+            if active_workers == 2:
+                workers_started.set()
+        assert workers_started.wait(timeout=2)
+        time.sleep(0.01)
+        with lock:
+            active_workers -= 1
+        spark.writes.append(table)
+
+    monkeypatch.setattr(publish_outputs_module, "MAX_PUBLISH_WORKERS", 2)
+    monkeypatch.setattr(
+        publish_outputs_module, "replace_scope_by_name", replace
+    )
+
+    published = publish_theme_affinity_outputs(
+        spark,
+        source_namespace=source_namespace,
+        target_namespace=target_namespace,
+        table_prefix=table_prefix,
+        table_suffixes=suffixes,
+        run_date="2026-08-04",
+    )
+
+    assert peak_workers == 2
+    assert published == [
+        f"{target_namespace}.{table_prefix}_{suffix}" for suffix in suffixes
+    ]
+
+
+def test_publish_outputs_propagates_worker_failure(monkeypatch):
+    source_namespace = "marketingdata_prod.ds_sandbox"
+    target_namespace = "marketingdata_prod.warehouse"
+    table_prefix = "next_uk_nextads_theme_affinity_predict"
+    suffixes = ("ranked", "complete")
+    spark = FakeSpark(
+        existing_tables={
+            f"{source_namespace}.{table_prefix}_{suffix}"
+            for suffix in suffixes
+        }
+    )
+
+    def replace(df, table, scope, columns, *, spark):
+        if table.endswith("_complete"):
+            raise RuntimeError("copy failed")
+        spark.writes.append(table)
+
+    monkeypatch.setattr(
+        publish_outputs_module, "replace_scope_by_name", replace
+    )
+
+    with pytest.raises(RuntimeError, match="copy failed"):
+        publish_theme_affinity_outputs(
+            spark,
+            source_namespace=source_namespace,
+            target_namespace=target_namespace,
+            table_prefix=table_prefix,
+            table_suffixes=suffixes,
+            run_date="2026-08-04",
+        )
+
+
+def test_publish_outputs_does_not_recreate_an_existing_target():
+    source_namespace = "marketingdata_prod.ds_sandbox"
+    target_namespace = "marketingdata_prod.warehouse"
+    table_prefix = "next_uk_nextads_theme_affinity_predict"
+    source_table = f"{source_namespace}.{table_prefix}_ranked"
+    target_table = f"{target_namespace}.{table_prefix}_ranked"
+    spark = FakeSpark(existing_tables={source_table, target_table})
+
+    publish_theme_affinity_outputs(
+        spark,
+        source_namespace=source_namespace,
+        target_namespace=target_namespace,
+        table_prefix=table_prefix,
+        table_suffixes=("ranked",),
+        run_date="2026-08-04",
+    )
+
+    assert spark.sql_statements == []
+    assert spark.writes[0]["target_table"] == target_table
 
 
 def test_publish_outputs_fails_clearly_for_missing_source_table():
@@ -173,4 +344,28 @@ def test_publish_outputs_fails_clearly_for_missing_source_table():
             target_namespace="marketingdata_prod.warehouse",
             table_prefix="next_uk_nextads_theme_affinity_predict",
             table_suffixes=("ranked",),
+            run_date="2026-08-04",
         )
+
+
+def test_publish_outputs_does_not_replace_target_from_empty_run_date():
+    source_table = (
+        "marketingdata_prod.ds_sandbox."
+        "next_uk_nextads_theme_affinity_predict_customer_features"
+    )
+    spark = FakeSpark(
+        existing_tables={source_table},
+        empty_tables={source_table},
+    )
+
+    with pytest.raises(ValueError, match="empty for 2026-08-04"):
+        publish_theme_affinity_outputs(
+            spark,
+            source_namespace="marketingdata_prod.ds_sandbox",
+            target_namespace="marketingdata_prod.warehouse",
+            table_prefix="next_uk_nextads_theme_affinity_predict",
+            table_suffixes=("customer_features",),
+            run_date="2026-08-04",
+        )
+
+    assert spark.writes == []

@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 try:
@@ -23,17 +24,46 @@ finally:
 
 from pyspark.sql import functions as F
 from next_ads.decisioning.assignment import (
-    assign_random_ads_v2,
-    assign_preranked_ads_v2,
+    assign_candidate_ads_v2,
     assign_nextgenads_v2,
+    assign_random_ads_v2,
 )
 from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import chain_when_thens, delete_from_and_load, post_to_webhook
+from dsutils.etl import chain_when_thens, post_to_webhook
 from dsutils.argparser import get_job_parser
+from jobs.nextads_assignment.publish_build import (
+    ScopeManifestEntry,
+    build_assignment_scope_contract,
+    parse_scope_manifest_json,
+    resolve_assignment_tables,
+)
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
 from next_ads.common import etl
+from next_ads.decisioning.assignment_publication import (
+    AssignmentColumnContract,
+    stage_assignment_scope,
+)
+from next_ads.ranking.scoring_inputs import read_delta_version
+
+
+def _get_required_job_arg(job_parser, name):
+    value = job_parser.get_arg(name)
+    if value is None or not str(value).strip():
+        raise ValueError(f"{name} must be provided")
+    return str(value).strip()
+
+
+def _get_integer_job_arg(job_parser, name, *, minimum):
+    raw_value = _get_required_job_arg(job_parser, name)
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if value < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    return value
 
 
 jobparser = get_job_parser()
@@ -41,10 +71,53 @@ jobparser._parse_args()
 JOB_ENV = jobparser.get_arg("--job_env")
 CLIENT = jobparser.get_arg("--client")
 LOG_LEVEL = jobparser.get_arg("--log_level")
+SCOPE_MANIFEST = parse_scope_manifest_json(
+    _get_required_job_arg(jobparser, "--scope_manifest_json")
+)
+RUN_DATE_RAW = _get_required_job_arg(jobparser, "--run_date")
+try:
+    RUN_DATE = date.fromisoformat(RUN_DATE_RAW)
+except ValueError as exc:
+    raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
+BUILD_RUN_ID = _get_required_job_arg(jobparser, "--build_run_id")
+CANDIDATE_BUILD_ATTEMPT_ID = _get_required_job_arg(
+    jobparser,
+    "--candidate_build_attempt_id",
+)
+from next_ads.decisioning.candidate_inputs import (
+    load_accepted_candidate_inputs,
+)
+if not BUILD_RUN_ID.startswith("v2_") or BUILD_RUN_ID == "v2_":
+    raise ValueError(
+        "--build_run_id must start with 'v2_' and include a run identifier"
+    )
+TASK_RUN_ID = _get_integer_job_arg(
+    jobparser,
+    "--task_run_id",
+    minimum=1,
+)
+EXECUTION_COUNT = _get_integer_job_arg(
+    jobparser,
+    "--execution_count",
+    minimum=0,
+)
+CUSTOMER_CELLS_TABLE = _get_required_job_arg(
+    jobparser,
+    "--customer_cells_table",
+)
+CUSTOMER_CELLS_DELTA_VERSION = _get_integer_job_arg(
+    jobparser,
+    "--customer_cells_delta_version",
+    minimum=0,
+)
 configure_logging(log_level=LOG_LEVEL) if LOG_LEVEL else configure_logging()
 logger = get_logger(__name__)
 spark = configure_spark()
 logger.info(f"Running in job environment: {JOB_ENV}")
+logger.info(
+    "Using accepted candidate build attempt %s",
+    CANDIDATE_BUILD_ATTEMPT_ID,
+)
 
 if not CLIENT:
     assert JOB_ENV.lower() == "dev", (
@@ -67,26 +140,45 @@ if not PAGE_TYPE:
     logger.warning(f"page_type not specified (defaulting to {PAGE_TYPE})")
 
 PAGE_TYPES = cfg["page_types"]
+MANIFEST_SCOPES = tuple(entry.scope for entry in SCOPE_MANIFEST)
+CONFIGURED_PAGE_TYPES = tuple(PAGE_TYPES)
+if MANIFEST_SCOPES != CONFIGURED_PAGE_TYPES:
+    raise ValueError(
+        "V2 scope manifest must exactly match configured page types in order: "
+        f"manifest={MANIFEST_SCOPES}, configured={CONFIGURED_PAGE_TYPES}"
+    )
+if PAGE_TYPE not in MANIFEST_SCOPES:
+    raise ValueError(
+        f"V2 page type {PAGE_TYPE!r} is not present in the scope manifest"
+    )
+PAGE_SCOPE_MANIFEST: tuple[ScopeManifestEntry, ...] = tuple(
+    entry for entry in SCOPE_MANIFEST if entry.scope == PAGE_TYPE
+)
 
 
 tbls = cfg["tables"]["write"]
 SCHEMA = config.schema_write
 logger.info(f"Write schema set to {SCHEMA}")
 
-# Map write schema to parameterised write table names
-tbl_args = {
-    "catalog": config.catalog_write,
-    "schema": SCHEMA,
-    "client": CLIENT,
-}
 CONTROL_SHEET_LATEST = config.tables_write.control_sheet_latest_v2
-ASSIGNMENTS_TABLE_V2 = etl.map_tbl(tbls["assignments_v2"], **tbl_args)
-ASSIGNMENTS_TABLE_V2_LATEST = etl.map_tbl(
-    tbls["assignments_v2_latest"], **tbl_args
+ASSIGNMENT_TABLES = resolve_assignment_tables(config, "v2")
+ASSIGNMENT_COLUMNS = AssignmentColumnContract()
+ASSIGNMENT_SCOPE_CONTRACT = build_assignment_scope_contract(
+    "v2",
+    PAGE_SCOPE_MANIFEST,
 )
-CELLS_TABLE_LATEST = etl.map_tbl(tbls["customer_cells_latest"], **tbl_args)
-PRERANKED_THEMES_TABLE = etl.map_tbl(
-    tbls["preranked_ads_from_themes_v2_latest"], **tbl_args
+ASSIGNMENT_INPUT_COLUMNS = tuple(
+    column
+    for column in ASSIGNMENT_SCOPE_CONTRACT.public_columns
+    if column != ASSIGNMENT_SCOPE_CONTRACT.publication_date_column
+)
+CANDIDATE_INPUTS = load_accepted_candidate_inputs(
+    spark,
+    builds_table=config.tables_write.candidate_builds,
+    scores_table=config.tables_write.candidate_scores,
+    ad_sets_table=config.tables_write.candidate_ad_sets,
+    candidate_build_attempt_id=CANDIDATE_BUILD_ATTEMPT_ID,
+    route="v2",
 )
 NEXTGENADS_ASSIGNMENTS_TABLE = cfg["tables"]["read"][
     "nextgenads_assignments_latest"
@@ -171,18 +263,29 @@ df_ads = df_ads.select(ads_required_cols)
 df_ads_tgt = df_ads_tgt.select(ads_required_cols)
 df_ads_tgt_best = df_ads_tgt_best.select(ads_required_cols)
 
-if df_ads_tgt.count() == 0:
+cached_assignment_frames = []
+NO_ASSIGNABLE_ADS = df_ads_tgt.count() == 0
+if NO_ASSIGNABLE_ADS:
     no_ads_msg = f"No ads found for Page Type: {PAGE_TYPE}"
     logger.warning(no_ads_msg)
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, no_ads_msg)
     df_ad_assigned = spark.createDataFrame(
-        [], schema=spark.table(ASSIGNMENTS_TABLE_V2_LATEST).drop("rundate").schema
+        [],
+        schema=spark.table(ASSIGNMENT_TABLES.latest_table).drop("rundate").schema,
     )
 else:
     logger.info("Getting customer cell assignments")
-    df_cells = spark.table(CELLS_TABLE_LATEST).drop("rundate")
-    df_cells.cache()
+    df_cells = (
+        read_delta_version(
+            spark,
+            CUSTOMER_CELLS_TABLE,
+            CUSTOMER_CELLS_DELTA_VERSION,
+        )
+        .drop("rundate")
+        .cache()
+    )
+    cached_assignment_frames.append(df_cells)
 
     logger.info("Assigning Ads with Basic Targeting")
 
@@ -198,8 +301,7 @@ else:
     # Basic/random selection does not use the model score, but V2 config can carry
     # the score the assigned customer x ad pair has in the model-ranked table.
     df_trigger_scores = (
-        spark.table(PRERANKED_THEMES_TABLE)
-        .where(F.col("PageType") == PAGE_TYPE)
+        CANDIDATE_INPUTS.candidates_for_scope("best", PAGE_TYPE)
         .select(
             "AccountNumber",
             "UniqueAdID",
@@ -207,23 +309,38 @@ else:
         )
     )
 
-    df_assigned_basic = df_assigned_basic.join(
-        df_trigger_scores, on=["AccountNumber", "UniqueAdID"], how="left"
-    ).withColumnRenamed("TriggerScoreLookup", "TriggerScore")
-
-    df_assigned_basic.cache()
+    df_assigned_basic = (
+        df_assigned_basic.join(
+            df_trigger_scores,
+            on=["AccountNumber", "UniqueAdID"],
+            how="left",
+        )
+        .withColumnRenamed("TriggerScoreLookup", "TriggerScore")
+        .cache()
+    )
+    cached_assignment_frames.append(df_assigned_basic)
 
     logger.info("Assigning Ads with Best Targeting")
 
-    df_assigned_best = assign_preranked_ads_v2(
+    df_assigned_best = assign_candidate_ads_v2(
         df_ads=df_ads_tgt_best,
-        preranked_ads_table=PRERANKED_THEMES_TABLE,
-        page_type=PAGE_TYPE,
+        candidate_scores=CANDIDATE_INPUTS.candidates_for_scope(
+            "best",
+            PAGE_TYPE,
+        ),
         df_cust=df_cells,
-    )
-    df_assigned_best.cache()
+    ).cache()
+    cached_assignment_frames.append(df_assigned_best)
 
-    df_assigned_best_challenger = df_assigned_best
+    df_assigned_best_challenger = assign_candidate_ads_v2(
+        df_ads=df_ads_tgt_best,
+        candidate_scores=CANDIDATE_INPUTS.candidates_for_scope(
+            "best_challenger",
+            PAGE_TYPE,
+        ),
+        df_cust=df_cells,
+    ).cache()
+    cached_assignment_frames.append(df_assigned_best_challenger)
 
     USE_NEXTGENADS = any(
         step.get("then", {}).get("col") == "UniqueAdIDNextGenAds"
@@ -242,7 +359,8 @@ else:
         df_assigned_nextgenads = spark.createDataFrame(
             [], schema=df_assigned_best.schema
         )
-    df_assigned_nextgenads.cache()
+    df_assigned_nextgenads = df_assigned_nextgenads.cache()
+    cached_assignment_frames.append(df_assigned_nextgenads)
 
     logger.info("Determining Ad to show based on assignments and fixed cells")
     # Build a rank spine from the union of all [AccountNumber, Rank] pairs
@@ -303,8 +421,9 @@ else:
             on="AccountNumber",
             how="left",
         )
+        .cache()
     )
-    df_assignments.cache()
+    cached_assignment_frames.append(df_assignments)
 
     # chain_when_thens selects UniqueAdIDBasic or UniqueAdIDBest per row
     # based on the customer's cell — no change to the config map or function
@@ -476,27 +595,31 @@ else:
         "TriggerScore",
     )
 
-    df_cells.unpersist()
-    df_assigned_basic.unpersist()
-    df_assigned_best.unpersist()
-    df_assigned_best_challenger.unpersist()
-    df_assigned_nextgenads.unpersist()
-    df_assignments.unpersist()
-
-logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE_V2}")
-delete_from_and_load(
-    df_ad_assigned,
-    ASSIGNMENTS_TABLE_V2,
-    pk_cols=["AccountNumber", "PageType", "Rank"],
-    del_where={"rundate": "current_date()", "PageType": f"'{PAGE_TYPE}'"},
-)
-
-logger.info(f"Loading assignments to {ASSIGNMENTS_TABLE_V2_LATEST}")
-delete_from_and_load(
-    df_ad_assigned,
-    ASSIGNMENTS_TABLE_V2_LATEST,
-    pk_cols=["AccountNumber", "PageType", "Rank"],
-    del_where={"PageType": f"'{PAGE_TYPE}'"},
-)
+df_ad_assigned = df_ad_assigned.select(*ASSIGNMENT_INPUT_COLUMNS)
+try:
+    logger.info(
+        f"Staging assignments for {PAGE_TYPE} in build {BUILD_RUN_ID}"
+    )
+    stage_result = stage_assignment_scope(
+        spark,
+        df_ad_assigned,
+        tables=ASSIGNMENT_TABLES,
+        columns=ASSIGNMENT_COLUMNS,
+        scope_contract=ASSIGNMENT_SCOPE_CONTRACT,
+        build_run_id=BUILD_RUN_ID,
+        build_date=RUN_DATE,
+        scope=PAGE_TYPE,
+        task_run_id=TASK_RUN_ID,
+        execution_count=EXECUTION_COUNT,
+        provenance=CANDIDATE_INPUTS.provenance,
+        allow_no_ads=NO_ASSIGNABLE_ADS,
+    )
+    logger.info(
+        f"Staged {stage_result.row_count:,} assignments for {PAGE_TYPE}; "
+        f"completion status: {stage_result.status}"
+    )
+finally:
+    for cached_frame in reversed(cached_assignment_frames):
+        cached_frame.unpersist()
 
 logger.info("Run complete")

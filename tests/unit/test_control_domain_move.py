@@ -193,24 +193,37 @@ def test_theme_mapping_sync_detects_v2_source_differences(local_spark):
 
 
 def test_main_job_uses_control_domain_entrypoints():
-    job = load_job(
+    candidate_job = load_job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_cicd",
     )
-    tasks_by_key = {task["task_key"]: task for task in job["tasks"]}
+    theme_inputs_job = load_job(
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_inputs.yml",
+        "mktg_next_uk_nextads_theme_inputs_cicd",
+    )
+    candidate_tasks = {
+        task["task_key"]: task for task in candidate_job["tasks"]
+    }
+    theme_input_tasks = {
+        task["task_key"]: task for task in theme_inputs_job["tasks"]
+    }
 
-    assert tasks_by_key["load_control_sheet_v1"]["spark_python_task"][
+    assert candidate_tasks["load_control_sheet_v1"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/load_control_sheet.py"
-    assert tasks_by_key["parse_attributes"]["spark_python_task"][
+    assert theme_input_tasks["refresh_item_attributes"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_control/parse_attributes.py"
-    assert tasks_by_key["parse_theme_mapping"]["spark_python_task"][
+    assert theme_input_tasks["build_authoritative_item_themes"][
+        "spark_python_task"
+    ][
         "python_file"
     ] == "../../../jobs/nextads_control/parse_theme_mapping.py"
-    assert tasks_by_key["validate_theme_mapping_sync"]["spark_python_task"][
+    assert theme_input_tasks["land_authoritative_theme_mapping"][
+        "spark_python_task"
+    ][
         "python_file"
-    ] == "../../../jobs/nextads_control/validate_theme_mapping_sync.py"
+    ] == "../../../jobs/nextads_control/land_scoring_theme_mapping.py"
 
 
 def test_databricks_sync_includes_job_entrypoints():

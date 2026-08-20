@@ -1,15 +1,126 @@
+import json
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from next_ads.common.config_manager import load_config
+from next_ads.ranking.provider_context import ProviderContext
 from next_ads.ranking.theme_affinity.data_prep import (
     build_common_params,
     build_sql_entries,
 )
+from next_ads.ranking.theme_affinity.config import (
+    read_runtime_foundation_output,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _provider_context():
+    return ProviderContext(
+        context_slot="theme_affinity_serving",
+        orchestration_run_id=123,
+        provider_id="theme_affinity",
+        provider_build_id="provider-build",
+        provider_build_attempt_id="provider-build:task:0",
+        input_snapshot_id="input-snapshot",
+        run_date=date(2026, 7, 30),
+        model_uri="models:/catalog.schema.model/1",
+        bindings_json=json.dumps(
+            {
+                "foundation": {
+                    "scoring_foundation_build_id": "foundation-build",
+                    "scoring_foundation_build_attempt_id": (
+                        "foundation-build:task:0"
+                    ),
+                    "outputs": {
+                        "ranked": {
+                            "table": "catalog.schema.foundation_ranked",
+                            "delta_version": 17,
+                            "schema_version": "account_theme_ranked/v1",
+                        },
+                        "complete": {
+                            "table": "catalog.schema.foundation_complete",
+                            "delta_version": 23,
+                            "schema_version": "account_theme_complete/v1",
+                        },
+                    },
+                }
+            }
+        ),
+        capability="account_theme",
+        use_case="theme_ranking",
+        invocation_checksum="checksum",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=8),
+        scoring_foundation_build_id="foundation-build",
+        scoring_foundation_build_attempt_id="foundation-build:task:0",
+    )
+
+
+class _VersionedReader:
+    def __init__(self):
+        self.calls = []
+        self.version = None
+
+    def option(self, name, value):
+        self.version = (name, value)
+        return self
+
+    def table(self, table):
+        self.calls.append((table, self.version))
+        return table
+
+
+class _VersionedSpark:
+    def __init__(self):
+        self.read = _VersionedReader()
+
+
+def test_theme_affinity_reads_exact_bound_foundation_delta_versions():
+    spark = _VersionedSpark()
+    runtime = SimpleNamespace(provider_context=_provider_context())
+
+    ranked = read_runtime_foundation_output(spark, runtime, "ranked")
+    complete = read_runtime_foundation_output(spark, runtime, "complete")
+
+    assert ranked == "catalog.schema.foundation_ranked"
+    assert complete == "catalog.schema.foundation_complete"
+    assert spark.read.calls == [
+        ("catalog.schema.foundation_ranked", ("versionAsOf", 17)),
+        ("catalog.schema.foundation_complete", ("versionAsOf", 23)),
+    ]
+
+
+def test_theme_affinity_foundation_read_has_no_mutable_table_fallback():
+    with pytest.raises(ValueError, match="provider context is incomplete"):
+        read_runtime_foundation_output(
+            _VersionedSpark(),
+            SimpleNamespace(provider_context=None),
+            "ranked",
+        )
+
+
+def test_prediction_and_cleaning_do_not_read_mutable_foundation_tables():
+    prediction = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_affinity/predict.py"
+    ).read_text()
+    cleaning = (
+        PROJECT_ROOT / "src/next_ads/ranking/theme_affinity/clean_output.py"
+    ).read_text()
+
+    assert (
+        'read_runtime_foundation_output(spark, runtime, "ranked")'
+        in prediction
+    )
+    assert "spark.table(model_tables.predict_input_table)" not in prediction
+    assert (
+        'read_runtime_foundation_output(spark, runtime, "ranked")'
+        in cleaning
+    )
+    assert "spark.table(model_tables.predict_complete)" not in cleaning
 
 
 def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
@@ -32,7 +143,7 @@ def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
     )
     assert (
         config.ranking_model_tables.predict_input_table
-        == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
+        == "marketingdata_dev.test_user.next_uk_nextads_account_theme_foundation_ranked"
     )
     assert (
         config.ranking_model_tables.model_train_input_table
@@ -40,7 +151,7 @@ def test_theme_affinity_tables_resolve_to_dev_user_schema(monkeypatch):
     )
     assert (
         config.ranking_model_tables.model_train_input_table
-        == "marketingdata_dev.test_user.next_uk_nextads_theme_affinity_predict_ranked"
+        == "marketingdata_dev.test_user.next_uk_nextads_account_theme_foundation_ranked"
     )
     assert (
         "complete_ranked"
@@ -100,13 +211,15 @@ def test_theme_affinity_tables_resolve_to_prod_schema(monkeypatch):
     )
 
 
-def test_map_theme_scores_uses_config_led_assignment_sources():
+def test_map_theme_scores_uses_the_selected_provider_build():
     script = (
         PROJECT_ROOT / "src/next_ads/ranking/theme_score_mapping.py"
     ).read_text()
 
-    assert "theme_affinity_assignment_sources.champion" in script
-    assert "theme_affinity_assignment_sources.challenger" in script
+    assert "load_provider_theme_scores(" in script
+    assert "provider_build_id" in script
+    assert "provider_signals_delta_version" in script
+    assert "theme_affinity_assignment_sources" not in script
     assert "config.ranking_model_tables.model_latest" not in script
     assert "cfg['tables']['read'][\"hackathon_assignments\"]" not in script
     assert 'cfg["tables"]["read"]["hackathon_assignments"]' not in script
@@ -141,11 +254,9 @@ def test_theme_affinity_clean_output_writes_inference_log():
     ).read_text()
 
     assert "model_tables.inference_log" in source
-    assert "runtime.model_uri" in source
+    assert "context.model_uri" in source
     assert 'F.lit(model_id).alias("model_id")' in source
-    assert (
-        'F.col("ProbAggRebased").cast("double").alias("prediction")' in source
-    )
+    assert 'F.col("Score").cast("double").alias("prediction")' in source
     assert 'F.lit(None).cast("int").alias("label")' in source
     assert 'F.lit(None).cast("date").alias("label_observed_until")' in source
 
@@ -173,15 +284,11 @@ def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
     config = load_config("dev")
 
     expected_setup_tables = {
-        "theme_affinity_predict_master": config.ranking_model_tables.predict_master,
-        "theme_affinity_predict_complete": (
+        "account_theme_foundation_complete": (
             config.ranking_model_tables.predict_complete
         ),
-        "theme_affinity_predict_ranked": (
+        "account_theme_foundation_ranked": (
             config.ranking_model_tables.predict_input_table
-        ),
-        "theme_affinity_predict_half": (
-            config.ranking_model_tables.predict_output_table
         ),
         "theme_affinity_model_latest": config.ranking_model_tables.model_latest,
         "theme_affinity_model_full": config.ranking_model_tables.model_full,
@@ -195,6 +302,17 @@ def test_theme_affinity_runtime_tables_are_in_dev_setup_contract(monkeypatch):
         PROJECT_ROOT
         / "sql/ranking/theme_affinity/create_table_theme_affinity_inference_log.sql"
     ).exists()
+
+    foundation_contracts = sorted(
+        (PROJECT_ROOT / "sql/ranking/theme_affinity").glob(
+            "create_table_account_theme_foundation_*.sql"
+        )
+    )
+    assert len(foundation_contracts) == 2
+    for contract in foundation_contracts:
+        sql = contract.read_text()
+        assert "_nextads_account_theme_foundation_" in sql
+        assert "_nextads_theme_affinity_predict_" not in sql
 
 
 def test_adsv2_write_tables_are_available_under_tables_write(monkeypatch):
@@ -246,6 +364,60 @@ def test_theme_affinity_reference_date_uses_current_operational_mode():
 
     assert params["table_prefix"] == "prefix"
     assert len(params["reference_date"].split("-")) == 3
+
+
+def test_theme_affinity_accepts_explicit_current_operational_date():
+    current_date = datetime.today().strftime("%Y-%m-%d")
+
+    params = build_common_params(
+        current_date,
+        "schema",
+        "prefix",
+        operational=True,
+    )
+
+    assert params["reference_date"] == current_date
+
+
+def test_theme_affinity_operational_date_allows_repair_after_midnight():
+    previous_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    common = build_common_params(
+        previous_date,
+        "schema",
+        "prefix",
+        operational=True,
+    )
+    entries = build_sql_entries(
+        previous_date,
+        "prefix",
+        operational=True,
+    )
+
+    assert common["reference_date"] == previous_date
+    atbs_entry = next(
+        entry for entry in entries[0] if entry["file"] == "0_atbs.sql"
+    )
+    assert atbs_entry["params"]["end_date_atbs"] == previous_date
+
+
+def test_theme_affinity_historical_mode_rejects_recent_iso_date():
+    previous_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    with pytest.raises(ValueError, match="at least 28 days"):
+        build_common_params(previous_date, "schema", "prefix")
+
+
+def test_theme_affinity_operational_mode_rejects_future_date():
+    future_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    with pytest.raises(ValueError, match="cannot be in the future"):
+        build_common_params(
+            future_date,
+            "schema",
+            "prefix",
+            operational=True,
+        )
 
 
 def test_theme_affinity_reference_date_rejects_old_widget_sentinel():

@@ -13,7 +13,7 @@ dev:
         "weight": 0.1
     },
     "brand_view" :{
-    
+
         "feature": "brand",
         "action": "view",
         "weight": 0.05

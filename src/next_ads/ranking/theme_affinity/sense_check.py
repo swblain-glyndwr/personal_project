@@ -35,12 +35,9 @@ INTERMEDIATE_TABLE_SUFFIXES = [
     "master",
     "complete",
     "ranked",
-    "half",
 ]
-DATA_TABLE_SUFFIXES = [
-    suffix for suffix in INTERMEDIATE_TABLE_SUFFIXES if suffix != "half"
-]
-MODEL_OUTPUT_TABLE_SUFFIXES = ["half"]
+DATA_TABLE_SUFFIXES = list(INTERMEDIATE_TABLE_SUFFIXES)
+MODEL_OUTPUT_TABLE_SUFFIXES = []
 VALID_CHECK_SCOPES = {"all", "data", "model_outputs"}
 ROW_RATIO_WARN_MIN = 0.95
 ROW_RATIO_WARN_MAX = 1.05
@@ -78,6 +75,7 @@ class SenseCheckConfig:
     summary_table: str
     check_scope: str = "all"
     candidate_intermediate_namespace: str | None = None
+    candidate_intermediate_prefix: str | None = None
 
 
 def default_summary_table(runtime: ThemeAffinityRuntime) -> str:
@@ -90,7 +88,10 @@ def default_summary_table(runtime: ThemeAffinityRuntime) -> str:
 def run_sense_checks(spark, runtime: ThemeAffinityRuntime, config):
     rows = []
     checked_at = datetime.utcnow().isoformat(timespec="seconds")
-    candidate_prefix = runtime.config.ranking_model_table_prefix
+    candidate_prefix = (
+        config.candidate_intermediate_prefix
+        or runtime.config.ranking_model_table_prefix
+    )
     candidate_intermediate_namespace = (
         config.candidate_intermediate_namespace or runtime.namespace
     )

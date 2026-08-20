@@ -66,8 +66,8 @@ def collect_attribute_set(df: DataFrame, group_by_col: str) -> DataFrame:
         )
         .groupBy(group_by_col)
         .agg(
-            F.collect_set("attribute_value").alias(
+            F.sort_array(F.collect_set("attribute_value")).alias(
                 f"{group_by_col}_attribute_set"
-            )
+            ),
         )
     )

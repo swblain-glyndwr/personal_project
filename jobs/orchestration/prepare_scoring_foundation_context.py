@@ -1,0 +1,487 @@
+import json
+import sys
+import time
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+try:
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+except NameError:
+    from dsutils.dbc import get_dbutils
+
+    notebook_path = (
+        get_dbutils()
+        .notebook.entry_point.getDbutils()
+        .notebook()
+        .getContext()
+        .notebookPath()
+        .get()
+    )
+    if not notebook_path.startswith("/Workspace"):
+        notebook_path = "/Workspace" + notebook_path
+    PROJECT_ROOT = Path(notebook_path).parents[2]
+finally:
+    SRC_ROOT = PROJECT_ROOT / "src"
+    if SRC_ROOT.exists():
+        sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(PROJECT_ROOT))
+
+from pyspark.sql import Window
+from pyspark.sql import functions as F
+
+from dsutils.argparser import get_job_parser
+from dsutils.dbc import configure_spark, get_dbutils
+from dsutils.logtools import configure_logging, get_logger
+
+from next_ads.common import config_manager
+from next_ads.ranking.foundation_context import (
+    ScoringFoundationContext,
+    activate_foundation_context,
+    build_foundation_invocation_checksum,
+    build_scoring_foundation_build_id,
+    load_reusable_failed_foundation_context,
+)
+from next_ads.ranking.foundation_publication import (
+    schema_checksum,
+    validate_foundation_build_marker,
+    validate_foundation_output_manifest_contract,
+)
+from next_ads.ranking.provider_publication import (
+    validate_provider_publication_contract,
+)
+
+
+EXPECTED_SOURCES = {
+    "authoritative_v2_theme_mapping": (
+        "authoritative_theme_mapping",
+        True,
+    ),
+    "copied_v1_theme_mapping": ("compatibility_theme_mapping", False),
+    "theme_mapping": ("authoritative_theme_mapping", True),
+    "item_attributes": ("item_attributes", True),
+    "item_themes": ("derived_item_themes", True),
+}
+
+
+def _as_dict(value):
+    return value.to_dict() if hasattr(value, "to_dict") else dict(value)
+
+
+def _select_snapshot_id(
+    spark,
+    table,
+    sources_table,
+    run_date,
+    requested,
+):
+    candidates = spark.table(table).where(
+        (F.col("RunDate") == F.lit(run_date))
+        & F.col("Status").isin("READY", "READY_WITH_WARNINGS")
+    )
+    if requested and requested != "same_day":
+        candidates = candidates.where(F.col("InputSnapshotID") == requested)
+    window = Window.partitionBy("InputSnapshotID").orderBy(
+        F.col("ExecutionCount").desc(),
+        F.col("CompletedAt").desc(),
+        F.col("TaskRunID").desc(),
+    )
+    contradictory = (
+        candidates.groupBy(
+            "InputSnapshotID",
+            "ExecutionCount",
+            "CompletedAt",
+            "TaskRunID",
+        )
+        .count()
+        .where(F.col("count") > 1)
+        .limit(1)
+        .count()
+    )
+    if contradictory:
+        raise ValueError("Contradictory scoring input attempts found")
+    selected = (
+        candidates.withColumn("_attempt_rank", F.row_number().over(window))
+        .where(F.col("_attempt_rank") == 1)
+        .orderBy(F.col("CompletedAt").desc(), F.col("InputSnapshotID"))
+        .select(
+            "InputSnapshotID",
+            "InputSnapshotAttemptID",
+            "SourceCount",
+        )
+        .limit(2)
+        .collect()
+    )
+    if not selected:
+        raise ValueError(f"No accepted scoring input snapshot for {run_date}")
+    if requested not in {None, "", "same_day"} and len(selected) != 1:
+        raise ValueError(f"Input snapshot {requested} is contradictory")
+    winner = selected[0]
+    if int(winner["SourceCount"]) != len(EXPECTED_SOURCES):
+        raise ValueError("Accepted scoring input source count is incomplete")
+    source_rows = (
+        spark.table(sources_table)
+        .where(
+            F.col("InputSnapshotAttemptID") == winner["InputSnapshotAttemptID"]
+        )
+        .select(
+            "SourceName",
+            "SourceRole",
+            "SourceTable",
+            "DeltaVersion",
+            "SchemaVersion",
+            "SchemaChecksum",
+            "IsRequired",
+            "AcceptedTable",
+            "AcceptedDeltaVersion",
+            "AcceptedSchemaChecksum",
+            "WriteReceiptID",
+        )
+        .collect()
+    )
+    observed = {
+        row["SourceName"]: (row["SourceRole"], bool(row["IsRequired"]))
+        for row in source_rows
+    }
+    if len(source_rows) != len(observed) or observed != EXPECTED_SOURCES:
+        raise ValueError(
+            "Accepted scoring input source contract is incomplete"
+        )
+    invalid_sources = [
+        row["SourceName"]
+        for row in source_rows
+        if (
+            int(row["DeltaVersion"]) < 0
+            or not row["SchemaVersion"]
+            or not row["SchemaChecksum"]
+        )
+    ]
+    if invalid_sources:
+        raise ValueError(
+            "Accepted scoring input sources are invalid: "
+            + ", ".join(sorted(invalid_sources))
+        )
+    source_bindings = {
+        row["SourceName"]: {
+            "source_role": row["SourceRole"],
+            "source_table": row["SourceTable"],
+            "delta_version": int(row["DeltaVersion"]),
+            "schema_version": row["SchemaVersion"],
+            "schema_checksum": row["SchemaChecksum"],
+            "is_required": bool(row["IsRequired"]),
+            "accepted_table": row["AcceptedTable"],
+            "accepted_delta_version": row["AcceptedDeltaVersion"],
+            "accepted_schema_checksum": row["AcceptedSchemaChecksum"],
+            "write_receipt_id": row["WriteReceiptID"],
+        }
+        for row in source_rows
+    }
+    return (
+        winner["InputSnapshotID"],
+        winner["InputSnapshotAttemptID"],
+        source_bindings,
+    )
+
+
+def _wait_for_snapshot_id(
+    spark,
+    *,
+    table,
+    sources_table,
+    run_date,
+    requested,
+    wait_seconds,
+    poll_seconds,
+):
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            return _select_snapshot_id(
+                spark,
+                table,
+                sources_table,
+                run_date,
+                requested,
+            )
+        except ValueError as error:
+            if "No accepted scoring input snapshot" not in str(error):
+                raise
+            if time.monotonic() >= deadline:
+                raise
+            remaining = max(0, deadline - time.monotonic())
+            time.sleep(min(poll_seconds, remaining))
+
+
+def _build_bindings(
+    foundation,
+    input_snapshot_id,
+    input_snapshot_attempt_id,
+    run_date,
+    snapshot_sources,
+):
+    bindings = {}
+    for name, definition_value in sorted(
+        _as_dict(foundation.input_bindings).items()
+    ):
+        definition = _as_dict(definition_value)
+        accepted_source = snapshot_sources.get(name)
+        if not isinstance(accepted_source, dict) or (
+            accepted_source["schema_version"] != definition["schema_version"]
+        ):
+            raise ValueError(
+                f"Accepted source {name} does not match its foundation schema"
+            )
+        bindings[name] = {
+            "table": accepted_source["accepted_table"],
+            "schema_version": definition["schema_version"],
+            "input_snapshot_id": input_snapshot_id,
+            "input_snapshot_attempt_id": input_snapshot_attempt_id,
+            "run_date": run_date.isoformat(),
+            "delta_version": accepted_source["accepted_delta_version"],
+            "schema_checksum": accepted_source["accepted_schema_checksum"],
+            "write_receipt_id": accepted_source["write_receipt_id"],
+        }
+        if not all(
+            (
+                bindings[name]["table"],
+                bindings[name]["delta_version"] is not None,
+                bindings[name]["schema_checksum"],
+                bindings[name]["write_receipt_id"],
+            )
+        ):
+            raise ValueError(
+                f"Accepted source {name} has no materialised receipt"
+            )
+    bindings["accepted_sources"] = snapshot_sources
+    return json.dumps(bindings, sort_keys=True, separators=(",", ":"))
+
+
+def _reuse_completed_output(
+    spark,
+    *,
+    context_table,
+    expected_context,
+    execution_count,
+    source_namespace,
+    source_table_prefix,
+    logger,
+):
+    namespace = (source_namespace or "").strip().strip(".")
+    table_prefix = (source_table_prefix or "").strip().strip(".")
+    if namespace.count(".") != 1 or not table_prefix:
+        raise ValueError(
+            "Completed-output reuse requires a catalog.schema source "
+            "namespace and table prefix"
+        )
+    reusable = load_reusable_failed_foundation_context(
+        spark,
+        context_table=context_table,
+        expected_context=expected_context,
+        execution_count=execution_count,
+    )
+    if reusable is None:
+        return expected_context
+    try:
+        validate_foundation_build_marker(
+            spark,
+            context=reusable,
+            marker_table=f"{namespace}.{table_prefix}_build_marker",
+        )
+    except ValueError as error:
+        logger.info(
+            "Not reusing failed foundation attempt because its completed "
+            "output marker is not an exact match: %s",
+            error,
+        )
+        return expected_context
+    logger.info(
+        "Reusing completed output from failed foundation attempt %s",
+        reusable.scoring_foundation_build_attempt_id,
+    )
+    return reusable
+
+
+def main(
+    JOB_ENV,
+    CLIENT,
+    LOG_LEVEL,
+    RUN_DATE,
+    INPUT_SNAPSHOT_ID,
+    FOUNDATION_ID,
+    CONTEXT_SLOT,
+    TASK_RUN_ID,
+    EXECUTION_COUNT,
+    READINESS_WAIT_SECONDS,
+    READINESS_POLL_SECONDS,
+    ORCHESTRATION_RUN_ID,
+    ALLOW_SERIAL_RUN_TAKEOVER=False,
+    REUSE_COMPLETED_OUTPUT=False,
+    SOURCE_NAMESPACE=None,
+    SOURCE_TABLE_PREFIX=None,
+    TARGET_NAMESPACE=None,
+    TARGET_TABLE_PREFIX=None,
+):
+    configure_logging(
+        log_level=LOG_LEVEL
+    ) if LOG_LEVEL else configure_logging()
+    logger = get_logger(__name__)
+    spark = configure_spark()
+    config = config_manager.load_config(JOB_ENV, client=CLIENT)
+    run_date = date.fromisoformat(RUN_DATE)
+    task_run_id = int(TASK_RUN_ID)
+    execution_count = int(EXECUTION_COUNT)
+    foundation = config.scoring.foundations[FOUNDATION_ID]
+    if foundation.foundation_id != FOUNDATION_ID:
+        raise ValueError("Foundation key must match foundation_id")
+    target_namespace = (TARGET_NAMESPACE or "").strip().strip(".")
+    target_prefix = (TARGET_TABLE_PREFIX or "").strip().strip(".")
+    source_namespace = (SOURCE_NAMESPACE or "").strip().strip(".")
+    source_prefix = (SOURCE_TABLE_PREFIX or "").strip().strip(".")
+    if target_namespace.count(".") != 1 or not target_prefix:
+        raise ValueError(
+            "Foundation target namespace and table prefix are required"
+        )
+    if source_namespace.count(".") != 1 or not source_prefix:
+        raise ValueError(
+            "Foundation source namespace and table prefix are required"
+        )
+    validate_foundation_output_manifest_contract(
+        spark,
+        outputs_table=config.tables_write.scoring_foundation_outputs,
+        builds_table=config.tables_write.scoring_foundation_builds,
+        pipeline_relations=True,
+    )
+    validate_provider_publication_contract(
+        spark,
+        signals_table=config.tables_write.score_provider_signals,
+        builds_table=config.tables_write.score_provider_builds,
+    )
+    missing_targets = sorted(
+        f"{target_namespace}.{target_prefix}_{name}"
+        for name in _as_dict(foundation.required_outputs)
+        if not spark.catalog.tableExists(
+            f"{target_namespace}.{target_prefix}_{name}"
+        )
+    )
+    if missing_targets:
+        raise ValueError(
+            "Required foundation target tables are missing: "
+            + ", ".join(missing_targets)
+        )
+    incompatible_existing_outputs = []
+    for name in _as_dict(foundation.required_outputs):
+        source_table = f"{source_namespace}.{source_prefix}_{name}"
+        target_table = f"{target_namespace}.{target_prefix}_{name}"
+        if spark.catalog.tableExists(source_table) and schema_checksum(
+            spark.table(source_table)
+        ) != schema_checksum(spark.table(target_table)):
+            incompatible_existing_outputs.append(name)
+    if incompatible_existing_outputs:
+        raise ValueError(
+            "Existing Lakeflow output schemas do not match their canonical "
+            "targets: " + ", ".join(sorted(incompatible_existing_outputs))
+        )
+    invocation_checksum = build_foundation_invocation_checksum(foundation)
+    (
+        input_snapshot_id,
+        input_snapshot_attempt_id,
+        snapshot_sources,
+    ) = _wait_for_snapshot_id(
+        spark,
+        table=config.tables_write.scoring_input_snapshots,
+        sources_table=config.tables_write.scoring_input_snapshot_sources,
+        run_date=run_date,
+        requested=INPUT_SNAPSHOT_ID,
+        wait_seconds=int(READINESS_WAIT_SECONDS),
+        poll_seconds=int(READINESS_POLL_SECONDS),
+    )
+    build_id = build_scoring_foundation_build_id(
+        foundation_id=foundation.foundation_id,
+        foundation_version=foundation.foundation_version,
+        input_snapshot_id=input_snapshot_id,
+        invocation_checksum=invocation_checksum,
+        run_date=run_date,
+    )
+    build_attempt_id = f"{build_id}:{task_run_id}:{execution_count}"
+    activated_at = datetime.now(timezone.utc)
+    context = ScoringFoundationContext(
+        context_slot=CONTEXT_SLOT,
+        orchestration_run_id=int(ORCHESTRATION_RUN_ID),
+        foundation_id=foundation.foundation_id,
+        foundation_version=foundation.foundation_version,
+        scoring_foundation_build_id=build_id,
+        scoring_foundation_build_attempt_id=build_attempt_id,
+        input_snapshot_id=input_snapshot_id,
+        input_snapshot_attempt_id=input_snapshot_attempt_id,
+        run_date=run_date,
+        bindings_json=_build_bindings(
+            foundation,
+            input_snapshot_id,
+            input_snapshot_attempt_id,
+            run_date,
+            snapshot_sources,
+        ),
+        capability=foundation.capability,
+        contract_version=foundation.contract_version,
+        invocation_checksum=invocation_checksum,
+        expires_at=activated_at + timedelta(hours=8),
+    )
+    if REUSE_COMPLETED_OUTPUT:
+        context = _reuse_completed_output(
+            spark,
+            context_table=(
+                config.tables_write.scoring_foundation_run_contexts
+            ),
+            expected_context=context,
+            execution_count=execution_count,
+            source_namespace=SOURCE_NAMESPACE,
+            source_table_prefix=SOURCE_TABLE_PREFIX,
+            logger=logger,
+        )
+        build_attempt_id = context.scoring_foundation_build_attempt_id
+    activate_foundation_context(
+        spark,
+        context_table=config.tables_write.scoring_foundation_run_contexts,
+        context=context,
+        task_run_id=task_run_id,
+        execution_count=execution_count,
+        activated_at=activated_at,
+        allow_serial_run_takeover=ALLOW_SERIAL_RUN_TAKEOVER,
+    )
+    task_values = get_dbutils().jobs.taskValues
+    task_values.set(key="input_snapshot_id", value=input_snapshot_id)
+    task_values.set(key="scoring_foundation_build_id", value=build_id)
+    task_values.set(
+        key="scoring_foundation_build_attempt_id",
+        value=build_attempt_id,
+    )
+    logger.info(
+        "Activated %s for foundation build %s and input %s",
+        CONTEXT_SLOT,
+        build_id,
+        input_snapshot_id,
+    )
+
+
+if __name__ == "__main__":
+    parser = get_job_parser()
+    parser._parse_args()
+    main(
+        parser.get_arg("--job_env"),
+        parser.get_arg("--client") or "next_uk",
+        parser.get_arg("--log_level"),
+        parser.get_arg("--run_date"),
+        parser.get_arg("--input_snapshot_id"),
+        parser.get_arg("--foundation_id"),
+        parser.get_arg("--context_slot"),
+        parser.get_arg("--task_run_id"),
+        parser.get_arg("--execution_count"),
+        parser.get_arg("--readiness_wait_seconds") or "1800",
+        parser.get_arg("--readiness_poll_seconds") or "60",
+        parser.get_arg("--orchestration_run_id"),
+        parser.has_arg("--allow-serial-run-takeover"),
+        parser.has_arg("--reuse-completed-output"),
+        parser.get_arg("--source_namespace"),
+        parser.get_arg("--source_table_prefix"),
+        parser.get_arg("--target_namespace"),
+        parser.get_arg("--target_table_prefix"),
+    )

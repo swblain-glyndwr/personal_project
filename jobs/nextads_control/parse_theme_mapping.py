@@ -6,7 +6,7 @@ try:
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
 except NameError:
     notebook_path = (
-        dbutils.notebook.entry_point.getDbutils()  # type: ignore[name-defined]
+        dbutils.notebook.entry_point.getDbutils()  # type: ignore[name-defined]  # noqa: F821
         .notebook()
         .getContext()
         .notebookPath()
@@ -24,12 +24,9 @@ finally:
 from dsutils import gcp
 from dsutils.argparser import get_job_parser
 from dsutils.dbc import configure_spark
-from dsutils.etl import (
-    delete_from_and_load,
-    post_to_webhook,
-    truncate_and_load,
-)
+from dsutils.etl import post_to_webhook
 from dsutils.logtools import configure_logging, get_logger
+from pyspark.sql import functions as F
 
 from next_ads.control.theme_mapping import (
     build_item_themes,
@@ -42,6 +39,48 @@ from next_ads.control.theme_mapping import (
 )
 from next_ads.common import config_manager, etl
 from next_ads.common.paths import load_client_config
+from next_ads.common.snapshot_writes import (
+    capture_run_date,
+    publish_history_and_latest,
+)
+
+
+def write_theme_mapping_tables(
+    df_theme_mapping,
+    history_table,
+    latest_table,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_theme_mapping,
+        history_table=history_table,
+        latest_table=latest_table,
+        key_columns=["Theme", "attribute", "value"],
+        run_date=run_date,
+        columns=["Theme", "attribute", "value", "rundate"],
+    )
+
+
+def write_item_theme_tables(
+    df_item_themes,
+    history_table,
+    latest_table,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_item_themes.select("pid", "theme", "theme_rank"),
+        history_table=history_table,
+        latest_table=latest_table,
+        key_columns=["pid", "theme"],
+        run_date=run_date,
+        columns=["pid", "theme", "theme_rank", "rundate"],
+    )
 
 
 def parse_bool(value) -> bool:
@@ -58,6 +97,37 @@ def parse_bool(value) -> bool:
     raise ValueError(f"Unsupported boolean value: {value!r}")
 
 
+def read_landed_theme_mapping(
+    spark,
+    *,
+    table,
+    landing_id,
+    mapping_version,
+    run_date,
+    mapping_columns,
+):
+    mapping_reader = spark.read
+    if mapping_version is not None:
+        mapping_reader = mapping_reader.option(
+            "versionAsOf",
+            int(mapping_version),
+        )
+    landed_mapping = mapping_reader.table(table).where(
+        (F.col("LandingID") == landing_id)
+        & (F.col("SourceRole") == "authoritative_v2")
+    )
+    invalid_landing_date = landed_mapping.where(
+        F.col("RunDate").isNull()
+        | (F.col("RunDate") != F.lit(run_date))
+    ).limit(1)
+    if invalid_landing_date.count():
+        raise ValueError("Theme Mapping landing has the wrong logical RunDate")
+    df_themes = landed_mapping.select(*mapping_columns)
+    if df_themes.limit(1).count() == 0:
+        raise ValueError(f"Theme Mapping landing {landing_id} is empty")
+    return df_themes
+
+
 def main(
     JOB_ENV,
     CLIENT,
@@ -65,12 +135,18 @@ def main(
     REFRESH_THEMES_DATE,
     THEME_RANKING_MODE=None,
     REFRESH_THEME_MAPPING=False,
+    RUN_DATE=None,
+    THEME_MAPPING_CONFIG="theme_mapping",
+    THEME_MAPPING_TABLE=None,
+    THEME_MAPPING_LANDING_ID=None,
+    THEME_MAPPING_VERSION=None,
 ):
     configure_logging(
         log_level=LOG_LEVEL
     ) if LOG_LEVEL else configure_logging()
     logger = get_logger(__name__)
     spark = configure_spark()
+    run_date = date.fromisoformat(RUN_DATE) if RUN_DATE else capture_run_date(spark)
     logger.info(f"Running in job environment: {JOB_ENV}")
 
     if not CLIENT:
@@ -84,7 +160,7 @@ def main(
     logger.info(f"Configuring run for client: {CLIENT}")
     cfg = load_client_config(CLIENT)
 
-    today = date.today().strftime(format="%Y-%m-%d")
+    today = run_date.isoformat()
     set_theme_attributes = (
         REFRESH_THEME_MAPPING or REFRESH_THEMES_DATE == today
     )
@@ -117,19 +193,42 @@ def main(
 
     webhook_url = cfg["webhooks"]["DS Warnings"]
 
+    if THEME_MAPPING_CONFIG not in {"theme_mapping", "theme_mapping_v2"}:
+        raise ValueError("Theme Mapping config must be theme_mapping or theme_mapping_v2")
+    mapping_config = cfg[THEME_MAPPING_CONFIG]
+    if THEME_MAPPING_CONFIG == "theme_mapping_v2" and not mapping_config.get(
+        "source_of_truth"
+    ):
+        raise ValueError("theme_mapping_v2 must be marked as source_of_truth")
     logger.info(
-        "Parsing theme mapping from control sheet tab: "
-        f"{cfg['theme_mapping']['sheet']}"
+        "Parsing authoritative theme mapping from control sheet tab: "
+        f"{mapping_config['sheet']}"
     )
-    df_themes = normalise_theme_mapping(
-        gcp.spark_df_from_sheets(
-            url=cfg["theme_mapping"]["url"],
-            worksheet_name=cfg["theme_mapping"]["sheet"],
+    if bool(THEME_MAPPING_TABLE) != bool(THEME_MAPPING_LANDING_ID):
+        raise ValueError(
+            "Theme Mapping table and landing ID must be supplied together"
+        )
+    if THEME_MAPPING_TABLE:
+        mapping_columns = [
+            column[0] for column in mapping_config["read_schema"]
+        ]
+        df_themes = read_landed_theme_mapping(
+            spark,
+            table=THEME_MAPPING_TABLE,
+            landing_id=THEME_MAPPING_LANDING_ID,
+            mapping_version=THEME_MAPPING_VERSION,
+            run_date=run_date,
+            mapping_columns=mapping_columns,
+        )
+    else:
+        df_themes = gcp.spark_df_from_sheets(
+            url=mapping_config["url"],
+            worksheet_name=mapping_config["sheet"],
             gcp_scope=cfg["gcp"]["scope"],
             gcp_key=cfg["gcp"]["key"],
-            schema=cfg["theme_mapping"]["read_schema"],
+            schema=mapping_config["read_schema"],
         )
-    )
+    df_themes = normalise_theme_mapping(df_themes)
 
     invalid_theme_count = df_themes.filter(
         ~valid_theme_rank_condition()
@@ -160,18 +259,13 @@ def main(
         n_rows = theme_attributes.count()
         logger.info(f"Parsed {n_themes:,} themes ({n_rows:,} rows)")
 
-        logger.info("Writing theme mapping to output tables")
-        truncate_and_load(
-            theme_attributes,
-            theme_mapping_latest,
-            pk_cols=["Theme", "attribute", "value"],
-        )
-
-        delete_from_and_load(
+        logger.info("Writing theme mapping to history and latest tables")
+        write_theme_mapping_tables(
             theme_attributes,
             theme_mapping,
-            pk_cols=["Theme", "attribute", "value"],
-            del_where={"rundate": "current_date()"},
+            theme_mapping_latest,
+            spark=spark,
+            run_date=run_date,
         )
 
     if not set_theme_attributes:
@@ -189,18 +283,13 @@ def main(
         THEME_RANKING_MODE,
     )
 
-    logger.info("Writing item-theme mapping to output tables")
-    truncate_and_load(
-        item_themes_ranked.select("pid", "theme", "theme_rank"),
-        item_themes_latest,
-        pk_cols=["pid", "theme"],
-    )
-
-    delete_from_and_load(
-        item_themes_ranked.select("pid", "theme", "theme_rank"),
+    logger.info("Writing item-theme mapping to history and latest tables")
+    write_item_theme_tables(
+        item_themes_ranked,
         item_themes,
-        pk_cols=["pid", "theme"],
-        del_where={"rundate": "current_date()"},
+        item_themes_latest,
+        spark=spark,
+        run_date=run_date,
     )
 
     logger.info("Run complete")
@@ -217,6 +306,17 @@ def parse_args():
         "THEME_RANKING_MODE": jobparser.get_arg("--theme-ranking-mode"),
         "REFRESH_THEME_MAPPING": parse_bool(
             jobparser.get_arg("--refresh_theme_mapping")
+        ),
+        "RUN_DATE": jobparser.get_arg("--run_date"),
+        "THEME_MAPPING_CONFIG": (
+            jobparser.get_arg("--theme_mapping_config") or "theme_mapping"
+        ),
+        "THEME_MAPPING_TABLE": jobparser.get_arg("--theme_mapping_table"),
+        "THEME_MAPPING_LANDING_ID": jobparser.get_arg(
+            "--theme_mapping_landing_id"
+        ),
+        "THEME_MAPPING_VERSION": jobparser.get_arg(
+            "--theme_mapping_version"
         ),
     }
 

@@ -75,9 +75,13 @@ def test_adsv2_entrypoints_remain_in_current_route_folders():
     assert main_tasks["map_theme_scores_to_ads_v2"]["spark_python_task"][
         "python_file"
     ] == "../../../jobs/nextads_candidates/build_page_type_candidates_v2.py"
-    assert page_v2_tasks["build_page_v2"]["for_each_task"]["task"][
-        "spark_python_task"
-    ]["python_file"] == "../../../jobs/nextads_v2/build_page.py"
+    assert page_v2_tasks["build_and_publish_v2"]["spark_python_task"][
+        "python_file"
+    ] == "../../../jobs/nextads_assignment/bulk_build.py"
+    bulk_build_source = (
+        PROJECT_ROOT / "jobs/nextads_assignment/bulk_build.py"
+    ).read_text()
+    assert "build_v2_assignments(" in bulk_build_source
     assert payload_job["tasks"][0]["spark_python_task"]["python_file"] == (
         "../../../jobs/nextads_delivery/build_v2_payload.py"
     )

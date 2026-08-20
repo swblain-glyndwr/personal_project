@@ -234,7 +234,6 @@ for row in sort_order_check.select("error").collect():
 logger.info("Checking for invalid Homepage Teaser assignments")
 
 teaser_locs = ["PH3", "PH4"]
-teaser_locs_fmt = ["'" + tl + "'" for tl in teaser_locs]
 w_acc = Window.partitionBy("AccountNumber")
 
 df_invalid_teasers = (
@@ -261,25 +260,13 @@ if df_invalid_teasers.count() > 0:
     ).distinct()
 
     n_it = df_invalid_teaser_accounts.count()
-    msg_it = f"{n_it:,} accounts found with invalid HomePage Teasers"
+    msg_it = (
+        f"{n_it:,} accounts found with invalid HomePage Teasers. "
+        "Assignments have not been modified."
+    )
     logger.warning(msg_it)
     if JOB_ENV == "prod":
         post_to_webhook(WEBHOOK_URL, msg_it)
-
-    df_invalid_teaser_accounts.createOrReplaceTempView("df_it_accs")
-    sql_del_invalid = f"""
-    delete from {ASSIGNMENTS_TABLE_LATEST}
-    where AccountNumber in (select AccountNumber from df_it_accs)
-    and Location in ({", ".join(teaser_locs_fmt)})
-    """
-    msg_it_rm = (
-        "Removing Teaser assignments for affected accounts "
-        + f"from table read by PF: {ASSIGNMENTS_TABLE_LATEST}"
-    )
-    logger.warning(msg_it_rm)
-    if JOB_ENV == "prod":
-        post_to_webhook(WEBHOOK_URL, msg_it_rm)
-    spark.sql(sql_del_invalid)
 
 
 df_assigned_dt = df_assigned.select("rundate").distinct()

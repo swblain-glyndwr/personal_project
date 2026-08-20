@@ -1,11 +1,19 @@
-from dsutils.etl import delete_from_and_load, truncate_and_load
+from datetime import date
+
 from dsutils.logtools import get_logger
+from next_ads.candidates.foundation import CandidateFoundationInputs
+from next_ads.common.snapshot_writes import (
+    publish_history_and_latest,
+    replace_validated_snapshot,
+    with_run_date,
+)
 from next_ads.ranking.theme_score_eligibility import (
     append_ad_feedback_scores,
     apply_auto_trading_filter,
     apply_greedy_theme_assignment,
     assert_eligible_groups,
     load_customer_age_preferences,
+    select_feedback_scaling_population,
 )
 from next_ads.ranking.theme_score_ranking import (
     apply_multi_session_downweighting,
@@ -18,8 +26,9 @@ from next_ads.ranking.theme_score_retrieval import (
     build_ad_group_mappings,
     build_theme_to_ad_mapping,
     load_control_ads,
+    customer_base_from_cells,
     load_customer_base,
-    load_theme_scores,
+    load_provider_theme_scores,
 )
 from next_ads.common import etl
 
@@ -31,18 +40,51 @@ def run_theme_score_mapping(
     cfg: dict,
     client: str,
     job_env: str,
-    algo: str = "champion",
+    run_date: date | str,
+    provider_build_id: str,
+    provider_signals_table: str,
+    provider_signals_delta_version: int,
+    provider_source_run_date: date | str,
     apply_ad_feedback: bool = False,
     ad_feedback_weight=0.05,
     top_ads_per_location: int = 20,
     control_sheet_latest_table: str | None = None,
+    control_sheet_delta_version: int | None = None,
     output_preranked_table: str | None = None,
     output_grain: str = "location",
     top_ads_per_group: int | None = None,
     write_score_components: bool = True,
+    foundation_inputs: CandidateFoundationInputs | None = None,
+    allowed_provider_themes=None,
+    candidate_publisher=None,
+    publish_compatibility: bool = True,
     logger=None,
 ):
     logger = logger or get_logger(__name__)
+    if isinstance(run_date, str):
+        run_date = date.fromisoformat(run_date)
+    if isinstance(provider_source_run_date, str):
+        provider_source_run_date = date.fromisoformat(provider_source_run_date)
+    if not provider_build_id:
+        raise ValueError("provider_build_id is required")
+    if not provider_signals_table:
+        raise ValueError("provider_signals_table is required")
+    if (
+        isinstance(provider_signals_delta_version, bool)
+        or not isinstance(provider_signals_delta_version, int)
+        or provider_signals_delta_version < 0
+    ):
+        raise ValueError(
+            "provider_signals_delta_version must be a non-negative integer"
+        )
+    if control_sheet_delta_version is not None and (
+        isinstance(control_sheet_delta_version, bool)
+        or not isinstance(control_sheet_delta_version, int)
+        or control_sheet_delta_version < 0
+    ):
+        raise ValueError(
+            "control_sheet_delta_version must be a non-negative integer"
+        )
     top_ads = int(
         top_ads_per_group
         if top_ads_per_group is not None
@@ -84,17 +126,6 @@ def run_theme_score_mapping(
     sessions = cfg["tables"]["read"]["bq_sessions"]
     actions = cfg["tables"]["read"]["bq_actions"]
 
-    if algo == "challenger":
-        logger.info("Running script as Challenger")
-        next_theme_scores_latest = (
-            config.theme_affinity_assignment_sources.challenger
-        )
-    else:
-        logger.info("Running script as default (Champion)")
-        next_theme_scores_latest = (
-            config.theme_affinity_assignment_sources.champion
-        )
-
     theme_score_components_latest = etl.map_tbl(
         tbls["theme_score_components_latest"],
         **tbl_args,
@@ -116,7 +147,17 @@ def run_theme_score_mapping(
     )
 
     logger.info(f"Getting theme to ad mappings from {control_sheet_latest}")
-    df_ads = load_control_ads(spark, control_sheet_latest)
+    df_control_ads = load_control_ads(
+        spark,
+        control_sheet_latest,
+        control_sheet_delta_version,
+    )
+    df_ads = df_control_ads
+    # Feedback scaling historically uses every active advert in the route.
+    # Keep that population separate from the theme/AudienceOnly/AutoTrading
+    # eligibility filters so moving the calculation earlier cannot alter all
+    # remaining adverts' relative multipliers.
+    df_feedback_scaling_ads = select_feedback_scaling_population(df_ads)
     df_ads = apply_auto_trading_filter(
         df_ads,
         auto_trading_switch,
@@ -124,12 +165,33 @@ def run_theme_score_mapping(
     )
     df_theme2ad = build_theme_to_ad_mapping(df_ads)
 
-    logger.info(f"Getting customer base from {customer_cells_latest}")
-    df_cust = load_customer_base(spark, customer_cells_latest)
+    if foundation_inputs is None:
+        logger.info(f"Getting customer base from {customer_cells_latest}")
+        df_cust = load_customer_base(spark, customer_cells_latest)
+    else:
+        logger.info(
+            "Using pinned candidate foundation %s from %s",
+            foundation_inputs.snapshot_id,
+            foundation_inputs.source_run_date,
+        )
+        df_cust = customer_base_from_cells(foundation_inputs.customer_cells)
 
-    logger.info(f"Getting theme scores from {next_theme_scores_latest}")
-    df_theme_scores = load_theme_scores(
-        spark, next_theme_scores_latest, df_cust
+    logger.info(
+        "Getting theme scores from provider build %s in %s at Delta "
+        "version %s (source run date %s)",
+        provider_build_id,
+        provider_signals_table,
+        provider_signals_delta_version,
+        provider_source_run_date,
+    )
+    df_theme_scores = load_provider_theme_scores(
+        spark,
+        provider_signals_table=provider_signals_table,
+        provider_signals_delta_version=provider_signals_delta_version,
+        provider_build_id=provider_build_id,
+        provider_source_run_date=provider_source_run_date,
+        customer_base_df=df_cust,
+        allowed_themes_df=allowed_provider_themes,
     )
 
     logger.info("Normalising theme scores")
@@ -150,6 +212,14 @@ def run_theme_score_mapping(
         sessions_threshold=min_c_sessions,
         lookback_period_days=incremental_lookback,
         logger=logger,
+        ad_feedback_metrics_df=(
+            None
+            if foundation_inputs is None
+            else foundation_inputs.ad_feedback_metrics
+        ),
+        active_ads_df=(
+            None if foundation_inputs is None else df_feedback_scaling_ads
+        ),
     )
 
     logger.info("Normalising theme scores and mapping to ads")
@@ -165,34 +235,33 @@ def run_theme_score_mapping(
         "Joining multi-sessions onto score_components, and downweighting ads "
         "seen more than 3 times in 7 days"
     )
-    df_score_components = apply_multi_session_downweighting(
-        df_score_components,
-        sessions,
-        actions,
-    )
-    df_score_components.cache()
-    df_score_components.count()
-
+    if foundation_inputs is None:
+        df_score_components = apply_multi_session_downweighting(
+            df_score_components,
+            sessions,
+            actions,
+        )
+    else:
+        df_score_components = apply_multi_session_downweighting(
+            df_score_components,
+            repeat_ad_exposure_df=foundation_inputs.repeat_ad_exposure,
+        )
     df_score_components_for_write = df_score_components.drop(
         "AdVariant",
         "TriggerScore",
     )
     if write_score_components:
+        logger.info(f"Loading score components to {theme_score_components}")
         logger.info(
             f"Loading score components to {theme_score_components_latest}"
         )
-        truncate_and_load(
+        publish_history_and_latest(
+            spark,
             df_score_components_for_write,
-            theme_score_components_latest,
-            pk_cols=["AccountNumber", "Theme", "UniqueAdID"],
-        )
-
-        logger.info(f"Loading score components to {theme_score_components}")
-        delete_from_and_load(
-            df_score_components_for_write,
-            theme_score_components,
-            pk_cols=["AccountNumber", "Theme", "UniqueAdID"],
-            del_where={"rundate": "current_date()"},
+            history_table=theme_score_components,
+            latest_table=theme_score_components_latest,
+            key_columns=["AccountNumber", "Theme", "UniqueAdID"],
+            run_date=run_date,
         )
     else:
         logger.info("Skipping score component table writes for this route")
@@ -207,6 +276,7 @@ def run_theme_score_mapping(
         control_sheet_latest,
         logger,
         group_col=output_group_col,
+        control_ads_df=df_control_ads,
     )
 
     logger.info(f"Ranking and returning top {top_ads} ads per ad set")
@@ -220,8 +290,6 @@ def run_theme_score_mapping(
         age_order_map,
         top_ads,
     )
-    df_adset_scores.cache()
-
     logger.info(f"Mapping ranked ads back to {output_group_col}")
     df_ad_scores = map_ranked_ads_to_groups(
         df_adset_scores,
@@ -229,31 +297,33 @@ def run_theme_score_mapping(
         group_col=output_group_col,
     )
 
-    logger.info(f"Checking for ads assigned to ineligible {output_group_col}")
-    assert_eligible_groups(
-        df_ad_scores,
-        df_ad2group,
-        group_col=output_group_col,
-    )
+    if candidate_publisher is not None:
+        candidate_publisher(
+            df_adset_scores,
+            df_adset2group,
+            df_ad2adset,
+        )
 
-    logger.info("Caching deterministic final results for downstream reuse")
-    df_ad_scores = df_ad_scores.persist()
-    row_count = df_ad_scores.count()
-    logger.info(f"Materialized {row_count} rows in final result set")
+    if publish_compatibility:
+        logger.info(
+            f"Checking for ads assigned to ineligible {output_group_col}"
+        )
+        assert_eligible_groups(
+            df_ad_scores,
+            df_ad2group,
+            group_col=output_group_col,
+        )
+        logger.info(
+            "Loading preranked theme ads to "
+            f"{preranked_ads_from_themes_latest}"
+        )
+        replace_validated_snapshot(
+            spark,
+            with_run_date(df_ad_scores, run_date),
+            table=preranked_ads_from_themes_latest,
+            key_columns=["AccountNumber", "UniqueAdID", output_group_col],
+        )
+    else:
+        logger.info("Skipping preranked compatibility publication")
 
-    logger.info(
-        f"Loading preranked theme ads to {preranked_ads_from_themes_latest}"
-    )
-    truncate_and_load(
-        df_ad_scores,
-        preranked_ads_from_themes_latest,
-        pk_cols=["AccountNumber", "UniqueAdID", output_group_col],
-    )
-
-    df_ad_scores.show()
-
-    logger.info("Unpersisting cached dataframes")
-    df_score_components.unpersist()
-    df_adset_scores.unpersist()
-    df_ad_scores.unpersist()
     logger.info("Run complete")

@@ -142,6 +142,10 @@ def test_load_config_accepts_client(clean_env, mock_dotenv):
             "src/next_ads/ranking/theme_affinity/config.py",
             "config_manager.load_config(job_env, client=client)",
         ),
+        (
+            "src/next_ads/delivery/google_sheets.py",
+            "config_manager.load_config(job_env, client=config_client)",
+        ),
     ],
 )
 def test_client_aware_entrypoints_pass_client_to_dynaconf(

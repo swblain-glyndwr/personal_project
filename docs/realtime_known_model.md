@@ -30,7 +30,7 @@ Critical to an effective real-time setup is establishing **when** and **how** to
 
 * Rationale for  **Custom Requirements:**
     * Requires custom post-processing logic alongside a core model inference to format standard responses expected by downstream consumers.
-    * Enables flexibility in the model build & application of post-processing if required 
+    * Enables flexibility in the model build & application of post-processing if required
 
 #### 3. Execution Architecture
 Employs a dual-path response strategy:
@@ -73,7 +73,7 @@ The `predict()` method expects a JSON-like payload matching the following struct
 ```
 ### Example Usage
 
-``` python 
+``` python
 from nextads.realtime.decisioning.realtime_known_reranking_model import RealtimeKnownRerankingModel
 
 # Initialize model
@@ -93,7 +93,7 @@ Saving to Model Registry
 
 <i>To add once completed</i>
 
-Served Model Usage 
+Served Model Usage
 
 <i>To add once completed</i>
 
@@ -109,7 +109,7 @@ To ensure minimal latency during live serving, heavy data transformations are pr
 [ Daily Batch Job ] ──> [ Databricks Delta Tables ] ──> [ Lakebase Online Feature Store ] ──> [ Low-Latency Model Serving ]
 
 ### Critical Operational Constraints
-> **Important Note on Schema Sync:**  
+> **Important Note on Schema Sync:**
 > Lakebase online feature store tables map directly to underlying Delta table schemas. **Do not modify the upstream schema directly** without re-creating the online table sync, as schema mismatches will immediately break synchronization.
 
 ### Data Sync Pipeline Status
@@ -133,10 +133,10 @@ To ensure minimal latency during live serving, heavy data transformations are pr
 4. **Endpoint Provisioning:** Provision, test, and benchmark the Databricks Model Serving endpoint under simulated peak loads.
 5. **Bloomreach API Integration:** Implement and test the secondary Bloomreach API update call within the model pipeline to support fallback delivery.
 
-### Current Testing limitations 
-* Please be aware that due to the issue with syncing the customer records table to the online store- the data table currently being used for Advert details is a a sample table with only a few RPIDs in! 
+### Current Testing limitations
+* Please be aware that due to the issue with syncing the customer records table to the online store- the data table currently being used for Advert details is a a sample table with only a few RPIDs in!
 
---- 
+---
 ## Model Overview
 
 ``` mermaid
@@ -168,7 +168,7 @@ graph TD
     %% 3. EXECUTION
     subgraph Execution ["3. Execution Layer"]
         Select --> DualPath{Execution Strategy}
-        
+
         %% Primary Path
         DualPath -->|Primary Path: Low Latency| Direct[Immediate API Return]
         Direct --> Display[Updated Adverts Served]

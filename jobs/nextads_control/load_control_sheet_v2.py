@@ -1,4 +1,5 @@
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 try:
@@ -26,21 +27,18 @@ finally:
 
 import json
 import pyspark.sql.functions as F
-from datetime import date, timedelta
 from pyspark.sql.types import BooleanType
 
 # from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
-from dsutils.etl import (
-    assert_pk,
-    truncate_and_load,
-    delete_from_and_load,
-    post_to_webhook,
-)
+from dsutils.etl import assert_pk, post_to_webhook
 from dsutils.argparser import get_job_parser
 import dsutils.gcp as gcp
 from next_ads.ranking.scoring import append_targeting_criteria
 from next_ads.common import config_manager
+from next_ads.common.snapshot_writes import (
+    publish_history_and_latest,
+)
 from dsutils.dbc import configure_spark
 from next_ads.data.validation import schemas
 from next_ads.data.schemas.CMS import cms_schema
@@ -67,6 +65,54 @@ def has_common_substring(s1, s2, min_length=4):
 
 
 has_common_substring_udf = F.udf(has_common_substring, BooleanType())
+
+
+def write_v2_input_tables(
+    df_control_sheet,
+    df_exclusions,
+    config,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_control_sheet,
+        history_table=config.tables_write.control_sheet_raw_v2,
+        latest_table=config.tables_write.control_sheet_raw_latest_v2,
+        key_columns=["UniqueAdID"],
+        run_date=run_date,
+        columns=[*df_control_sheet.columns, "rundate"],
+    )
+    publish_history_and_latest(
+        spark,
+        df_exclusions,
+        history_table=config.tables_write.exclusions,
+        latest_table=config.tables_write.exclusions_latest,
+        key_columns=["url", "masidSlot", "CMSPageID"],
+        run_date=run_date,
+        columns=["url", "masidSlot", "CMSPageID", "rundate"],
+    )
+
+
+def write_v2_processed_control_sheet_tables(
+    df_processed,
+    history_table,
+    latest_table,
+    target_columns,
+    *,
+    spark,
+    run_date,
+):
+    publish_history_and_latest(
+        spark,
+        df_processed.select(*target_columns),
+        history_table=history_table,
+        latest_table=latest_table,
+        key_columns=["UniqueAdID", "PageType"],
+        run_date=run_date,
+        columns=[*target_columns, "rundate"],
+    )
 
 
 def check_primary_key(df, logger, JOB_ENV, WEBHOOK_URL):
@@ -175,7 +221,13 @@ def report_invalid_dates(
 ################################################################################
 
 
-def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
+def main(
+    JOB_ENV: str,
+    CLIENT: str,
+    LOG_LEVEL: str,
+    RUN_DATE: str,
+    PHASE: str = "all",
+):
     if LOG_LEVEL:
         configure_logging(log_level=LOG_LEVEL)
     else:
@@ -184,7 +236,17 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger = get_logger(__name__)
 
     spark = configure_spark()
+    if not RUN_DATE:
+        raise ValueError("--run_date is required")
+    try:
+        run_date = date.fromisoformat(RUN_DATE)
+    except ValueError as exc:
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
+    phase = (PHASE or "all").strip().lower()
+    if phase not in {"all", "land", "process"}:
+        raise ValueError("--phase must be one of: all, land, process")
     logger.info(f"Running in job environment: {JOB_ENV}")
+    logger.info("V2 control-sheet phase: %s", phase)
 
     if not CLIENT:
         assert JOB_ENV.lower() == "dev", (
@@ -238,70 +300,59 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     # SECTION 2: DATA EXTRACTION - must be on Next VPN for this to work
     ################################################################################
 
-    logger.info("Reading Control Sheet from Google Sheets")
-
-    df_ctrl_raw = gcp.spark_df_from_sheets(
-        url=CONTROL_SHEET["url"],
-        worksheet_name=CONTROL_SHEET["sheet"],
-        gcp_scope=config.gcp.scope,
-        gcp_key=config.gcp.key,
-        schema=CONTROL_SHEET["read_schema"],
-    )
-
-    logger.info("Reading Exclusions Sheet from Google Sheets")
-
-    df_exclusions = gcp.spark_df_from_sheets(
-        url=EXCLUSIONS_SHEET["url"],
-        worksheet_name=EXCLUSIONS_SHEET["sheet"],
-        gcp_scope=config.gcp.scope,
-        gcp_key=config.gcp.key,
-        schema=EXCLUSIONS_SHEET["read_schema"],
-    )
-
-    ################################################################################
-    # SECTION 3: INITIAL DATA LOADING
-    ################################################################################
-
-    df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
-    df_exclusions_filtered = df_exclusions.filter(
-        ~(
-            (F.trim(F.coalesce(F.col("url"), F.lit(""))) == "")
-            & (F.trim(F.coalesce(F.col("masidSlot"), F.lit(""))) == "")
-            & (F.trim(F.coalesce(F.col("CMSPageID"), F.lit(""))) == "")
+    if phase in {"all", "land"}:
+        logger.info("Reading Control Sheet from Google Sheets")
+        df_ctrl_raw = gcp.spark_df_from_sheets(
+            url=CONTROL_SHEET["url"],
+            worksheet_name=CONTROL_SHEET["sheet"],
+            gcp_scope=config.gcp.scope,
+            gcp_key=config.gcp.key,
+            schema=CONTROL_SHEET["read_schema"],
         )
-    )
 
-    delete_from_and_load(
-        df=df_ctrl_raw_filtered,
-        table=config.tables_write.control_sheet_raw_v2,
-        pk_cols=["UniqueAdID"],
-        del_where={"rundate": "current_date()"},
-    )
+        logger.info("Reading Exclusions Sheet from Google Sheets")
+        df_exclusions = gcp.spark_df_from_sheets(
+            url=EXCLUSIONS_SHEET["url"],
+            worksheet_name=EXCLUSIONS_SHEET["sheet"],
+            gcp_scope=config.gcp.scope,
+            gcp_key=config.gcp.key,
+            schema=EXCLUSIONS_SHEET["read_schema"],
+        )
 
-    logger.info(
-        f"Writing Control Sheet to {config.tables_write.control_sheet_raw_latest_v2}"
-    )
-    truncate_and_load(
-        df=df_ctrl_raw_filtered,
-        table=config.tables_write.control_sheet_raw_latest_v2,
-        pk_cols=["UniqueAdID"],
-    )
+        df_ctrl_raw_filtered = df_ctrl_raw.filter(df_ctrl_raw.UniqueAdID != "")
+        df_exclusions_filtered = df_exclusions.filter(
+            ~(
+                (F.trim(F.coalesce(F.col("url"), F.lit(""))) == "")
+                & (F.trim(F.coalesce(F.col("masidSlot"), F.lit(""))) == "")
+                & (F.trim(F.coalesce(F.col("CMSPageID"), F.lit(""))) == "")
+            )
+        )
 
-    logger.info(
-        f"Writing Exclusions Sheet to {config.tables_write.exclusions_latest}"
-    )
-    truncate_and_load(
-        df=df_exclusions_filtered,
-        table=config.tables_write.exclusions_latest,
-        pk_cols=["url", "masidSlot", "CMSPageID"],
-    )
-
-    delete_from_and_load(
-        df=df_exclusions_filtered,
-        table=config.tables_write.exclusions,
-        pk_cols=["url", "masidSlot", "CMSPageID"],
-        del_where={"rundate": "current_date()"},
-    )
+        logger.info("Writing Control Sheet to raw history and latest tables")
+        logger.info("Writing Exclusions Sheet to history and latest tables")
+        write_v2_input_tables(
+            df_ctrl_raw_filtered,
+            df_exclusions_filtered,
+            config,
+            spark=spark,
+            run_date=run_date,
+        )
+        if phase == "land":
+            logger.info("V2 control-sheet landing complete")
+            return
+    else:
+        logger.info("Reading the landed Control Sheet for %s", run_date)
+        df_ctrl_raw = (
+            spark.table(config.tables_write.control_sheet_raw_latest_v2)
+            .where(F.col("rundate") == F.lit(run_date))
+            .drop("rundate")
+        )
+        logger.info("Reading the landed Exclusions Sheet for %s", run_date)
+        df_exclusions_filtered = (
+            spark.table(config.tables_write.exclusions_latest)
+            .where(F.col("rundate") == F.lit(run_date))
+            .drop("rundate")
+        )
 
     ################################################################################
     # SECTION 4: DATA VALIDATION USING PANDERA SCHEMAS
@@ -348,7 +399,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
 
     logger.info("Getting active status of ads based on StartDate and EndDate")
 
-    date_tomorrow = date.today() + timedelta(days=1)
+    date_tomorrow = run_date + timedelta(days=1)
 
     df_ctrl_active = (  # active ads
         df_ctrl_valid_date_fmt.drop("Status")
@@ -422,7 +473,9 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
 
     page_type_lookup_df = (
         df_processed.groupBy("UniqueAdID")
-        .agg(F.collect_set("PageType").alias("ValidPageTypes"))
+        .agg(
+            F.sort_array(F.collect_set("PageType")).alias("ValidPageTypes")
+        )
         .withColumnRenamed("UniqueAdID", "LookupAdID")
     )
 
@@ -625,7 +678,7 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     logger.info(f"Reading underperforming ads from {UNDERPERFORMING_ADS}")
     df_underperforming_ids = (
         spark.table(UNDERPERFORMING_ADS)
-        .filter(F.col("rundate") == F.current_date())
+        .filter(F.col("rundate") == F.lit(run_date))
         .select("UniqueAdID")
         .distinct()
         .withColumn("IsUnderperforming", F.lit(True))
@@ -666,19 +719,14 @@ def main(JOB_ENV: str, CLIENT: str, LOG_LEVEL: str):
     else:
         raise Exception("Target table cols not a subset of Control Sheet cols")
 
-    logger.info("Loading output to table")
-    delete_from_and_load(
-        df_processed.select(*target_cols),
+    logger.info("Loading output to history and latest tables")
+    write_v2_processed_control_sheet_tables(
+        df_processed,
         TARGET_TABLE,
-        pk_cols=["UniqueAdID", "PageType"],
-        del_where={"rundate": "current_date()"},
-    )
-
-    logger.info("Loading output to table (latest)")
-    truncate_and_load(
-        df_processed.select(*target_cols),
         TARGET_TABLE_LATEST,
-        pk_cols=["UniqueAdID", "PageType"],
+        target_cols,
+        spark=spark,
+        run_date=run_date,
     )
 
     ################################################################################
@@ -694,4 +742,6 @@ if __name__ == "__main__":
     JOB_ENV = jobparser.get_arg("--job_env")
     CLIENT = jobparser.get_arg("--client")
     LOG_LEVEL = jobparser.get_arg("--log_level")
-    main(JOB_ENV, CLIENT, LOG_LEVEL)
+    RUN_DATE = jobparser.get_arg("--run_date")
+    PHASE = jobparser.get_arg("--phase")
+    main(JOB_ENV, CLIENT, LOG_LEVEL, RUN_DATE, PHASE)

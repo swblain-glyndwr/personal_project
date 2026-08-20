@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{client}_nextads_advert_items_profile_similarity (
     UniqueAdID STRING NOT NULL,
-    CMSPageID STRING, 
+    CMSPageID STRING,
     TargetUniqueAdID STRING NOT NULL,
     TargetCMSPageID STRING,
     itemcount int,

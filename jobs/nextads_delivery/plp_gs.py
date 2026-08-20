@@ -28,11 +28,20 @@ finally:
 from next_ads.delivery.google_sheets import run_plp_gs_delivery  # noqa: E402
 
 
-def main(job_env: str, territory: str, client: str, log_level: str | None) -> None:
+def main(
+    job_env: str,
+    territory: str,
+    client: str,
+    config_client: str,
+    run_date: str,
+    log_level: str | None,
+) -> None:
     run_plp_gs_delivery(
         job_env=job_env,
         territory=territory,
         client=client,
+        config_client=config_client,
+        run_date=run_date,
         log_level=log_level,
     )
 
@@ -44,5 +53,7 @@ if __name__ == "__main__":
         job_env=jobparser.get_arg("--job_env"),
         territory=jobparser.get_arg("--territory"),
         client=jobparser.get_arg("--client"),
+        config_client=jobparser.get_arg("--config_client"),
+        run_date=jobparser.get_arg("--run_date"),
         log_level=jobparser.get_arg("--log_level"),
     )

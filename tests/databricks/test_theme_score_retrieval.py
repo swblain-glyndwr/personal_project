@@ -2,7 +2,10 @@ from uuid import uuid4
 
 import pytest
 
-from next_ads.ranking.theme_score_retrieval import build_ad_group_mappings
+from next_ads.ranking.theme_score_retrieval import (
+    _content_stable_ad_set_id,
+    build_ad_group_mappings,
+)
 
 
 pytestmark = pytest.mark.databricks
@@ -54,6 +57,7 @@ def test_ad_group_mappings_are_stable_across_repartitioning(spark):
 
     one_partition = _build_from_rows(spark, rows, partitions=1)
     four_partitions = _build_from_rows(spark, rows, partitions=4)
+    eight_partitions = _build_from_rows(spark, rows, partitions=8)
 
     def normalise(mapping):
         ad_to_group, adset_to_group, ad_to_adset = mapping
@@ -63,6 +67,8 @@ def test_ad_group_mappings_are_stable_across_repartitioning(spark):
             _mapping_rows(ad_to_adset, "AdSetID", "UniqueAdID"),
         )
 
+    shared_ad_set = _content_stable_ad_set_id(("ad-a", "ad-b"))
+    single_ad_set = _content_stable_ad_set_id(("ad-c",))
     expected = (
         [
             ("PL1", "ad-a"),
@@ -71,9 +77,18 @@ def test_ad_group_mappings_are_stable_across_repartitioning(spark):
             ("PL2", "ad-b"),
             ("PL3", "ad-c"),
         ],
-        [(1, "PL1"), (1, "PL2"), (2, "PL3")],
-        [(1, "ad-a"), (1, "ad-b"), (2, "ad-c")],
+        [
+            (shared_ad_set, "PL1"),
+            (shared_ad_set, "PL2"),
+            (single_ad_set, "PL3"),
+        ],
+        [
+            (shared_ad_set, "ad-a"),
+            (shared_ad_set, "ad-b"),
+            (single_ad_set, "ad-c"),
+        ],
     )
 
     assert normalise(one_partition) == expected
     assert normalise(four_partitions) == expected
+    assert normalise(eight_partitions) == expected

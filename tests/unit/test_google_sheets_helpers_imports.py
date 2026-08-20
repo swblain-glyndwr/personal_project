@@ -8,7 +8,7 @@ def test_google_sheets_helpers_import_from_delivery_package():
         "get_masid_csmid_columns_udf",
         "format_output_col_names",
         "resolve_plp_gs_delivery_config",
-        "create_dl_table",
+        "publish_plp_tables",
         "configure_abfs",
     ]:
         assert hasattr(google_sheets, helper)

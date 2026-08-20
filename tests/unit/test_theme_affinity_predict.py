@@ -1,5 +1,4 @@
 import importlib
-
 from next_ads.ranking.theme_affinity.predict import (
     _configure_mlflow_for_model_uri,
     _install_numpy_pickle_compat,

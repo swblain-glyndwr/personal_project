@@ -39,6 +39,86 @@ DEFAULT_COLUMN_VALUES = {
     "Audience": "'false'",
 }
 
+ASSIGNMENT_BUILD_STATE_TABLE_SUFFIXES = frozenset(
+    {
+        "_nextads_assignments_build_staging",
+        "_nextads_assignments_v2_build_staging",
+        "_nextads_assignment_build_events",
+    }
+)
+ASSIGNMENT_PROVENANCE_COLUMNS = frozenset(
+    {
+        "CandidateBuildID",
+        "CandidateBuildAttemptID",
+        "PortfolioID",
+        "PortfolioAttemptID",
+        "CandidateFoundationSnapshotID",
+    }
+)
+
+RECREATE_ONLY_MANIFEST_TABLE_SUFFIXES = frozenset(
+    {
+        "_nextads_scoring_input_snapshots",
+        "_nextads_scoring_input_snapshot_sources",
+        "_nextads_scoring_foundation_outputs",
+        "_nextads_scoring_foundation_builds",
+        "_nextads_score_provider_builds",
+        "_nextads_candidate_foundation_builds",
+        "_nextads_candidate_builds",
+    }
+)
+
+IN_PLACE_ONLY_LARGE_TABLE_SUFFIXES = frozenset(
+    {
+        "_nextads_scoring_input_item_themes",
+        "_nextads_account_theme_foundation_ranked",
+        "_nextads_score_provider_signals",
+        "_nextads_candidate_ad_sets",
+        "_nextads_candidate_scores",
+        "_nextads_assignments",
+        "_nextads_assignments_latest",
+        "_nextads_assignments_v2",
+        "_nextads_assignments_v2_latest",
+    }
+)
+
+OUTPUT_TABLE_CHECK_CONSTRAINTS = {
+    "_nextads_score_provider_signals": {
+        "nextads_provider_raw_score_finite": (
+            "RawScore between -1.7976931348623157E308 "
+            "and 1.7976931348623157E308"
+        ),
+        "nextads_provider_score_finite": (
+            "Score between -1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_provider_rank_valid": "ProviderRank >= 1",
+    },
+    "_nextads_candidate_scores": {
+        "nextads_candidate_score_finite": (
+            "Score between -1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_candidate_trigger_finite": (
+            "TriggerScore is null or TriggerScore between "
+            "-1.7976931348623157E308 and 1.7976931348623157E308"
+        ),
+        "nextads_candidate_rank_valid": "Rank between 1 and 20",
+    },
+    "_nextads_assignments_v2": {
+        "nextads_assignment_v2_rank_valid": "Rank >= 1",
+        "nextads_assignment_v2_trigger_finite": (
+            "TriggerScore is null or TriggerScore between "
+            "-3.4028235E38 and 3.4028235E38"
+        ),
+    },
+    "_nextads_assignments_v2_latest": {
+        "nextads_assignment_v2_latest_rank_valid": "Rank >= 1",
+        "nextads_assignment_v2_latest_trigger_finite": (
+            "TriggerScore is null or TriggerScore between "
+            "-3.4028235E38 and 3.4028235E38"
+        ),
+    },
+}
+
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -411,6 +491,89 @@ def build_repair_table_statements(
     ]
 
 
+def ensure_output_table_check_constraints(
+    spark,
+    *,
+    table: str,
+    dry_run: bool,
+    logger,
+    assume_constraints_missing: bool = False,
+) -> list[str]:
+    """Add the registered row-level guards to a shared output table."""
+    table_name = table.split(".")[-1]
+    required = next(
+        (
+            constraints
+            for suffix, constraints in OUTPUT_TABLE_CHECK_CONSTRAINTS.items()
+            if table_name.endswith(suffix)
+        ),
+        None,
+    )
+    if not required:
+        return []
+    properties = {}
+    if not assume_constraints_missing:
+        properties = {
+            str(row["key"]).lower(): str(row["value"])
+            for row in spark.sql(f"SHOW TBLPROPERTIES {table}").collect()
+        }
+    statements = []
+    for name, expression in required.items():
+        if f"delta.constraints.{name}" in properties:
+            continue
+        statement = (
+            f"ALTER TABLE {table} ADD CONSTRAINT `{name}` CHECK ({expression})"
+        )
+        statements.append(statement)
+        logger.info("Adding output-table constraint to %s: %s", table, name)
+        logger.info("Running: %s", statement)
+        if not dry_run:
+            spark.sql(statement)
+    return statements
+
+
+def create_table_with_output_constraints(
+    spark,
+    *,
+    table_ref: str,
+    table: str,
+    create_table_sql: str,
+    dry_run: bool,
+    logger,
+) -> list[str]:
+    """Create one table and apply its registered checks in the same operation."""
+    logger.info("Creating %s table as: %s", table_ref, table)
+    logger.info("Running: %s", create_table_sql)
+    if dry_run:
+        logger.info("Dry run enabled; not creating %s", table)
+    else:
+        spark.sql(create_table_sql)
+
+    constraint_statements = ensure_output_table_check_constraints(
+        spark,
+        table=table,
+        dry_run=dry_run,
+        logger=logger,
+        assume_constraints_missing=True,
+    )
+    return [create_table_sql, *constraint_statements]
+
+
+def requires_assignment_build_state_recreation(
+    table: str,
+    actual_columns: list[ColumnSpec],
+) -> bool:
+    table_name = table.split(".")[-1]
+    is_assignment_build_state = any(
+        table_name.endswith(suffix)
+        for suffix in ASSIGNMENT_BUILD_STATE_TABLE_SUFFIXES
+    )
+    if not is_assignment_build_state:
+        return False
+    actual_names = {column.name for column in actual_columns}
+    return bool(ASSIGNMENT_PROVENANCE_COLUMNS - actual_names)
+
+
 def repair_table_to_contract(
     spark,
     *,
@@ -426,6 +589,34 @@ def repair_table_to_contract(
         raise ValueError(
             f"Table {table} requires rebuild repair, but PROD rebuild repair "
             "is blocked. Use an explicit release/migration route."
+        )
+
+    if requires_assignment_build_state_recreation(table, actual_columns):
+        raise ValueError(
+            f"Table {table} requires explicit targeted recreation to add "
+            "assignment provenance without backup-copying transient build "
+            "state. Run recreate_tables for assignments_build_staging, "
+            "assignments_v2_build_staging, and assignment_build_events only."
+        )
+
+    if any(
+        table.split(".")[-1].endswith(suffix)
+        for suffix in RECREATE_ONLY_MANIFEST_TABLE_SUFFIXES
+    ):
+        raise ValueError(
+            f"Small manifest table {table} requires targeted recreation; "
+            "backup-copy repair is intentionally disabled. Run "
+            "recreate_tables for this table only."
+        )
+
+    if any(
+        table.split(".")[-1].endswith(suffix)
+        for suffix in IN_PLACE_ONLY_LARGE_TABLE_SUFFIXES
+    ):
+        raise ValueError(
+            f"Large output table {table} requires an explicit migration; "
+            "table_operations will not create a backup copy or rebuild it. "
+            "Apply additive columns and constraints in place only."
         )
 
     unsupported_missing = [
@@ -676,7 +867,15 @@ def main(
 
         if spark.catalog.tableExists(table):
             if not ALTER_TABLES:
-                logger.debug(f"Table {table} already exists - skipping")
+                logger.debug(
+                    "Table %s already exists - skipping schema changes", table
+                )
+                ensure_output_table_check_constraints(
+                    spark,
+                    table=table,
+                    dry_run=DRY_RUN,
+                    logger=logger,
+                )
                 continue
 
             logger.info(f"Checking {table} against SQL contract")
@@ -689,6 +888,12 @@ def main(
             drift = compare_table_schema(expected_columns, actual_columns)
             if not drift.has_drift:
                 logger.info(f"Table {table} matches SQL contract")
+                ensure_output_table_check_constraints(
+                    spark,
+                    table=table,
+                    dry_run=DRY_RUN,
+                    logger=logger,
+                )
                 continue
 
             logger.warning(
@@ -736,6 +941,12 @@ def main(
                                 dry_run=DRY_RUN,
                                 logger=logger,
                             )
+                ensure_output_table_check_constraints(
+                    spark,
+                    table=table,
+                    dry_run=DRY_RUN,
+                    logger=logger,
+                )
                 continue
 
             repair_table_to_contract(
@@ -748,14 +959,22 @@ def main(
                 dry_run=DRY_RUN,
                 logger=logger,
             )
+            ensure_output_table_check_constraints(
+                spark,
+                table=table,
+                dry_run=DRY_RUN,
+                logger=logger,
+            )
             continue
 
-        logger.info(f"Creating {table_ref} table as: {table}")
-        logger.info(f"Running: {query}")
-        if DRY_RUN:
-            logger.info("Dry run enabled; not creating %s", table)
-        else:
-            spark.sql(query)
+        create_table_with_output_constraints(
+            spark,
+            table_ref=table_ref,
+            table=table,
+            create_table_sql=query,
+            dry_run=DRY_RUN,
+            logger=logger,
+        )
 
     logger.info("Run complete")
 

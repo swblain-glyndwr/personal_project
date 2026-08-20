@@ -1,0 +1,146 @@
+default:
+  scoring:
+    contract_version: account_entity_scores/v1
+    canonical:
+      foundation_builds_table: "@format {this.tables_write.scoring_foundation_builds}"
+      foundation_outputs_table: "@format {this.tables_write.scoring_foundation_outputs}"
+      foundation_run_contexts_table: "@format {this.tables_write.scoring_foundation_run_contexts}"
+      provider_builds_table: "@format {this.tables_write.score_provider_builds}"
+      provider_signals_table: "@format {this.tables_write.score_provider_signals}"
+      portfolios_table: "@format {this.tables_write.scoring_portfolios}"
+      portfolio_entries_table: "@format {this.tables_write.scoring_portfolio_entries}"
+    capabilities:
+      account_theme:
+        entity_type: theme
+      account_ad:
+        entity_type: ad
+    foundations:
+      account_theme_features:
+        foundation_id: account_theme_features
+        foundation_version: account_theme_features/v2
+        capability: account_theme
+        contract_version: account_theme_foundation/v1
+        required_outputs:
+          ranked: account_theme_ranked/v1
+        input_bindings:
+          item_themes:
+            table: "@format {this.tables_write.scoring_input_item_themes}"
+            schema_version: item_themes/v1
+    providers:
+      theme_affinity:
+        provider_id: theme_affinity
+        provider_version: theme_affinity/v1
+        implementation: theme_affinity
+        compatibility_publisher: theme_affinity_legacy
+        capability: account_theme
+        foundation_id: account_theme_features
+        adapter: legacy_account_entity_table
+        legacy_source_table: "@format {this.tables_write.theme_affinity_model_latest}"
+        entity_type: theme
+        score_direction: higher_is_better
+        max_entities_per_account: 100
+        account_number_column: AccountNumber
+        entity_id_column: NextTheme
+        raw_score_column: ProbAggRebased
+        score_column: ProbAggRebased
+      markov:
+        provider_id: markov
+        provider_version: markov/v1
+        implementation: markov
+        compatibility_publisher: markov_legacy
+        capability: account_theme
+        foundation_id: null
+        adapter: legacy_account_entity_table
+        legacy_source_table: "@format {this.tables_write.next_theme_scores_latest}"
+        entity_type: theme
+        score_direction: higher_is_better
+        max_entities_per_account: 100
+        account_number_column: AccountNumber
+        entity_id_column: NextTheme
+        raw_score_column: ProbAgg
+        score_column: ProbAggRebased
+    client_portfolios:
+      next_uk:
+        theme_ranking:
+          capability: account_theme
+          contract_version: account_entity_scores/v1
+          serving_slots:
+            - best
+            - best_challenger
+          routes:
+            v1:
+              policies:
+                - policy_id: v1_default
+                  priority: 100
+                  policy_version: v1_default/v1
+                  selector:
+                    locations:
+                      - "*"
+                    page_types:
+                      - "*"
+                    audiences:
+                      - "*"
+                    customer_cells:
+                      - "*"
+                  entries:
+                    - entry_id: v1_best
+                      provider_id: theme_affinity
+                      policy_role: CHAMPION
+                      execution_mode: SERVING
+                      serving_slot: best
+                      priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best
+                    - entry_id: v1_best_challenger
+                      provider_id: theme_affinity
+                      policy_role: CHALLENGER
+                      execution_mode: SERVING
+                      serving_slot: best_challenger
+                      priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best_challenger
+                    - entry_id: v1_markov_shadow
+                      provider_id: markov
+                      policy_role: SHADOW
+                      execution_mode: EVALUATE
+                      priority: 1
+                      experiment_id: markov_shadow
+                      variant_id: evaluate
+            v2:
+              policies:
+                - policy_id: v2_default
+                  priority: 100
+                  policy_version: v2_default/v1
+                  selector:
+                    locations:
+                      - "*"
+                    page_types:
+                      - "*"
+                    audiences:
+                      - "*"
+                    customer_cells:
+                      - "*"
+                  entries:
+                    - entry_id: v2_best
+                      provider_id: theme_affinity
+                      policy_role: CHAMPION
+                      execution_mode: SERVING
+                      serving_slot: best
+                      priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best
+                    - entry_id: v2_best_challenger
+                      provider_id: theme_affinity
+                      policy_role: CHALLENGER
+                      execution_mode: SERVING
+                      serving_slot: best_challenger
+                      priority: 1
+                      experiment_id: current_delivery
+                      variant_id: best_challenger
+                    - entry_id: v2_markov_shadow
+                      provider_id: markov
+                      policy_role: SHADOW
+                      execution_mode: EVALUATE
+                      priority: 1
+                      experiment_id: markov_shadow
+                      variant_id: evaluate

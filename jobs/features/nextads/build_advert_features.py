@@ -2,7 +2,12 @@
 
 import logging
 
-from _registry_job import configure_job_logging, log_owned_tables, parse_common_args
+from _registry_job import (
+    configure_job_logging,
+    log_owned_tables,
+    parse_common_args,
+    validate_builder_output_tables,
+)
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
 from next_ads.features.materialization import (
@@ -58,6 +63,11 @@ def main() -> None:
             )
         ),
     }
+    validate_builder_output_tables(
+        "build_advert_features",
+        writes,
+        registry,
+    )
 
     for table_name, dataframe in writes.items():
         table = registry.table_spec(table_name)
@@ -67,9 +77,10 @@ def main() -> None:
             dataframe,
             catalog=target_catalog,
             schema=target_schema,
-            reference_date=reference_date if table.timestamp_key else None,
+            reference_date=reference_date,
             reference_date_column=table.timestamp_key or "reference_date",
             replace_reference_date=replace_reference_date,
+            mode=table.write_mode,
             feature_engineering_client=feature_engineering_client,
         )
         LOGGER.info("Wrote advert feature table: %s", table_path)

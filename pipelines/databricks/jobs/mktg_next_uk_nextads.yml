@@ -3,6 +3,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
     name: mktg_next_uk_nextads_candidate_build
     queue:
       enabled: true
+    max_concurrent_runs: 1
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
@@ -19,41 +20,45 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
     schedule:
       quartz_cron_expression: 0 0 18 * * ?
       timezone_id: Europe/London
-    timeout_seconds: 21600 # required by Engineering at job level as Monitoring Dashboard doesnt handle for_each_task type
+    # Covers the longest candidate branch plus its synchronous page-build child.
+    # The job-level timeout is also required by the monitoring dashboard.
+    timeout_seconds: 72000
     parameters:
-      - name: refresh_theme_mapping
-        default: "false"
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
+      - name: v1_portfolio_policy_id
+        default: v1_default
+      - name: v2_portfolio_policy_id
+        default: v2_default
+      - name: foundation_snapshot_id
+        default: same_day
     tasks:
-      - task_key: assign_customer_cells
+      - task_key: select_candidate_foundation
         spark_python_task:
-          python_file: ../../../jobs/nextads_cells/assign_customer_cells.py
+          python_file: ../../../jobs/orchestration/select_candidate_foundation.py
           parameters:
             - --client
-            - "next_uk"
+            - next_uk
             - --job_env
             - ${var.job_parameter_environment_name}
-            - --refresh_control_date
-            - "2026-01-08"
-            # - --sample_mode
-            # - "True"
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --foundation_snapshot_id
+            - "{{job.parameters.foundation_snapshot_id}}"
+            - --readiness_wait_seconds
+            - "1800"
+            - --readiness_poll_seconds
+            - "60"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --orchestration_run_id
+            - "{{job.run_id}}"
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 7200
-      - task_key: combine_customer_cells
-        depends_on:
-          - task_key: assign_customer_cells
-        spark_python_task:
-          python_file: ../../../jobs/nextads_cells/combine_customer_cells.py
-          parameters:
-            - --client
-            - "next_uk"
-            - --job_env
-            - ${var.job_parameter_environment_name}
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_4_4_photon
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
+        max_retries: 1
+        timeout_seconds: 2100
       - task_key: load_control_sheet_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_control/load_control_sheet.py
@@ -62,16 +67,59 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         # adding retry due to transient issues (e.g. Google API)
         max_retries: 2
         min_retry_interval_millis: 300000
         timeout_seconds: 3600
+      - task_key: audit_control_sheet_v1
+        depends_on:
+          - task_key: load_control_sheet_v1
+        spark_python_task:
+          python_file: ../../../jobs/nextads_control/audit_control_sheet.py
+          parameters:
+            - --route
+            - "v1"
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --warn-only
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 1800
       - task_key: trigger_data_pull_for_CMS_pull
+        depends_on:
+          - task_key: load_control_sheet_v2
         run_job_task:
           job_id: ${resources.jobs.mktg_next_uk_nextads_data_pull.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
       - task_key: load_control_sheet_v2
+        spark_python_task:
+          python_file: ../../../jobs/nextads_control/load_control_sheet_v2.py
+          parameters:
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --phase
+            - land
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        # adding retry due to transient issues (e.g. Google API)
+        max_retries: 2
+        min_retry_interval_millis: 300000
+        timeout_seconds: 3600
+      - task_key: process_control_sheet_v2
         depends_on:
           - task_key: trigger_data_pull_for_CMS_pull
         spark_python_task:
@@ -81,85 +129,161 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --phase
+            - process
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
-        # adding retry due to transient issues (e.g. Google API)
         max_retries: 2
         min_retry_interval_millis: 300000
         timeout_seconds: 3600
-      - task_key: parse_attributes
+      - task_key: audit_control_sheet_v2
+        depends_on:
+          - task_key: process_control_sheet_v2
         spark_python_task:
-          python_file: ../../../jobs/nextads_control/parse_attributes.py
+          python_file: ../../../jobs/nextads_control/audit_control_sheet.py
           parameters:
+            - --route
+            - "v2"
             - --client
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
-            - --refresh_attributes_date
-            - "2026-06-15"
-        job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 7200
-      - task_key: validate_theme_mapping_sync
-        spark_python_task:
-          python_file: ../../../jobs/nextads_control/validate_theme_mapping_sync.py
-          parameters:
-            - --client
-            - "next_uk"
-            - --job_env
-            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --warn-only
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         max_retries: 2
-        min_retry_interval_millis: 300000
         timeout_seconds: 1800
-      - task_key: parse_theme_mapping
-        depends_on:
-          - task_key: parse_attributes
-          - task_key: validate_theme_mapping_sync
+      - task_key: resolve_scoring_portfolio_v1
         spark_python_task:
-          python_file: ../../../jobs/nextads_control/parse_theme_mapping.py
+          python_file: ../../../jobs/orchestration/resolve_scoring_portfolio.py
           parameters:
             - --client
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
-            - --refresh_themes_date
-            - "2026-06-15"
-            - --refresh_theme_mapping
-            - "{{job.parameters.refresh_theme_mapping}}"
-        job_cluster_key: next_ads_job_cluster_D16ads_v5_4_4
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --portfolio_policy_id
+            - "{{job.parameters.v1_portfolio_policy_id}}"
+            - --capability
+            - account_theme
+            - --use_case
+            - theme_ranking
+            - --route
+            - v1
+            - --readiness_wait_seconds
+            - "1800"
+            - --readiness_poll_seconds
+            - "60"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --orchestration_run_id
+            - "{{job.run_id}}"
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
-      - task_key: score_lightweight
-        depends_on:
-          - task_key: parse_theme_mapping
+        max_retries: 1
+        timeout_seconds: 2100
+      - task_key: resolve_scoring_portfolio_v2
         spark_python_task:
-          python_file: ../../../jobs/nextads_candidates/build_theme_scores.py
+          python_file: ../../../jobs/orchestration/resolve_scoring_portfolio.py
           parameters:
             - --client
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
-            - --refresh_model_date
-            - "2026-05-11"
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --portfolio_policy_id
+            - "{{job.parameters.v2_portfolio_policy_id}}"
+            - --capability
+            - account_theme
+            - --use_case
+            - theme_ranking
+            - --route
+            - v2
+            - --readiness_wait_seconds
+            - "1800"
+            - --readiness_poll_seconds
+            - "60"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --orchestration_run_id
+            - "{{job.run_id}}"
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 18000
-      - task_key: validate_theme_affinity_theme_coverage
+        max_retries: 1
+        timeout_seconds: 2100
+      - task_key: validate_score_provider_theme_coverage_v1
         depends_on:
-          - task_key: load_control_sheet_v1
-          - task_key: load_control_sheet_v2
+          - task_key: audit_control_sheet_v1
+          - task_key: resolve_scoring_portfolio_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py
           parameters:
+            - --route
+            - "v1"
             - --client
             - "next_uk"
             - --job_env
             - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --provider_build_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_build_id}}"
+            - --provider_signals_table
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_table}}"
+            - --provider_signals_delta_version
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_delta_version}}"
+            - --provider_selection_status
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_selection_status}}"
+            - --provider_source_run_date
+            - "{{tasks.resolve_scoring_portfolio_v1.values.provider_source_run_date}}"
+            - --provider_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.input_snapshot_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.current_input_snapshot_id}}"
+            - --warn-only
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 1800
+      - task_key: validate_score_provider_theme_coverage_v2
+        depends_on:
+          - task_key: audit_control_sheet_v2
+          - task_key: resolve_scoring_portfolio_v2
+        spark_python_task:
+          python_file: ../../../jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py
+          parameters:
+            - --route
+            - "v2"
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --provider_build_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_build_id}}"
+            - --provider_signals_table
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_table}}"
+            - --provider_signals_delta_version
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_delta_version}}"
+            - --provider_selection_status
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_selection_status}}"
+            - --provider_source_run_date
+            - "{{tasks.resolve_scoring_portfolio_v2.values.provider_source_run_date}}"
+            - --provider_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.input_snapshot_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.current_input_snapshot_id}}"
             - --warn-only
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
@@ -167,8 +291,8 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         timeout_seconds: 1800
       - task_key: map_theme_scores_to_ads_v1
         depends_on:
-          - task_key: score_lightweight
-          - task_key: load_control_sheet_v1
+          - task_key: select_candidate_foundation
+          - task_key: validate_score_provider_theme_coverage_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_theme_ad_candidates.py
           parameters:
@@ -179,14 +303,44 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - --apply-ad-feedback
             - --top-ads-per-location
             - "100"
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --portfolio_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.portfolio_id}}"
+            - --portfolio_attempt_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.portfolio_attempt_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v1.values.current_input_snapshot_id}}"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --git_commit
+            - ${var.git_commit_sha}
+            - --foundation_snapshot_id
+            - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            - --foundation_source_run_date
+            - "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            - --customer_cells_table
+            - "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            - --customer_cells_delta_version
+            - "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
+            - --repeat_ad_exposure_table
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_table}}"
+            - --repeat_ad_exposure_delta_version
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_delta_version}}"
+            - --ad_feedback_table
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_table}}"
+            - --ad_feedback_delta_version
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_delta_version}}"
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4_v1_candidates
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 10800
       - task_key: map_theme_scores_to_ads_v2
         depends_on:
-          - task_key: score_lightweight
-          - task_key: load_control_sheet_v2
+          - task_key: select_candidate_foundation
+          - task_key: validate_score_provider_theme_coverage_v2
         spark_python_task:
           python_file: ../../../jobs/nextads_candidates/build_page_type_candidates_v2.py
           parameters:
@@ -196,7 +350,37 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - ${var.job_parameter_environment_name}
             - --top-ads-per-page-type
             - "100"
-        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --portfolio_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.portfolio_id}}"
+            - --portfolio_attempt_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.portfolio_attempt_id}}"
+            - --current_input_snapshot_id
+            - "{{tasks.resolve_scoring_portfolio_v2.values.current_input_snapshot_id}}"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --git_commit
+            - ${var.git_commit_sha}
+            - --foundation_snapshot_id
+            - "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            - --foundation_source_run_date
+            - "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            - --customer_cells_table
+            - "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            - --customer_cells_delta_version
+            - "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
+            - --repeat_ad_exposure_table
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_table}}"
+            - --repeat_ad_exposure_delta_version
+            - "{{tasks.select_candidate_foundation.values.repeat_ad_exposure_delta_version}}"
+            - --ad_feedback_table
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_table}}"
+            - --ad_feedback_delta_version
+            - "{{tasks.select_candidate_foundation.values.ad_feedback_delta_version}}"
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4_v2_candidates
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 10800
@@ -214,38 +398,48 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.cosmos_libraries}
         max_retries: 2
         timeout_seconds: 10800
-      - task_key: trigger_page_build_v1_job
+      - task_key: run_page_build_v1
         depends_on:
-          - task_key: combine_customer_cells
           - task_key: map_theme_scores_to_ads_v1
-        spark_python_task:
-          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
-          parameters:
-            - --job-id
-            - ${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}
-            - --job-name
-            - "mktg_next_uk_nextads_page_build"
-            - --fail-on-submit-error
-        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
-      - task_key: trigger_page_build_v2_job
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_page_build_cicd.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
+            build_run_id: "v1_{{job.run_id}}"
+            candidate_build_attempt_id: "{{tasks.map_theme_scores_to_ads_v1.values.candidate_build_attempt_id}}"
+            provider_build_id: "{{tasks.resolve_scoring_portfolio_v1.values.provider_build_id}}"
+            provider_signals_table: "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_table}}"
+            provider_signals_delta_version: "{{tasks.resolve_scoring_portfolio_v1.values.provider_signals_delta_version}}"
+            input_snapshot_id: "{{tasks.resolve_scoring_portfolio_v1.values.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{tasks.resolve_scoring_portfolio_v1.values.scoring_foundation_build_id}}"
+            provider_selection_status: "{{tasks.resolve_scoring_portfolio_v1.values.provider_selection_status}}"
+            provider_source_run_date: "{{tasks.resolve_scoring_portfolio_v1.values.provider_source_run_date}}"
+            foundation_snapshot_id: "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            foundation_selection_status: "{{tasks.select_candidate_foundation.values.foundation_selection_status}}"
+            foundation_source_run_date: "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            customer_cells_table: "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            customer_cells_delta_version: "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
+      - task_key: run_page_build_v2
         depends_on:
-          - task_key: combine_customer_cells
           - task_key: map_theme_scores_to_ads_v2
-        spark_python_task:
-          python_file: ../../../jobs/orchestration/trigger_databricks_job.py
-          parameters:
-            - --job-id
-            - ${resources.jobs.mktg_next_uk_nextads_page_build_cicd_v2.id}
-            - --job-name
-            - "mktg_next_uk_nextads_page_build_v2"
-            - --fail-on-submit-error
-        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
-        libraries: ${var.shared_libraries}
-        max_retries: 2
-        timeout_seconds: 3600
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_page_build_cicd_v2.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
+            build_run_id: "v2_{{job.run_id}}"
+            candidate_build_attempt_id: "{{tasks.map_theme_scores_to_ads_v2.values.candidate_build_attempt_id}}"
+            provider_build_id: "{{tasks.resolve_scoring_portfolio_v2.values.provider_build_id}}"
+            provider_signals_table: "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_table}}"
+            provider_signals_delta_version: "{{tasks.resolve_scoring_portfolio_v2.values.provider_signals_delta_version}}"
+            input_snapshot_id: "{{tasks.resolve_scoring_portfolio_v2.values.input_snapshot_id}}"
+            scoring_foundation_build_id: "{{tasks.resolve_scoring_portfolio_v2.values.scoring_foundation_build_id}}"
+            provider_selection_status: "{{tasks.resolve_scoring_portfolio_v2.values.provider_selection_status}}"
+            provider_source_run_date: "{{tasks.resolve_scoring_portfolio_v2.values.provider_source_run_date}}"
+            foundation_snapshot_id: "{{tasks.select_candidate_foundation.values.foundation_snapshot_id}}"
+            foundation_selection_status: "{{tasks.select_candidate_foundation.values.foundation_selection_status}}"
+            foundation_source_run_date: "{{tasks.select_candidate_foundation.values.foundation_source_run_date}}"
+            customer_cells_table: "{{tasks.select_candidate_foundation.values.customer_cells_table}}"
+            customer_cells_delta_version: "{{tasks.select_candidate_foundation.values.customer_cells_delta_version}}"
 
 targets:
   SANDBOX:

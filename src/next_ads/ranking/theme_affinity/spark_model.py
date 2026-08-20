@@ -196,7 +196,7 @@ def prediction_evidence_stats(predictions, top_k_values: tuple[int, ...] = TOP_K
 
 def rank_predictions(predictions):
     theme_col = _theme_column(predictions)
-    order_cols = [F.col(PREDICTION_COL).desc()]
+    order_cols = [F.col(PREDICTION_COL).desc_nulls_last()]
     if theme_col:
         order_cols.append(F.col(theme_col).asc())
     return predictions.withColumn(
@@ -254,9 +254,13 @@ def _top_k_confusion_matrices(ranked, top_k_values: tuple[int, ...]):
 
 
 def _score_distribution(ranked):
+    score_window = Window.orderBy(
+        F.col(PREDICTION_COL).asc_nulls_first(),
+        *_evidence_tiebreakers(ranked),
+    )
     scored = ranked.withColumn(
         "score_bin",
-        F.ntile(20).over(Window.orderBy(F.col(PREDICTION_COL).asc_nulls_first())),
+        F.ntile(20).over(score_window),
     ).withColumn(
         "label_bucket",
         F.when(F.col("actual_positive") == 1, F.lit("positive")).otherwise(
@@ -279,9 +283,13 @@ def _score_distribution(ranked):
 
 
 def _lift_by_decile(ranked):
+    decile_window = Window.orderBy(
+        F.col(PREDICTION_COL).desc_nulls_last(),
+        *_evidence_tiebreakers(ranked),
+    )
     deciles = ranked.withColumn(
         "score_decile",
-        F.ntile(10).over(Window.orderBy(F.col(PREDICTION_COL).desc_nulls_last())),
+        F.ntile(10).over(decile_window),
     )
     return [
         {
@@ -322,6 +330,16 @@ def _ranking_group_columns(df):
 
 def _ranking_group_exprs(df):
     return [F.col(column) for column in _ranking_group_columns(df)]
+
+
+def _evidence_tiebreakers(df):
+    columns = ["account_number"]
+    if "reference_date" in df.columns:
+        columns.append("reference_date")
+    theme_col = _theme_column(df)
+    if theme_col:
+        columns.append(theme_col)
+    return [F.col(column).asc_nulls_last() for column in columns]
 
 
 def _ideal_dcg_expr(k: int):

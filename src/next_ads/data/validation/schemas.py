@@ -33,10 +33,10 @@ class ControlSheetInputModel(DataFrameModel):
             "allowed_values": ["active", "inactive", "Active", "Inactive"]
         },
     )
+    # Multiple audience-specific ads may intentionally share CMS content.
     CMSPageID: StringType = pa.Field(
         nullable=False,
         str_matches_spark={"pattern": _CMSPageID_PATTERN},
-        unique_spark={"check": True},
     )
     MASIDToken: StringType = pa.Field(
         nullable=False,
@@ -73,10 +73,10 @@ class ControlSheetInputModelv2(DataFrameModel):
             "allowed_values": ["active", "inactive", "Active", "Inactive"]
         },
     )
+    # Multiple audience-specific ads may intentionally share CMS content.
     CMSPageID: StringType = pa.Field(
         nullable=False,
         str_matches_spark={"pattern": _CMSPageID_PATTERN},
-        unique_spark={"check": True},
     )
     MASIDToken: StringType = pa.Field(
         nullable=False,
