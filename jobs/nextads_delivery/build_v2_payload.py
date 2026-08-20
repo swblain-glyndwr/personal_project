@@ -731,7 +731,7 @@ def main(
                          and trim(roamingprofileid)!=''
                          and (next_ads is not null)""")
         in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti") #GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
-        distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", lit(""))
+        distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", F.lit(""))
 
         write_output_to_csv(distinct_nextads_blank, config.pii_exponea_next_uk_path, logger, process="next_ads_blanking")
 
