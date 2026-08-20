@@ -1,91 +1,61 @@
-# Model Research Output Layer: Complete Data Scientist Walkthrough
+# Model research: data scientist guide
 
-Status: Core research, discovery, reviewed selection and isolated evaluation proved in personal DEV. Current-branch job-consolidation, quieter logging and exact-output-marker changes are implemented in source and await a new deployed runtime proof. This is the canonical data-scientist guide.
+This guide shows how to compare model options in MLflow, choose one, register it in personal DEV and score it safely. Shopping Bag pCTR is the worked example for [work item 5260243](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_workitems/edit/5260243).
 
-This document explains the complete declared model-research workflow introduced for [work item 5260243](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_workitems/edit/5260243). It is intentionally explicit. It covers what a data scientist can choose, what must be declared in source control, what the platform fixes, why each control exists, what every operation writes, how retries behave, and how the Shopping Bag pCTR proof used the workflow end to end.
+The basic flow is: define the question and dates once, run every model against the same data and metrics, choose a winner, then use the untouched test period as the final check. The chosen model can be registered and scored in DEV, but nothing is put live.
 
-The short version is: define one time-correct modelling question, compare declared candidates on the same immutable data, inspect comparable MLflow evidence, select one candidate, expose the untouched test period only after selection, register that exact model, and evaluate it without changing live NextAds output.
-
-This is the detailed owner document. The broader operational job and table map remains in [NextAds job and table flow](architecture/nextads_job_table_flow.md), and model movement between environments remains in the [model lifecycle runbook](model_lifecycle_runbook.md).
+For the shortest route, read the workflow in section 2 and the Shopping Bag example in section 20. The rest is the full reference for fields, outputs and recovery. The wider job/table map is in [NextAds job and table flow](architecture/nextads_job_table_flow.md), and environment movement is in the [model lifecycle runbook](model_lifecycle_runbook.md).
 
 ## Contents
 
-1. [Purpose and boundaries](#1-purpose-and-boundaries)
-2. [The workflow at a glance](#2-the-workflow-at-a-glance)
-3. [Who chooses what](#3-who-chooses-what)
-4. [Core objects and states](#4-core-objects-and-states)
-5. [Before starting](#5-before-starting)
-6. [Declaring a model](#6-declaring-a-model)
-7. [Declaring a research plan](#7-declaring-a-research-plan)
-8. [Candidate choices and parameters](#8-candidate-choices-and-parameters)
-9. [Metrics, plots, slices and explanations](#9-metrics-plots-slices-and-explanations)
-10. [The generic lifecycle job](#10-the-generic-lifecycle-job)
-11. [`BUILD`: the compatible direct-build route](#11-build-the-compatible-direct-build-route)
-12. [`RESEARCH`: compare declared candidates](#12-research-compare-declared-candidates)
-13. [Optional bounded AutoML discovery](#13-optional-bounded-automl-discovery)
-14. [`REVIEW_SELECT`: lock, test and register one candidate](#14-review_select-lock-test-and-register-one-candidate)
-15. [`EVALUATE`: score the selected model in isolation](#15-evaluate-score-the-selected-model-in-isolation)
-16. [Supporting generic jobs](#16-supporting-generic-jobs)
-17. [Outputs and where to find them](#17-outputs-and-where-to-find-them)
-18. [MLflow layout and review checklist](#18-mlflow-layout-and-review-checklist)
-19. [Retry, reuse and failure behaviour](#19-retry-reuse-and-failure-behaviour)
-20. [Shopping Bag pCTR worked example](#20-shopping-bag-pctr-worked-example)
-21. [Common decisions](#21-common-decisions)
-22. [Troubleshooting and frequently asked questions](#22-troubleshooting-and-frequently-asked-questions)
-23. [Release and activation boundary](#23-release-and-activation-boundary)
-24. [Original acceptance-criteria trace](#24-original-acceptance-criteria-trace)
-25. [Glossary](#25-glossary)
-26. [Reference map](#26-reference-map)
+1. [What this workflow is for](#1-what-this-workflow-is-for)
+2. [The short version](#2-the-short-version)
+3. [What you choose and what the jobs choose](#3-what-you-choose-and-what-the-jobs-choose)
+4. [What the IDs and records mean](#4-what-the-ids-and-records-mean)
+5. [Before you run anything](#5-before-you-run-anything)
+6. [Set up the model](#6-set-up-the-model)
+7. [Set up the comparison](#7-set-up-the-comparison)
+8. [Choose the models to compare](#8-choose-the-models-to-compare)
+9. [Choose what MLflow should show](#9-choose-what-mlflow-should-show)
+10. [Run the lifecycle job](#10-run-the-lifecycle-job)
+11. [`BUILD`: run the existing two-model builder](#11-build-run-the-existing-two-model-builder)
+12. [`RESEARCH`: compare the models in YAML](#12-research-compare-the-models-in-yaml)
+13. [Optional AutoML search](#13-optional-automl-search)
+14. [`REVIEW_SELECT`: choose, test and register one candidate](#14-review_select-choose-test-and-register-one-candidate)
+15. [`EVALUATE`: compare the selected model without using it live](#15-evaluate-compare-the-selected-model-without-using-it-live)
+16. [Other jobs used by this workflow](#16-other-jobs-used-by-this-workflow)
+17. [Find the outputs](#17-find-the-outputs)
+18. [What to check in MLflow](#18-what-to-check-in-mlflow)
+19. [Reruns and failures](#19-reruns-and-failures)
+20. [Shopping Bag pCTR: worked example](#20-shopping-bag-pctr-worked-example)
+21. [Current limitations and quick answers](#21-current-limitations-and-quick-answers)
+22. [What happens after personal DEV](#22-what-happens-after-personal-dev)
+23. [Glossary](#23-glossary)
+24. [Related docs and source](#24-related-docs-and-source)
 
-## 1. Purpose and boundaries
+## 1. What this workflow is for
 
-### 1.1 The actual goal
+The goal is to compare models fairly in MLflow. Every model uses the same dated Feature Store data—the data that would have been available when the prediction was made—and gets its own run. Only the selected model is checked against the untouched final period and registered.
 
-The goal is to make MLflow the place where a data scientist can compare modelling attempts built from the same time-correct Feature Store data. Each declared candidate gets its own run, the evidence is comparable, and only an automatically or manually selected candidate can reach held-out testing and registration.
+The system calls each model option a `candidate`. The important rules are:
 
-The implementation satisfies these requirements:
-
-- the existing `Trainer.train(...) -> ModelBuild` route still works without a research plan;
-- research is optional and controlled by a checked-in `ResearchPlan`;
-- logistic regression, random forest, gradient-boosted trees and Spark XGBoost can run as separate nested MLflow runs;
-- every candidate gets the same immutable training receipt, temporal split and evidence contract;
-- model plug-ins cannot choose their own data split, publish scores, register a model or move an alias;
-- the parent run contains the comparison and deterministic recommendation;
-- only the selected candidate sees final test outcomes and can be registered;
-- identical retries reuse the same logical evidence and registered version;
-- AutoML is manual, bounded, isolated and non-registering;
-- `EVALUATE` writes isolated score evidence and cannot change portfolios, assignments or payloads.
-
-### 1.2 What this does not do
+- The existing `BUILD` route still compares its two fixed models and registers the winner without a research plan.
+- `RESEARCH` is optional. Its dates, models and checks are saved in YAML.
+- Every candidate gets its own MLflow run using the same data and split.
+- Candidate code cannot change the split, publish scores, register itself or move an alias.
+- The parent run compares the results and recommends a candidate. Only the chosen one sees the final test period.
+- `RESEARCH`, AutoML and `REVIEW_SELECT` can reuse matching completed work. Every `EVALUATE` run creates a new separate attempt.
 
 This workflow does not:
 
-- promote a model to DEV Integration, PREPROD or PROD;
-- move `dev_candidate`, `preprod`, `prod` or any other alias;
-- add the model to a serving portfolio;
-- write live candidate, assignment or delivery-payload tables;
-- turn an AutoML trial into a registered model;
-- let a run-form parameter silently change the reviewed research split;
-- let candidate code read the untouched test split during comparison;
-- make a model operational merely because a Unity Catalog version was registered.
+- promote models or move aliases in DEV Integration, PREPROD or PROD;
+- add a model to serving or write live candidate, assignment or payload tables;
+- let candidate code read the final test data or let job-form values override the split in YAML;
+- register an AutoML trial or make NextAds use a model merely because it was registered in personal DEV.
 
-Registration and activation are deliberately separate. A registered DEV version is an auditable model artifact. It is not a serving decision.
+Registering a model in personal DEV only saves that exact version. It does not make NextAds use it.
 
-### 1.3 Supporting architecture included in the change
-
-The research layer is the goal. Several supporting changes make it operable without adding more model-specific saved jobs:
-
-- one generic DEV lifecycle job handles `BUILD`, `RESEARCH`, `REVIEW_SELECT` and `EVALUATE`;
-- one separate generic discovery job provides the Databricks ML runtime needed by AutoML;
-- the Feature Store job owns reusable feature construction and exact snapshot receipts;
-- the scheduled model-scoring job is parameterised by `model_name`, with Theme Affinity as its current implementation;
-- the main NextAds candidate job has a `PREPARE_SCORING_INPUTS` operation so scoring inputs can be prepared independently of the 18:00 candidate build;
-- output-producing Python routes emit searchable, exact output destinations;
-- dependency loggers such as Py4J are suppressed while application `INFO` evidence remains visible.
-
-These are enabling controls, not a change in the user story's purpose.
-
-## 2. The workflow at a glance
+## 2. The short version
 
 ```mermaid
 flowchart TD
@@ -93,16 +63,16 @@ flowchart TD
   features["Build and accept dated Feature Store snapshots"]
   declaration["Declare model, lookups and optional ResearchPlan"]
   build{"Need candidate comparison?"}
-  direct["BUILD\ncompatible direct build and registration"]
-  research["RESEARCH\nimmutable frame and comparable candidates"]
-  automl["Optional AutoML discovery\ntrain plus validation only"]
-  review{"Selection policy"}
-  auto["AUTO\nselect in the research run"]
-  manual["REVIEW_SELECT\nrecord reviewer and reason"]
-  test["Expose untouched test to selected candidate only"]
-  register["Register exact selected model version"]
-  evaluate["EVALUATE\nscore an accepted candidate build in isolated tables"]
-  live["Separate serving and release decision"]
+  direct["BUILD compare two fixed models"]
+  research["RESEARCH compare models"]
+  automl["Optional AutoML search"]
+  review{"Manual review?"}
+  auto["Use automatic recommendation"]
+  manual["Choose model and record why"]
+  test["Run chosen model on final test period"]
+  register["Register chosen model in DEV"]
+  evaluate["EVALUATE into separate score tables"]
+  live["Separate decision to use model live"]
 
   question --> features --> declaration --> build
   build -->|No| direct
@@ -116,91 +86,94 @@ flowchart TD
   evaluate -. no automatic activation .-> live
 ```
 
-Use this decision table first:
+Use this table first:
 
-| Intent | Route | What the data scientist chooses |
+| What you want to do | Run | What you enter |
 | --- | --- | --- |
-| Train one declared implementation without candidate research | `BUILD` | Model name and explicit observation/feature dates plus label boundary |
+| Compare the two fixed BUILD models and register the winner | `BUILD` | Model name and explicit observation/feature dates plus label boundary |
 | Compare a reviewed set of model families on one fixed split | `RESEARCH` | Model name and label boundary; candidates and dates come from source control |
-| Explore a broader bounded search without registration | Model discovery | Exact completed research build, explicit `enabled=true`, optional timeout |
+| Explore a wider search without registration | Model discovery | The ID of a completed research run, explicit `enabled=true`, optional timeout |
 | Accept one reviewed research candidate | `REVIEW_SELECT` | Exact research build, declared candidate ID, reviewer name and substantive reason |
-| Score an exact registered model against an accepted candidate build | `EVALUATE` | Exact model build and run date; normally leave snapshot, attempt, limit and slot on safe defaults |
+| Score an exact registered model against an accepted candidate-build result | `EVALUATE` | Exact model build and run date; normally leave snapshot, attempt, limit and slot on the current defaults |
 | Make a model serve customers | Not this workflow | A separate reviewed portfolio, release and activation decision |
 
-## 3. Who chooses what
+### What this looked like for Shopping Bag
 
-The interface deliberately contains three different kinds of option. Treating them as interchangeable defeats the controls.
+The starting question was simple: could recent account activity and advert details help rank Shopping Bag adverts by click likelihood?
+
+1. The label, feature sets, dates, four model options and review rules were added to YAML.
+2. `RESEARCH` ran all four models on the same 203,310 saved rows. Logistic regression came out best on the validation checks.
+3. AutoML was run separately to explore more ideas. It used train and validation only, and could not register anything.
+4. `REVIEW_SELECT` recorded why logistic regression was chosen, showed that model the untouched test period, and registered numeric version 4 in personal DEV.
+5. The existing `dev_candidate` alias stayed on version 3, so the new model was not live.
+6. `EVALUATE` scored 10,000 accounts into separate comparison tables. It did not change candidate, provider, assignment or payload output.
+
+Section 20 contains the real run links, IDs, metrics, row counts and before/after checks.
+
+## 3. What you choose and what the jobs choose
+
+A DS makes two kinds of choice: settings saved in YAML and values entered for a particular run. Code, runtime and release settings are owned elsewhere.
 
 | Option owner | Where it is set | Examples | Why it lives there |
 | --- | --- | --- | --- |
-| Data scientist, reviewed in source control | [`configs/models/nextads_models.yaml`](../configs/models/nextads_models.yaml) | question, label, features, lags, split, candidates, metrics, slices, selection policy | These choices change the scientific claim and must be reviewable and reproducible |
-| Data scientist, selected for one manual run | Databricks job parameters | operation, model name, exact build/candidate IDs, reviewer/reason, evaluation date | These choose which already-declared workflow or immutable object to execute |
-| Plug-in author, reviewed in code | `src/next_ads/model_development/` | estimator implementation, prediction adapter, explanation implementation | Code is needed only when a supplied alias cannot express the required behaviour |
-| Platform owner | bundle variables and job YAML | catalog/schema, experiment root, cluster, libraries, code SHA, concurrency, timeouts | Prevents a run from redirecting evidence or weakening the controlled runtime |
-| Release owner | release/import/promotion jobs | exact source version, target namespace, promotion alias | Registration in personal DEV is not authority to release or activate |
+| Data scientist, reviewed in source control | [`configs/models/nextads_models.yaml`](../configs/models/nextads_models.yaml) | question, label, features, lags, split, candidates, metrics, slices, selection policy | These change what is being tested, so they must be reviewed |
+| Data scientist, selected for one manual run | Databricks job parameters | operation, model name, exact build/candidate IDs, reviewer/reason, evaluation date | These point the job at saved settings or a completed result; they do not redefine it |
+| Plug-in author, reviewed in code | `src/next_ads/model_development/` | model implementation, prediction adapter, explanation implementation | Only needed when the built-in model options cannot do the job |
+| Platform owner | bundle variables and job YAML | catalog/schema, experiment root, cluster, libraries, code SHA, concurrency, timeouts | Keeps runs on the approved storage and compute setup |
+| Release owner | release/import/promotion jobs | exact source version, target namespace, promotion alias | A personal DEV model is not approved for release |
 
 ### 3.1 Normal DS choices
 
 A data scientist normally chooses:
 
-1. the modelling question and model declaration;
-2. the dated temporal split;
-3. the declared candidate set and candidate hyperparameters;
-4. metrics, reporting slices and selection policy;
-5. whether to run optional bounded AutoML discovery;
-6. which candidate to select after reviewing validation evidence;
-7. the written reason for that choice;
-8. the exact registered build and date to evaluate in isolation.
+1. what to predict and which features to use;
+2. the train, validation and test dates;
+3. which models and settings to compare;
+4. which metrics and groups to review, and whether selection is automatic;
+5. whether to run optional AutoML;
+6. after reviewing results, which model to choose and which registered build/date to evaluate.
 
-### 3.2 Choices a DS should normally leave alone
+A data scientist normally does not choose:
 
-The following are visible in resources or code but are not ordinary experiment knobs:
+- catalogs, schemas, MLflow paths or output table names;
+- cluster, runtime, libraries or deployed code version;
+- internal column names, run IDs or accepted snapshot versions;
+- registration naming, aliases, provider publication or serving;
+- access to the final test period.
 
-- catalog and schema destinations;
-- MLflow experiment root;
-- cluster size, DBR version and attached libraries;
-- Git SHA and orchestration/task attempt identity;
-- output table names;
-- prediction, probability, label, split and row-ID column names;
-- model registration name and alias behaviour;
-- provider publication and serving portfolio;
-- feature-snapshot status or Delta version;
-- main-test access.
+If one needs changing, ask the platform or release owner rather than working around it in the job form.
 
-If one of these needs changing, make a reviewed platform or contract change rather than entering a different value in a job form.
+## 4. What the IDs and records mean
 
-## 4. Core objects and states
-
-Understanding the objects makes the job output much easier to interpret.
+These are the main records a DS will see:
 
 | Object | Meaning | Created or changed by | Important states |
 | --- | --- | --- | --- |
-| Model declaration | Versioned scientific and operational contract for one model | Source-control review | Valid or rejected at load time |
-| Training-set receipt | Exact observation dates, label boundary and READY feature snapshot bindings | `BUILD` or `RESEARCH` | `READY`, `FAILED`; leakage check must pass |
-| Research claim | Concurrency lease and recoverable checkpoint for one deterministic research identity | `RESEARCH`/selection retries | `CLAIMED`, `FRAME_READY`, `PARENT_READY`, `CANDIDATES_READY`, `SELECTION_LOCKED`, `REGISTERED`, `COMPLETE`, or terminal `FAILED` |
-| Research frame | Immutable, PII-reduced train/validate/test rows at one Delta version | `RESEARCH` | Reconciled by row count, schema and value checksum |
-| Research build | Parent experiment, candidate set, recommendation and terminal research status | `RESEARCH` | `RESEARCHING`, `AWAITING_SELECTION`, `READY`, `FAILED` |
-| Candidate evaluation | One candidate attempt, child MLflow run, model URI, metrics and evidence digest | `RESEARCH` | `RESEARCHING`, `READY`, `FAILED` |
-| Selection decision | Immutable automatic or reviewed candidate decision | `RESEARCH` for `AUTO`; `REVIEW_SELECT` otherwise | `READY`, `FAILED` |
-| Model build | Exact registered model version and artifact lineage | `BUILD` or selected research route | `READY`, `FAILED` |
-| AutoML claim/receipt | Separate bounded-discovery request, experiment, trials and leaderboard | Discovery job | claim checkpoints; receipt `READY` or `FAILED` |
-| Evaluation scoring build | Exact selected model, candidate input, feature snapshots and isolated output receipt | `EVALUATE` | `BUILDING`, `READY`, `FAILED` |
+| Model declaration | Saved YAML settings for one model | Source-control review | Valid or rejected when loaded |
+| Training-set receipt | Record of exactly which dated data was used | `BUILD` or `RESEARCH` | `READY`, `FAILED`; the future-data check must pass |
+| Research build | One comparison containing all model runs and the recommendation | `RESEARCH` | `RESEARCHING`, `AWAITING_SELECTION`, `READY`, `FAILED` |
+| Candidate evaluation | One candidate's MLflow run, saved model, metrics and file hashes | `RESEARCH` | `RESEARCHING`, `READY`, `FAILED` |
+| Selection decision | Recorded choice of candidate, either automatic or manual | `RESEARCH` for `AUTO`; `REVIEW_SELECT` otherwise | `READY`, `FAILED` |
+| Model build | The registered DEV model and where it came from | `BUILD` or selected research route | `READY`, `FAILED` |
+| Evaluation scoring build | One separate scoring run and the tables it wrote | `EVALUATE` | `BUILDING`, `READY`, `FAILED` |
 
-Logical receipt, research, candidate, selection and build IDs are content-derived rather than friendly counters. Attempt IDs additionally include invocation identity such as job run, task run and execution count. This is intentional: immutable content determines whether two invocations mean the same logical work, while the attempt identity preserves which execution performed it.
+Most IDs are calculated from the inputs. Running the same setup again therefore gets the same logical ID. Attempt IDs also include the Databricks run, so every execution is still recorded. This is how retries can reuse completed work without hiding which run performed it.
 
-## 5. Before starting
+The retry section explains the lower-level claim and checkpoint records. In day-to-day review, `READY` means usable, `FAILED` means unusable, and `AWAITING_SELECTION` means a reviewer must choose.
+
+## 5. Before you run anything
 
 ### 5.1 Required access and deployment
 
 - Work in a personal DEV deployment of the feature branch.
 - Use the centrally owned jobs rather than creating a saved job for one model.
 - Confirm the live job tag and task `--code_sha` match the commit being reviewed.
-- Confirm there is no active run for the same single-concurrency job before starting another manual operation.
+- The lifecycle job runs one operation at a time. Let later runs queue.
 - Do not use this workflow from PREPROD or PROD. The lifecycle and discovery resources are declared for DEV only.
 
 ### 5.2 Required data
 
-Every observation date and feature reference date must have compatible READY Feature Store snapshots. A table existing is not enough. The lifecycle resolves accepted snapshot metadata, exact Delta versions, row/schema/value checksums and source attempts.
+Every requested date needs a `READY` Feature Store snapshot. Having a table is not enough: the job also checks the saved Delta version, row count, schema and checksum.
 
 For a time-correct lookup, the feature timestamp must be no later than:
 
@@ -208,113 +181,125 @@ For a time-correct lookup, the feature timestamp must be no later than:
 observation timestamp - declared availability lag
 ```
 
-Labels must be binary and mature by `label_end`. Every split must contain usable positive and negative outcomes. Missing dates, unexpected dates, duplicate keys, future features, immature labels or checksum mismatches fail closed.
+Labels must be `0` or `1` and old enough by `label_end`. Every split needs usable positive and negative examples. The run stops if dates are missing, keys are duplicated, features come from the future, labels are not mature, or saved data no longer matches its receipt.
 
 ### 5.3 Current supported model status
 
-`shopping_bag_pctr` is the end-to-end proved declaration for `RESEARCH`, discovery, `REVIEW_SELECT` and `EVALUATE`.
+At the moment, `shopping_bag_pctr` is the only declaration proven end to end through `RESEARCH`, discovery, `REVIEW_SELECT` and `EVALUATE`.
 
-`analytics_pctr` remains declared for contract compatibility, but it is not currently an end-to-end choice in the generic lifecycle:
+`analytics_pctr` is still listed for compatibility, but it is not currently an end-to-end choice in the generic lifecycle:
 
 - its trainer is not registered for generic `BUILD`;
 - it has no declared research plan;
 - it has no registered generic evaluator.
 
-Selecting it for those operations will fail during preflight rather than silently use Shopping Bag behaviour.
+Choosing it for those routes fails before training starts rather than silently using Shopping Bag behaviour.
 
-## 6. Declaring a model
+## 6. Set up the model
 
-Model declarations live in [`configs/models/nextads_models.yaml`](../configs/models/nextads_models.yaml). They are loaded into a checksummed immutable contract. A changed declaration therefore creates new lineage rather than rewriting the meaning of an old receipt.
+Model settings live in [`configs/models/nextads_models.yaml`](../configs/models/nextads_models.yaml). The system saves a checksum of those settings. If they change, the next run is treated as new work rather than changing an earlier result.
 
 ### 6.1 Top-level model fields
 
-| Field | Required/default | DS options and validation | Why it exists |
-| --- | --- | --- | --- |
-| `model_name` | Required | Unique nonblank declaration key; use the repository lower-snake convention such as `shopping_bag_pctr` | Job selection key and registered-name suffix |
-| `provider_id` | Required | Registered provider implementation ID | Separates the scientific model from the score-provider contract |
-| `problem_statement` | Required | Plain description of what is predicted and for whom | Makes evidence interpretable without reading code |
-| `prediction_entity` | Required | Plain entity/grain description | Prevents ambiguity about account, advert, location or another grain |
-| `prediction_time` | Required | Plain timing description | Defines when information is considered available |
-| `label` | Required | One selected observation column | Names the binary outcome used by training and evidence |
-| `observation_keys` | Required | Unique selected observation columns | Define observation uniqueness and deterministic row lineage; they are not model features by default |
-| `success_metrics` | Required | Unique metric names | Records model-level success intent. Current built-in research recommendation still uses validation PR-AUC, log loss and candidate ID, so this list does not change selection ordering |
-| `runtime_profile` | Required | `dbr_15_4_spark_cpu` or `dbr_18_1_theme_gpu` | Pins a reproducible supported runtime. The generic research job currently uses DBR 15.4 CPU |
-| `training_observation` | Required | See below | Defines the labelled observation population |
-| `feature_lookups` | At least one | See below | Defines point-in-time reusable features |
-| `trainer` | Required | Registered operational trainer ID | Used by direct `BUILD`, not by the research-candidate list |
-| `score_provider` | Required | Registered provider ID | Defines the canonical score output contract |
-| `candidate_adapter` | Required | Registered adapter ID | Defines how model scores attach to accepted NextAds candidates |
-| `evaluation_use_case` | Defaults to `advert_ranking` | Registered evaluation implementation | Selects the isolated `EVALUATE` behaviour |
-| `evaluation_scope` | Defaults to empty | Mapping of column to allowed values | Records the intended isolated-evaluation scope. The current Shopping Bag evaluator still fixes route `v1` and locations `SB1`/`SB2` in code; changing this YAML alone does not change the executable scope |
-| `activation_mode` | Defaults to `EVALUATE`; effective value must be `EVALUATE` | Omit it for the safe default or declare `EVALUATE` explicitly | Makes non-activation a contract, not a convention |
-| `research` | Optional | Full `ResearchPlan` described below | Keeps the direct Trainer route compatible while enabling research only where declared |
+These are the fields a DS normally changes:
+
+| Field | Required/default | What it controls |
+| --- | --- | --- |
+| `model_name` | Required | Nonblank name used in the job and registered-model name. Follow the repository convention, such as `shopping_bag_pctr` |
+| `problem_statement` | Required | What is predicted and for whom |
+| `prediction_entity` | Required | What one prediction is for |
+| `prediction_time` | Required | When the prediction is made and what data is allowed by then |
+| `label` | Required | The binary outcome column |
+| `observation_keys` | Required | Columns that uniquely identify one input row. They are not model features by default |
+| `success_metrics` | Required | Measures the model is meant to improve. They are recorded, but winner selection still uses validation PR-AUC, then log loss, then candidate ID |
+| `training_observation` | Required | The labelled rows used for training; see below |
+| `feature_lookups` | At least one | Dated feature sets joined to those rows; see below |
+| `evaluation_scope` | Defaults to empty | Intended isolated-evaluation scope. Shopping Bag is currently fixed in code to route `v1` and locations `SB1`/`SB2`; changing YAML alone does not change it |
+| `research` | Optional | The models, dates and checks used by `RESEARCH` |
+
+These fields wire the declaration into the platform and are normally left alone:
+
+| Field | Required/default | What it controls |
+| --- | --- | --- |
+| `provider_id` | Required | Registered provider implementation |
+| `runtime_profile` | Required | `dbr_15_4_spark_cpu` or `dbr_18_1_theme_gpu`; generic research currently uses DBR 15.4 CPU |
+| `trainer` | Required | Operational trainer used by direct `BUILD`, not the research candidate list |
+| `score_provider` | Required | Standard score columns and format |
+| `candidate_adapter` | Required | How scores attach to accepted NextAds candidates |
+| `evaluation_use_case` | Defaults to `advert_ranking` | The isolated `EVALUATE` implementation |
+| `activation_mode` | Defaults to `EVALUATE`; only `EVALUATE` is allowed | Stops this route from activating a model |
 
 ### 6.2 `training_observation` fields
 
 | Field | Required/default | What to choose | Why |
 | --- | --- | --- | --- |
-| `feature_id` | Required | Registered labelled Feature Store contract | Prevents arbitrary table reads |
-| `selected_columns` | Required, unique | Keys, label, timestamps, audit fields and any direct context features needed by the contract | Creates an explicit data boundary |
+| `feature_id` | Required | Registered labelled Feature Store definition | Prevents arbitrary table reads |
+| `selected_columns` | Required, unique | Keys, label, timestamps, audit fields and any direct context features needed by the definition | Creates an explicit data boundary |
 | `observation_timestamp` | Required and selected | Timestamp that represents prediction time | Drives point-in-time joins |
 | `observation_date_column` | Defaults to `observation_timestamp` | A selected date column when partition/date semantics differ from the timestamp | Supports exact temporal coverage checks |
 | `context_features` | Defaults to empty | Selected non-key, non-label, non-timestamp columns that are genuine model inputs | Allows context such as Shopping Bag location without treating audit fields as features |
 | `label_maturity_column` | Optional | Selected date/timestamp proving the label is mature | Stops future outcome leakage |
-| `filters` | Defaults to empty | Selected-column to non-null JSON scalar value | Fixes the scientific cohort, for example `route: v1` and `platform: WEB` |
+| `filters` | Defaults to empty | Selected-column to non-null YAML/JSON value | Fixes which rows are used, for example `route: v1` and `platform: WEB` |
 
 Context features cannot include observation keys, the label, observation timestamps/dates or maturity fields. A selected audit column is not a model feature unless it is declared in `context_features` or supplied by a feature lookup.
 
 ### 6.3 `feature_lookups` fields
 
-Each lookup is a point-in-time binding to one registered Feature Store contract.
+Each lookup adds dated features from one registered Feature Store dataset.
 
 | Field | Required/default | What to choose | Why |
 | --- | --- | --- | --- |
-| `feature_id` | Required | Registered feature contract | Gives the lookup a stable logical identity |
-| `key_mapping` | At least one pair | Feature-table key to observation key | Makes join grain explicit |
+| `feature_id` | Required | Registered feature definition | Gives the lookup a stable name |
+| `key_mapping` | At least one pair | Feature-table key to observation key | States exactly how the two datasets join |
 | `selected_columns` | Required, unique | Only features the model is permitted to see | Prevents accidental column expansion |
 | `observation_timestamp` | Required | Observation timestamp used for the cutoff | Couples the lookup to prediction time |
-| `availability_lag_days` | Default `0`, integer >= 0 | Delay between source event and actual feature availability | Encodes operational latency rather than assuming instant availability |
+| `availability_lag_days` | Default `0`, integer >= 0 | Delay between source event and actual feature availability | Stops the join assuming that data is available immediately |
 | `renames` | Default empty | Selected source column to unique model-facing name | Resolves collisions and improves readability |
 | `defaults` | Default empty | Selected column to JSON scalar value | Makes missing-feature behaviour reproducible and measurable |
 
 All final feature names across context and lookups must be unique and cannot collide with observation keys or the label.
 
-For YAML ergonomics, `filters`, `key_mapping`, `renames` and `defaults` accept either an ordinary mapping or a list of `{from: ..., to: ...}` entries. Both forms normalise into the same checksummed mapping. Use the ordinary mapping form unless duplicate-looking YAML keys or templating make the explicit list form clearer.
+Most people should use a normal YAML mapping. `filters`, `key_mapping`, `renames` and `defaults` also accept a list of `{from: ..., to: ...}` pairs; both forms save the same settings.
 
 ### 6.4 Shopping Bag declaration choices
 
-The worked declaration asks: for an observed WEB Shopping Bag advert impression, how likely is a click in that session?
+The worked declaration asks: for each Shopping Bag advert shown on WEB, how likely is it to be clicked during the same session?
 
 - Label source: `next_uk_nextads_fs_shopping_bag_click_labels`.
 - Label: `clicked`.
 - Observation keys: `exposure_id`, `label_horizon_days`.
-- Fixed cohort: `route=v1`, `platform=WEB`, zero-day label horizon, mature labels, one observed impression.
-- Direct context feature: `location`.
+- Rows used: `route=v1`, `platform=WEB`, zero-day label horizon, mature labels, one observed impression.
+- Input taken directly from the label row: `location`.
 - Account features: nine 90-day browsing/action aggregates, keyed by `account_number`, with a one-day availability lag and explicit defaults.
 - Advert features: campaign/theme/category/brand/template, keyed by `advert_id` and `location`.
 - Evaluation scope: route `v1`, locations `SB1` and `SB2`.
-- Activation: `EVALUATE` only.
+- It can only write separate evaluation output; it cannot go live: `EVALUATE` only.
 
 The selected observation columns also include audit and slice fields such as device, but those do not enter the feature vector unless declared as context or lookup outputs.
 
-## 7. Declaring a research plan
+## 7. Set up the comparison
 
-The optional `research` block is part of model lineage. Every field contributes to the plan checksum.
+The optional `research` block says which models to compare and how to compare them. It is included in the saved settings, so changing it creates a new research build.
 
 ### 7.1 Top-level research fields
 
 | Field | Required/default | Valid options | Why |
 | --- | --- | --- | --- |
-| `candidates` | Required, non-empty, unique IDs | One or more `CandidateSpec` entries | Defines the reviewed comparison set |
-| `temporal_split` | Required | Exact inclusive train, validation and test date ranges | Prevents candidate-specific or random split drift |
-| `evaluation_rules` | Required | Standard binary evidence contract plus allowed extensions | Makes results comparable |
-| `slices` | Default empty | Zero or more unique `SliceSpec` entries | Makes subgroup behaviour visible with privacy bounds |
-| `selection_policy` | Required | `AUTO` or `REVIEW_REQUIRED` | Controls whether research can select/register immediately or must pause for review |
-| `explanation_requirements` | Must include standard trio | `global_feature_importance`, `readable_feature_names`, `model_specific_or_permutation`, plus optional names | Gates selection on understandable evidence |
-| `evaluation_schema_version` | `binary_classifier_evidence/v1` | Any nonblank lineage value; use the current default | Versions the evidence identity. Changing this text alone does not implement or select another evaluator/schema |
-| `minimum_successful_candidates` | Default `1`; 1..candidate count | Must be at least the number of candidates whose failure is not allowed | Defines recommendation quorum |
-| `evidence_producers` | Default empty | Unique in-repo `next_ads.*` evidence plug-ins | Adds aggregate-only evidence without giving plug-ins row access or orchestration control |
-| `candidate_search` | Default absent | Optional AutoML discovery declaration | Allows a separate bounded discovery run without coupling it to standard research |
+| `candidates` | Required, non-empty, unique IDs | One or more `CandidateSpec` entries | Models to compare |
+| `temporal_split` | Required | Exact inclusive train, validation and test date ranges | Dates for training, comparison and final testing |
+| `evaluation_rules` | Required | Standard binary results plus allowed extensions | Metrics and charts every model must produce |
+| `slices` | Default empty | Zero or more unique `SliceSpec` entries | Groups to report separately, with low-volume results hidden |
+| `selection_policy` | Required | `AUTO` or `REVIEW_REQUIRED` | Choose automatically or stop for review |
+| `explanation_requirements` | Must include standard trio | `global_feature_importance`, `readable_feature_names`, `model_specific_or_permutation`, plus optional names | Explanation files each model must provide |
+| `minimum_successful_candidates` | Default `1`; 1..candidate count | Must be at least the number of candidates whose failure is not allowed | How many models must finish before a recommendation is allowed |
+| `candidate_search` | Default absent | Optional AutoML settings | Allows a separate AutoML run without adding those trials to the main comparison |
+
+Advanced fields should normally be left alone:
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| `evaluation_schema_version` | `binary_classifier_evidence/v1` | Saved with the result and used in its ID. Changing the text alone does not add another evaluator or output format |
+| `evidence_producers` | Empty | Runs checked-in `next_ads.*` extensions that can add summary files but cannot see row-level identities or control registration |
 
 ### 7.2 Temporal split
 
@@ -336,47 +321,49 @@ train.start <= train.end < validate.start <= validate.end < test.start <= test.e
 The split has three different purposes:
 
 - `train`: passed to candidate fitting;
-- `validate`: passed to comparable candidate evidence and recommendation;
-- `test`: retained in the immutable frame but outcomes withheld until exact selection.
+- `validate`: used to compare candidates and make the recommendation;
+- `test`: saved with the research data, but its outcomes stay hidden until a candidate is selected.
 
-The `RESEARCH` job derives these dates from YAML. A DS cannot override them in the run form. To change the scientific split, change the declaration, review it, deploy the new SHA and create new lineage.
+The job reads these dates from YAML. To use different dates, edit and review the YAML, deploy it, then start a new research run. The dates cannot be changed in the job form.
 
 ### 7.3 `evaluation_rules` fields
 
-| Field | Default | Contract options | Effective behaviour and why |
-| --- | --- | --- | --- |
-| `required_metrics` | Mandatory binary-classifier set in section 9.1 | Unique names; may add but may not remove a mandatory metric | Gates candidate completeness. Adding a name does not implement its calculation, so unsupported additions make completeness fail |
-| `required_evidence` | Mandatory evidence set in section 9.2 | Unique names; may add but may not remove a mandatory artifact type | Gates comparable evidence. Unsupported names do not create artifacts; implement a reviewed evidence producer instead |
-| `top_fractions` | `0.01`, `0.05`, `0.10` | Unique finite fractions greater than `0` and at most `1`; must include 1%, 5% and 10% | Defines precision, recall, lift and top-fraction confusion points. Runtime currently accepts unique integer percentages from 1% to 50% after conversion |
-| `confidence_interval_metrics` | `auc_pr`, `lift_at_5_percent` | Nonempty unique subset of required metrics | Lineage metadata today; selected-test runtime still computes/requires exactly this default pair |
-| `confidence_level` | `0.95` | Contract: greater than `0`, less than `1`; runtime: `0.8 <= value < 1` | Sets the selected-test interval coverage |
-| `confidence_interval_resamples` | `1000` | Contract: integer >=1; runtime: 20..2000 | Bounds deterministic selected-test bootstrap work |
-| `confidence_interval_seed` | `1729` | Integer >=0 | Makes the block-bootstrap interval reproducible |
-| `minimum_slice_rows` | `100` | Integer >=1 | Seeds the evaluator's general slice threshold; each declared slice's own `minimum_rows` replaces it for that slice |
-| `prevalence_baseline` | `true` | Boolean | Declares the constant train-prevalence comparison. Runtime currently writes it even when false, so false is not yet an effective off switch |
+YAML validation is broader than the current evaluator in a few places. Where they differ, the current runtime limits below are the ones that matter.
 
-The mandatory metric/evidence names and current implementation limitations are listed in section 9. The checked-in Shopping Bag plan uses the effective-safe defaults above.
+| Field | Default | Allowed values | What happens now |
+| --- | --- | --- | --- |
+| `required_metrics` | Mandatory binary-classifier set in section 9.1 | Unique names; may add but may not remove a mandatory metric | Keep the mandatory list. Only add one when code exists to calculate it |
+| `required_evidence` | Mandatory result-file set in section 9.2 | Unique names; may add but may not remove a mandatory file type | Keep the mandatory list. Only add one when code exists to create it |
+| `top_fractions` | `0.01`, `0.05`, `0.10` | Unique finite fractions greater than `0` and at most `1`; must include 1%, 5% and 10% | Defines precision, recall, lift and top-fraction confusion points. Runtime currently accepts unique integer percentages from 1% to 50% after conversion |
+| `confidence_interval_metrics` | `auc_pr`, `lift_at_5_percent` | Nonempty unique subset of required metrics | Leave the default pair; the code currently always uses those two |
+| `confidence_level` | `0.95` | YAML accepts greater than `0` and less than `1`; runtime requires `0.8 <= value < 1` | Sets the selected-test interval coverage |
+| `confidence_interval_resamples` | `1000` | Definition: integer >=1; runtime: 20..2000 | Number of resamples used for the selected model's test ranges |
+| `confidence_interval_seed` | `1729` | Integer >=0 | Makes those ranges repeatable |
+| `minimum_slice_rows` | `100` | Integer >=1 | General fallback. A value on an individual slice replaces it |
+| `prevalence_baseline` | `true` | Boolean | Leave `true`; `false` is accepted but does not currently turn it off |
+
+The mandatory metric and file names, plus current implementation limits, are listed in section 9. The checked-in Shopping Bag plan uses the current defaults above.
 
 ### 7.4 Slice fields
 
 | Field | Required/default | Behaviour |
 | --- | --- | --- |
-| `slice_id` | Required unique lower-snake ID | Stable evidence name |
+| `slice_id` | Required unique lower-snake ID | Stable name for the slice result |
 | `column` | Required | Selected observation/slice column; identity-like columns are forbidden |
 | `values` | Default empty | Explicit values pin at most 25 groups. Empty performs automatic discovery only when the column has at most 25 distinct values; a 26th value fails the candidate rather than being truncated |
 | `if_present` | Default `false` | `false` fails if the column is absent; `true` records the slice only when present |
 | `minimum_rows` | Default `100`, >=1 | Low-volume groups are `INSUFFICIENT` and expose row count only, not outcome rates |
 
-`evaluation_rules.minimum_slice_rows` seeds the evaluator's general default. Each declared `SliceSpec.minimum_rows` then replaces that value for its slice; the two values are not combined or maximised. Set the required privacy/stability threshold explicitly on every declared slice rather than assuming the global value will raise it.
+A slice's `minimum_rows` replaces the general setting; the two are not combined. Set it on each slice when the threshold matters.
 
 ### 7.5 Selection policies
 
 | Policy | Behaviour | Use when |
 | --- | --- | --- |
-| `REVIEW_REQUIRED` | `RESEARCH` finishes `AWAITING_SELECTION`; no test outcomes, registration or model build are created until `REVIEW_SELECT` | Human rationale, governance or qualitative evidence matters |
-| `AUTO` | The deterministic recommendation is selected by the research route, then the selected candidate alone is tested and registered | The reviewed declaration explicitly authorises automatic selection |
+| `REVIEW_REQUIRED` | `RESEARCH` finishes `AWAITING_SELECTION`; no test outcomes, registration or model build are created until `REVIEW_SELECT` | A person needs to review the results and record why they chose the model |
+| `AUTO` | The recommendation is selected by the research route, then the selected candidate alone is tested and registered | The saved settings explicitly allow automatic selection |
 
-The deterministic recommendation order is fixed:
+Automatic selection follows this fixed order:
 
 1. highest validation PR-AUC;
 2. then lowest validation log loss;
@@ -384,28 +371,28 @@ The deterministic recommendation order is fixed:
 
 `success_metrics` in the model declaration and extra metric names in the research plan do not currently change this ordering.
 
-## 8. Candidate choices and parameters
+## 8. Choose the models to compare
 
 ### 8.1 `CandidateSpec`
 
 | Field | Default | Rules | Why |
 | --- | --- | --- | --- |
-| `candidate_id` | None | Required, unique lower-snake ID | Stable selection and evidence key; distinct from the durable `candidate:<digest>` evaluation ID |
-| `plugin` | None | Built-in alias or reviewed `next_ads.*` class | Chooses implementation without changing orchestration |
-| `parameters` | `{}` | Unique JSON-safe finite estimator parameters | Allows model-specific tuning while preserving the common workflow |
-| `seed` | `1729` | Integer >=0 | Reproducibility; used by RF, GBT and XGBoost built-ins |
-| `failure_allowed` | `false` | Boolean | Says whether the research build may still reach its quorum if this candidate fails |
+| `candidate_id` | None | Required, unique lower-snake ID | Name used when comparing and selecting the candidate; different from the saved `candidate:<digest>` result ID |
+| `plugin` | None | Built-in alias or checked-in `next_ads.*` class | Chooses the model implementation |
+| `parameters` | `{}` | Normal YAML/JSON values; numbers cannot be infinite or `NaN` | Model-specific settings |
+| `seed` | `1729` | Integer >=0 | Makes RF, GBT and XGBoost runs repeatable |
+| `failure_allowed` | `false` | Boolean | Whether research may continue if this model fails. The overall minimum-success setting must still be met |
 
 `minimum_successful_candidates` must still be high enough to include every candidate with `failure_allowed=false`. In the Shopping Bag proof all four are required and the minimum is four, so any candidate failure stops recommendation.
 
 ### 8.2 Built-in candidates
 
-| Plug-in | Main reason to include it | Built-in defaults used by Shopping Bag | Main trade-off |
+| Model option | Main reason to include it | Built-in defaults used by Shopping Bag | Main trade-off |
 | --- | --- | --- | --- |
-| `spark_logistic_regression` | Interpretable linear baseline with calibrated probabilities | `maxIter=50`, `regParam=0.01`, `elasticNetParam=0.0` | Cannot represent complex interactions unless features encode them |
-| `spark_random_forest` | Non-linear bagged-tree comparator that is robust to many relationships | `numTrees=120`, `maxDepth=8`, `minInstancesPerNode=20`, declared seed | Can collapse toward prevalence on highly imbalanced data and may be less well calibrated |
-| `spark_gradient_boosted_trees` | Sequential tree boosting for non-linear ranking signal | `maxIter=60`, `maxDepth=5`, `stepSize=0.05`, declared seed | More expensive and can overfit; Spark constructor/output behaviour needs stricter compatibility |
-| `spark_xgboost` | Distributed boosted-tree comparator with strong tabular performance | `eval_metric=aucpr`, `max_depth=6`, `learning_rate=0.05`, `n_estimators=150`, `subsample=0.8`, `colsample_bytree=0.8`, `num_workers=4`, declared seed | Higher runtime/cost and more hyperparameters; explanation contributions are deliberately bounded |
+| `spark_logistic_regression` | Simple baseline and easiest to explain | `maxIter=50`, `regParam=0.01`, `elasticNetParam=0.0` | Cannot represent complex interactions unless features encode them |
+| `spark_random_forest` | Uses many trees to capture non-linear relationships | `numTrees=120`, `maxDepth=8`, `minInstancesPerNode=20`, declared seed | Can fall back towards the overall click rate on very imbalanced data and may be less well calibrated |
+| `spark_gradient_boosted_trees` | Builds trees in sequence, improving weak areas each time | `maxIter=60`, `maxDepth=5`, `stepSize=0.05`, declared seed | More expensive and can overfit |
+| `spark_xgboost` | A more flexible distributed boosted-tree option | `eval_metric=aucpr`, `max_depth=6`, `learning_rate=0.05`, `n_estimators=150`, `subsample=0.8`, `colsample_bytree=0.8`, `num_workers=4`, declared seed | Higher runtime/cost and more settings to tune |
 
 The Shopping Bag choices are comparison baselines, not a claim that these are the only valid models.
 
@@ -427,7 +414,7 @@ The Shopping Bag choices are comparison baselines, not a claim that these are th
 | `colsample_bytree` | XGBoost | Fraction of features sampled per tree |
 | `num_workers` | XGBoost | Distributed Spark workers used by the estimator |
 
-The repository validates that parameter values are JSON-safe and finite, but it does not maintain a full allowlist or range table for every estimator-native option. Declaration parameters overlay the built-in defaults and are passed to the underlying Spark/XGBoost constructor. An unsupported name or value fails there. Review the installed DBR 15.4 library API before adding a new option.
+Parameters must be valid YAML/JSON values, and numbers cannot be infinite or `NaN`. The repository does not check every model-specific name or range. Your values replace the defaults and are passed to Spark or XGBoost; unsupported settings make the run fail. Check the DBR 15.4 API before adding one.
 
 ### 8.4 Parameters candidates may not control
 
@@ -442,9 +429,10 @@ Candidate `parameters` cannot contain orchestration-owned concepts, including:
 - publish, register or alias-setting flags;
 - random seed aliases such as `random_seed`, `random_state` or `seed`.
 
-Use the top-level `seed` field for supported candidate randomness. The denial list prevents an estimator declaration from taking ownership of data splitting, evidence location, publication or registration.
+Use the top-level `seed` field for randomness. These restrictions stop a model from changing its data, outputs, MLflow location or registration behaviour.
 
-The exact normalised protected names are:
+<details>
+<summary>Exact blocked parameter names</summary>
 
 ```text
 alias
@@ -482,58 +470,65 @@ validation_end
 validation_start
 ```
 
+</details>
+
 ### 8.5 Fixed preprocessing
 
-Preprocessing is common evidence infrastructure, not a per-candidate choice:
+Every model gets the same data preparation:
 
-- string features use alphabetically ordered `StringIndexer(handleInvalid="keep")`;
-- indexed strings use one-hot encoding with `dropLast=false` and invalid values retained;
-- numeric features use median imputation;
-- vector assembly keeps invalids;
-- the readable feature map retains original feature/category names and consecutive vector positions.
+- text values are converted to fixed categories, with unseen values kept (`StringIndexer(handleInvalid="keep")`);
+- text categories use one-hot encoding with `dropLast=false`;
+- missing numbers use the median;
+- all features are assembled in the same saved order;
+- the saved feature map records the readable name for every position.
 
 Only supported Spark string and numeric feature types are accepted. Empty or unsupported feature schemas fail before fitting.
 
-### 8.6 Custom candidates and evidence extensions
+### 8.6 Adding a new model implementation
 
-A custom candidate must be a reviewed, in-repository class under `next_ads.*`, have a no-argument constructor, and implement the candidate fit, predict and persistence contracts. A random external Python import path is rejected.
+<details>
+<summary>Developer requirements for a custom candidate</summary>
 
-Candidate code receives the orchestrator-owned training split and standard feature contract. It must return the standard scalar positive-class `score` in `[0,1]` plus binary `prediction`. The framework checks row count, types, labels, dates, split/slice preservation and unique hashed row lineage. Reloaded persisted models must reproduce scores and predictions.
+Only checked-in classes under `next_ads.*` can be used. They must be constructible without arguments and support fit, predict, save and load. External import paths are rejected.
 
-Custom evidence producers are separate plug-ins. They receive bounded aggregates and readable feature names, not unrestricted scored rows. Their JSON is bounded by nesting, value-count and byte-size limits and cannot contain identity-like or record-shaped row data.
+The job supplies the training data and expects a score from `0` to `1` plus a binary prediction. It checks the returned rows, columns, labels, dates and IDs, then reloads the saved model to confirm it gives the same result.
 
-## 9. Metrics, plots, slices and explanations
+Extra result-file code receives summary data, not row-level scores. Its output is limited in size and shape so it cannot expose identity-like records.
+
+</details>
+
+## 9. Choose what MLflow should show
 
 ### 9.1 Mandatory metrics
 
-Every selectable binary-classification candidate must provide the same finite validation metrics.
+Every candidate must write these validation metrics. A candidate cannot be selected if any are missing or invalid.
 
 | Metric | What it answers | How to interpret it here |
 | --- | --- | --- |
-| `auc_pr` | How well are positive clicks concentrated above negatives across thresholds? | Primary comparison metric for a rare positive outcome; higher is better |
-| `prevalence` | What fraction of rows are positive? | The base rate against which PR-AUC, precision and lift must be understood |
-| `auc_roc` | How often does a random positive outrank a random negative? | Higher is better, but can look optimistic on severe imbalance, so it is not the only ranking metric |
-| `log_loss` | Are predicted probabilities both accurate and appropriately confident? | Lower is better; confident wrong predictions are penalised heavily |
+| `auc_pr` | How well does the model put clicks near the top of the ranking? | Main comparison for a rare positive outcome; higher is better |
+| `prevalence` | What share of rows clicked? | The base rate needed to understand PR-AUC, precision and lift |
+| `auc_roc` | How often does a clicked row rank above a non-clicked row? | Higher is better, but it can look optimistic when clicks are rare |
+| `log_loss` | How accurate are the probabilities? | Lower is better; confident mistakes cost more |
 | `observed_click_rate` | What actually happened in the evaluated split? | Should agree with prevalence |
 | `predicted_click_rate` | What average probability did the model predict? | Compare with observed rate to judge aggregate calibration |
-| `calibration_gap` | Absolute difference between predicted and observed average rate | Lower is better |
+| `calibration_gap` | Difference between the average predicted and actual click rates | Lower is better |
 | `precision_at_1_percent` | Of the top-scored 1%, what fraction clicked? | Quality at the most selective action point |
 | `recall_at_1_percent` | Of all clicks, what fraction appears in the top 1%? | Positive coverage at the most selective action point |
 | `lift_at_1_percent` | How much better is top-1% precision than prevalence? | `1` is no gain over random/base-rate selection |
 | `precision_at_5_percent` | Click rate in the top-scored 5% | Important operational ranking view for the current proof |
 | `recall_at_5_percent` | Fraction of clicks captured in the top 5% | Complements precision/lift |
-| `lift_at_5_percent` | Top-5% precision divided by prevalence | Secondary recommendation/review evidence |
+| `lift_at_5_percent` | Top-5% precision divided by prevalence | Useful second check when reviewing the recommendation |
 | `precision_at_10_percent` | Click rate in the top-scored 10% | Wider action band |
 | `recall_at_10_percent` | Fraction of clicks captured in the top 10% | Wider positive coverage |
 | `lift_at_10_percent` | Top-10% precision divided by prevalence | Whether value persists outside the very top ranks |
 
-Score ties are ordered deterministically using the hashed row ID. Candidate comparison therefore does not depend on arbitrary Spark row order.
+Score ties use the hashed row ID, so the same data produces the same ordering rather than relying on Spark row order.
 
-### 9.2 Mandatory evidence
+### 9.2 Required result files
 
-Each candidate child run receives machine-readable JSON/CSV plus graphs for the common evidence set.
+Each candidate run gets the same JSON/CSV files and graphs.
 
-| Evidence | Files | Review question |
+| Result | Files | Review question |
 | --- | --- | --- |
 | Complete evaluation | `evaluation.json`, `metrics.json` | Are all required metrics present and finite? |
 | Precision-recall | `precision_recall_curve.csv/.png` | Does precision remain useful as recall increases? |
@@ -542,28 +537,27 @@ Each candidate child run receives machine-readable JSON/CSV plus graphs for the 
 | Lift and cumulative gain | `lift_gain.csv/.png` | How quickly are clicks concentrated at the top? |
 | Score distribution | `score_distribution.csv/.png` | Has the model collapsed to nearly one score, or produced extreme probabilities? |
 | Top-fraction confusion | `top_confusion.csv/.png` | What are TP/FP/FN/TN consequences at 1%, 5% and 10%? |
-| Slice metrics | `slice_metrics.csv/.png` | Are SB1/SB2 and other permitted groups materially different? |
+| Slice metrics | `slice_metrics.csv/.png` | Are the results noticeably different between SB1/SB2 or other permitted groups? |
 | Feature coverage | `feature_coverage.json/.csv/.png` | Which features are missing or defaulted, and at what rate? |
 | Explanation | `explanation.json`, `feature_importance.csv/.png` | Which readable declared features drive the model? |
-| Confidence intervals | `confidence_intervals.json` on selected test evidence | Is held-out performance distinguishable from instability? |
-| Optional extensions | `optional_evidence.json` | Did any reviewed aggregate extension complete honestly? |
-| Artifact manifest | `artifact_manifest.json` | Do names, sizes and SHA-256 digests make the evidence immutable? |
+| Confidence intervals | `confidence_intervals.json` for the selected test result | Is held-out performance reasonably stable? |
+| Optional extensions | `optional_evidence.json` | Did the optional extension finish, and what did it return? |
+| File list | `artifact_manifest.json` | Do the recorded names, sizes and SHA-256 hashes match the files? |
 
-The parent research run receives `candidate_comparison.json/.csv/.png` and the full set of receipt, split, coverage, plan, definition, recommendation, status and manifest artifacts described in [MLflow layout](#18-mlflow-layout-and-review-checklist).
+The parent run gets `candidate_comparison.json/.csv/.png` plus the overall receipt and status files. Section 18 lists every file.
 
-### 9.3 Fixed evidence geometry
+### 9.3 Limits used for charts and slices
 
-The following are platform controls rather than plan options:
+These limits are fixed by the job:
 
-- 100 configured bins: PR/ROC curves contain up to 101 points including their prepended origin, while rank evidence contains at most 100 rows;
-- 10 calibration bins;
-- 20 score-distribution bins;
-- at least 5 positives and 5 negatives for valid outcome evidence;
+- PR/ROC charts use up to 101 points and ranking charts use up to 100 rows;
+- calibration uses 10 groups and score distribution uses 20;
+- at least 5 positives and 5 negatives before outcome metrics are shown;
 - automatic slice discovery only for columns with at most 25 distinct values; enumerate at most 25 values explicitly when the source column has higher cardinality;
-- bounded selected-test bootstrap output with no block IDs;
-- deterministic artifact ordering and hashing.
+- selected-test resampling output never includes its internal block IDs;
+- files are written in a stable order and hashed.
 
-Insufficient data is reported as insufficient. It is not converted into a zero metric or silently treated as passing evidence.
+If there is too little data, the result is marked `INSUFFICIENT`. It is not changed to zero or treated as a pass.
 
 ### 9.4 Explanations by model family
 
@@ -572,8 +566,8 @@ Insufficient data is reported as insufficient. It is not converted into a zero m
 | Logistic regression | Signed coefficient, absolute magnitude and odds ratio for each readable vector feature |
 | Random forest | Native global feature importance mapped back to readable feature/category names |
 | Gradient-boosted trees | Native global feature importance mapped back to readable names |
-| Spark XGBoost | Gain-based importance plus bounded aggregate contribution evidence |
-| Custom candidate | Deterministic three-repeat permutation importance based on validation PR-AUC loss; there is currently no separate custom-explanation hook |
+| Spark XGBoost | Gain-based importance plus limited summary contribution results |
+| Custom candidate | The job shuffles each feature three times and measures the drop in validation PR-AUC; there is no separate custom-explanation hook |
 
 Names such as `feature_0` are not accepted as an adequate mapping. Every fitted vector position must be mapped exactly once, positions must be consecutive, and readable names must be unique. Explanation failure prevents the candidate becoming READY.
 
@@ -581,47 +575,40 @@ Names such as `feature_0` are not accepted as an adequate mapping. Every fitted 
 
 The framework also evaluates a constant score equal to the training positive rate. It is recorded as `prevalence_only_baseline` and is never selectable. Its purpose is to show whether a learned model adds ranking or calibration value beyond predicting the base rate for every row.
 
-Current implementation note: `evaluation_rules.prevalence_baseline` is validated and included in lineage, but the runtime currently computes the baseline even if that flag is `false`. The Shopping Bag plan declares `true`, so its behaviour and declaration agree. Until the mismatch is changed, do not present `false` as an effective off switch.
+`prevalence_baseline: false` does not currently turn the baseline off; the runtime still writes it. Shopping Bag uses `true`, so this does not affect its result. Leave it `true` until the runtime supports switching it off.
 
 ### 9.6 Confidence intervals
 
-Only the selected candidate receives confidence intervals on the untouched test split. The current implementation uses deterministic hash-block bootstrap intervals for:
+Only the selected candidate gets uncertainty ranges on the final test period. The current code calculates them for:
 
 - PR-AUC;
 - lift at 5%.
 
-The Shopping Bag plan declares 95% confidence, 1,000 resamples and seed 1729. Although the declaration contract accepts wider values, the effective runtime bounds are:
+The Shopping Bag plan uses 95% confidence, 1,000 resamples and seed 1729. Although YAML accepts wider values, the runtime limits are:
 
 - confidence level `>= 0.8` and `< 1.0`;
 - resamples between `20` and `2000` inclusive.
 
-`confidence_interval_metrics` is currently lineage metadata rather than a dynamic algorithm selector: the implementation and completeness gate still require exactly PR-AUC and lift@5. Declare that pair until the runtime is extended.
+`confidence_interval_metrics` is currently saved with the setup but does not choose the calculation. The code still requires PR-AUC and lift@5, so leave that pair in place until the runtime is extended.
 
-### 9.7 Additional declaration caveats
-
-- Required metrics/evidence may not omit the mandatory set.
-- Adding an arbitrary metric name does not implement a new metric; the fixed evaluator cannot produce it and completeness will fail.
-- Adding an arbitrary required-evidence or explanation name does not create a new artifact. Implement a reviewed evidence producer for genuine extensions.
-- `top_fractions` must contain 1%, 5% and 10%. The effective evaluator converts fractions to integer percentages and accepts unique values from 1% to 50%; fractions that round to the same integer or exceed 50% fail.
-
-## 10. The generic lifecycle job
+## 10. Run the lifecycle job
 
 The saved job is [`mktg_next_uk_nextads_model_development`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml), deployed in DEV as [job 383960843241650](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650?o=6694370232251359). It is a manual, personal-DEV entry point with one task, one active run at a time and queueing enabled.
 
-### 10.1 Runtime shape
+### 10.1 Job setup — not DS choices
 
 | Setting | Value | Reason |
 | --- | --- | --- |
 | Target | DEV only | Research and evaluation are isolated from controlled release environments |
-| Schedule | None | A DS starts deliberate work manually |
-| Task | `run_declared_model_operation` | One dispatcher prevents saved-job proliferation |
-| Maximum concurrency | 1 | Avoids competing lifecycle mutation in one personal namespace |
+| Schedule | None | Started manually by a DS |
+| Task | `run_declared_model_operation` | Runs all four operations from one job |
+| Maximum concurrency | 1 | Only one run writes to the personal DEV area at a time |
 | Job/task timeout | 21,600 seconds (6 hours) | Covers the full four-candidate run |
-| Runtime | DBR 15.4, standard Spark/CPU | Reproducible installed Spark and MLflow contract |
-| Cluster | Driver plus four `Standard_D32ads_v5` workers | Fixed reviewed research capacity |
-| Libraries | internal utilities plus Feature Engineering, Dynaconf, Matplotlib, MLflow, NumPy and XGBoost pinned in `requirements-model-research.txt` | Keeps candidate persistence/evidence reproducible |
-| Retry count | No automatic retry declared | Repairs are explicit task attempts and reconciled through deterministic receipts |
-| Application logging | `INFO`; noisy dependency loggers reduced to `WARNING` on the current branch | Keeps lifecycle/output evidence visible without Py4J callback spam |
+| Runtime | DBR 15.4, standard Spark/CPU | The reviewed runtime for this job |
+| Cluster | Driver plus four `Standard_D32ads_v5` workers | Compute sized for the four-candidate run |
+| Libraries | Pinned research libraries in `requirements-model-research.txt` | Keeps model saving and results consistent |
+| Retry count | No automatic retry declared | A retry is a deliberate new attempt; completed work is reused by ID |
+| Application logging | `INFO`; noisy dependency loggers reduced to `WARNING` on the current branch | Shows job progress while hiding repeated Py4J callback messages |
 
 ### 10.2 Every run-form field
 
@@ -637,8 +624,8 @@ Databricks shows the union of all operation fields. Supplying a nonblank field t
 | `label_end` | `BUILD`, `RESEARCH` | Required | ISO date proving labels are mature |
 | `research_build_id` | `REVIEW_SELECT` | Required | Exact `research:<digest>` ID |
 | `candidate_id` | `REVIEW_SELECT` | Required | Declared READY candidate key such as `logistic_regression`, not the durable `candidate:<digest>` row ID |
-| `written_reason` | `REVIEW_SELECT` | Required | Nonblank free text other than literal `REQUIRED`; participates in decision identity. A specific evidence-based rationale is required by operating guidance, not by a semantic text validator |
-| `reviewed_by` | `REVIEW_SELECT` | Required | Nonblank reviewer text; currently recorded but not identity-verified |
+| `written_reason` | `REVIEW_SELECT` | Required | Explain why this candidate was chosen. It cannot be blank or literal `REQUIRED`. The text is part of the decision ID, but the job does not judge whether the explanation is good |
+| `reviewed_by` | `REVIEW_SELECT` | Required | Reviewer name saved with the decision. The job records the text but does not verify the person's identity |
 | `model_build_id` | `EVALUATE` | Required | Exact READY build ID, not model alias/version alone |
 | `run_date` | `EVALUATE` | Required | ISO candidate-build/evaluation date |
 | `evaluation_account_limit` | `EVALUATE` | Optional; blank=`10000` | Positive integer account cap; currently no coded maximum |
@@ -647,18 +634,11 @@ Databricks shows the union of all operation fields. Supplying a nonblank field t
 
 The literal placeholder `REQUIRED` and an empty string both count as missing.
 
-### 10.3 Fields that must be blank
+### 10.3 Leave unrelated fields blank
 
-| Operation | Allowed operation-specific fields | All other operation fields |
-| --- | --- | --- |
-| `BUILD` | observation dates, feature dates, `label_end` | Must be blank |
-| `RESEARCH` | `label_end` | Must be blank, including observation/feature dates because YAML owns the split |
-| `REVIEW_SELECT` | research build, candidate, reason, reviewer | Must be blank |
-| `EVALUATE` | model build, run date, four optional evaluation overrides | Must be blank |
+Leave every field not listed for the chosen operation blank. The job rejects stale values left in another operation's fields.
 
-This validation is intentional. It prevents a stale value left in the generic form from changing a different operation.
-
-### 10.4 Derived, non-selectable values
+### 10.4 Values filled in by the job
 
 | Derived value | Resolution |
 | --- | --- |
@@ -667,21 +647,19 @@ This validation is intentional. It prevents a stale value left in the generic fo
 | Registered model | `<catalog>.<schema>.nextads_<model_name>` |
 | `BUILD` experiment | `<bundle-root>/<model_name>` |
 | `RESEARCH` and `REVIEW_SELECT` experiment | `<bundle-root>/<model_name>_research`; review appends to the existing parent/selected child rather than creating another experiment |
-| `EVALUATE` experiment | None; this operation writes an isolated Delta manifest and score table, not an MLflow experiment |
-| Candidate/evidence table namespace | Same personal model catalog/schema |
-| Code provenance | Deployed Git commit SHA |
-| Invocation provenance | Parent job run, task run and task execution count |
-| Registration alias | None; this job does not set one |
+| `EVALUATE` experiment | None; this operation writes a Delta summary and score table, not an MLflow experiment |
+| Candidate/result table namespace | Same personal model catalog/schema |
+| Code version | Deployed Git commit SHA |
+| Databricks run details | Parent job run, task run and task execution count |
+| Alias | None; this job never sets one |
 
 Changing source YAML does not change an already deployed job. Deploy the new commit and start a new run.
 
-## 11. `BUILD`: the compatible direct-build route
+## 11. `BUILD`: run the existing two-model builder
 
 ### 11.1 When to use it
 
-Use `BUILD` when the intention is to exercise the existing direct Trainer route and create a personal-DEV registered version without the richer declared four-candidate research process.
-
-Do not use it as a shorthand for the Shopping Bag research comparison. `BUILD` and `RESEARCH` deliberately have different candidate and split behaviour.
+Use `BUILD` to run the existing two-model trainer and register the better model in your personal DEV area. Use `RESEARCH` for the four-candidate Shopping Bag comparison. The two operations use different candidates and split the data differently.
 
 ### 11.2 Required choices
 
@@ -697,16 +675,16 @@ At least two usable observation dates are needed because direct BUILD makes a te
 
 ### 11.3 What happens
 
-1. Resolve the declared trainer, score provider and candidate adapter before writes.
-2. Load exact READY observation and feature snapshots.
-3. Apply filters, maturity checks and point-in-time lookups.
-4. Persist the deterministic training-set receipt.
-5. Split whole observation dates: the latest 20% of distinct dates, rounded up, form validation; earlier dates form training.
-6. Compare the direct trainer's fixed logistic-regression and gradient-boosted-tree candidates.
-7. Choose the highest validation PR-AUC.
-8. Register the winning exact Spark model version in personal DEV, or reconcile an identical prior model build.
-9. Score the validation holdout and run the candidate adapter twice to reject nondeterministic output.
-10. Write evaluation candidate and provider-contract evidence.
+1. Check that the named model has a `BUILD` trainer and scoring implementation before writing anything.
+2. Load the requested `READY` observation and feature snapshots.
+3. Apply the declared filters, check that labels are complete, and join only features that were available at the time.
+4. Save a record of the data used.
+5. Put the latest 20% of whole observation dates into validation and use the earlier dates for training.
+6. Train the fixed logistic-regression and gradient-boosted-tree candidates.
+7. Choose the candidate with the highest validation PR-AUC.
+8. Register it in personal DEV, or reuse the same model build if it already exists.
+9. Score the validation rows twice and stop if the two results differ.
+10. Save the evaluation and scoring-format results.
 
 ### 11.4 Outputs
 
@@ -722,13 +700,13 @@ It does not set an alias, add a portfolio entry, write assignments or build a pa
 
 ### 11.5 Important distinction from `RESEARCH`
 
-For seven observation dates, direct BUILD validates on the latest two dates because `ceil(20% of 7)=2`. The Shopping Bag research plan instead fixes train to 5–8 August, validation to 9–10 August and test to 11 August. Direct BUILD also compares only its two trainer candidates; it does not use `research.candidates`.
+With seven observation dates, `BUILD` uses the latest two for validation because `ceil(20% of 7)=2`. The Shopping Bag research plan instead uses 5–8 August for training, 9–10 August for validation and 11 August for test. `BUILD` compares only its two fixed models; it does not read `research.candidates`.
 
-## 12. `RESEARCH`: compare declared candidates
+## 12. `RESEARCH`: compare the models in YAML
 
 ### 12.1 When to use it
 
-Use `RESEARCH` when the question is: “Which of the reviewed candidate implementations performs best on the same time-correct data, and what comparable evidence supports that conclusion?”
+Use `RESEARCH` to compare every candidate in the checked-in plan using the same fixed data.
 
 ### 12.2 Required choices
 
@@ -742,20 +720,20 @@ Leave every other operation field blank. In particular, do not supply observatio
 
 ### 12.3 What happens before fitting
 
-1. Load and checksum the model declaration and research plan.
-2. Resolve every candidate/evidence plug-in before durable work.
-3. Derive every observation date in the three inclusive ranges.
-4. Derive the expected feature-reference day for each observation day; the current research entry point requires exactly one day earlier.
-5. Resolve READY labelled-observation and feature snapshots with exact Delta versions/checksums.
-6. Enforce binary/mature labels, point-in-time lags, exact date coverage, uniqueness and leakage checks.
-7. Persist/reconcile a READY training-set receipt.
-8. Acquire the deterministic research claim.
-9. Build/reconcile the immutable research frame.
-10. Create/reconcile the flat personal MLflow research experiment and parent run.
+1. Load the model settings and research plan and record their checksums.
+2. Check that every declared candidate and result-file component is available before writing anything.
+3. Build the full list of training, validation and test dates from the plan.
+4. Match each observation date to its feature date. This route currently requires features from exactly one day earlier.
+5. Load the `READY` observation and feature snapshots and record their Delta versions and checksums.
+6. Check label values and maturity, date coverage, duplicate rows, time lags and possible future-data leakage.
+7. Save or reuse the `READY` training-data record.
+8. Claim this research build so another run cannot build the same thing at the same time.
+9. Create or reuse the fixed research dataset.
+10. Create or reuse the personal MLflow experiment and parent run.
 
-### 12.4 Immutable frame and privacy
+### 12.4 Saved research data and privacy
 
-The durable frame stores:
+The saved research dataset contains:
 
 - research/frame/attempt IDs;
 - training receipt ID;
@@ -766,43 +744,43 @@ The durable frame stores:
 - permitted slice JSON;
 - creation time.
 
-Raw account, customer, email, exposure and row identifiers are not stored. Raw keys are used to calculate deterministic lineage, then dropped. Identity-like feature/slice names are denied. Candidate artifacts cannot contain row-level prediction dumps.
+Raw account, customer, email, exposure and row IDs are not saved. They are used only to create a stable record of which rows were used, then removed. Feature and slice names that look like identities are rejected. Candidate files cannot contain row-level predictions.
 
 ### 12.5 Candidate execution
 
 For each candidate:
 
-1. fit on `TRAIN` only;
-2. produce the standard prediction contract;
-3. evaluate comparable metrics on `VALIDATE`;
-4. record aggregate train diagnostics;
-5. generate common evidence and readable explanation;
-6. persist the model under a child-run attempt path;
-7. reload it and verify exact score/prediction reproduction;
-8. hash model and evidence artifacts;
-9. persist a READY or FAILED candidate row.
+1. train on `TRAIN` only;
+2. return scores and predictions in the required common format;
+3. calculate the common metrics on `VALIDATE`;
+4. save training summaries, never row-level training data;
+5. create the same result files and a readable explanation for every candidate;
+6. save the model under that candidate attempt's MLflow path;
+7. reload it and check that it produces the same scores and predictions;
+8. record hashes for the model and result files;
+9. save the candidate as `READY` or `FAILED`.
 
-The true `TEST` outcome is not available to these steps.
+Candidates cannot see the `TEST` rows or results at this stage.
 
 ### 12.6 Terminal outcomes
 
 | Situation | Result |
 | --- | --- |
-| Required candidate fails or successful quorum is missed | Research `FAILED`; failure attempt remains auditable |
-| All evidence passes and policy is `REVIEW_REQUIRED` | `AWAITING_SELECTION`; recommendation recorded; no test/registration |
-| All evidence passes and policy is `AUTO` | Recommended candidate is selected, tested and registered; research `READY` |
+| A required candidate fails or too few candidates succeed | Research `FAILED`; the failed attempt stays in the record |
+| All required results pass and policy is `REVIEW_REQUIRED` | `AWAITING_SELECTION`; recommendation recorded; no test or registration |
+| All required results pass and policy is `AUTO` | Recommended candidate is selected, tested and registered; research `READY` |
 
-The lifecycle result is emitted with the searchable prefix `MODEL_LIFECYCLE_EVIDENCE=`.
+Search the task output for `MODEL_LIFECYCLE_EVIDENCE=` to find the result.
 
-## 13. Optional bounded AutoML discovery
+## 13. Optional AutoML search
 
 ### 13.1 Why it is a separate job
 
-Databricks AutoML needs a CPU ML runtime and has different dependency/bootstrap behaviour from the standard research job. Keeping it in [`mktg_next_uk_nextads_model_discovery`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml), deployed in DEV as [job 1060266822908498](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498?o=6694370232251359), prevents AutoML from changing the reliable four-candidate route.
+AutoML runs as a separate DEV job because it needs a CPU ML runtime and different setup from normal research. This keeps it optional and separate from the four declared candidates. The job is [`mktg_next_uk_nextads_model_discovery`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml), deployed in DEV as [job 1060266822908498](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498?o=6694370232251359).
 
-It is discovery evidence, not another selection or registration mechanism.
+It helps explore other ideas. It does not select or register a model.
 
-### 13.2 Job shape
+### 13.2 Job settings
 
 | Setting | Value |
 | --- | --- |
@@ -820,9 +798,9 @@ It is discovery evidence, not another selection or registration mechanism.
 | Field | Required/default | Valid value | Why |
 | --- | --- | --- | --- |
 | `enabled` | Default `false` | Exact lowercase `true` or `false` | Requires deliberate opt-in; `false` exits without discovery work |
-| `model_name` | Required | Exact declared model | Resolves the plan and immutable frame |
-| `research_build_id` | Required | Exact selectable completed research build | Prevents searching a different/latest frame |
-| `timeout_minutes` | Default `30` | Integer 1–120 | Bounds compute and experiment breadth |
+| `model_name` | Required | Exact declared model | The model whose research data will be used |
+| `research_build_id` | Required | Exact selectable completed research build | The completed research build you reviewed |
+| `timeout_minutes` | Default `30` | Integer 1–120 | Limits cost and run time |
 
 The declaration must also contain:
 
@@ -833,9 +811,7 @@ candidate_search:
   timeout_minutes: 30
 ```
 
-The saved-job `enabled=true` is the deliberate execution switch. The declaration records that discovery is available and its reviewed default; it does not make discovery automatic.
-
-Current implementation detail: the runtime requires the declaration to contain the supported candidate-search plug-in, but it does not enforce the declaration's `enabled` or declared timeout. The saved-job `enabled` and `timeout_minutes` values are the effective execution controls. Treat the declaration values as reviewed metadata/default intent until that enforcement is tightened.
+The job-form values are the real controls: `enabled=true` starts AutoML and `timeout_minutes` sets its limit. The YAML records that AutoML is available and its usual default. Runtime currently checks the plug-in name but does not enforce the YAML `enabled` or timeout values.
 
 ### 13.4 Data exposed to AutoML
 
@@ -843,46 +819,46 @@ AutoML receives only:
 
 - declared model input features;
 - an integer binary label;
-- an internal split marker;
+- a column telling AutoML whether a row belongs to its training or validation data;
 - research `TRAIN` and `VALIDATE` periods.
 
 It does not receive observation keys, audit fields, research slices or the true research `TEST` split.
 
-Within train+validation, the latest validation date becomes AutoML's internal test when at least two validation dates exist. If only one validation date exists, that validation population is deterministically hash-partitioned. This internal test is not the research main test.
+Within train and validation, the latest validation date becomes AutoML's internal test when at least two validation dates exist. With only one validation date, rows are split by a stable hash. This internal test is not the real research test.
 
-### 13.5 Search and evidence bounds
+### 13.5 Search limits and saved results
 
 - Primary AutoML metric: ROC-AUC.
-- Timeout: run selection, 1–120 minutes.
-- Accepted completed-trial summary: at most 512 trials.
-- Canonical leaderboard JSON: at most 1,000,000 UTF-8 bytes.
-- Best trial must have a generated notebook/recipe association.
-- Non-best trials may legitimately have no notebook association.
-- Trial IDs/ranks must be unique and bounded.
-- Main research test rows exposed: exactly zero.
-- Registration performed: always false.
+- Time limit: 1–120 minutes, chosen in the run form.
+- At most 512 completed trials are kept in the saved result.
+- The saved leaderboard JSON must be no larger than 1,000,000 UTF-8 bytes.
+- The winning trial must link to its generated notebook or recipe.
+- Other trials may have no notebook link.
+- Trial IDs and ranks cannot be duplicated.
+- Rows from the real research test set: `0`.
+- Model registration: always `false`.
 
-The runtime writes a deterministic leaderboard artifact and receipt, with output marker `MODEL_RESEARCH_AUTOML_DISCOVERY=`.
+The job saves the leaderboard and receipt, then logs `MODEL_RESEARCH_AUTOML_DISCOVERY=`.
 
 ### 13.6 What AutoML does not do
 
 Its best trial does not automatically:
 
 - become a declared research candidate;
-- replace the deterministic research recommendation;
+- replace the main research recommendation;
 - see the true held-out test;
 - create a model-build receipt;
 - register a Unity Catalog version;
 - set/move an alias;
 - activate or publish anything.
 
-To promote an AutoML idea into standard research, implement/review it as a declared candidate with the common prediction, evidence, explanation and persistence contracts.
+To use an AutoML idea in the main comparison, add it as a checked-in candidate in YAML and make it pass the same scoring, result-file, explanation and save/reload checks.
 
-## 14. `REVIEW_SELECT`: lock, test and register one candidate
+## 14. `REVIEW_SELECT`: choose, test and register one candidate
 
 ### 14.1 When to use it
 
-Use this operation only after a `REVIEW_REQUIRED` research build has reached `AWAITING_SELECTION` and the parent/child evidence has been reviewed.
+Use this operation only after a `REVIEW_REQUIRED` research build has reached `AWAITING_SELECTION` and its parent and candidate results have been reviewed.
 
 ### 14.2 Required choices
 
@@ -891,7 +867,7 @@ operation=REVIEW_SELECT
 model_name=<same model>
 research_build_id=<exact research ID>
 candidate_id=<declared READY candidate key>
-written_reason=<specific evidence-based rationale>
+written_reason=<specific reason based on the results>
 reviewed_by=<reviewer name>
 ```
 
@@ -899,47 +875,42 @@ reviewed_by=<reviewer name>
 
 ### 14.3 Recommendation versus decision
 
-The reviewer may:
-
-- accept the deterministic recommendation; or
-- choose another READY declared candidate.
-
-An override is supported, but both recommended and selected IDs plus the reviewer/reason are retained. A failed, incomplete, undeclared or mismatched candidate cannot be selected.
+The reviewer can accept the recommended candidate or choose another declared candidate with status `READY`. The saved decision keeps both candidate IDs, the reviewer and the reason. Failed, incomplete, undeclared or unrelated candidates cannot be selected.
 
 ### 14.4 Order of operations
 
-1. Reload and reconcile the exact research build, plan, frame, candidate attempts and parent/child run tags.
-2. Recompute the deterministic recommendation.
-3. Create the immutable selection identity from the build, selection mode, recommendation, selected candidate and written reason. `reviewed_by` is persisted and immutable but is not hashed into the decision ID.
-4. Persist and lock the decision before reading test outcomes.
-5. Load only the selected candidate's persisted model.
-6. Expose only that candidate to the true test partition.
-7. Produce test metrics, curves, slices and confidence intervals. The candidate's already-gated validation-stage explanation is retained; REVIEW_SELECT does not compute a new test explanation.
-8. Log selected-test evidence to the selected child and reviewed-selection evidence to the parent.
-9. Register the exact candidate model under `<catalog>.<schema>.nextads_<model_name>`.
-10. Download/reload the numeric version and reproduce selected test scores.
-11. Persist/reconcile the READY model build and complete the research claim.
+1. Reload the chosen research build and confirm its saved plan, data, candidate records and MLflow tags still agree.
+2. Recalculate the recommendation.
+3. Create the decision ID from the research build, selection mode, recommendation, chosen candidate and reason. The reviewer is saved with the decision, but is not part of the ID.
+4. Save and lock the decision before reading any test result.
+5. Load only the chosen candidate's saved model.
+6. Score only that candidate on `TEST`.
+7. Calculate test metrics, curves, slices and confidence intervals. Keep its validation explanation; do not create a separate test explanation.
+8. Add the test results to the selected child run and the decision details to the parent run.
+9. Register that model as `<catalog>.<schema>.nextads_<model_name>`.
+10. Reload the registered numeric version and check that it reproduces the test scores.
+11. Save or reuse the `READY` model build and mark the research claim `COMPLETE`.
 
-On the reviewed path, the immutable research-build row remains `AWAITING_SELECTION`; it truthfully records how RESEARCH itself ended. Completion is represented by the claim reaching `COMPLETE`, a READY selection decision and a READY model build. Only an `AUTO` research route makes the research-build row itself `READY`.
+The research-build row stays `AWAITING_SELECTION` because that records how the original `RESEARCH` run ended. Reviewed selection is complete when the claim is `COMPLETE`, the decision is `READY` and the model build is `READY`. Only `AUTO` changes the research-build row itself to `READY`.
 
 ### 14.5 Registration is not activation
 
-The operation registers an exact numeric version and records its digest. It does not set an alias. A current alias such as `dev_candidate` remains on its previous version until a separate, deliberate operation changes it.
+The operation registers one numeric version and records its file hash. It does not set an alias. A current alias such as `dev_candidate` stays on its previous version until a separate operation changes it.
 
 ### 14.6 Reason/reviewer limitations
 
-Both fields are required nonblank free text, and literal `REQUIRED` is treated as missing. Other placeholder-like text such as `TBD` is not programmatically rejected, so the reviewer must supply an evidence-based reason rather than relying on validation to assess its quality. Also:
+`written_reason` and `reviewed_by` must contain text. The literal value `REQUIRED` is rejected. Other placeholders such as `TBD` are currently allowed, so do not rely on validation to judge whether the reason is useful. Also:
 
 - there is no structured reason taxonomy or configured length limit in this entry point;
 - `reviewed_by` is not cross-checked against the Databricks run-as identity.
 
-Use a full name and a reason that cites the validation evidence and any qualitative trade-off.
+Use a full name and a reason that cites the validation results and any practical trade-off.
 
-## 15. `EVALUATE`: score the selected model in isolation
+## 15. `EVALUATE`: compare the selected model without using it live
 
 ### 15.1 Purpose
 
-`EVALUATE` answers: “How does this exact reviewed numeric model version score an accepted NextAds candidate population for a fixed date?” It is a scientific/operational compatibility check, not customer activation.
+`EVALUATE` checks how one numeric model version ranks a fixed, accepted NextAds candidate set for one date. It writes separate comparison results only and does not affect customers.
 
 ### 15.2 Required and optional choices
 
@@ -954,7 +925,7 @@ evaluation_serving_slot=<blank, best or best_challenger>
 evaluation_candidate_build_attempt_id=<blank/AUTO or exact READY attempt>
 ```
 
-Normal safe defaults are:
+The normal defaults are:
 
 - feature dates: `AUTO`;
 - candidate attempt: `AUTO`;
@@ -965,23 +936,23 @@ Normal safe defaults are:
 
 | Option | Default behaviour | When to override | Risk/control |
 | --- | --- | --- | --- |
-| Feature dates | Latest READY snapshot independently for each lookup on/before its availability cutoff | Reproducing an earlier exact comparison | Explicit dates still receive point-in-time lag checks, but a poor choice may cause missing/defaulted history; `AUTO` is normally safest |
-| Candidate attempt | Latest accepted v1 `READY_FOR_NEXTADS` attempt for `run_date`, ordered by completion then ID | Reproducing one known candidate publication | Exact attempt must match date/route/status |
-| Account limit | Deterministic first 10,000 eligible accounts by hashed account order | Smaller bounded smoke or explicitly reviewed larger proof | It is an account cap, not row cap; there is currently no coded maximum |
+| Feature dates | For each feature, use the latest `READY` snapshot old enough for the run date | Reproducing an earlier comparison | Normal date-lag checks still apply. A poor date can leave missing data or defaults, so `AUTO` is safest |
+| Candidate attempt | Latest accepted v1 `READY_FOR_NEXTADS` attempt for `run_date`: completion time descending, then attempt ID descending | Reproducing one known candidate publication | The attempt must match date, route and status |
+| Account limit | First 10,000 eligible accounts in a stable hashed order | A smaller smoke test or a deliberately larger check | It is an account cap, not row cap; there is currently no coded maximum |
 | Serving slot | `best` | Testing accepted `best_challenger` when that slot exists | Case-sensitive and must exist in the accepted portfolio |
 
 ### 15.4 Evaluation steps
 
-1. Load the READY model-build receipt and require the current model declaration/checksum to match.
-2. Resolve an exact numeric `models:/.../<version>` URI; aliases are not accepted as evidence identity.
-3. Verify Unity Catalog version tags, source run and model artifact digest.
+1. Check that the model build is `READY` and that the current model settings still match it.
+2. Use the numeric `models:/.../<version>` URI. Aliases are not accepted.
+3. Check its Unity Catalog tags, source MLflow run and model hash.
 4. Resolve the accepted candidate build/portfolio/ad sets/scores for `run_date`.
 5. Require the declared route and SB1/SB2 evaluation scope.
-6. Select accounts present in both scopes, order deterministically and apply the account cap.
-7. Resolve exact Feature Store snapshots and apply time-correct lookups.
-8. Run the declared `shopping_bag_advert_ranking` evaluator and score-provider contract.
-9. Validate the canonical `account_entity_scores/v1` rows and isolated comparison rows.
-10. Write a BUILDING then READY scoring manifest around an attempt-scoped replacement/commit of the exact output rows.
+6. Keep accounts present in both scopes, sort them consistently and apply the account limit.
+7. Load the chosen Feature Store snapshots using the required date lags.
+8. Score with the declared `shopping_bag_advert_ranking` implementation.
+9. Check the required `account_entity_scores/v1` and comparison-row formats.
+10. Write a `BUILDING` summary, replace only this attempt's output rows, then mark it `READY`.
 
 ### 15.5 Outputs and non-outputs
 
@@ -994,14 +965,14 @@ Does not write:
 
 - candidate portfolios or entries;
 - candidate builds, scores or advert sets;
-- canonical operational provider tables;
+- operational provider tables;
 - assignments or assignments-v2;
 - payload or payload-latest;
 - registry versions or aliases.
 
-## 16. Supporting generic jobs
+## 16. Other jobs used by this workflow
 
-The following jobs were consolidated or parameterised to support reusable model work. They are not alternative research operations, but a DS will encounter them when producing inputs or validating an operational model.
+These jobs build inputs or run operational scoring. They are not extra `RESEARCH` modes, but a DS may use them before or after model research.
 
 ### 16.1 Generic Feature Store job
 
@@ -1011,16 +982,19 @@ Personal DEV is manual. The shared `DEV_FEATURE_STORE` target is scheduled for 2
 
 | Parameter | Default owner | Normal DS action | Why it exists |
 | --- | --- | --- | --- |
-| `reference_date` | Deployment variable | Choose the dated proof when running personal DEV | Pins every dated output and snapshot |
-| `source_catalog` | Deployment variable | Leave default unless proving an approved alternate DEV source | Operational source namespace |
-| `source_schema` | Deployment variable | Leave default | Operational source schema |
-| `theme_source_catalog` | Deployment variable | Leave default | Theme Affinity source namespace |
-| `theme_source_schema` | Deployment variable | Leave default | Theme Affinity source schema |
-| `theme_table_prefix` | Deployment variable | Leave default | Resolves the retained Theme Affinity source family |
-| `theme_training_reference_date` | Deployment variable | Supply only when deliberately building historical Theme Affinity training input | Separates historical training data from daily reference date |
-| `analytics_pctr_source_binding` | Deployment variable | Leave default | Pins the in-job Analytics pCTR source contract |
-| `analytics_pctr_source_schema` | Deployment variable | Leave default | Names the controlled SQL intermediate/source schema |
-| `recreate_feature_tables` | `false` | Do not enable during normal DS work | Table recreation changes physical contracts/data and is an explicit setup/migration action |
+| `reference_date` | Deployment variable | Choose the dated proof when running personal DEV | Sets the date used by every output and snapshot |
+| `source_catalog` | Deployment variable | Leave default unless proving an approved alternate DEV source | Where normal source data is read from |
+| `source_schema` | Deployment variable | Leave default | Schema containing normal source data |
+| `theme_source_catalog` | Deployment variable | Leave default | Where Theme Affinity source data is read from |
+| `theme_source_schema` | Deployment variable | Leave default | Schema containing Theme Affinity source data |
+| `theme_table_prefix` | Deployment variable | Leave default | Prefix used to find Theme Affinity source tables |
+| `theme_training_reference_date` | Deployment variable | Supply only when deliberately building historical Theme Affinity training input | Lets historical training data use a different date from the daily run |
+| `analytics_pctr_source_binding` | Deployment variable | Leave default | Selects the approved Analytics pCTR source |
+| `analytics_pctr_source_schema` | Deployment variable | Leave default | Schema containing its SQL source and staging tables |
+| `recreate_feature_tables` | `false` | Do not enable during normal DS work | Drops and rebuilds physical feature tables; setup or migration use only |
+
+<details>
+<summary>All Feature Store output tables</summary>
 
 The job's registered feature outputs are:
 
@@ -1056,7 +1030,7 @@ next_uk_nextads_theme_affinity_features_latest
 next_uk_nextads_pctr_features_latest
 ```
 
-The two Shopping Bag-specific contracts are registered Feature Store outputs but are currently built through focused on-demand builder entry points, not by tasks in the scheduled full Feature Store job. Do not claim a scheduled run produced them unless those builders were invoked.
+The two Shopping Bag tables are valid Feature Store outputs, but the scheduled job does not build them. They are built only by their focused on-demand entry points. Do not list them as outputs of a scheduled run unless those builders actually ran.
 
 Build/snapshot metadata is written to:
 
@@ -1068,6 +1042,8 @@ next_uk_nextads_feature_snapshots
 next_uk_nextads_feature_snapshot_bindings
 next_uk_nextads_analytics_pctr_feature_source_receipts
 ```
+
+</details>
 
 ### 16.2 Generic main NextAds candidate job
 
@@ -1083,15 +1059,18 @@ Resource: [`mktg_next_uk_nextads_candidate_build`](../pipelines/databricks/jobs/
 
 `PREPARE_SCORING_INPUTS` is the supporting operation used by generic model scoring. It:
 
-1. lands the authoritative Theme Mapping;
+1. loads the current Theme Mapping;
 2. refreshes item attributes;
-3. creates dated item-theme inputs;
-4. accepts an immutable scoring-input snapshot;
-5. stops before candidate, assignment and page-build branches.
+3. builds dated item-theme inputs;
+4. records the fixed scoring-input snapshot;
+5. stops before candidate building, assignments and page building.
 
-The portfolio policy and foundation fields are meaningful for `CANDIDATE_BUILD`, not normal input preparation. A DS normally changes only `operation` and `run_date` for an explicit preparation proof.
+Portfolio-policy and foundation-snapshot values are used by `CANDIDATE_BUILD`, not normal input preparation. For a preparation run, a DS normally changes only `operation` and `run_date`.
 
-For `<ns> = <catalog_write>.<schema_write>`, `PREPARE_SCORING_INPUTS` writes or verifies these exact destinations and no candidate/assignment destinations:
+<details>
+<summary>All PREPARE_SCORING_INPUTS output tables</summary>
+
+For `<ns> = <catalog_write>.<schema_write>`, `PREPARE_SCORING_INPUTS` writes or checks these destinations and no candidate/assignment destinations:
 
 ```text
 <ns>.next_uk_nextads_scoring_input_theme_mapping_raw
@@ -1107,9 +1086,14 @@ For `<ns> = <catalog_write>.<schema_write>`, `PREPARE_SCORING_INPUTS` writes or 
 <ns>.next_uk_nextads_scoring_input_snapshot_sources
 ```
 
-The underlying item-attribute entry point has an optional BigQuery publication mode, but this generic `PREPARE_SCORING_INPUTS` route does not pass that flag. The BigQuery popularity table is therefore not an output of this saved-job operation.
+The lower-level item-attribute code can publish to BigQuery, but this saved-job operation does not enable that option. The BigQuery popularity table is not an output here.
 
-`CANDIDATE_BUILD` writes or verifies the following control, portfolio and candidate destinations:
+</details>
+
+<details>
+<summary>All CANDIDATE_BUILD and child-job outputs</summary>
+
+`CANDIDATE_BUILD` writes or checks the following control, portfolio and candidate destinations:
 
 ```text
 <ns>.next_uk_nextads_control_sheet_raw
@@ -1165,6 +1149,8 @@ The v1 page-build child also invokes PLP/Google-Sheets delivery, which writes `n
 <configured-abfs-root>/outbound/customer_attributes/next_ads_blanking
 ```
 
+</details>
+
 The preparation branch never reaches these candidate/page-build/delivery destinations. The candidate branch does not rebuild the selected Candidate Foundation; it reads the accepted `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` receipts.
 
 ### 16.3 Generic operational model-scoring job
@@ -1174,14 +1160,14 @@ Resource: [`mktg_next_uk_nextads_model_scoring`](../pipelines/databricks/jobs/mk
 | Parameter | Default | Normal DS choice | Why |
 | --- | --- | --- | --- |
 | `model_name` | `theme_affinity` | Leave `theme_affinity`; it is the only registered implementation today | Provides a generic route without pretending an undeclared implementation exists |
-| `run_date` | Job start date | Override for a dated DEV/PREPROD proof | Pins preparation, scoring and publication |
+| `run_date` | Job start date | Override for a dated DEV/PREPROD proof | Uses the same date for preparation, scoring and outputs |
 | `input_snapshot_id` | `same_day` | Normally leave | Selects accepted scoring-foundation context |
-| `publish_source_namespace` | Deployment pipeline namespace | Leave unless an approved isolated validation needs another deployed source | Resolves Lakeflow stage outputs |
-| `publish_target_namespace` | Deployment output namespace | Leave | Resolves published compatibility/canonical outputs |
-| `publish_source_table_prefix` | `next_uk_nextads_account_theme_foundation_stage` | Leave | Names staged Lakeflow family |
-| `publish_target_table_prefix` | `next_uk_nextads_account_theme_foundation` | Leave | Names published foundation family |
-| `table_suffixes` | Deployment variable | Leave | Controlled compatibility-publication list |
-| `model_uri` | Deployment Theme Affinity URI | Override with an exact numeric imported model URI for deliberate validation | Proves the reviewed artifact rather than the environment default |
+| `publish_source_namespace` | Deployment pipeline namespace | Leave unless an approved isolated validation needs another deployed source | Where staged Lakeflow tables are read from |
+| `publish_target_namespace` | Deployment output namespace | Leave | Where published tables are written |
+| `publish_source_table_prefix` | `next_uk_nextads_account_theme_foundation_stage` | Leave | Prefix used for staged tables |
+| `publish_target_table_prefix` | `next_uk_nextads_account_theme_foundation` | Leave | Prefix used for published tables |
+| `table_suffixes` | Deployment variable | Leave | Approved list of table suffixes to publish |
+| `model_uri` | Deployment Theme Affinity URI | Override with a numeric imported model URI for deliberate validation | Use a numeric version when deliberately checking a specific imported model |
 
 The current Theme Affinity scoring route:
 
@@ -1189,11 +1175,14 @@ The current Theme Affinity scoring route:
 2. runs the main job with `PREPARE_SCORING_INPUTS` for the same date;
 3. prepares/reuses a scoring-foundation context;
 4. runs Lakeflow data preparation;
-5. loads the requested model URI and publishes canonical provider signals/build evidence;
+5. loads the requested model URI and publishes standard provider signals and build records;
 6. publishes provider and legacy feature compatibility outputs;
 7. runs foundation and model-output sense checks.
 
-The output-producing tasks in the current Theme Affinity implementation write or verify every ordinary Delta destination below. The child `PREPARE_SCORING_INPUTS` destinations are the preparation list in section 16.2 and are also part of the scoring job's run graph.
+<details>
+<summary>All Theme Affinity output and Lakeflow stage tables</summary>
+
+The job writes or checks these Delta tables. The child `PREPARE_SCORING_INPUTS` destinations in section 16.2 are also part of the scoring run.
 
 ```text
 <catalog>.<schema>.next_uk_nextads_score_provider_signals
@@ -1248,25 +1237,19 @@ build_marker
 ranked
 ```
 
-Its private pipeline relations are `0_theme_mapping`, `pinned_item_themes` and `spine`; they are implementation relations, not consumer outputs. The `complete` stage remains inside Lakeflow: the scoring route publishes only ordinary Delta `next_uk_nextads_account_theme_foundation_ranked`, not a second ordinary `..._complete` table. [Theme Affinity operational flow](architecture/theme_affinity_operational_flow.md) owns the task ordering and failure boundaries for this exhaustive destination list.
+`0_theme_mapping`, `pinned_item_themes` and `spine` are internal pipeline views, not outputs. `complete` also stays inside Lakeflow. The ordinary Delta output is `next_uk_nextads_account_theme_foundation_ranked`; there is no second ordinary `..._complete` table. [Theme Affinity operational flow](architecture/theme_affinity_operational_flow.md) explains the task order and failures.
 
-### 16.4 Saved-job consolidation
+</details>
 
-Model-specific saved jobs for Shopping Bag preparation/labels/evaluation, Analytics pCTR source/verification/adoption and Theme Affinity input/compatibility/scoring were replaced by the generic routes above. The implementations/contracts remain reusable; the operator chooses a declared operation or model rather than finding another job per experiment.
+### 16.4 Why the jobs are generic
 
-This does not mean every model is magically supported. Validation fails if the named model has no registered implementation for the chosen generic route.
+These generic routes replace separate saved jobs for Shopping Bag preparation, labels and evaluation; Analytics pCTR source, checks and adoption; and Theme Affinity inputs, compatibility and scoring. A route only works when the named model has an implementation for it. Unsupported model/route combinations fail validation.
 
-### 16.5 Delivery controls changed alongside the work
-
-- Pull-request templates no longer repeat a target-branch checklist; Azure chooses the branch-specific template and the canonical release documentation owns the route.
-- The manually queued deployment pipeline no longer contains the PROD integration-test stage. CI and environment deployment remain separate.
-- Neither change grants a DS permission to deploy PREPROD/PROD or complete a PR.
-
-## 17. Outputs and where to find them
+## 17. Find the outputs
 
 ### 17.1 Searchable output marker
 
-Repository-owned Python output routes now use compact, sorted, PII-free lines beginning:
+Python jobs that write outputs now log a short, sorted line beginning:
 
 ```text
 NEXTADS_OUTPUT=
@@ -1278,35 +1261,37 @@ Example shape:
 {"delta_version":2,"destination":"marketingdata_dev.stephen_blain.next_uk_nextads_model_evaluation_scores","kind":"delta_table","row_count":398964}
 ```
 
-Search a task's output for `NEXTADS_OUTPUT=` to find a concrete destination. Across repository jobs, `kind` can identify a Delta table, file path, BigQuery table, Cosmos container or managed-monitor asset. Lifecycle MLflow and Unity Catalog identities are also returned in the operation-specific evidence marker; do not assume they will each have a separate `NEXTADS_OUTPUT` line.
+Search for `NEXTADS_OUTPUT=` to find the destination. `kind` says whether it is a Delta table, file path, BigQuery table, Cosmos container or managed monitor. MLflow and Unity Catalog IDs are normally in the operation's result marker instead.
 
-The marker is emitted only after the relevant write/reuse has been verified. It does not contain account-level data. Multiple lines in one run are expected because control, history, latest, manifest and data tables are distinct destinations.
+The line is written only after the output has been written or successfully reused and checked. It contains no account-level data. One task can emit several lines because history, latest, control, summary and data tables are separate outputs.
 
-Legacy SQL/Lakeflow tasks that cannot call the shared Python helper expose their destinations in SQL statements, the pipeline graph or established exact-path log lines. The complete saved-job inventory is in [NextAds job and table flow](architecture/nextads_job_table_flow.md).
+SQL and Lakeflow tasks do not always emit this marker. Their outputs appear in their SQL, pipeline graph, exact-path logs or the [NextAds job and table flow](architecture/nextads_job_table_flow.md).
 
-Use the three evidence prefixes for different questions:
+Use these three prefixes for different questions:
 
 | Prefix | Answers |
 | --- | --- |
-| `MODEL_LIFECYCLE_EVIDENCE=` | What BUILD/RESEARCH/REVIEW_SELECT/EVALUATE returned: status, IDs, model/run/artifact lineage and operation result |
-| `MODEL_RESEARCH_AUTOML_DISCOVERY=` | What bounded discovery returned: receipt/experiment/best trial/leaderboard, reuse, split counts, main-test exposure and registration flag |
+| `MODEL_LIFECYCLE_EVIDENCE=` | What BUILD/RESEARCH/REVIEW_SELECT/EVALUATE returned: status, IDs, model/run/files and operation result |
+| `MODEL_RESEARCH_AUTOML_DISCOVERY=` | What AutoML returned: receipt, experiment, best trial, leaderboard, reuse, split counts, main-test exposure and registration flag |
 | `NEXTADS_OUTPUT=` | Where a durable sink was written or verified: exact table/path/resource and available version/count/receipt details |
 
-The EVALUATE lifecycle marker currently does not name its output table. Use `NEXTADS_OUTPUT=` or the READY evaluation manifest for that destination.
+The EVALUATE lifecycle marker currently does not name its output table. Use `NEXTADS_OUTPUT=` or the `READY` evaluation summary for that destination.
+
+A failure during startup or in the wrapper can happen before `MODEL_LIFECYCLE_EVIDENCE=` is logged. In that case, use the Databricks final state, any `FAILED` claim/receipt and the unchanged registry state. A missing marker is not a success result.
 
 ### 17.2 Why old linked runs still contain Py4J `command c`
 
-Old evidence runs were executed before the shared logging change. Python root logging was set to `INFO`, so `py4j.clientserver` printed every Java-to-Python callback:
+The linked runs were executed before the shared logging change. Python root logging was set to `INFO`, so `py4j.clientserver` printed every Java-to-Python callback:
 
 ```text
 INFO:py4j.clientserver:Received command c on object id p0
 ```
 
-`c` is Py4J's callback command and `p0` is a Python proxy object. It is dependency chatter, not a model command, data-quality error or failed validation. In the successful research run it accounted for most displayed lines while the task still completed successfully.
+`c` means a Py4J callback and `p0` is an internal Python object. It is library noise, not a model command, failed check or data problem. In the successful research run it accounted for most displayed lines while the task still completed successfully.
 
-The current branch keeps application `INFO` evidence and raises only `py4j`/`py4j.clientserver` to `WARNING`. `SparkContext.setLogLevel` would not solve this because that controls JVM Spark logs, not the Python Py4J logger.
+The current branch keeps useful application `INFO` messages and raises only `py4j`/`py4j.clientserver` to `WARNING`. `SparkContext.setLogLevel` would not solve this because that controls JVM Spark logs, not the Python Py4J logger.
 
-This logging/output patch has unit/static evidence on the current branch, but the older linked runtime evidence naturally does not demonstrate it. A new deployment/run is required before expecting the quieter output and new destination markers in Databricks.
+The current branch contains the quieter logging and output-marker code, but the linked runs are older. A new deployment and run are needed before those changes can be seen in Databricks.
 
 ### 17.3 Lifecycle and discovery tables
 
@@ -1314,20 +1299,20 @@ For a personal namespace `<ns> = <model_catalog>.<model_schema>`:
 
 | Destination | Purpose |
 | --- | --- |
-| `<ns>.next_uk_nextads_training_set_receipts` | Exact observation/feature bindings, label boundary, checksums and leakage result |
-| `<ns>.next_uk_nextads_model_research_claims` | Research lease/checkpoint/control state |
-| `<ns>.next_uk_nextads_model_research_frames` | PII-reduced immutable split frame |
-| `<ns>.next_uk_nextads_model_research_builds` | Parent experiment, plan, recommendation and status |
-| `<ns>.next_uk_nextads_candidate_evaluations` | Candidate attempts, child runs, metrics, model/evidence lineage |
+| `<ns>.next_uk_nextads_training_set_receipts` | Observation/feature versions, label boundary, checksums and future-data result |
+| `<ns>.next_uk_nextads_model_research_claims` | Research retry lock and progress |
+| `<ns>.next_uk_nextads_model_research_frames` | Fixed train/validation/test data without raw identifiers |
+| `<ns>.next_uk_nextads_model_research_builds` | Research plan, parent MLflow run, recommendation and status |
+| `<ns>.next_uk_nextads_candidate_evaluations` | Candidate attempts, child runs, metrics, saved model and file hashes |
 | `<ns>.next_uk_nextads_model_selection_decisions` | Automatic/reviewed selection, reviewer/reason and selected build link |
 | `<ns>.next_uk_nextads_model_builds` | Direct/selected registered model receipts |
 | `<ns>.next_uk_nextads_model_evaluation_candidates` | Direct BUILD evaluation candidates |
-| `<ns>.next_uk_nextads_external_score_receipts` | Exact adopted external-score provenance where that route is used |
-| `<ns>.next_uk_nextads_score_provider_signals` | Canonical evaluation/provider scores written by compatible routes |
-| `<ns>.next_uk_nextads_score_provider_builds` | Selectable provider build receipt |
-| `<ns>.next_uk_nextads_automl_discovery_claims` | Discovery lease/checkpoint/control state |
-| `<ns>.next_uk_nextads_automl_discovery_receipts` | AutoML experiment, trials, leaderboard and recipe evidence |
-| `<ns>.next_uk_nextads_model_evaluation_scoring_builds` | Isolated EVALUATE request/input/output manifest |
+| `<ns>.next_uk_nextads_external_score_receipts` | Record of where imported scores came from |
+| `<ns>.next_uk_nextads_score_provider_signals` | Standard evaluation/provider scores written by compatible routes |
+| `<ns>.next_uk_nextads_score_provider_builds` | Record showing which provider result can be selected |
+| `<ns>.next_uk_nextads_automl_discovery_claims` | AutoML retry lock and progress |
+| `<ns>.next_uk_nextads_automl_discovery_receipts` | AutoML experiment, trials, leaderboard and recipe results |
+| `<ns>.next_uk_nextads_model_evaluation_scoring_builds` | EVALUATE inputs, output and status |
 | `<ns>.next_uk_nextads_model_evaluation_scores` | Isolated incumbent-versus-model score/rank rows |
 
 Registered model:
@@ -1346,19 +1331,19 @@ MLflow experiments:
 
 Databricks tracking APIs may display the workspace path with `/Workspace` normalised to `/Users`; the experiment ID is the authoritative identity.
 
-### 17.4 Output versus control/evidence tables
+### 17.4 Output tables versus tracking tables
 
-Not every table above is a model score. Claims and receipts are control/evidence. They are equally important because they answer “what exactly happened?” but should not be consumed as feature or serving data.
+Most of these tables record what a job did; they are not model scores. Use them for checking and retries, not as feature or serving data.
 
 For the Shopping Bag proof:
 
-- research frame: evidence input;
-- candidate evaluations: research evidence;
-- model selection/model build: decision/registration evidence;
+- research frame: saved research input;
+- candidate evaluations: research results;
+- model selection/model build: decision and registration records;
 - evaluation scores: isolated comparison output;
 - assignments/payload: deliberately untouched operational outputs.
 
-## 18. MLflow layout and review checklist
+## 18. What to check in MLflow
 
 ### 18.1 Research experiment
 
@@ -1390,7 +1375,7 @@ research/temporal_split_profile.json
 research/training_receipt.json
 ```
 
-After reviewed selection it also records reviewed-selection/test lineage and an updated parent manifest.
+After reviewed selection it also records the selection/test links and an updated parent file list.
 
 ### 18.3 Child-run contents
 
@@ -1399,11 +1384,11 @@ Each candidate child run should have:
 - declared candidate ID, plug-in, seed and parameters;
 - definition/plan/receipt/research/frame IDs;
 - validation metrics;
-- complete evidence bundle described in section 9;
+- complete result bundle described in section 9;
 - readable explanation status;
-- persisted model under a deterministic attempt artifact path;
-- evidence, model and combined artifact digests;
-- terminal `READY` or safe failure tags.
+- saved model under that attempt's fixed MLflow path;
+- hashes for the result files, model files and their combined set;
+- final `READY` or `FAILED` tags.
 
 Only the selected child should later receive `selected_test_evidence` and selected-test metric history.
 
@@ -1412,122 +1397,125 @@ Only the selected child should later receive `selected_test_evidence` and select
 1. Confirm the model definition, plan checksum and training receipt match the intended run.
 2. Confirm split dates/counts/positives and leakage status.
 3. Confirm all required candidates are READY.
-4. Compare PR-AUC first, then log loss, calibration and top-fraction lift.
-5. Compare against the prevalence-only baseline.
+4. Compare PR-AUC first, then log loss, calibration and lift at the chosen top fractions.
+5. Compare with the simple baseline that always predicts the overall click rate.
 6. Review SB1/SB2 and device slices, noting any `INSUFFICIENT` status.
 7. Review missing/default coverage.
-8. Review readable importance/explanation for implausible leakage proxies.
-9. Confirm automatic recommendation follows the deterministic ordering.
+8. Check feature importance for anything that looks like accidental label leakage.
+9. Confirm the recommendation follows the ordering and tie-break rules in section 7.
 10. Decide whether to accept it or record a justified READY alternative.
 
 ### 18.5 Selected-test review
 
 After selection, check:
 
-- only the selected child has test evidence;
-- test date/count/prevalence match the immutable frame;
-- test metrics and confidence intervals are plausible relative to validation;
-- numeric model version tags match research, decision, candidate and artifact digests;
+- only the selected child has test results;
+- test date, count and click rate match the saved research data;
+- test metrics and confidence intervals make sense compared with validation;
+- numeric model version tags match the research, decision, candidate and file hashes;
 - clean model reload reproduces scores;
 - no alias moved.
 
-## 19. Retry, reuse and failure behaviour
+## 19. Reruns and failures
 
 ### 19.1 What determines identity
 
-Important identity inputs include:
+A job is treated as the same request only when these still match:
 
 - model/plan checksums;
-- deployed code SHA;
-- exact Feature Store bindings and training receipt;
+- deployed commit SHA;
+- Feature Store snapshots and training receipt;
 - split and candidate definition;
 - research build/attempt;
-- selected candidate and reason, which participate in the decision ID;
-- reviewer, which is immutable decision content even though it is not part of that ID;
-- registered target and artifact digest;
+- selected candidate and reason, which are part of the decision ID;
+- reviewer, which must still match even though it is not part of that ID;
+- registered model target and file hash;
 - AutoML timeout/path/request;
 - EVALUATE model/candidate/snapshot/date/attempt identity.
 
-A new code SHA intentionally creates a new training receipt and research identity. That is why a corrected run does not overwrite evidence produced by older code.
+A new commit SHA creates a new training-data record and research ID. A corrected run therefore cannot overwrite results created by older code.
 
 ### 19.2 `RESEARCH` reuse
 
-An identical successful research rerun can return the same receipt, frame Delta version, parent/child MLflow run IDs, candidate rows, recommendation and manifest without refitting. The marker reports `reused=true`.
+If every identity input matches a successful run, `RESEARCH` reuses the same data record, research dataset, MLflow parent and child runs, candidate results, recommendation and file list. It does not retrain. The output says `reused=true`.
 
-Control metadata may be reacquired and checkpoint versions/owner timestamps may advance. That is a control-row update, not a new frame, candidate, model or artifact identity. Review both logical object counts and control-table history when proving reuse.
+The claim row may update its owner, checkpoint and timestamps. That is a lock/progress update, not a new model or dataset. Check saved IDs, row counts and control-table history when proving reuse.
 
-Failed candidate attempts remain in durable/MLflow history. A corrected code SHA produces isolated new IDs and does not reinterpret the failed build as READY.
+Failed candidate attempts stay in the table and MLflow. A correction with a new commit SHA gets new IDs instead of turning the failed attempt into `READY`.
 
-The standard research claim lease is 23,400 seconds (6.5 hours), longer than the six-hour task timeout. The same owning top-level run can resume immediately; a fresh top-level run remains fenced until lease expiry. An exact terminal FAILED identity does not refit. Correct the underlying input/declaration/code so the new work has legitimate new lineage; never edit or delete claim rows.
+The `RESEARCH` claim lasts 23,400 seconds (6.5 hours), longer than the six-hour task timeout. The same top-level run can resume immediately; another run must wait for the lease to expire. An identical request already marked `FAILED` does not retrain. Fix the input, YAML or code so the corrected work gets a new ID. Never edit or delete claim rows.
 
 ### 19.3 AutoML reuse
 
-An identical READY discovery request returns the same receipt, experiment, best trial, leaderboard run/artifact and digest. It creates no new AutoML trials or evidence run, and reports `reused=true` with `main_test_rows_exposed=0` and `registration_performed=false`.
+If every identity input matches a `READY` discovery, AutoML reuses the same receipt, experiment, winning trial, leaderboard run and hashes. It starts no new trials or MLflow results run. The output says `reused=true`, `main_test_rows_exposed=0` and `registration_performed=false`.
 
 The actual execution gate is the saved-job `enabled=true` parameter. The current declaration-level `candidate_search.enabled` value participates in the declared plan but is not separately enforced by the runtime; do not describe it as the execution switch.
 
-A live `RUNNING` AutoML claim is deliberately not taken over merely because its lease looks old. Reconcile the actual Databricks/MLflow/durable state before deciding whether code or operator recovery is required.
-
-The AutoML lease is three hours. Identical `CLAIMED`, `RUNNING` or `FAILED` requests fail closed rather than starting another search. `EVIDENCE_READY`/`COMPLETE` can reconcile their receipt/completion without another AutoML call. A crash after the external AutoML work but before the evidence checkpoint requires owner reconciliation, not blind retry.
+The AutoML claim lasts three hours, but a different run does not take over a live `CLAIMED` or `RUNNING` request merely because the time has passed. Identical `CLAIMED`, `RUNNING` or `FAILED` requests stop instead of starting another search. `EVIDENCE_READY` and `COMPLETE` can finish checking and saving the existing result without calling AutoML again. If the job crashes after AutoML finishes but before the checkpoint is saved, the owner must check Databricks, MLflow and the tables before retrying.
 
 ### 19.4 `REVIEW_SELECT` reuse
 
 An identical rerun reuses the logical decision, model build and numeric version; it must not create a new registered version. The lifecycle marker reports `reused=true`.
 
-Physical implementation nuance: the current reuse path can make no-op/identical Delta commits and rewrite the existing parent/child artifact paths or metric history with identical bytes/values. Prove idempotence using row identity/content, artifact hashes, model version and alias state—not solely the absence of any Delta history entry or changed MLflow end timestamp.
+One caveat: a reuse run may still make an identical Delta commit or rewrite the same MLflow file and metric values. Check reuse using row IDs and contents, file hashes, model version and alias state—not only Delta history or MLflow end times.
 
-A changed candidate or reason resolves to a different decision identity. A changed reviewer resolves to the same decision ID but conflicts with its immutable stored content. An incompatible target is also rejected; none of these changes can silently reuse the old decision.
+A changed candidate or reason gets a different decision ID. A changed reviewer gets the same decision ID but conflicts with the saved reviewer. An incompatible target is also rejected; none of these changes can silently reuse the old decision.
 
-The review-selection claim lease is 12,600 seconds (3.5 hours). Registry conflicts, multiple compatible partial versions, artifact mismatch or score-reproduction mismatch require owner reconciliation rather than repeated registration attempts.
+The review-selection claim lasts 12,600 seconds (3.5 hours). Registry conflicts, several partial versions, a file-hash mismatch or different scores need an owner to check the saved state instead of repeatedly trying registration.
 
 ### 19.5 `EVALUATE` is repeatable, not READY-reusing
 
-Every new EVALUATE task execution has its own attempt identity and writes its own manifest/output rows. It does not short-circuit to an old READY attempt. Old READY, FAILED and BUILDING attempts remain. Therefore rerunning EVALUATE is an authorised new isolated evaluation write, not a no-write reuse check.
+Every `EVALUATE` run gets a new attempt ID and its own summary and score rows. It never reuses an older `READY` attempt, so rerunning it is another isolated write.
 
-Read evaluation rows using both `scoring_build_id` and `scoring_build_attempt_id`, then require the matching manifest to be `READY`. A failure after the attempt-scoped score commit can leave rows for a FAILED attempt; ignore them. A failure before the BUILDING write can leave no manifest, while a failure in terminal-failure recording can leave BUILDING. Correct the input/code and rerun or repair with exact feature and candidate bindings.
+- Filter scores by both `scoring_build_id` and `scoring_build_attempt_id`.
+- Use them only when that attempt's summary is `READY`.
+- A failure after score commit can leave rows for a `FAILED` attempt; ignore them.
+- A failure before the `BUILDING` write may leave no summary.
+- A failure while recording the error may leave the summary at `BUILDING`.
 
-Low-level atomic Delta writers retry only `DeltaConcurrentModificationException`: up to five attempts with bounded exponential backoff and jitter. That does not retry candidate fitting, AutoML or evaluation logic.
+Correct the input or code and rerun or repair with the feature and candidate values pinned when reproducibility matters.
 
-### 19.6 Safe failure expectations
+Low-level Delta writers retry only `DeltaConcurrentModificationException`: up to five attempts with increasing waits and small random jitter. That does not retry model fitting, AutoML or evaluation logic.
 
-| Failure point | Expected retained evidence | Must remain unchanged |
+### 19.6 What is saved after a failure
+
+| Failure point | Expected saved record | Must remain unchanged |
 | --- | --- | --- |
 | Preflight/declaration/snapshot | Job error and any pre-existing receipts | Registry, aliases, serving outputs |
 | Research frame or parent setup | Claim/failed attempt as available; no candidate selection | Registry/alias |
-| Candidate fit/evidence | Failed child/candidate reason with safe hash; other attempts retained | No selected model unless policy/quorum legitimately permits it |
-| AutoML classification/evidence extraction | FAILED claim/receipt and experiment evidence where reached | No registration/alias/main-test exposure |
+| Candidate fit/result files | Failed child/candidate reason with safe hash; other attempts retained | No selected model unless policy and minimum-success rules allow it |
+| AutoML classification/result saving | `FAILED` claim/receipt and experiment records where reached | No registration, alias change or real-test access |
 | Selection before decision lock | No test outcome access | Registry |
-| Selection after lock/registration failure | Exact decision/attempt and failure evidence for recovery | No unrelated model/alias |
-| EVALUATE | BUILDING/FAILED manifest and attempt-scoped rows according to commit boundary | Portfolios, assignments, payload, registry |
+| Selection after lock/registration failure | Decision, attempt and failure record for recovery | No unrelated model or alias |
+| EVALUATE | `BUILDING`/`FAILED` summary and attempt rows according to where it stopped | Portfolios, assignments, payload, registry |
 
-RESEARCH and AutoML durable failure evidence uses bounded type/stage/message-digest references rather than unrestricted exception/data content. EVALUATE currently stores `str(exception)[:4000]` directly in the manifest's `failure_reason`; operators must therefore avoid putting sensitive values into raised exception text, and this route should be tightened in a follow-up. Controlled task logs and source remain the diagnostic record.
+`RESEARCH` and AutoML failure records save the exception type, stage and a message hash, not unrestricted exception text or data. `EVALUATE` saves the first 4,000 characters of the exception in `failure_reason`, so exception messages must not contain sensitive values. Use controlled task logs and source code for diagnosis.
 
-## 20. Shopping Bag pCTR worked example
+## 20. Shopping Bag pCTR: worked example
 
-This is the “I wanted to investigate Shopping Bag” workflow in plain sequence.
+This is how the workflow was used to investigate Shopping Bag pCTR without switching it on for customers.
 
 ### 20.1 Start with the question
 
-The question was not “train XGBoost.” It was:
+The question was:
 
-> For an observed WEB Shopping Bag advert impression, can time-correct account-activity and advert features rank the likelihood of a click, and which reviewed candidate gives the strongest comparable evidence?
+> Could recent account activity and advert features help rank Shopping Bag adverts by click likelihood, and which of the four candidates worked best?
 
 That framing determined:
 
-- observation source and filters;
-- account/advert grain;
-- a rare binary click label;
-- one-day lagged account activity;
-- SB1/SB2 scope;
-- train/validation/test dates;
-- metrics centred on PR-AUC, calibration and lift;
-- review-required selection.
+- one row for each WEB Shopping Bag account/advert impression;
+- a clicked/not-clicked label;
+- account activity from one day earlier;
+- SB1 and SB2 adverts;
+- fixed training, validation and test dates;
+- PR-AUC, calibration and lift as the main comparisons;
+- a person must review the recommendation before test and registration.
 
 ### 20.2 Build and accept inputs
 
-The seven observation dates were 5–11 August 2026. Required feature dates were 4–10 August. The label boundary was 18 August, after the final test outcome had matured.
+We used observations from 5–11 August 2026 and features from the previous day, 4–10 August. The label boundary was 18 August, so the final click outcomes had time to complete.
 
-The resulting exact receipt bound 21 snapshots: seven labelled observation bindings, seven account-activity bindings and seven advert-core bindings. The leakage check passed.
+The run recorded 21 snapshots: seven observation snapshots, seven account-activity snapshots and seven advert snapshots. It also confirmed that no future data had leaked into the inputs.
 
 ### 20.3 Run declared research
 
@@ -1539,19 +1527,19 @@ model_name=shopping_bag_pctr
 label_end=2026-08-18
 ```
 
-Evidence: [research run 599405341866696](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/599405341866696?o=6694370232251359).
+Run: [research run 599405341866696](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/599405341866696?o=6694370232251359).
 
 Result:
 
 - run/task succeeded on the original attempt;
 - research build `research:9f57ad22b883fa598e1b24e85b3dab15723748a67d7f4ff95e5b630367853c6a`;
-- 203,310 immutable rows;
+- 203,310 fixed research rows;
 - train: 96,877 rows / 955 positives, 5–8 August;
 - validation: 69,599 / 696, 9–10 August;
 - untouched test: 36,834 / 302, 11 August;
-- all four candidates READY with complete evidence/explanations;
-- automatic recommendation: logistic regression;
-- terminal status: `AWAITING_SELECTION`;
+- all four candidates `READY` with complete results and explanations;
+- recommended candidate: logistic regression;
+- final `RESEARCH` status: `AWAITING_SELECTION`;
 - no selection, model build, registration or alias change.
 
 Validation comparison:
@@ -1565,11 +1553,11 @@ Validation comparison:
 
 Logistic regression won on PR-AUC and also had the lowest log loss and strongest lift@5 among the four READY candidates.
 
-### 20.4 Prove deterministic research reuse
+### 20.4 Rerun the same research
 
-Evidence: [research reuse run 598465465495617](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/598465465495617?o=6694370232251359).
+Run: [research reuse run 598465465495617](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/598465465495617?o=6694370232251359).
 
-It returned `reused=true` with the same receipt, frame, parent, candidate IDs, metrics and recommendation. No new candidate fitting or registered model occurred. The claim's control checkpoint metadata was reacquired/advanced, which is expected control-state behaviour.
+It returned `reused=true` and the same data receipt, research dataset, MLflow runs, candidate IDs, metrics and recommendation. It did not train candidates or register a model again. Only the claim timestamps and checkpoints changed, as expected.
 
 ### 20.5 Optionally explore with AutoML
 
@@ -1582,24 +1570,24 @@ research_build_id=research:9f57ad22b883fa598e1b24e85b3dab15723748a67d7f4ff95e5b6
 timeout_minutes=30
 ```
 
-Evidence: [AutoML run 933822139697382](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/933822139697382?o=6694370232251359).
+Run: [AutoML run 933822139697382](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/933822139697382?o=6694370232251359).
 
 Result:
 
-- 332 completed bounded trials;
+- 332 trials completed within the 30-minute limit;
 - best validation ROC-AUC 0.61687189;
 - best trial `70f78a30e5c844eabd8f50ed9a8ed8bc`;
-- 81,888-byte canonical leaderboard with matching SHA-256 receipt;
-- 82 legitimate non-best rows with no notebook link retained successfully;
-- true research test rows exposed: 0;
-- registration performed: false;
+- the saved leaderboard was 81,888 bytes and its stored SHA-256 hash matched;
+- 82 non-winning trials had no notebook link, which is allowed;
+- rows from the real test set: `0`;
+- model registered: `false`;
 - registry and aliases unchanged.
 
-Evidence: [AutoML reuse run 1095073337309440](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/1095073337309440?o=6694370232251359).
+Run: [AutoML reuse run 1095073337309440](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/1095073337309440?o=6694370232251359).
 
 It reused the exact receipt, experiment, trial/leaderboard identity and created no new MLflow run.
 
-AutoML did not replace logistic regression in the declared comparison. It supplied additional discovery evidence only.
+AutoML did not replace logistic regression in the main comparison. It was an extra way to explore model ideas.
 
 ### 20.6 Review and select
 
@@ -1614,9 +1602,9 @@ reviewed_by=Stephen Blain
 written_reason=Selected the automatic recommendation because logistic regression achieved the highest validation PR-AUC (0.016279), lowest validation log loss (0.055364), and highest validation lift at 5% (2.298818) across all four READY candidates.
 ```
 
-Evidence: [reviewed selection run 854383935657854](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/854383935657854?o=6694370232251359).
+Run: [reviewed selection run 854383935657854](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/854383935657854?o=6694370232251359).
 
-Held-out test result on 36,834 rows / 302 positives:
+Only the chosen candidate was evaluated on the 36,834 held-out rows, including 302 clicks:
 
 | Metric | Value |
 | --- | ---: |
@@ -1629,9 +1617,9 @@ Held-out test result on 36,834 rows / 302 positives:
 
 The operation registered personal DEV version 4 of `marketingdata_dev.stephen_blain.nextads_shopping_bag_pctr`. `dev_candidate` remained on version 3. No activation occurred.
 
-Evidence: [reviewed-selection reuse run 905782107063851](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/905782107063851?o=6694370232251359).
+Run: [reviewed-selection reuse run 905782107063851](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/905782107063851?o=6694370232251359).
 
-It returned the same decision/build/version and did not create version 5. It made identical/no-op evidence/control rewrites as described in section 19.
+It returned the same decision, build and version, so version 5 was not created. Some tracking records were rewritten with identical content, as explained in section 19.
 
 ### 20.7 Evaluate the exact selected model
 
@@ -1648,9 +1636,9 @@ evaluation_serving_slot=
 evaluation_candidate_build_attempt_id=candidates_v1_20260807_f5b555dc7956852fdba5:attempt:1:249701592970222
 ```
 
-Evidence: [evaluation run 189657224366652](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/189657224366652?o=6694370232251359).
+Run: [evaluation run 189657224366652](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/189657224366652?o=6694370232251359).
 
-The blanks resolved to 10,000 accounts and serving slot `best`. The evaluation pinned:
+The blanks used the defaults: 10,000 accounts and serving slot `best`. It used:
 
 - model build `1916b378...ee7c` and numeric version 4;
 - exact v1 candidate attempt;
@@ -1663,13 +1651,13 @@ It wrote:
 - both SB1 and SB2 scopes;
 - no duplicate keys, null scores or malformed ranks.
 
-It also produced and checksum-validated 199,482 canonical account/advert provider rows in memory. It did not persist those rows to the operational provider-signal table.
+It also created 199,482 standard account/advert provider rows in memory and checked their hash. It did not write them to the operational provider-signal table.
 
 It did not write an operational provider build, candidate build, assignment or payload. The registry stayed versions 1–4 and `dev_candidate` stayed version 3.
 
-### 20.8 Protected-state proof
+### 20.8 What we checked did not change
 
-After the complete proof:
+After these runs:
 
 - assignments latest remained Delta v817 / 592,806,684 rows;
 - assignments-v2 latest remained Delta v20 / 762,850,412 rows;
@@ -1677,22 +1665,22 @@ After the complete proof:
 - no portfolio/entry/candidate-build activation occurred;
 - no PREPROD or PROD execution occurred.
 
-### 20.9 Earlier safe failures and why they matter
+### 20.9 Problems found during DEV testing
 
-The successful path followed several DEV failures that proved the fail-closed boundaries:
+Several failed DEV runs came before the successful one. Each stopped before registration or activation:
 
 | Run | Failure | Durable/customer impact | Fix |
 | --- | --- | --- | --- |
-| [Research 897039777769456](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/897039777769456?o=6694370232251359) | Candidate optional evidence contained record-shaped feature mappings; GBT received an unsupported constructor parameter | Failed research/candidate evidence retained; no selection/registration/alias change | Keep readable mapping in standard explanation only; use supported GBT constructor arguments |
+| [Research 897039777769456](https://adb-6694370232251359.19.azuredatabricks.net/jobs/383960843241650/runs/897039777769456?o=6694370232251359) | Candidate result files wrongly included row-like feature mappings, and GBT received an unsupported option | Failed research and candidate records remained; no model was selected or registered and no alias moved | Keep readable mapping in the standard explanation only; use supported GBT options |
 | [Discovery 486738783192101](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/486738783192101?o=6694370232251359) | Workspace execution had no `__file__` | Failed before discovery claim/receipt or data access | Bootstrap from injected workspace context without a custom-library dependency |
-| [Discovery 579672967504921](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/579672967504921?o=6694370232251359) | AutoML classification rejected a `DoubleType` label | FAILED SHA-specific claim/receipt; zero trials; no main-test/registry change | Validate binary 0/1 then cast only the bounded AutoML input to integer |
-| [Discovery 636897489079399](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/636897489079399?o=6694370232251359) | Evidence extraction incorrectly required a notebook association for every non-best trial | AutoML itself succeeded; wrapper receipt failed; no registration/alias change | Require recipe link for best only; permit bounded null links for non-best trials |
+| [Discovery 579672967504921](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/579672967504921?o=6694370232251359) | AutoML classification rejected a `DoubleType` label | Failed claim and receipt for that commit; zero trials; no test access or registry change | Check for binary 0/1, then cast only the AutoML input to integer |
+| [Discovery 636897489079399](https://adb-6694370232251359.19.azuredatabricks.net/jobs/1060266822908498/runs/636897489079399?o=6694370232251359) | The result-saving step wrongly required a notebook link for every non-winning trial | AutoML completed, but the wrapper failed; no registration or alias change | Require the recipe link for the winner only; allow missing links for other trials |
 
-Each correction was deployed with a new SHA, so new receipts were isolated from failed identities rather than rewriting them.
+Each fix used a new commit SHA, so the failed attempts stayed in history and were not overwritten.
 
-### 20.10 Code and bundle validation evidence
+### 20.10 Tests and bundle checks
 
-[Pipeline 2083278](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_build/results?buildId=2083278&view=results) succeeded on the exact `066a5f565588a88eca6664e8b554e2f80a66ea5c` runtime-proof SHA:
+[Pipeline 2083278](https://dev.azure.com/Next-Technology/DirectoryMarketing.Personalisation/_build/results?buildId=2083278&view=results) ran commit `066a5f565588a88eca6664e8b554e2f80a66ea5c` successfully:
 
 - 1,530 tests passed and 21 skipped;
 - Ruff passed;
@@ -1700,268 +1688,101 @@ Each correction was deployed with a new SHA, so new receipts were isolated from 
 - only CI and personal DEV deployment ran;
 - no shared integration, PREPROD, PROD or destructive stage ran.
 
-Later commits simplified PR templates and added repo-wide output/logging observability. Those later changes require their own current-commit validation/runtime evidence; do not treat the older successful research run or pipeline as proof that new `NEXTADS_OUTPUT=` lines are already live.
-
-## 21. Common decisions
-
-| “I want to…” | Choose | Do not choose |
-| --- | --- | --- |
-| Compare the four Shopping Bag candidates and register nothing | `RESEARCH`, Shopping Bag, mature label end | `BUILD` or `AUTO` selection |
-| Repeat the exact comparison | Same SHA/declaration/label end | A changed declaration if the goal is reuse proof |
-| Add another candidate | Add a reviewed candidate declaration/plugin and adjust quorum | An undeclared class path in the job form |
-| Tune one built-in candidate | Change its estimator-native `parameters` in YAML and deploy | Protected split/output/register parameters |
-| Change research dates | Change `temporal_split` in YAML | Observation/feature dates in the RESEARCH form |
-| Make one candidate optional | `failure_allowed=true` and review `minimum_successful_candidates` | Silently lower quorum below required-candidate count |
-| Require a human decision | `selection_policy=REVIEW_REQUIRED` | Assuming `AUTO` will pause |
-| Authorise automatic decision/registration | Reviewed `selection_policy=AUTO` | A run-form shortcut; none exists |
-| Explore AutoML | Separate discovery job, exact research build, `enabled=true` | Adding the AutoML best trial directly to REVIEW_SELECT |
-| Accept the recommendation | REVIEW_SELECT with recommended declared ID and evidence-based reason | Durable `candidate:<digest>` ID as `candidate_id` |
-| Select another candidate | REVIEW_SELECT with another READY ID and explicit rationale | Failed/incomplete candidate |
-| Reproduce an evaluation exactly | Exact model build, run date, feature dates and candidate attempt | Alias/latest-only references |
-| Run a normal bounded evaluation | Leave optional fields blank for AUTO/10,000/best | An arbitrarily huge account limit |
-| Evaluate challenger slot | `evaluation_serving_slot=best_challenger` when the accepted build contains it | A made-up slot |
-| Activate a model | Use the separate reviewed serving/release process | Any lifecycle or AutoML operation in this document |
-
-## 22. Troubleshooting and frequently asked questions
-
-### Which fields do I enter for RESEARCH?
-
-Only `operation`, `model_name` and `label_end`. Leave all other generic fields blank.
-
-### Why can I see fields that do not apply?
-
-Databricks shows one union parameter form for the generic job. The dispatcher rejects nonblank irrelevant values so stale inputs cannot affect another operation.
-
-### Why are research dates not run-form options?
-
-Changing dates changes the scientific comparison and test boundary. They belong in the reviewed, checksummed declaration.
-
-### Can I use a random train/test split?
-
-No. The standard route requires ordered non-overlapping temporal periods. Candidate plug-ins cannot create their own split.
-
-### Why is the feature date one day earlier in this research entry point?
-
-The current declared research route derives a feature reference date one day before each observation date, then still enforces each lookup's availability lag during point-in-time joins. This prevents same-outcome-day feature leakage.
-
-### Can I train on validation after choosing hyperparameters?
-
-Not in this workflow. Candidates fit on TRAIN and compare on VALIDATE; the evidence corresponds to that immutable contract. A changed retraining policy would need a new reviewed contract and lineage.
-
-### Can any candidate inspect the main test rows?
-
-No. Test outcomes are withheld by the frame reader until an exact selection decision is persisted. AutoML also receives zero main-test rows.
-
-### Can AutoML's best trial be selected in REVIEW_SELECT?
-
-No. REVIEW_SELECT loads the declared candidate receipts. Turn an AutoML idea into a reviewed declared candidate first.
-
-### Does `candidate_search.enabled=false` stop the saved discovery job?
-
-The actual current run gate is the discovery job's `enabled` parameter. The declaration flag is recorded in the plan but is not separately enforced by the runtime. Use `enabled=false` in the job unless a deliberate discovery run is intended.
-
-### Why does AutoML optimise ROC-AUC when research recommends by PR-AUC?
-
-AutoML is an independent discovery aid using Databricks classification's configured primary metric. It cannot replace the declared research decision, whose rare-event comparison is validation PR-AUC first.
-
-### Why is the prevalence baseline not selectable?
-
-It has no learned ranking. It exists only to show whether candidates improve on predicting the train base rate for everyone.
-
-### Can I remove a mandatory metric or plot?
-
-No. Comparable evidence is the main contract. Missing mandatory evidence makes the candidate non-selectable.
-
-### Can I add a metric name in YAML?
-
-Only if the runtime actually produces it. Arbitrary names are not implementation. Add reviewed evaluator/evidence code or the candidate will fail completeness.
-
-### Why is a slice `INSUFFICIENT`?
-
-It did not meet the effective minimum row count or outcome requirements. Only a safe count is shown; outcome rates are suppressed rather than overstated.
-
-### Can I slice by account or exposure ID?
-
-No. Identity-like fields are blocked from durable research features/slices/artifacts.
-
-### Where are row-level research predictions?
-
-They are deliberately not emitted as unrestricted artifacts. The immutable frame has hashed lineage, and evidence is aggregate. EVALUATE writes account-level rows only in its isolated controlled score table.
-
-### What does `failure_allowed=true` mean?
-
-That experimental candidate may fail without blocking the research build only if every non-optional candidate and `minimum_successful_candidates` quorum still pass. Its failure remains visible.
-
-### Why did one required candidate failure stop all selection?
-
-That is the declared quorum. Shopping Bag requires all four, so the comparison is incomplete if any one fails.
-
-### Can I select a candidate other than the recommendation?
-
-Yes, if it is READY in the same build. The selected and recommended IDs, reviewer and reason are all retained.
-
-### Does registering version 4 make it live?
-
-No. No alias moved, no portfolio changed and no assignments/payloads were written.
-
-### Why does EVALUATE require a model-build ID instead of version 4?
-
-The build receipt connects version 4 to the exact declaration, training receipt, candidate, selection and artifact digest. A bare number does not prove that lineage.
-
-### Why does EVALUATE prefer numeric model URIs?
-
-Aliases are mutable. The evaluation must be reproducible against one exact artifact.
-
-### What does blank `feature_reference_dates` mean in EVALUATE?
-
-`AUTO`: resolve the latest READY snapshot for each lookup on/before its own availability cutoff.
-
-### What does blank candidate attempt mean?
-
-`AUTO`: choose the latest accepted v1 `READY_FOR_NEXTADS` attempt for the run date, with deterministic tie-breaking.
-
-### Why is the default account limit 10,000?
-
-It bounds DEV cost while producing a useful deterministic cohort. It limits distinct accounts, not final rows.
-
-### Is there a maximum evaluation account limit?
-
-Not currently in code. Any increase should be explicitly reviewed for cost and output size rather than inferred safe from input validation.
-
-### Does EVALUATE reuse an old READY output?
-
-No. Each new task execution is a new attempt and writes attempt-scoped manifest/output evidence.
-
-### What does `reused=true` guarantee?
-
-It means the logical immutable evidence/build/version was reconciled. It does not always mean zero physical control-table commits, artifact rewrites or timestamp changes. Check IDs, rows, bytes, hashes and registry state.
-
-### Why did a corrected run create a different receipt/build?
-
-Code SHA is part of lineage. A fix must not reinterpret evidence created by older code.
-
-### Can I repair a run?
-
-Repairs carry a new task execution count. The receipt/claim logic determines whether to resume/reconcile or reject conflict. Do not delete failed rows or manually change claim state.
-
-### What if an AutoML claim says RUNNING after compute stopped?
-
-Do not assume an expired-looking lease authorises takeover. Reconcile the Databricks run, experiment and durable evidence; the current claim path deliberately fails closed.
-
-### Why is there no lifecycle marker in some failed output?
-
-Bootstrap or wrapper failure can occur before the normal marker is logged. Use the Databricks terminal state plus durable FAILED claim/receipt and unchanged registry evidence. Do not reconstruct a success marker for a failed run.
-
-### What are the repeated Py4J `command c` lines?
-
-Java-to-Python callback logging from old runs. They are noise, not model operations. The current branch suppresses those dependency INFO lines while retaining application evidence.
-
-### Where did a job write its output?
-
-Search new Python task logs for `NEXTADS_OUTPUT=`. For the complete cross-job map, use [NextAds job and table flow](architecture/nextads_job_table_flow.md).
-
-### Is the new quieter/output logging already demonstrated by the linked research run?
-
-No. Those runs predate the logging patch. The patch is in the current branch and requires a new deployment/run for live proof.
-
-### Can I run `analytics_pctr` through this job?
-
-Not end to end today. The declaration exists, but the generic trainer/research/evaluator support is incomplete and preflight fails.
-
-### Can I change preprocessing per candidate?
-
-Not through the ResearchPlan. Shared preprocessing is part of fair comparison. A new reviewed framework capability would be needed.
-
-### Can a custom plug-in live in another package?
-
-No. It must be a reviewed class under `next_ads.*` and satisfy the no-argument/protocol contracts.
-
-### What should I record in a PR?
-
-At minimum: deployed SHA, Databricks job/run links, research/build/receipt IDs, split counts, candidate comparison, recommendation/decision reason, selected-test metrics/CIs, numeric model version, before/after alias state, evaluation input/output versions and proof that protected outputs did not change.
-
-## 23. Release and activation boundary
-
-### 23.1 Personal DEV registration
-
-`BUILD` and selected research can create a numeric model version in a personal DEV namespace. The generic lifecycle never sets an alias.
-
-### 23.2 Moving an exact model
-
-After code review/merge and with release-owner agreement, the separate lifecycle movement jobs copy exact numeric versions into controlled namespaces. They do not retrain to recreate the artifact. See [model lifecycle runbook](model_lifecycle_runbook.md).
-
-### 23.3 PREPROD and PROD
-
-- Feature work targets `develop`.
-- DEV Integration follows merge to develop.
-- Release owners cut `release/*` for PREPROD validation.
-- PROD is manual and tag-gated from `main`.
-- No PREPROD/PROD lifecycle action is implied by the DEV evidence in this guide.
-
-### 23.4 Activation requires a separate decision
-
-Before treating a model as operational, reviewers must separately prove:
-
-- exact promoted version and environment namespace;
-- intended scoring model URI/alias;
-- operational provider/compatibility outputs;
-- sense checks and output movement;
-- portfolio/assignment/payload impact;
-- monitoring and rollback controls.
-
-None of those activation decisions is hidden inside research, AutoML, REVIEW_SELECT or EVALUATE.
-
-## 24. Original acceptance-criteria trace
-
-| Original requirement | Where the implementation/walkthrough answers it | DEV proof |
-| --- | --- | --- |
-| Existing `Trainer.train(...) -> ModelBuild` remains compatible and research is optional | Model `research` is optional; direct BUILD is section 11 | Direct-route contract/unit coverage; no forced research block for declarations |
-| Supplied/reviewed candidate plug-ins use common contracts without changing orchestration | Sections 8.2, 8.6 and 12.5 | Four different model families completed under one job/task |
-| Same immutable receipt and declared train/validate/untouched-test periods; candidates cannot split/register | Sections 7.2, 12.3–12.5 and 14.4 | Research frame v3, 203,310 rows; test withheld until decision lock |
-| LR/RF/GBT/XGBoost separate child runs plus prevalence baseline | Sections 8.2, 9.5 and 20.3 | Four READY child runs and non-selectable baseline |
-| Common metrics, plots, slices, readable explanations and hashed manifests without raw account IDs | Sections 9, 12.4 and 18 | Complete evidence/explanation tags and per-candidate digests |
-| Parent records receipt, comparison, deterministic recommendation and reviewed reason | Sections 9.2, 12.6, 14 and 18.2 | Parent recommendation logistic regression; reviewed-selection artifact/digest |
-| Only selected candidate gets test evidence/registration; scalar score/prediction and DBR 15.4 reload | Sections 8.6, 14.4–14.5 and 18.5 | Selected child test bundle, score reproduction and numeric v4 |
-| Immutable receipts make identical retries reuse evidence/version while retaining failures | Section 19 | Research, discovery and selection reuse runs; no v5; failed attempts retained |
-| AutoML manual, bounded, isolated and non-registering | Section 13 | 332 trials, zero main-test rows, no registration, exact reuse |
-| Fixed seven-date Shopping Bag proof through isolated SB1/SB2 EVALUATE | Section 20 | Research through 398,964 persisted isolated evaluation rows / 199,482 checksum-validated canonical rows |
-| Contract, plug-in, evidence, retry, lint, bundle and DEV checks with no portfolio/assignment/payload/PREPROD/PROD change | Sections 20.8, 20.9 and 23 | CI/DEV evidence and unchanged protected Delta/registry state |
-
-## 25. Glossary
+Later commits changed the PR templates, logging and output markers. The linked pipeline and Databricks runs predate those changes, so they do not prove that the new `NEXTADS_OUTPUT=` lines are live. That needs a new deployment and run.
+
+## 21. Current limitations and quick answers
+
+The main workflow is proven for Shopping Bag, but these limits are worth knowing:
+
+| Current limit | What to do |
+| --- | --- |
+| `shopping_bag_pctr` is the only model supported end to end | Do not choose `analytics_pctr` for `BUILD`, `RESEARCH`, `REVIEW_SELECT` or `EVALUATE` yet |
+| The AutoML job's `enabled=true` field is the real on/off switch | Leave it `false` unless a deliberate discovery run is intended |
+| `prevalence_baseline=false` is accepted but not honoured | Leave it `true` |
+| The evaluation account limit has no coded maximum | Keep the normal 10,000 default unless a larger run has been reviewed for cost and output size |
+| `reviewed_by` is saved as text but not checked against the signed-in user | Enter the reviewer's full name. Use a useful, results-based `written_reason`; the job only checks that it is not blank or `REQUIRED` |
+| Every `EVALUATE` run writes a new attempt | Filter by `scoring_build_id` and `scoring_build_attempt_id`, and use only a `READY` summary |
+| Quieter Py4J logging and `NEXTADS_OUTPUT=` are current-branch changes | The linked research runs are older, so a new deployment and run are needed to show those lines in live logs |
+
+A few common questions have short answers:
+
+| Question | Answer |
+| --- | --- |
+| Can I change the research dates in the run form? | No. Change `temporal_split` in YAML, review it and deploy it |
+| Can a candidate use a random split or inspect the final test period? | No. The job owns the dated split and keeps test results hidden until selection |
+| Can AutoML's winner be passed straight to `REVIEW_SELECT`? | No. Add the idea as a checked-in candidate and rerun `RESEARCH` |
+| Can I choose a candidate other than the recommendation? | Yes, if it is `READY` in the same research build and the reason is recorded |
+| Does registering a numeric model version make it live? | No. It does not move an alias or change portfolios, assignments or payloads |
+| What do blank EVALUATE feature dates and candidate attempt mean? | `AUTO`: use the latest accepted feature snapshots; for candidate attempts use completion time descending, then attempt ID descending |
+| Where did a job write its output? | Search for `NEXTADS_OUTPUT=`, then use the table lists in sections 16 and 17 |
+| What does `reused=true` mean? | The same research or model result was reused. Some bookkeeping rows, files or timestamps may still be refreshed |
+
+When recording the work in a PR, include:
+
+- deployed commit SHA and real Databricks job/run links;
+- research build and training-data receipt IDs;
+- split dates, row counts and positive counts;
+- candidate results and the recommendation;
+- chosen candidate, reviewer and reason;
+- final-test metrics and confidence intervals;
+- numeric model version and alias state before/after;
+- evaluation input/output table versions and row counts;
+- proof that protected portfolio, assignment and payload outputs did not change.
+
+## 22. What happens after personal DEV
+
+Saving a numeric model version in personal DEV does not make it live. This workflow never moves an alias or changes a serving portfolio, assignment or payload.
+
+Moving a model through DEV Integration, PREPROD or PROD requires a separate reviewed release:
+
+- feature work merges to `develop`;
+- the release owner cuts `release/*` for PREPROD;
+- PROD is manual and tag-gated from `main`;
+- the exact numeric model version is copied rather than retrained;
+- activation still needs checks for the intended model URI, provider output, portfolio/assignment/payload impact, monitoring and rollback.
+
+See the [model lifecycle runbook](model_lifecycle_runbook.md) before moving or activating any model.
+
+## 23. Glossary
+
+<details>
+<summary>Terms used in job forms and output</summary>
 
 | Term | Meaning in this workflow |
 | --- | --- |
-| Accepted snapshot | A Feature Store output whose build/snapshot metadata is READY and pins an exact Delta version/checksum |
+| Accepted snapshot | A Feature Store output marked `READY`, with a saved Delta version and checksum |
 | Activation | Making a model affect operational provider/portfolio/assignment/payload output; separate from registration |
-| Attempt | One task execution of a deterministic logical operation; repairs get a new execution count |
-| Automatic recommendation | Deterministic validation ordering: PR-AUC descending, log loss ascending, candidate ID ascending |
-| AutoML discovery | Separate bounded experiment over train+validation only; evidence-only and non-registering |
-| Candidate | One declared estimator implementation and parameter set in the standard research comparison |
-| Candidate adapter | Operational plug-in that maps provider scores to eligible/ranked NextAds candidates; not a research estimator |
-| Candidate evaluation ID | Durable `candidate:<digest>` evidence identity; different from the readable `candidate_id` used in the run form |
-| Claim | Mutable concurrency/checkpoint control row guarding one deterministic research/discovery identity |
-| Declaration checksum | SHA-256 identity of the canonical model or research contract |
-| Evidence manifest | Deterministic list of artifact paths, sizes and hashes, itself hashed |
+| Attempt | One task execution. A repair gets a new execution count |
+| Automatic recommendation | Fixed ordering: highest PR-AUC, then lowest log loss, then candidate ID |
+| AutoML discovery | Separate search over train and validation only; it cannot register a model |
+| Candidate | One model option and its settings in the research comparison |
+| Candidate adapter | Operational code that joins model scores to eligible/ranked NextAds adverts; not a research model |
+| Candidate evaluation ID | Saved `candidate:<digest>` result ID; different from the readable `candidate_id` used in the run form |
+| Claim | Lock/progress row used to stop two runs building the same research or AutoML request at once |
+| Declaration checksum | SHA-256 hash of the saved model or research settings |
+| File manifest | List of file paths, sizes and hashes, with its own hash |
 | Feature reference date | Date/version from which a Feature Store lookup is resolved |
 | Held-out/main test | Declared final temporal period whose outcomes are withheld until selection |
-| Immutable frame | PII-reduced durable research rows with hashed lineage and fixed split |
+| Research frame | Fixed research rows with personal IDs removed or hashed and the split saved |
 | Label boundary (`label_end`) | Date proving the complete outcome/maturity window is available |
-| Model build | Receipt tying a model definition/training/selection to one exact registered artifact/version |
+| Model build | Record linking the model settings, training data and selection to one registered version |
 | Model registration | Creating/reusing a numeric Unity Catalog model version; not an alias move or activation |
-| Observation date | Dated labelled event population to which point-in-time features attach |
+| Observation date | Date of the labelled rows to which features are joined |
 | Point-in-time join | Lookup that only admits feature values knowable by prediction time after availability lag |
 | Prevalence | Positive-label rate in the evaluated population |
-| Provider | Canonical scorer/output contract; separate from candidate research implementation |
-| READY candidate | Fit, prediction, evidence, explanation, persistence and reload checks all passed |
-| Research build | Immutable parent identity/result for one declaration, receipt, frame and candidate set |
+| Provider | Standard scoring/output format; separate from the model used in research |
+| `READY` candidate | Training, prediction, result files, explanation, saving and reload checks all passed |
+| Research build | One saved comparison for a model setup, training-data receipt, research frame and candidate set |
 | Research test | True final test split, different from AutoML's internal validation-derived test |
-| Selection decision | Durable AUTO or reviewed choice made before test outcomes are released |
-| Serving slot | Accepted portfolio position (`best`/`best_challenger`) used as EVALUATE's incumbent cohort |
-| Slice | Bounded aggregate subgroup evidence with low-volume suppression |
-| Training-set receipt | Exact observation/feature snapshot/version/checksum and leakage lineage used to construct model data |
+| Selection decision | Saved automatic or manual choice made before test results are shown |
+| Serving slot | Accepted portfolio position (`best` or `best_challenger`) used by `EVALUATE` |
+| Slice | Results for one group, with low-volume outcomes hidden |
+| Training-set receipt | Record of the observation and feature snapshots, versions, checksums and future-data checks used to build model data |
 | Validation | Split used to compare candidates and make the recommendation; not the final test |
 
-## 26. Reference map
+</details>
+
+## 24. Related docs and source
 
 ### Primary declarations and jobs
 
@@ -1972,7 +1793,8 @@ None of those activation decisions is hidden inside research, AutoML, REVIEW_SEL
 - [Generic main candidate job](../pipelines/databricks/jobs/mktg_next_uk_nextads.yml)
 - [Feature Store job](../pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml)
 
-### Runtime and contracts
+<details>
+<summary>Developer source files</summary>
 
 - [Lifecycle dispatcher](../jobs/model/development/run_declared_model_operation.py)
 - [Direct BUILD entry point](../jobs/model/development/run_declared_model.py)
@@ -1990,6 +1812,8 @@ None of those activation decisions is hidden inside research, AutoML, REVIEW_SEL
 - [Selection/registration](../src/next_ads/model_development/research_selection.py)
 - [Output destination logging](../src/next_ads/common/output_locations.py)
 - [Job logging](../src/next_ads/common/job_logging.py)
+
+</details>
 
 ### Related guides
 
