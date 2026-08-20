@@ -4,13 +4,6 @@
 - Goal of the change:
 - Linked work item:
 
-### Target Branch
-
-- Target branch: `release/*`
-- Confirm this follows the route in `docs/CICD/nextads_branch_release_route.md`:
-  - `develop -> release/*`
-  - release fixes remain on `release/*` and are carried back to `develop`
-
 ### Release Candidate Scope
 
 - Source branch or PR being brought into the release:

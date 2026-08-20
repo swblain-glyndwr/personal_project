@@ -4,13 +4,6 @@
 - Goal of the change:
 - Linked work item:
 
-### Target Branch
-
-- Target branch: `main`
-- Confirm this follows the route in `docs/CICD/nextads_branch_release_route.md`:
-  - `release/* -> main -> nextads-vYYYY.MM.DD.N tag -> PROD`
-  - or `hotfix/* -> main -> nextads-vYYYY.MM.DD.N tag -> PROD`
-
 ### Release Evidence
 
 - Validated `release/*` or `hotfix/*` branch:
