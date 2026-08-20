@@ -186,6 +186,7 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
       - task_key: quality_audit_ads_v2
         depends_on:
           - task_key: process_control_sheet_v2
+          - task_key: quality_audit_ads_v1
         spark_python_task:
           python_file: ../../../jobs/nextads_control/quality_audit_adverts.py
           parameters:

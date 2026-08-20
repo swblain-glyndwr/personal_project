@@ -384,7 +384,7 @@ class AdvertQualityAudit:
             )
             .withColumn(
                 "top_ranked_number",
-                F.when("so.item_pos" <= F.lit(20), F.lit(1)).otherwise(
+                F.when(F.col("so.item_pos") <= F.lit(20), F.lit(1)).otherwise(
                     F.lit(0)
                 ),
             )
@@ -393,7 +393,7 @@ class AdvertQualityAudit:
                 F.sum("top_ranked_number").alias(
                     "number_top_ranked_ad_image_items"
                 ),
-                F.count("*").alias("number_ad_image_items_matched"),
+                F.countDistinct("ai.item").alias("number_ad_image_items_matched"),
             )
         )
 
