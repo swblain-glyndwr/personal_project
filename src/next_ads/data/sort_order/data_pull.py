@@ -608,7 +608,10 @@ def sort_order_latest():
     s_control_sheet = spark.table("control_sheet")
 
     output = p_result.join(
-        s_control_sheet.drop("URL", "MASIDToken"),
+        s_control_sheet.withColumn("Themes",
+            F.when(
+                F.col("Themes").isNotNull(), F.trim(F.lower(F.col("Themes")))
+            ).otherwise(F.col("Themes"))).drop("URL", "MASIDToken"),
         on=["UniqueAdID"],
         how="inner",
     ).select(

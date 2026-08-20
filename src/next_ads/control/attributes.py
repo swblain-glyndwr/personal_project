@@ -40,9 +40,7 @@ def parse_ad_attributes(
 
     df_parsed = df_exploded.withColumn(
         "attribute", F.trim(F.col("attribute_pair_split").getItem(0))
-    ).withColumn(
-        "value", F.trim(F.col("attribute_pair_split").getItem(1))
-    )
+    ).withColumn("value", F.trim(F.col("attribute_pair_split").getItem(1)))
 
     df_result = (
         df_parsed.select(ad_id_col, "attribute", "value")

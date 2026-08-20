@@ -24,6 +24,7 @@ default:
     credit_ad_accounts: "@format {this.catalog_read}.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915"
     kids_age_groups_latest: "@format {this.catalog_read}.warehouse.purchased_age_groups_latest"
     eid_audience: "@format {this.catalog_read}.ds_sandbox.nextads_eid_2026"
+    next_ads_sort_order_latest: "@format {this.catalog_write}.{this.schema_write}.next_ads_sort_order_latest"
 
   # Tables written to environment-specific catalog and schema
   tables_write:
@@ -150,6 +151,8 @@ default:
     # cms
     cms_content_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_cms_content_latest"
     cms_content: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_cms_content"
+    advert_quality_metrics_latest: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_quality_metrics_latest"
+    advert_quality_metrics: "@format {this.catalog_write}.{this.schema_write}.{this.client}_nextads_advert_quality_metrics"
   # Physical Delta boundary shared by scoring foundations and model-building
   # consumers. The legacy theme_affinity_predict prefix remains Lakeflow-owned.
   ranking_model_table_prefix: "@format {this.client}_nextads_account_theme_foundation"
