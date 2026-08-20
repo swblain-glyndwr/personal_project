@@ -732,7 +732,7 @@ def main(
             df_latest_payload, ["roamingprofileid"], "left_anti"
         )  # GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
         distinct_nextads_blank = in_exp_notin_source.withColumn(
-            "next_ads", lit("")
+            "next_ads", F.lit("")
         )
 
         write_output_to_csv(
