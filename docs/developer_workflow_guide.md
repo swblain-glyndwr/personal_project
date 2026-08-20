@@ -199,6 +199,8 @@ The normal model-author workflow is declaration plus parameter selection, not cr
 
 The job derives the personal DEV namespaces, registered-model name, control tables and MLflow path. It cannot promote, set an alias or copy a model to another environment. For optional AutoML, run the centrally owned `mktg_next_uk_nextads_model_discovery` job with `enabled=true`, the same declared `model_name`, an exact `research_build_id` and an optional bounded timeout; its separate ML runtime never registers or activates a model.
 
+The table above is only the launch summary. Before declaring or running model research, read [Model Research Output Layer: Complete Data Scientist Walkthrough](model_research_walkthrough.md) for every DS-selectable option, declaration-owned choice, platform-controlled value, metric/evidence requirement, output destination, retry rule, current limitation and the worked Shopping Bag values.
+
 ### **Phase 6: Create Azure DevOps Pull Request**
 
 Once you're satisfied with results, create a PR to merge the feature branch into `develop`.

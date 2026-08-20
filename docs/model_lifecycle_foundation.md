@@ -13,6 +13,8 @@ The foundation is:
 
 Operationally, each model should add a declaration and small adapters that resolve its contracts from repo config, then use the centrally owned model lifecycle resource in DEV and shared lifecycle code for controlled promotion and monitoring. Model-specific code should own only model fitting, scoring and feature contracts.
 
+The exhaustive DS-facing declaration and execution guide is [Model Research Output Layer: Complete Data Scientist Walkthrough](model_research_walkthrough.md). It owns the detailed research/selection/evaluation options; this page owns the broader shared lifecycle foundation.
+
 ## After This PR Lands
 
 After this PR is completed, new operational models should treat `src/next_ads/ml/lifecycle` as the shared contract. A new model should not copy Theme Affinity lifecycle code, add another MLflow helper module, or introduce a model-specific promotion framework.

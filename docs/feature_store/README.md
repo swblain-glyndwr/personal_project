@@ -17,6 +17,8 @@
 
 ## Using Accepted Features In A Model
 
+For the full consumer workflow, use [Model Research Output Layer: Complete Data Scientist Walkthrough](../model_research_walkthrough.md). It explains every model and ResearchPlan field, the exact BUILD/RESEARCH/REVIEW_SELECT/EVALUATE and AutoML choices, point-in-time and test-withholding controls, output tables, MLflow evidence, retries and the worked Shopping Bag proof. This section remains the concise Feature Store boundary.
+
 The implemented Shopping Bag declaration demonstrates how the Feature Store is used without making it part of customer serving. Accepted feature builders publish observed click labels, 90-day account activity and advert features for explicit dates. The centrally owned model-development job then resolves only READY snapshots, records their exact Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the selected DEV model version in MLflow. A data scientist adds or changes the declaration rather than adding a model-specific Databricks job.
 
 An optional research section in `nextads_models.yaml` uses the same accepted-snapshot boundary for candidate comparison. The generic research operation creates one immutable, PII-reduced frame from the exact training receipt and logs one parent MLflow run with a separate nested run for each candidate. The current Shopping Bag declaration supplies logistic regression, random forest, gradient-boosted trees and Spark XGBoost, plus a non-selectable prevalence baseline.

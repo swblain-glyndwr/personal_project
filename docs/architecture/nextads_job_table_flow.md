@@ -232,6 +232,7 @@ These are control, evidence and evaluation tables rather than reusable model fea
 | What order do the Feature Store tasks run in? | [`feature_store_flow.md`](feature_store_flow.md) |
 | What is each feature table's grain, key and refresh expectation? | [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) |
 | What is implemented, proven in DEV or still blocked? | [Feature Store README](../feature_store/README.md) and [`migration_backlog.md`](../feature_store/migration_backlog.md) |
+| What does a data scientist select for declared research, AutoML, review and isolated evaluation, and why? | [Model Research Output Layer: Complete Data Scientist Walkthrough](../model_research_walkthrough.md) |
 | How do accepted features become comparable candidate evidence, a selected DEV model and isolated evaluation scores? | [`feature_store_flow.md`](feature_store_flow.md#declared-model-consumption-and-research-boundary) |
 | How does Theme Affinity operate today? | [`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md) |
 | How are exact model versions promoted? | [`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md) |

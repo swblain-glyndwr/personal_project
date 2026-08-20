@@ -115,3 +115,88 @@ def test_automl_resource_is_included_once_and_scoring_can_load_xgboost():
         / "smoke_model_research_runtime.py"
     ).read_text()
     assert 'objective="binary:logistic"' not in smoke
+
+
+def test_complete_data_scientist_walkthrough_covers_public_options():
+    walkthrough_path = PROJECT_ROOT / "docs" / "model_research_walkthrough.md"
+    walkthrough = walkthrough_path.read_text(encoding="utf-8")
+
+    resources = (
+        (
+            "mktg_next_uk_nextads_model_development.yml",
+            "model_development_job",
+        ),
+        (
+            "mktg_next_uk_nextads_model_research_automl.yml",
+            "model_research_automl_job",
+        ),
+        (
+            "mktg_next_uk_nextads_model_scoring.yml",
+            "mktg_next_uk_nextads_model_scoring_config",
+        ),
+        ("mktg_next_uk_nextads.yml", "mktg_next_uk_nextads_config"),
+        (
+            "mktg_next_uk_nextads_feature_store.yml",
+            "nextads_feature_store_job",
+        ),
+    )
+    for resource_name, job_key in resources:
+        job = _yaml(JOBS_ROOT / resource_name)[job_key]
+        if "parameters" not in job:
+            assert len(job) == 1
+            job = next(iter(job.values()))
+        for parameter in job["parameters"]:
+            assert f"`{parameter['name']}`" in walkthrough
+
+    for operation in ("BUILD", "RESEARCH", "REVIEW_SELECT", "EVALUATE"):
+        assert f"`{operation}`" in walkthrough
+
+    for research_field in (
+        "temporal_split",
+        "candidates",
+        "evaluation_rules",
+        "slices",
+        "selection_policy",
+        "minimum_successful_candidates",
+        "explanation_requirements",
+        "evaluation_schema_version",
+        "evidence_producers",
+        "candidate_search",
+    ):
+        assert f"`{research_field}`" in walkthrough
+
+    for evaluation_rule in (
+        "required_metrics",
+        "required_evidence",
+        "top_fractions",
+        "confidence_interval_metrics",
+        "confidence_level",
+        "confidence_interval_resamples",
+        "confidence_interval_seed",
+        "minimum_slice_rows",
+        "prevalence_baseline",
+    ):
+        assert f"`{evaluation_rule}`" in walkthrough
+
+    for output_table in (
+        "next_uk_nextads_model_research_claims",
+        "next_uk_nextads_model_research_frames",
+        "next_uk_nextads_model_research_builds",
+        "next_uk_nextads_candidate_evaluations",
+        "next_uk_nextads_model_selection_decisions",
+        "next_uk_nextads_automl_discovery_receipts",
+        "next_uk_nextads_model_evaluation_scoring_builds",
+        "next_uk_nextads_model_evaluation_scores",
+    ):
+        assert output_table in walkthrough
+
+    for linked_document in (
+        PROJECT_ROOT / "docs" / "model_lifecycle_runbook.md",
+        PROJECT_ROOT / "docs" / "feature_store" / "README.md",
+        PROJECT_ROOT / "docs" / "developer_workflow_guide.md",
+        PROJECT_ROOT / "docs" / "architecture" / "README.md",
+        PROJECT_ROOT / "docs" / "architecture" / "nextads_job_table_flow.md",
+    ):
+        assert "model_research_walkthrough.md" in linked_document.read_text(
+            encoding="utf-8"
+        )

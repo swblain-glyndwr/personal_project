@@ -8,6 +8,8 @@ This runbook documents the jobs as they operate today. Do not run PREPROD or PRO
 
 For the visual model movement path, see [architecture/mlflow_model_lifecycle.md](architecture/mlflow_model_lifecycle.md).
 
+For the complete data-scientist workflow—including every model/research declaration field, every lifecycle and AutoML run option, evidence interpretation, retries, outputs, limitations and the end-to-end Shopping Bag proof—use [Model Research Output Layer: Complete Data Scientist Walkthrough](model_research_walkthrough.md). This runbook owns environment movement; the walkthrough owns DEV research and isolated evaluation.
+
 ## Reference Files
 
 - Shared lifecycle contract: [`src/next_ads/ml/lifecycle/spec.py`](../src/next_ads/ml/lifecycle/spec.py)
