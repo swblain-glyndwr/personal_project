@@ -1266,9 +1266,13 @@ class AutoMLDiscoveryReceipt:
                 value is not None
                 and (not isinstance(value, str) or not value.strip())
                 for value in links
-            ) or not any(links):
+            ):
                 raise ValueError(
-                    "Every AutoML trial needs a generated notebook link"
+                    "AutoML trial notebook links must be non-empty strings"
+                )
+            if row["is_best_trial"] is True and not any(links):
+                raise ValueError(
+                    "The best AutoML trial needs a generated notebook link"
                 )
         best_links = (
             best_rows[0]["notebook_artifact_uri"],

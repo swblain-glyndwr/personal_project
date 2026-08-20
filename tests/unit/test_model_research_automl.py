@@ -774,7 +774,43 @@ def test_leaderboard_is_a_real_mlflow_artifact_and_trials_are_linked(
     assert calls[-1] == ("set_terminated", "leaderboard-run", "FINISHED")
 
 
-def test_summary_rejects_a_trial_without_generated_notebook_evidence():
+def test_summary_allows_non_best_trial_without_generated_notebook_evidence():
+    best = SimpleNamespace(
+        mlflow_run_id="best-run",
+        evaluation_metric_score=0.8,
+        notebook_url="https://workspace/notebook/1",
+    )
+    other = SimpleNamespace(
+        mlflow_run_id="trial-without-notebook",
+        evaluation_metric_score=0.7,
+    )
+    summary = SimpleNamespace(
+        experiment=SimpleNamespace(experiment_id="experiment-1"),
+        trials=(other, best),
+        best_trial=best,
+    )
+
+    fields = discovery._summary_receipt_fields(
+        summary,
+        research_build_id="research-logical",
+        discovery_id="discovery-logical",
+        research_parent_run_id="research-parent-run",
+    )
+
+    leaderboard = json.loads(fields["trial_evidence_json"])
+    row = next(
+        item
+        for item in leaderboard["trials"]
+        if item["trial_id"] == "trial-without-notebook"
+    )
+    assert row["is_best_trial"] is False
+    assert row["notebook_artifact_uri"] is None
+    assert row["notebook_path"] is None
+    assert row["notebook_url"] is None
+    assert fields["recipe_artifact_uri"] == "https://workspace/notebook/1"
+
+
+def test_summary_rejects_best_trial_without_generated_notebook_evidence():
     trial = SimpleNamespace(
         mlflow_run_id="trial-without-notebook",
         evaluation_metric_score=0.7,
@@ -786,6 +822,53 @@ def test_summary_rejects_a_trial_without_generated_notebook_evidence():
     )
 
     with pytest.raises(ValueError, match="generated notebook association"):
+        discovery._summary_receipt_fields(
+            summary,
+            research_build_id="research-logical",
+            discovery_id="discovery-logical",
+            research_parent_run_id="research-parent-run",
+        )
+
+
+def test_summary_still_rejects_duplicate_trial_ids():
+    best = SimpleNamespace(
+        mlflow_run_id="duplicate-run",
+        evaluation_metric_score=0.8,
+        notebook_url="https://workspace/notebook/1",
+    )
+    duplicate = SimpleNamespace(
+        mlflow_run_id="duplicate-run",
+        evaluation_metric_score=0.7,
+        artifact_uri="runs:/duplicate-run/notebook",
+    )
+    summary = SimpleNamespace(
+        experiment=SimpleNamespace(experiment_id="experiment-1"),
+        trials=(best, duplicate),
+        best_trial=best,
+    )
+
+    with pytest.raises(ValueError, match="duplicate trial run IDs"):
+        discovery._summary_receipt_fields(
+            summary,
+            research_build_id="research-logical",
+            discovery_id="discovery-logical",
+            research_parent_run_id="research-parent-run",
+        )
+
+
+def test_summary_still_rejects_more_than_bounded_trial_limit():
+    best = SimpleNamespace(
+        mlflow_run_id="best-run",
+        evaluation_metric_score=0.8,
+        notebook_url="https://workspace/notebook/1",
+    )
+    summary = SimpleNamespace(
+        experiment=SimpleNamespace(experiment_id="experiment-1"),
+        trials=(best,) * (discovery.MAX_AUTOML_TRIALS + 1),
+        best_trial=best,
+    )
+
+    with pytest.raises(ValueError, match="bounded trial evidence limit"):
         discovery._summary_receipt_fields(
             summary,
             research_build_id="research-logical",

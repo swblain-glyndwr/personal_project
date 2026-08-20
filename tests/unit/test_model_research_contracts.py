@@ -363,7 +363,11 @@ def test_automl_receipt_is_bounded_and_pinned_to_the_research_frame():
                 "rank": rank,
                 "trial_id": trial_id,
                 "primary_metric_value": score,
-                "notebook_artifact_uri": f"runs:/{trial_id}/notebook",
+                "notebook_artifact_uri": (
+                    f"runs:/{trial_id}/notebook"
+                    if trial_id == "trial-3"
+                    else None
+                ),
                 "notebook_path": None,
                 "notebook_url": None,
                 "is_best_trial": trial_id == "trial-3",
@@ -414,5 +418,20 @@ def test_automl_receipt_is_bounded_and_pinned_to_the_research_frame():
     )
 
     assert receipt.timeout_minutes == 30
+    missing_best = json.loads(encoded)
+    missing_best["trials"][0]["notebook_artifact_uri"] = None
+    missing_best_encoded = json.dumps(
+        missing_best, sort_keys=True, separators=(",", ":")
+    )
+    with pytest.raises(ValueError, match="best AutoML trial needs"):
+        AutoMLDiscoveryReceipt(
+            **{
+                **receipt.__dict__,
+                "trial_evidence_json": missing_best_encoded,
+                "leaderboard_artifact_sha256": hashlib.sha256(
+                    missing_best_encoded.encode("utf-8")
+                ).hexdigest(),
+            }
+        )
     with pytest.raises(ValueError, match="cannot exceed 120"):
         AutoMLDiscoveryReceipt(**{**receipt.__dict__, "timeout_minutes": 121})

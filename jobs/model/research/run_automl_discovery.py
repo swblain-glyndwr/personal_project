@@ -442,10 +442,13 @@ def _trial_evidence(
         _object_value(trial, "notebook_url"),
         f"notebook URL for trial {trial_id}",
     )
-    if not any((notebook_artifact_uri, notebook_path, notebook_url)):
+    is_best_trial = trial_id == best_trial_id
+    if is_best_trial and not any(
+        (notebook_artifact_uri, notebook_path, notebook_url)
+    ):
         raise ValueError(
             "AutoML summary did not expose a generated notebook association "
-            f"for trial {trial_id}"
+            f"for best trial {trial_id}"
         )
     return {
         "trial_id": trial_id,
@@ -453,7 +456,7 @@ def _trial_evidence(
         "notebook_artifact_uri": notebook_artifact_uri,
         "notebook_path": notebook_path,
         "notebook_url": notebook_url,
-        "is_best_trial": trial_id == best_trial_id,
+        "is_best_trial": is_best_trial,
     }
 
 
