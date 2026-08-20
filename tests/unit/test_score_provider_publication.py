@@ -157,6 +157,7 @@ def test_provider_signals_are_written_once_and_repair_reuses_receipt(
         select=lambda *_columns: frame,
     )
     writes = []
+    outputs = []
     monkeypatch.setattr(
         publication, "_validate_signal_contract", lambda *_a: None
     )
@@ -167,6 +168,11 @@ def test_provider_signals_are_written_once_and_repair_reuses_receipt(
         publication,
         "replace_scope_by_name",
         lambda *_a, **_k: writes.append("signals") or _receipt(),
+    )
+    monkeypatch.setattr(
+        publication,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append((destination, kwargs)),
     )
 
     receipt = stage_provider_signals(
@@ -192,6 +198,20 @@ def test_provider_signals_are_written_once_and_repair_reuses_receipt(
         git_commit="abc123",
     )
     assert writes == ["signals"]
+    assert outputs == [
+        (
+            SIGNALS_TABLE,
+            {
+                "kind": "delta_table",
+                "details": {
+                    "delta_version": 42,
+                    "receipt_id": "receipt-signals",
+                    "row_count": 100,
+                    "reused": True,
+                },
+            },
+        )
+    ]
 
 
 def test_ready_provider_manifest_uses_target_schema_and_is_last(monkeypatch):

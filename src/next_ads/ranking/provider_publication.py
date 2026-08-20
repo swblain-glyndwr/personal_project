@@ -15,6 +15,7 @@ from next_ads.common.delta_writes import (
     typed_table_frame,
     validate_typed_table_schema,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.ranking.scoring_manifest import (
     READY_FOR_NEXTADS,
     ScoreProviderBuild,
@@ -152,6 +153,16 @@ def stage_provider_signals(
         attempt_id=context.provider_build_attempt_id,
     )
     if existing is not None:
+        log_output_location(
+            table,
+            kind="delta_table",
+            details={
+                "delta_version": existing.delta_version,
+                "receipt_id": existing.receipt_id,
+                "row_count": existing.row_count,
+                "reused": True,
+            },
+        )
         return existing
     return replace_scope_by_name(
         frame.select(*PROVIDER_SIGNAL_COLUMNS),

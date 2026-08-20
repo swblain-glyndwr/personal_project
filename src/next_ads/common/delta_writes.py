@@ -18,6 +18,8 @@ from delta.exceptions import DeltaConcurrentModificationException
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
+from next_ads.common.output_locations import log_output_location
+
 
 __all__ = [
     "DeltaRetryPolicy",
@@ -773,6 +775,15 @@ def _write_from_temporary_view(
             )
     finally:
         spark.catalog.dropTempView(source_view)
+    log_output_location(
+        receipt.target_table or target_table,
+        kind="delta_table",
+        details={
+            "delta_version": receipt.delta_version,
+            "receipt_id": receipt.receipt_id,
+            "row_count": receipt.row_count,
+        },
+    )
     return receipt
 
 

@@ -135,6 +135,7 @@ def test_code_change_starts_a_fresh_attempt_after_terminal_failure(
         code_sha="old-sha",
     )
     state = [stored]
+    outputs = []
     monkeypatch.setattr(
         research_claims,
         "typed_table_frame",
@@ -153,6 +154,13 @@ def test_code_change_starts_a_fresh_attempt_after_terminal_failure(
         research_claims,
         "load_research_claim",
         lambda *_args, **_kwargs: state[0],
+    )
+    monkeypatch.setattr(
+        research_claims,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
     )
 
     acquired = research_claims.claim_research_build(
@@ -174,6 +182,20 @@ def test_code_change_starts_a_fresh_attempt_after_terminal_failure(
     assert acquired.code_sha == "fixed-sha"
     assert acquired.checkpoint == research_claims.CLAIMED
     assert acquired.failure_reason is None
+    assert outputs == [
+        {
+            "destination": (
+                "catalog.schema.next_uk_nextads_model_research_claims"
+            ),
+            "kind": "delta_table",
+            "details": {
+                "checkpoint": research_claims.CLAIMED,
+                "checkpoint_version": 5,
+                "operation": "claim_research_build",
+                "reused": False,
+            },
+        }
+    ]
 
 
 def test_transition_merge_uses_lease_and_checkpoint_version_cas():
@@ -305,6 +327,7 @@ def test_checkpoint_transition_locks_binding_and_fences_stale_token(
     monkeypatch,
 ):
     state = [_claim()]
+    outputs = []
     monkeypatch.setattr(
         research_claims,
         "typed_table_frame",
@@ -320,6 +343,13 @@ def test_checkpoint_transition_locks_binding_and_fences_stale_token(
         state[0] = research_claims.ResearchClaim(**frame.row)
 
     monkeypatch.setattr(research_claims, "_merge_claim_transition", merge)
+    monkeypatch.setattr(
+        research_claims,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
+    )
 
     transitioned = research_claims.advance_research_claim(
         object(),
@@ -337,6 +367,20 @@ def test_checkpoint_transition_locks_binding_and_fences_stale_token(
     assert transitioned.checkpoint == research_claims.FRAME_READY
     assert transitioned.checkpoint_version == 1
     assert transitioned.research_frame_binding == _binding()
+    assert outputs == [
+        {
+            "destination": (
+                "catalog.schema.next_uk_nextads_model_research_claims"
+            ),
+            "kind": "delta_table",
+            "details": {
+                "checkpoint": research_claims.FRAME_READY,
+                "checkpoint_version": 1,
+                "operation": "advance_research_claim",
+                "reused": False,
+            },
+        }
+    ]
 
     with pytest.raises(
         research_claims.ResearchClaimConflictError,
@@ -402,6 +446,52 @@ def test_release_keeps_checkpoint_and_expires_the_fenced_lease(monkeypatch):
     assert released.checkpoint_version == 4
     assert released.lease_expires_at == released_at
     assert released.updated_at == released_at
+
+
+def test_terminal_claim_noop_logs_exact_reused_table(monkeypatch):
+    current = _claim(
+        checkpoint=research_claims.COMPLETE,
+        checkpoint_version=7,
+    )
+    outputs = []
+    monkeypatch.setattr(
+        research_claims,
+        "load_research_claim",
+        lambda *_args, **_kwargs: current,
+    )
+    monkeypatch.setattr(
+        research_claims,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
+    )
+
+    returned = research_claims.renew_research_claim(
+        object(),
+        catalog="catalog",
+        schema="schema",
+        research_build_id=current.research_build_id,
+        owner_invocation_id=current.owner_invocation_id,
+        lease_token=current.lease_token,
+        now=NOW,
+    )
+
+    assert returned is current
+    assert outputs == [
+        {
+            "destination": (
+                "catalog.schema.next_uk_nextads_model_research_claims"
+            ),
+            "kind": "delta_table",
+            "details": {
+                "checkpoint": research_claims.COMPLETE,
+                "checkpoint_version": 7,
+                "operation": "renew_research_claim",
+                "reused": True,
+            },
+        }
+    ]
 
 
 def test_failed_claim_is_terminal(monkeypatch):

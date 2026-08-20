@@ -42,6 +42,7 @@ sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from dsutils.dbc import configure_spark
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.model_development import (
     build_training_set_from_feature_store,
     create_model_development_tables,
@@ -301,7 +302,7 @@ def run_research(
 def main(argv: list[str] | None = None) -> None:
     """Run declared research and emit bounded evidence."""
     args = parse_args(argv)
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     evidence = run_research(args)
     LOGGER.info(
         "%s%s",

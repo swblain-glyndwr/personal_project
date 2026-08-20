@@ -6,12 +6,23 @@ import argparse
 import json
 import logging
 from pathlib import Path
+import sys
 from typing import Any
 
 import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = PROJECT_ROOT / "src"
+if not (SRC_ROOT / "next_ads").is_dir():
+    raise RuntimeError(f"Canonical NextAds package not found under {SRC_ROOT}")
+sys.path.insert(0, str(SRC_ROOT))
+sys.path.insert(1, str(PROJECT_ROOT))
+
+
+from next_ads.common.job_logging import configure_job_logging
+
+
 DEFAULT_SCORING_CONFIG = (
     PROJECT_ROOT / "configs" / "scoring" / "scoring_settings.yaml"
 )
@@ -90,7 +101,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-    logging.basicConfig(level=logging.INFO)
+    configure_job_logging("INFO")
     evidence = validate_model_scoring_request(args.model_name)
 
     from dsutils.dbc import get_dbutils

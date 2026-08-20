@@ -34,6 +34,7 @@ from dsutils.argparser import get_job_parser
 from dsutils.logtools import configure_logging, get_logger
 from next_ads.common import config_manager
 from next_ads.common.delta_writes import find_delta_write_receipt
+from next_ads.common.output_locations import log_output_location
 from next_ads.common.spark_runtime import configure_lean_spark
 from next_ads.common.paths import load_client_config
 from next_ads.common.snapshot_writes import (
@@ -317,6 +318,16 @@ def _run_markov(
                 "Reusing Markov signals receipt %s at Delta version %s",
                 existing_receipt.receipt_id,
                 existing_receipt.delta_version,
+            )
+            log_output_location(
+                config.tables_write.score_provider_signals,
+                kind="delta_table",
+                details={
+                    "delta_version": existing_receipt.delta_version,
+                    "receipt_id": existing_receipt.receipt_id,
+                    "row_count": existing_receipt.row_count,
+                    "reused": True,
+                },
             )
             provider = config.scoring.providers[provider_context.provider_id]
             publish_provider_build(

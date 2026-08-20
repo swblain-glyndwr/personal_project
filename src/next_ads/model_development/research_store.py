@@ -20,6 +20,7 @@ from next_ads.common.delta_writes import (
     validate_replace_source_scope,
     validate_unique_non_null_keys,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.features.feature_builds import feature_value_checksum
 from next_ads.model_development.research_contracts import (
     AutoMLDiscoveryReceipt,
@@ -322,6 +323,15 @@ def _persist_immutable_row(
                 "Research attempt rows are immutable; changed columns: "
                 + ", ".join(differences)
             )
+        log_output_location(
+            table,
+            kind="delta_table",
+            details={
+                "operation": operation,
+                "reused": True,
+                "status": row.get("status"),
+            },
+        )
         return table
     frame = typed_table_frame(spark, table, [row])
     _merge_insert_only(
@@ -344,6 +354,15 @@ def _persist_immutable_row(
             "Concurrent immutable research attempt differs in columns: "
             + ", ".join(differences)
         )
+    log_output_location(
+        table,
+        kind="delta_table",
+        details={
+            "operation": operation,
+            "reused": False,
+            "status": row.get("status"),
+        },
+    )
     return table
 
 
@@ -867,6 +886,18 @@ def persist_research_frame(
         )
     if receipt.schema_checksum != packed_schema_checksum:
         raise ValueError("Research frame Delta receipt schema does not match")
+    if prior is not None:
+        log_output_location(
+            target,
+            kind="delta_table",
+            details={
+                "delta_version": int(receipt.delta_version),
+                "operation": "model_research_frame",
+                "receipt_id": receipt.receipt_id,
+                "reused": True,
+                "row_count": key_summary.row_count,
+            },
+        )
     return ResearchFrameBinding(
         **identities,
         research_frame_table=target,

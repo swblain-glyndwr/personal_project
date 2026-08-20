@@ -1,5 +1,7 @@
 from dsutils.logtools import get_logger
 
+from next_ads.common.output_locations import log_output_location
+
 logger = get_logger(__name__)
 
 
@@ -46,6 +48,7 @@ def create_realtime_known_reranking_weighting_rules(
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated")
+    log_output_location(output_table, kind="delta_table")
 
     return
 
@@ -124,6 +127,7 @@ def create_central_product_details_by_pid(
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated")
+    log_output_location(output_table, kind="delta_table")
 
     return
 
@@ -231,6 +235,7 @@ def advert_details_build(
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated")
+    log_output_location(output_table, kind="delta_table")
 
     return
 
@@ -316,6 +321,7 @@ def realtime_reranking_preranked_ads_build(
         output_table
     )
     logger.info(f"Data in {output_table} updated")
+    log_output_location(output_table, kind="delta_table")
 
     return
 
@@ -393,5 +399,6 @@ def realtime_reranking_item_weights_build(
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated")
+    log_output_location(output_table, kind="delta_table")
 
     return

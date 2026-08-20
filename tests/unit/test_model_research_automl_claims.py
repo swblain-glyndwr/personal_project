@@ -138,6 +138,69 @@ def test_claim_insert_has_no_takeover_or_matched_update():
     assert "lease_expires_at" in statement
 
 
+def test_new_claim_logs_exact_verified_destination(monkeypatch):
+    expected = _claim()
+    state = []
+    outputs = []
+    monkeypatch.setattr(
+        automl_claims,
+        "typed_table_frame",
+        lambda _spark, _table, rows: _Frame(rows[0]),
+    )
+
+    def merge(_spark, *, frame, **_kwargs):
+        state.append(automl_claims.AutoMLDiscoveryClaim(**frame.row))
+
+    monkeypatch.setattr(automl_claims, "_merge_claim_insert", merge)
+    monkeypatch.setattr(
+        automl_claims,
+        "load_automl_claim",
+        lambda *_args, **_kwargs: state[0],
+    )
+    monkeypatch.setattr(
+        automl_claims,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
+    )
+
+    stored = automl_claims.claim_automl_discovery(
+        object(),
+        catalog="catalog",
+        schema="schema",
+        discovery_id=expected.discovery_id,
+        discovery_attempt_id=expected.discovery_attempt_id,
+        request_checksum=expected.request_checksum,
+        research_build_id=expected.research_build_id,
+        research_attempt_id=expected.research_attempt_id,
+        research_frame_id=expected.research_frame_id,
+        research_frame_attempt_id=expected.research_frame_attempt_id,
+        research_frame_delta_version=expected.research_frame_delta_version,
+        timeout_minutes=expected.timeout_minutes,
+        experiment_path=expected.experiment_path,
+        code_sha=expected.code_sha,
+        owner_invocation_id=expected.owner_invocation_id,
+        now=NOW,
+    )
+
+    assert stored.checkpoint == automl_claims.CLAIMED
+    assert outputs == [
+        {
+            "destination": (
+                "catalog.schema.next_uk_nextads_automl_discovery_claims"
+            ),
+            "kind": "delta_table",
+            "details": {
+                "checkpoint": automl_claims.CLAIMED,
+                "checkpoint_version": 0,
+                "operation": "claim_automl_discovery",
+                "reused": False,
+            },
+        }
+    ]
+
+
 def test_expired_unknown_claim_still_blocks_duplicate_experiment(monkeypatch):
     stored = _claim(
         checkpoint=automl_claims.RUNNING,
@@ -191,6 +254,7 @@ def test_evidence_transition_is_token_and_version_fenced(monkeypatch):
             checkpoint_version=1,
         )
     ]
+    outputs = []
     monkeypatch.setattr(
         automl_claims,
         "typed_table_frame",
@@ -206,6 +270,13 @@ def test_evidence_transition_is_token_and_version_fenced(monkeypatch):
         state[0] = automl_claims.AutoMLDiscoveryClaim(**frame.row)
 
     monkeypatch.setattr(automl_claims, "_merge_owned_transition", merge)
+    monkeypatch.setattr(
+        automl_claims,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
+    )
 
     stored = automl_claims.record_automl_evidence(
         object(),
@@ -221,6 +292,21 @@ def test_evidence_transition_is_token_and_version_fenced(monkeypatch):
     assert stored.experiment_id == "experiment-1"
     assert stored.trial_count == 1
     assert stored.leaderboard_run_id == "leaderboard-run"
+    assert outputs == [
+        {
+            "destination": (
+                "catalog.schema.next_uk_nextads_automl_discovery_claims"
+            ),
+            "kind": "delta_table",
+            "details": {
+                "checkpoint": automl_claims.EVIDENCE_READY,
+                "checkpoint_version": 2,
+                "operation": "record_automl_evidence",
+                "previous_checkpoint": automl_claims.RUNNING,
+                "reused": False,
+            },
+        }
+    ]
 
 
 def test_transition_merge_uses_owner_token_and_checkpoint_version_cas():

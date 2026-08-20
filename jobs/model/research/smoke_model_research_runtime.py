@@ -43,6 +43,7 @@ sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from dsutils.dbc import configure_spark
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.model_development.research_explainability import (
     FeatureNameMapping,
     aggregate_bounded_contributions,
@@ -163,7 +164,7 @@ def _constant_score_metrics(spark) -> tuple[float, float, float]:
 
 def main() -> None:
     args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     spark = configure_spark()
     versions = _package_versions()
     if sys.version_info[:2] != (3, 11):

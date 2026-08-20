@@ -46,6 +46,7 @@ from jobs.model.development import run_declared_model
 from jobs.model.development import run_shopping_bag_ongoing_evaluation
 from jobs.model.research import run_declared_research
 from jobs.model.research import select_research_candidate
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.model_development import ModelPluginRegistry
 from next_ads.model_development.registry import (
     load_model_definition,
@@ -478,7 +479,7 @@ def run_operation(
 def main(argv: list[str] | None = None) -> None:
     """Run one shared lifecycle operation and emit bounded evidence."""
     args = parse_args(argv)
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     evidence = run_operation(args)
     LOGGER.info(
         "%s%s",

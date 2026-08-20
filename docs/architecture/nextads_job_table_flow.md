@@ -4,6 +4,12 @@ This is the inclusive entry point for every NextAds job declared under `pipeline
 
 The page stays at a human-readable route level. Linked documents own detailed keys, schemas, schedules, runtime evidence and operating instructions. Physical catalogs and schemas vary by bundle target; table names below are logical names. An in-flight job being declared on a feature branch does not prove that it is deployed, scheduled or proven in a shared environment.
 
+## Finding A Run's Outputs
+
+Run outputs expose their destinations in one of two ways. Repository-owned modern table writes and previously implicit external sinks use a compact `NEXTADS_OUTPUT=` JSON line; Delta outputs also include the committed version, row count and receipt when those values are available. Established jobs whose existing success message already contains the exact resolved table or file path keep that message. Registered-model and MLflow outputs remain named in their operation-specific evidence marker. SQL and Lakeflow tasks expose their declared output tables in the task statement or pipeline graph.
+
+Read-only validation and smoke tasks do not emit an output destination. A reused table reference may be logged with `reused=true`; operation-specific evidence markers identify reused receipts, runs, versions and artifacts that were not rewritten.
+
 ## Assignment And Delivery Route
 
 ```mermaid

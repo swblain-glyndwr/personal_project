@@ -12,6 +12,7 @@ from next_ads.common.delta_writes import (
     quote_identifier,
     quote_qualified_identifier,
 )
+from next_ads.common.output_locations import log_output_location
 
 
 ACTIVE = "ACTIVE"
@@ -352,6 +353,15 @@ WHEN NOT MATCHED THEN INSERT ({insert_columns}) VALUES ({insert_values})
         raise ValueError(
             f"Context slot {context.context_slot} already has an active lease"
         )
+    log_output_location(
+        context_table,
+        kind="delta_table",
+        details={
+            "context_slot": context.context_slot,
+            "operation": "activate_provider_context",
+            "status": ACTIVE,
+        },
+    )
 
 
 def transition_provider_context(
@@ -402,6 +412,15 @@ WHERE ContextSlot = '{escaped_slot}'
         status,
     ):
         raise ValueError("Provider context release ownership check failed")
+    log_output_location(
+        context_table,
+        kind="delta_table",
+        details={
+            "context_slot": context.context_slot,
+            "operation": "transition_provider_context",
+            "status": status,
+        },
+    )
 
 
 def load_reusable_provider_context(

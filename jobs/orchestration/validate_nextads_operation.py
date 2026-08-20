@@ -4,6 +4,19 @@ from __future__ import annotations
 
 import argparse
 import logging
+from pathlib import Path
+import sys
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = PROJECT_ROOT / "src"
+if not (SRC_ROOT / "next_ads").is_dir():
+    raise RuntimeError(f"Canonical NextAds package not found under {SRC_ROOT}")
+sys.path.insert(0, str(SRC_ROOT))
+sys.path.insert(1, str(PROJECT_ROOT))
+
+
+from next_ads.common.job_logging import configure_job_logging
 
 
 CANDIDATE_BUILD = "CANDIDATE_BUILD"
@@ -30,7 +43,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-    logging.basicConfig(level=logging.INFO)
+    configure_job_logging("INFO")
     operation = validate_operation(args.operation)
     LOGGER.info("Validated NextAds job operation %s", operation)
 

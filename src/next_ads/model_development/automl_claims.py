@@ -15,6 +15,7 @@ from next_ads.common.delta_writes import (
     sql_literal,
     typed_table_frame,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.model_development.research_store import (
     AUTOML_DISCOVERY_CLAIM_TABLE,
 )
@@ -595,6 +596,16 @@ def claim_automl_discovery(
     )
     if stored.lease_token != proposed.lease_token:
         raise automl_claim_recovery_error(stored)
+    log_output_location(
+        target,
+        kind="delta_table",
+        details={
+            "checkpoint": stored.checkpoint,
+            "checkpoint_version": stored.checkpoint_version,
+            "operation": "claim_automl_discovery",
+            "reused": False,
+        },
+    )
     return stored
 
 
@@ -606,6 +617,7 @@ def _owned_transition(
     current: AutoMLDiscoveryClaim,
     expected_checkpoint: str,
     checkpoint: str,
+    operation: str,
     now: datetime | None = None,
     **changes: object,
 ) -> AutoMLDiscoveryClaim:
@@ -640,6 +652,17 @@ def _owned_transition(
         raise AutoMLClaimConflictError(
             "AutoML discovery claim changed concurrently during transition"
         )
+    log_output_location(
+        target,
+        kind="delta_table",
+        details={
+            "checkpoint": stored.checkpoint,
+            "checkpoint_version": stored.checkpoint_version,
+            "operation": operation,
+            "previous_checkpoint": expected_checkpoint,
+            "reused": False,
+        },
+    )
     return stored
 
 
@@ -659,6 +682,7 @@ def start_automl_discovery(
         current=claim,
         expected_checkpoint=CLAIMED,
         checkpoint=RUNNING,
+        operation="start_automl_discovery",
         now=now,
     )
 
@@ -688,6 +712,7 @@ def record_automl_evidence(
         current=claim,
         expected_checkpoint=RUNNING,
         checkpoint=EVIDENCE_READY,
+        operation="record_automl_evidence",
         now=now,
         experiment_id=_required_text(experiment_id, "experiment_id"),
         trial_count=_non_negative_integer(trial_count, "trial_count"),
@@ -728,6 +753,7 @@ def complete_automl_claim(
         current=claim,
         expected_checkpoint=EVIDENCE_READY,
         checkpoint=COMPLETE,
+        operation="complete_automl_claim",
         now=now,
     )
 
@@ -753,6 +779,7 @@ def fail_automl_claim(
         current=claim,
         expected_checkpoint=claim.checkpoint,
         checkpoint=FAILED,
+        operation="fail_automl_claim",
         now=now,
         failure_reason=_required_text(failure_reason, "failure_reason"),
     )

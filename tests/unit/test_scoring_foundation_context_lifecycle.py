@@ -111,6 +111,12 @@ def _context(**overrides):
 def test_same_run_higher_execution_can_reclaim_its_context(monkeypatch):
     context = _context()
     spark = _Spark()
+    outputs = []
+    monkeypatch.setattr(
+        foundation_context,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append((destination, kwargs)),
+    )
     monkeypatch.setattr(
         foundation_context,
         "load_active_foundation_context",
@@ -130,6 +136,19 @@ def test_same_run_higher_execution_can_reclaim_its_context(monkeypatch):
     assert "target.OrchestrationRunID = source.OrchestrationRunID" in claim
     assert "source.ExecutionCount > target.ExecutionCount" in claim
     assert spark.created[0].rows[0]["ExecutionCount"] == 2
+    assert outputs == [
+        (
+            "catalog.schema.contexts",
+            {
+                "kind": "delta_table",
+                "details": {
+                    "context_slot": "account_theme_foundation",
+                    "operation": "activate_foundation_context",
+                    "status": "ACTIVE",
+                },
+            },
+        )
+    ]
 
 
 def test_foreign_run_cannot_take_an_unexpired_context(monkeypatch):
@@ -196,6 +215,12 @@ def test_transition_requires_exact_run_build_and_attempt_ownership(monkeypatch):
         }
     ]
     spark = _Spark(rows)
+    outputs = []
+    monkeypatch.setattr(
+        foundation_context,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append((destination, kwargs)),
+    )
     monkeypatch.setattr(foundation_context.F, "col", lambda name: _Expression())
 
     transition_foundation_context(
@@ -213,6 +238,19 @@ def test_transition_requires_exact_run_build_and_attempt_ownership(monkeypatch):
         "AND ScoringFoundationBuildAttemptID = 'foundation-build:task:2'"
         in statement
     )
+    assert outputs == [
+        (
+            "catalog.schema.contexts",
+            {
+                "kind": "delta_table",
+                "details": {
+                    "context_slot": "account_theme_foundation",
+                    "operation": "transition_foundation_context",
+                    "status": "CONSUMED",
+                },
+            },
+        )
+    ]
 
 
 def test_expired_context_is_rejected(monkeypatch):

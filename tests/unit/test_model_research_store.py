@@ -212,6 +212,7 @@ def test_immutable_row_uses_insert_only_merge_and_post_write_identity_check(
         "completed_at": NOW,
     }
     calls = []
+    outputs = []
     stored = []
     monkeypatch.setattr(
         research_store,
@@ -229,6 +230,13 @@ def test_immutable_row_uses_insert_only_merge_and_post_write_identity_check(
         stored.append(row)
 
     monkeypatch.setattr(research_store, "_merge_insert_only", merge)
+    monkeypatch.setattr(
+        research_store,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
+    )
 
     research_store._persist_immutable_row(
         object(),
@@ -240,6 +248,17 @@ def test_immutable_row_uses_insert_only_merge_and_post_write_identity_check(
 
     assert len(calls) == 1
     assert calls[0]["keys"] == ("logical_id", "attempt_id")
+    assert outputs == [
+        {
+            "destination": "catalog.schema.table",
+            "kind": "delta_table",
+            "details": {
+                "operation": "test",
+                "reused": False,
+                "status": "READY",
+            },
+        }
+    ]
 
 
 def test_existing_attempt_cannot_be_changed():
@@ -273,6 +292,7 @@ def test_existing_attempt_cannot_be_changed():
 
 def test_identical_attempt_accepts_spark_timestamp_round_trip(monkeypatch):
     writes = []
+    outputs = []
     row = {
         "logical_id": "logical",
         "attempt_id": "attempt",
@@ -292,6 +312,13 @@ def test_identical_attempt_accepts_spark_timestamp_round_trip(monkeypatch):
         "atomic_append_by_name",
         lambda *_args, **_kwargs: writes.append(_kwargs),
     )
+    monkeypatch.setattr(
+        research_store,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
+    )
 
     result = research_store._persist_immutable_row(
         object(),
@@ -303,6 +330,17 @@ def test_identical_attempt_accepts_spark_timestamp_round_trip(monkeypatch):
 
     assert result == "catalog.schema.table"
     assert writes == []
+    assert outputs == [
+        {
+            "destination": "catalog.schema.table",
+            "kind": "delta_table",
+            "details": {
+                "operation": "test",
+                "reused": True,
+                "status": "READY",
+            },
+        }
+    ]
 
 
 def test_research_frame_returns_exact_delta_binding(monkeypatch):
@@ -378,6 +416,114 @@ def test_research_frame_returns_exact_delta_binding(monkeypatch):
         binding.research_frame_feature_schema_json
         == schemas.feature_schema_json
     )
+
+
+def test_research_frame_verified_retry_logs_exact_reused_table(monkeypatch):
+    class _Predicate:
+        def __eq__(self, _other):
+            return self
+
+        def __and__(self, _other):
+            return self
+
+    class _StoredFrame:
+        def where(self, _condition):
+            return self
+
+        def count(self):
+            return 7
+
+    frame = SimpleNamespace(columns=RESEARCH_FRAME_COLUMNS)
+    stored_frame = _StoredFrame()
+    spark = SimpleNamespace(table=lambda _target: stored_frame)
+    receipt = DeltaWriteReceipt(
+        statement="",
+        attempts=1,
+        receipt_id="write-1",
+        target_table="catalog.schema.next_uk_nextads_model_research_frames",
+        delta_version=12,
+        row_count=7,
+        schema_checksum="b" * 64,
+    )
+    outputs = []
+    monkeypatch.setattr(
+        research_store,
+        "validate_replace_source_scope",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        research_store,
+        "validate_unique_non_null_keys",
+        lambda *_args, **_kwargs: SimpleNamespace(row_count=7),
+    )
+    monkeypatch.setattr(
+        research_store,
+        "feature_value_checksum",
+        lambda *_args, **_kwargs: "c" * 64,
+    )
+    monkeypatch.setattr(
+        research_store,
+        "schema_checksum",
+        lambda _frame: "b" * 64,
+    )
+    monkeypatch.setattr(
+        research_store,
+        "find_delta_write_receipt",
+        lambda *_args, **_kwargs: receipt,
+    )
+    monkeypatch.setattr(
+        research_store,
+        "atomic_append_by_name",
+        lambda *_args, **_kwargs: pytest.fail("retry must reuse its receipt"),
+    )
+    monkeypatch.setattr(
+        research_store,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append(
+            {"destination": destination, **kwargs}
+        ),
+    )
+    import pyspark.sql.functions as spark_functions
+
+    monkeypatch.setattr(spark_functions, "col", lambda _name: _Predicate())
+    monkeypatch.setattr(spark_functions, "lit", lambda _value: _Predicate())
+    schemas = ResearchFrameSchemas(
+        feature_schema_json=StructType(
+            [StructField("advert_ctr", DoubleType(), True)]
+        ).json(),
+        slice_schema_json=StructType([]).json(),
+    )
+
+    binding = research_store.persist_research_frame(
+        spark,
+        frame,
+        catalog="catalog",
+        schema="schema",
+        research_frame_id="frame-logical",
+        research_frame_attempt_id="frame-attempt",
+        research_build_id="research-logical",
+        research_attempt_id="research-attempt",
+        training_receipt_id="training-receipt",
+        schemas=schemas,
+        git_commit="abc123",
+    )
+
+    assert binding.research_frame_write_receipt_id == "write-1"
+    assert outputs == [
+        {
+            "destination": (
+                "catalog.schema.next_uk_nextads_model_research_frames"
+            ),
+            "kind": "delta_table",
+            "details": {
+                "delta_version": 12,
+                "operation": "model_research_frame",
+                "receipt_id": "write-1",
+                "reused": True,
+                "row_count": 7,
+            },
+        }
+    ]
 
 
 def test_selected_test_requires_exact_persisted_selection(monkeypatch):

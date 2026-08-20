@@ -14,6 +14,7 @@ from next_ads.common.delta_writes import (
     sql_literal,
     typed_table_frame,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.model_development.research_store import (
     RESEARCH_CLAIM_TABLE,
     ResearchFrameBinding,
@@ -453,6 +454,26 @@ def _validate_live_owner(
         )
 
 
+def _log_claim_output(
+    *,
+    catalog: str,
+    schema: str,
+    claim: ResearchClaim,
+    operation: str,
+    reused: bool,
+) -> None:
+    log_output_location(
+        table_path(catalog, schema, RESEARCH_CLAIM_TABLE),
+        kind="delta_table",
+        details={
+            "checkpoint": claim.checkpoint,
+            "checkpoint_version": claim.checkpoint_version,
+            "operation": operation,
+            "reused": reused,
+        },
+    )
+
+
 def claim_research_build(
     spark: Any,
     *,
@@ -525,6 +546,13 @@ def claim_research_build(
         )
     _validate_identity(stored, expected=identity)
     if stored.terminal:
+        _log_claim_output(
+            catalog=catalog,
+            schema=schema,
+            claim=stored,
+            operation="claim_research_build",
+            reused=True,
+        )
         return stored
     if stored.lease_token != proposed.lease_token:
         raise ResearchClaimConflictError(
@@ -535,6 +563,13 @@ def claim_research_build(
         owner_invocation_id=proposed.owner_invocation_id,
         lease_token=proposed.lease_token,
         now=acquired_at,
+    )
+    _log_claim_output(
+        catalog=catalog,
+        schema=schema,
+        claim=stored,
+        operation="claim_research_build",
+        reused=False,
     )
     return stored
 
@@ -593,6 +628,7 @@ def _write_transition(
     current: ResearchClaim,
     updated: ResearchClaim,
     expected_checkpoint: str,
+    operation: str,
 ) -> ResearchClaim:
     target = table_path(catalog, schema, RESEARCH_CLAIM_TABLE)
     frame = typed_table_frame(spark, target, [asdict(updated)])
@@ -612,6 +648,13 @@ def _write_transition(
         raise ResearchClaimConflictError(
             "Model research claim changed concurrently during transition"
         )
+    _log_claim_output(
+        catalog=catalog,
+        schema=schema,
+        claim=stored,
+        operation=operation,
+        reused=False,
+    )
     return stored
 
 
@@ -639,6 +682,13 @@ def renew_research_claim(
     if current is None:
         raise ResearchClaimConflictError("Model research claim does not exist")
     if current.terminal:
+        _log_claim_output(
+            catalog=catalog,
+            schema=schema,
+            claim=current,
+            operation="renew_research_claim",
+            reused=True,
+        )
         return current
     _validate_live_owner(
         current,
@@ -659,6 +709,7 @@ def renew_research_claim(
         current=current,
         updated=updated,
         expected_checkpoint=current.checkpoint,
+        operation="renew_research_claim",
     )
 
 
@@ -685,6 +736,13 @@ def release_research_claim(
     if current is None:
         raise ResearchClaimConflictError("Model research claim does not exist")
     if current.terminal:
+        _log_claim_output(
+            catalog=catalog,
+            schema=schema,
+            claim=current,
+            operation="release_research_claim",
+            reused=True,
+        )
         return current
     _validate_live_owner(
         current,
@@ -705,6 +763,7 @@ def release_research_claim(
         current=current,
         updated=updated,
         expected_checkpoint=current.checkpoint,
+        operation="release_research_claim",
     )
 
 
@@ -746,6 +805,13 @@ def advance_research_claim(
         raise ResearchClaimConflictError("Model research claim does not exist")
     if current.terminal:
         if current.checkpoint == checkpoint:
+            _log_claim_output(
+                catalog=catalog,
+                schema=schema,
+                claim=current,
+                operation="advance_research_claim",
+                reused=True,
+            )
             return current
         raise ResearchClaimConflictError(
             f"Terminal research claim cannot advance from {current.checkpoint}"
@@ -822,6 +888,7 @@ def advance_research_claim(
         current=current,
         updated=updated,
         expected_checkpoint=expected_checkpoint,
+        operation="advance_research_claim",
     )
 
 
@@ -860,6 +927,13 @@ def fail_research_claim(
             raise ResearchClaimConflictError(
                 "FAILED research claim has a different failure reason"
             )
+        _log_claim_output(
+            catalog=catalog,
+            schema=schema,
+            claim=current,
+            operation="fail_research_claim",
+            reused=True,
+        )
         return current
     if current.terminal:
         raise ResearchClaimConflictError(
@@ -891,6 +965,7 @@ def fail_research_claim(
         current=current,
         updated=updated,
         expected_checkpoint=expected_checkpoint,
+        operation="fail_research_claim",
     )
 
 

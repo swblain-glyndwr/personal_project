@@ -49,6 +49,7 @@ sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(1, str(PROJECT_ROOT))
 
 
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.model_development.research_contracts import (
     AUTO,
     FAILED,
@@ -1145,7 +1146,7 @@ def run_discovery(
 def main(argv: list[str] | None = None) -> None:
     """Run the explicitly enabled discovery task and emit bounded evidence."""
     args = parse_args(argv)
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     if not args.enabled:
         evidence = _evidence(None, code_sha=args.code_sha, reused=False)
     else:

@@ -22,6 +22,7 @@ sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(1, str(PROJECT_ROOT))
 
 
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.model_development.contracts import (
     ModelBuild,
     ModelDefinition,
@@ -1010,7 +1011,7 @@ def run_selection(
 def main(argv: list[str] | None = None) -> None:
     """Run reviewed selection and emit bounded, PII-free evidence."""
     args = parse_args(argv)
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     evidence = run_selection(args, spark=_spark_session())
     LOGGER.info(
         "%s%s",

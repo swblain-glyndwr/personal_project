@@ -42,6 +42,7 @@ sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from dsutils.dbc import configure_spark
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.features.feature_builds import feature_value_checksum
 from next_ads.model_development import (
     ModelPluginRegistry,
@@ -302,7 +303,7 @@ def run_model(
 def main(argv: list[str] | None = None) -> None:
     """Run one declared build and emit bounded evidence."""
     args = parse_args(argv)
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     evidence = run_model(args)
     LOGGER.info(
         "%s%s",
