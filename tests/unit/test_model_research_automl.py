@@ -11,6 +11,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import (
     DateType,
     DoubleType,
+    IntegerType,
     StringType,
     StructField,
     StructType,
@@ -578,6 +579,47 @@ def test_automl_frame_excludes_main_test_and_only_exposes_model_inputs(
     assert "observation_date" not in prepared.columns
     assert "split" not in prepared.columns
     assert "location" not in prepared.columns
+    assert isinstance(frame.schema["label"].dataType, DoubleType)
+    assert isinstance(prepared.schema["label"].dataType, IntegerType)
+    assert {
+        (row["automl_split"], row["label"])
+        for row in prepared.select("automl_split", "label").collect()
+    } == {
+        ("train", 0),
+        ("train", 1),
+        ("validate", 0),
+        ("test", 1),
+    }
+
+
+def test_automl_frame_rejects_non_binary_labels_before_integral_cast(
+    local_spark,
+):
+    schema = StructType(
+        [
+            StructField("row_id", StringType(), False),
+            StructField("observation_date", DateType(), False),
+            StructField("split", StringType(), False),
+            StructField("label", DoubleType(), False),
+            StructField("advert_ctr", DoubleType(), True),
+            StructField("device_type", StringType(), True),
+        ]
+    )
+    frame = local_spark.createDataFrame(
+        [
+            ("t1", date(2026, 8, 5), "train", 0.0, 0.1, "app"),
+            ("t2", date(2026, 8, 6), "train", 0.5, 0.2, "web"),
+            ("v1", date(2026, 8, 9), "validate", 0.0, 0.3, "app"),
+            ("v2", date(2026, 8, 10), "validate", 1.0, 0.4, "web"),
+        ],
+        schema,
+    )
+
+    with pytest.raises(ValueError, match="only binary 0/1 values"):
+        discovery._prepare_automl_frame(
+            frame,
+            binding=discovery._frame_binding(_build()),
+        )
 
 
 def test_main_test_split_is_rejected_even_before_feature_selection(
@@ -905,11 +947,28 @@ def test_identical_ready_discovery_is_reused_before_automl(monkeypatch):
         "_load_automl",
         lambda: pytest.fail("AutoML must not run for a READY retry"),
     )
+    monkeypatch.setattr(
+        discovery,
+        "read_automl_discovery_frame",
+        lambda *a, **k: pytest.fail(
+            "A READY retry must not read the immutable research frame"
+        ),
+    )
+    monkeypatch.setattr(
+        discovery,
+        "_prepare_automl_frame",
+        lambda *a, **k: pytest.fail(
+            "A READY retry must not rebuild the bounded AutoML input"
+        ),
+    )
 
     evidence = discovery.run_discovery(_args(), spark=object())
 
     assert evidence["reused"] is True
     assert evidence["discovery_attempt_id"] == "discovery-attempt"
+    assert evidence["request_checksum"] == prior.request_checksum
+    assert evidence["research_build_id"] == prior.research_build_id
+    assert evidence["split_counts"] is None
 
 
 def test_unknown_running_claim_fails_closed_without_duplicate(monkeypatch):

@@ -359,10 +359,17 @@ def _prepare_automl_frame(
             "AutoML discovery is missing declared model features: "
             + ", ".join(missing_features)
         )
+    invalid_label = prepared.where(
+        F.col("label").isNull() | ~F.col("label").isin(0.0, 1.0)
+    ).limit(1)
+    if invalid_label.count():
+        raise ValueError(
+            "AutoML discovery label must contain only binary 0/1 values"
+        )
     return (
         prepared.select(
             *[F.col(name) for name in feature_names],
-            F.col("label").cast("double").alias("label"),
+            F.col("label").cast("int").alias("label"),
             F.col("automl_split"),
         ),
         counts,
