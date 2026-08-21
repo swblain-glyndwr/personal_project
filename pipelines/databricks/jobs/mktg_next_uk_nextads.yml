@@ -221,6 +221,32 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
         libraries: ${var.shared_libraries}
         max_retries: 2
         timeout_seconds: 1800
+      - task_key: quality_audit_ads_v1
+        depends_on:
+          - task_key: load_control_sheet_v1
+        spark_python_task:
+          python_file: ../../../jobs/nextads_control/quality_audit_adverts.py
+          parameters:
+            - --route
+            - "v1"
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --item-num-threshold
+            - "10"
+            - --item-coverage
+            - "0.75"
+            - --theme-coverage
+            - "0.5"
+            - --image-item-coverage
+            - "0.7"
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 1800
       - task_key: trigger_data_pull_for_CMS_pull
         depends_on:
           - task_key: load_control_sheet_v2
@@ -283,6 +309,33 @@ mktg_next_uk_nextads_config: &mktg_next_uk_nextads_config
             - --run_date
             - "{{job.parameters.run_date}}"
             - --warn-only
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.shared_libraries}
+        max_retries: 2
+        timeout_seconds: 1800
+      - task_key: quality_audit_ads_v2
+        depends_on:
+          - task_key: process_control_sheet_v2
+          - task_key: quality_audit_ads_v1
+        spark_python_task:
+          python_file: ../../../jobs/nextads_control/quality_audit_adverts.py
+          parameters:
+            - --route
+            - "v2"
+            - --client
+            - "next_uk"
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --item-num-threshold
+            - "10"
+            - --item-coverage
+            - "0.75"
+            - --theme-coverage
+            - "0.5"
+            - --image-item-coverage
+            - "0.7"
         job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
         libraries: ${var.shared_libraries}
         max_retries: 2

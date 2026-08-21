@@ -101,6 +101,7 @@ flowchart TD
   FOUNDATION["select_candidate_foundation"]:::shared
   LOAD_V1["load_control_sheet_v1"]:::v1
   AUDIT_V1["audit_control_sheet_v1"]:::guard
+  QUALITY_AUDIT_ADS_V1["quality_audit_ads_v1"]:::guard
   LOAD_V2["load_control_sheet_v2<br/>land raw inputs"]:::v2
   CMS["trigger_data_pull_for_CMS_pull<br/>use landed advert IDs"]:::external
   VALIDATE["validate_operation"]:::guard
@@ -108,6 +109,8 @@ flowchart TD
   PREP_INPUTS["PREPARE_SCORING_INPUTS branch<br/>mapping + attributes + READY snapshot"]:::shared
   PROCESS_V2["process_control_sheet_v2<br/>check refreshed CMS"]:::v2
   AUDIT_V2["audit_control_sheet_v2"]:::guard
+  QUALITY_AUDIT_ADS_V2["quality_audit_ads_v2"]:::guard
+
   SELECT_V1["resolve_scoring_portfolio_v1"]:::v1
   SELECT_V2["resolve_scoring_portfolio_v2"]:::v2
   COVER_V1["validate_score_provider_theme_coverage_v1"]:::guard
@@ -125,8 +128,11 @@ flowchart TD
   OPERATION -- false --> SELECT_V1
   OPERATION -- false --> SELECT_V2
   LOAD_V1 --> AUDIT_V1 --> COVER_V1
+  LOAD_V1 --> QUALITY_AUDIT_ADS_V1
   SELECT_V1 --> COVER_V1
   LOAD_V2 --> CMS --> PROCESS_V2 --> AUDIT_V2 --> COVER_V2
+  PROCESS_V2 --> QUALITY_AUDIT_ADS_V2
+  QUALITY_AUDIT_ADS_V1 --> QUALITY_AUDIT_ADS_V2
   SELECT_V2 --> COVER_V2
   FOUNDATION --> MAP_V1
   FOUNDATION --> MAP_V2
@@ -146,14 +152,14 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | Provider selection | V1 and v2 resolve separate configured selections and exact provider versions. | A failure or future configuration change in one route does not have to block the other. |
 | Candidate mapping | V1 and v2 publish separate accepted candidate attempts through the same internal contract. | Each route keeps its own output grain while sharing the same readiness and repair rules. |
 | Page build | V1 and v2 run separate bulk Spark jobs. | Each route replaces its complete live result independently and cannot leave a mixture of old and new scopes. |
-| Compatibility and validation | Legacy candidate shapes and assignment validation run at 21:00 from accepted outputs. | Validation or compatibility failures do not invalidate the canonical candidate or serving build. |
+| Compatibility and validation | Legacy candidate shapes and assignment validation run at 21:00 from accepted outputs. | Validation or compatibility failures do not invalidate the accepted candidate or serving build. |
 
 ## Job And Candidate-Task Responsibilities
 
 | Databricks job | YAML | Current responsibility |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_candidate_foundation` | `pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml` | Builds customer cells, repeat-ad exposure and advert feedback in parallel, then records one accepted foundation. |
-| `mktg_next_uk_nextads_model_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml` | Validates `model_name`, calls the main NextAds `PREPARE_SCORING_INPUTS` operation for the same date, runs the supported scoring implementation and records the canonical provider build READY before publishing compatibility outputs. Theme Affinity is the current supported implementation. |
+| `mktg_next_uk_nextads_model_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml` | Validates `model_name`, calls the main NextAds `PREPARE_SCORING_INPUTS` operation for the same date, runs the supported scoring implementation and records the accepted provider build as READY before publishing compatibility outputs. Theme Affinity is the current supported implementation. |
 | `mktg_next_uk_nextads_markov_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml` | Builds and publishes the optional shadow provider, then writes its legacy compatibility outputs. |
 | `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | With `PREPARE_SCORING_INPUTS`, builds the accepted theme-input snapshot for the caller; with the scheduled default `CANDIDATE_BUILD`, selects the foundation, loads/audits both controls, selects provider builds, publishes candidate attempts and waits for both page jobs. |
 | `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Builds and publishes all v1 assignments in one task, then runs MASID and PLP delivery. |
@@ -168,10 +174,12 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | `select_candidate_foundation` | `jobs/orchestration/select_candidate_foundation.py` | `prepare_scoring_inputs_operation=false` |
 | `load_control_sheet_v1` | `jobs/nextads_control/load_control_sheet.py` | `prepare_scoring_inputs_operation=false` |
 | `audit_control_sheet_v1` | `jobs/nextads_control/audit_control_sheet.py` | `load_control_sheet_v1` |
+| `quality_audit_ads_v1` | `jobs/nextads_control/quality_audit_adverts.py` | `load_control_sheet_v1` |
 | `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase land` | `prepare_scoring_inputs_operation=false` |
 | `trigger_data_pull_for_CMS_pull` | Native `run_job_task` | `load_control_sheet_v2` |
 | `process_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase process` | `trigger_data_pull_for_CMS_pull` |
 | `audit_control_sheet_v2` | `jobs/nextads_control/audit_control_sheet.py` | `process_control_sheet_v2` |
+| `quality_audit_ads_v2` | `jobs/nextads_control/quality_audit_adverts.py` | `process_control_sheet_v2`, `quality_audit_ads_v1` |
 | `resolve_scoring_portfolio_v1` | `jobs/orchestration/resolve_scoring_portfolio.py` | `prepare_scoring_inputs_operation=false` |
 | `resolve_scoring_portfolio_v2` | `jobs/orchestration/resolve_scoring_portfolio.py` | `prepare_scoring_inputs_operation=false` |
 | `validate_score_provider_theme_coverage_v1` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |
