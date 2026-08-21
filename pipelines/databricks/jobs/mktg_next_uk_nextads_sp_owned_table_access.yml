@@ -1,0 +1,69 @@
+# Manual DEV/PROD maximum grantable object-access reconciliation job.
+# Recipients and allowed namespaces are fixed in source; runtime controls are
+# an inert dry run and an explicit mutation confirmation.
+variables:
+  sp_owned_table_access_scope:
+    description: Approved schema or whole-catalog owner scope for the access job
+    default: ""
+
+nextads_sp_owned_table_access_config: &nextads_sp_owned_table_access_config
+  mktg_next_uk_nextads_sp_owned_table_access:
+    name: mktg_next_uk_nextads_sp_owned_table_access
+    queue:
+      enabled: true
+    max_concurrent_runs: 1
+    parameters:
+      - name: confirm_mutating
+        default: "false"
+      - name: dry_run
+        default: "true"
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      purpose: sp_owned_table_access
+    email_notifications:
+      on_failure: ${var.data_team_notification_emails}
+    notification_settings:
+      no_alert_for_skipped_runs: true
+      no_alert_for_canceled_runs: true
+    timeout_seconds: 14400
+    tasks:
+      - task_key: grant_sp_owned_table_access
+        spark_python_task:
+          python_file: ../../../jobs/table_operations/grant_sp_owned_table_access.py
+          parameters:
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --catalog
+            - ${var.mktgdata_catalog}
+            - --relation_scope
+            - ${var.sp_owned_table_access_scope}
+            - --expected_owner
+            - ${var.run_as_SPN_name}
+            - --confirm_mutating
+            - "{{job.parameters.confirm_mutating}}"
+            - --dry_run
+            - "{{job.parameters.dry_run}}"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        timeout_seconds: 14400
+
+targets:
+  DEV:
+    variables:
+      sp_owned_table_access_scope: ALL_SP_OWNED_SCHEMAS
+    resources:
+      jobs:
+        <<: *nextads_sp_owned_table_access_config
+  PROD:
+    variables:
+      sp_owned_table_access_scope: WAREHOUSE_AND_DS_SANDBOX
+    resources:
+      jobs:
+        <<: *nextads_sp_owned_table_access_config

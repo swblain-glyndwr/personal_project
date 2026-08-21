@@ -41,6 +41,7 @@ include:
   - pipelines/databricks/jobs/table_operations.yml
   - pipelines/databricks/jobs/preprod_dependency_smoke.yml
   - pipelines/databricks/jobs/prod_table_contract_smoke.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_sp_owned_table_access.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_product_embedding_runtime_smoke.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_data.yml
