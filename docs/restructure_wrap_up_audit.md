@@ -1,4 +1,8 @@
-# Repo Restructure Wrap-Up Audit
+# Historical Repo Restructure Wrap-Up Audit
+
+> **Historical evidence record:** branch, PR, repository and validation states
+> below describe the June and July 2026 restructure work. They are retained as
+> evidence and must not be read as current branch or operational status.
 
 Last updated: 2026-07-26.
 
@@ -7,8 +11,8 @@ Baseline: `origin/develop` at `a891c0284d665441dff49afbceb00c8d8f46f34c`
 Linked work item: `5128910`
 Planned release reference: `nextads-v2026.06.29.1`
 
-This file records the baseline for the final restructure PR before moving
-remaining non-v2 files. It is intended as PR evidence, not long-lived operating
+This file records the baseline for the final restructure change before moving
+remaining non-v2 files. It is retained as review evidence, not current operating
 guidance.
 
 ## Active PR Overlap
@@ -17,10 +21,10 @@ Checked with `az repos pr list --status active` on 2026-06-29.
 
 | PR | Source | Target | State | Restructure impact |
 | --- | --- | --- | --- | --- |
-| 216633 | `feature/ET/map_theme_scores_duplicates_fix` | `main` | Active | Old main-targeting ranking change; do not absorb in this PR. |
-| 216705 | `feature/AL/duplicate_acc_theme_error` | `main` | Active, conflicts | Old main-targeting champion/challenger change; do not absorb in this PR. |
-| 217984 | `feature/AL/champ_challenger_score_to_ad` | `main` | Active, conflicts | Old main-targeting champion/challenger change; do not absorb in this PR. |
-| 222364 | `feature/AL/associations_code` | `main` | Active | Old main-targeting association change; do not absorb in this PR. |
+| 216633 | `feature/ET/map_theme_scores_duplicates_fix` | `main` | Active | Old main-targeting ranking change; not part of the recorded restructure change. |
+| 216705 | `feature/AL/duplicate_acc_theme_error` | `main` | Active, conflicts | Old main-targeting champion/challenger change; not part of the recorded restructure change. |
+| 217984 | `feature/AL/champ_challenger_score_to_ad` | `main` | Active, conflicts | Old main-targeting champion/challenger change; not part of the recorded restructure change. |
+| 222364 | `feature/AL/associations_code` | `main` | Active | Old main-targeting association change; not part of the recorded restructure change. |
 | 239447 | `feature/TL/v2_exclusions` | `main` | Draft, conflicts | Ads v2; explicitly out of scope. |
 | 246973 | `feature/CWB/pctr_rt_feature_build` | `develop` | Draft | pCTR overlap; preserve as operational-transition/reference work. |
 | 247185 | `feature/TL/datapullv2` | `develop` | Active | Ads v2; explicitly out of scope. |
@@ -28,13 +32,14 @@ Checked with `az repos pr list --status active` on 2026-06-29.
 
 ## Baseline Leftovers
 
-These folders still exist on `origin/develop` and are targeted by this PR:
+At the recorded baseline, these folders still existed on `origin/develop` and
+were targeted by the restructure change:
 
 - `experiments/hackathon_theme_affinity_model/`
 - `experiments/sb_pctr/`
 - legacy `scripts/`
 
-The final state for this PR is:
+The intended final state recorded for the restructure change was:
 
 - `hackathon_model/` removed after retained reference material is moved under
   `experiments/hackathon_theme_affinity_model/`;
@@ -43,9 +48,9 @@ The final state for this PR is:
 - DAB task paths and compatibility wrappers moved out of `scripts/`;
   Ads v2 entrypoints now live in route-oriented `jobs/nextads_*` folders.
 
-## DAB References Resolved In This PR
+## DAB References Resolved By The Restructure Change
 
-Non-v2 references moved in this PR:
+Non-v2 references moved by the restructure change:
 
 - `pipelines/databricks/jobs/dev_integration_setup.yml`
   - `../../../jobs/table_operations/create_tables.py`
@@ -94,15 +99,16 @@ Repo-wide references cleaned or intentionally retained:
   route-oriented job folders, and v2 migration constraints explicitly.
 - The follow-up cleanup branch removes the root `next_ads/` compatibility
   package, moves the remaining implementations into `src/next_ads`, and
-  updates tests to use canonical imports only.
+  updates tests to use supported imports only.
 
 ## Scope Boundary
 
-This PR should not change Ads v2 behaviour, table contracts, registered model
-names, output table names, or production deployment routing. Legacy names such
-as `nextads_hackathon_model` and `next_uk_next_ads_hackathon_model_*` may remain
-where they are live external contracts, but repo folders and docs should use the
-Theme Affinity domain name.
+The restructure change was not intended to alter Ads v2 behaviour, table
+contracts, registered model names, output table names, or production deployment
+routing. Legacy names such as `nextads_hackathon_model` and
+`next_uk_next_ads_hackathon_model_*` could remain where they were live external
+contracts, while repository folders and docs used the Theme Affinity domain
+name.
 
 ## Stage 1 Validation
 

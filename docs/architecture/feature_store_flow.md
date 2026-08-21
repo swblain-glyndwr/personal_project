@@ -115,7 +115,7 @@ The job keeps reusable source and feature creation separate from final model sco
 
 ## Declared Model Consumption And Research Boundary
 
-Every model uses the same declaration and accepted-snapshot contract. Shopping Bag is the worked declaration, not a separate orchestration pattern:
+Models supported by the shared lifecycle use the same declaration and accepted-snapshot contract. Shopping Bag is currently the only model supported through that full route:
 
 ```mermaid
 flowchart LR
@@ -152,26 +152,15 @@ flowchart LR
   evaluation -. "no write" .-> serving
 ```
 
-The generic lifecycle job opens the exact Delta versions recorded by the READY snapshot bindings. Feature timestamps must be valid for the observation time, including the declared one-day availability lag for Shopping Bag account activity. The receipt records those bindings before training starts.
+The lifecycle job reads the exact Delta versions recorded by READY Feature Store snapshots and saves those bindings before training. Point-in-time joins prevent later information from leaking into earlier observations. Shopping Bag's account-activity and label builders remain on-demand Python entry points; the scheduled Feature Store job does not rebuild those two inputs.
 
-Shopping Bag label snapshots use `session_date` as their daily snapshot scope, while `exposure_timestamp` remains the Feature Store time-series key and exact point-in-time observation timestamp. The model declaration also uses `session_date` for the training receipt window and research split date. Feature joins continue to use `exposure_timestamp`, so a session that crosses a calendar boundary stays in its declared snapshot and split without weakening the point-in-time join.
+`BUILD` trains the existing declared route. `RESEARCH` compares model options on the same fixed data and keeps the final test period hidden. `REVIEW_SELECT` records the chosen model and tests only that choice. `EVALUATE` pins an exact registered model, READY features and an accepted advert-candidate attempt, then writes isolated comparison scores. None of these operations changes serving score selection, assignments or payloads.
 
-The generic build operation compares the candidates named by the model declaration inside one MLflow run, registers the selected DEV version and reuses that exact build on an identical retry.
-
-The generic research operation uses the optional research section of the same `nextads_models.yaml` declaration. It packs the declared train, validation and test dates into an immutable research frame containing a hashed row identity, label, model features and allowed reporting slices. Raw observation keys are not retained in that frame. Candidate fitting and recommendation use train and validation only; the test split remains unread until an exact selection decision has been persisted.
-
-The Shopping Bag declaration compares logistic regression, random forest, gradient-boosted trees and Spark XGBoost. Each candidate has its own nested MLflow run with its parameters, seed, train and validation metrics, fitted model and the same evidence set: precision-recall, ROC, calibration, lift and cumulative gain, score distributions, top-fraction confusion, slice results, missing/default coverage and named feature importance. The parent run holds the exact definition, plan, training receipt and feature versions, prevalence baseline, candidate comparison, automatic recommendation and hashed artifact manifest.
-
-The automatic recommendation orders selectable candidates by validation PR-AUC, then validation log loss, then candidate ID. The current Shopping Bag plan requires the generic selection operation to receive the exact research build, candidate, reviewer and reason; `AUTO` is also supported by the same contract. Only the selected child receives untouched test evidence, deterministic test confidence intervals and Unity Catalog registration. The registered pipeline signature contains exactly the declared model inputs and exposes `prediction` and positive-class `score` as scalar doubles. No model alias is set.
-
-The centrally owned AutoML job remains a separate, manually enabled generic DEV discovery route because it needs its own no-library DBR 15.4 ML cluster. It reads the exact declared research frame, exposes only its train and validation periods, records its experiment and recipe associations, and does not register or activate a winner.
-
-Supplied candidate aliases and reviewed classes under `next_ads.*` implement fitting and standard prediction only. Candidate plug-ins do not own data splits, evidence gates, selection, registration or provider publication. Extra evidence producers receive bounded aggregate evidence; the standard evidence remains mandatory.
-
-The generic evaluation operation pins the registered model, READY features and accepted candidate attempt before writing only `next_uk_nextads_model_evaluation_scoring_builds` and `next_uk_nextads_model_evaluation_scores`.
+AutoML remains a separate, manually enabled DEV discovery route. It cannot register or activate a winner. Analytics pCTR is declared for compatibility but is not currently supported end to end through these shared operations.
 
 Use the following documents for detail rather than repeating it here:
 
 - [Feature Store README](../feature_store/README.md) for delivery gates and current evidence.
 - [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) for table grain, keys, dates, ownership and refresh expectations.
 - [`migration_backlog.md`](../feature_store/migration_backlog.md) for remaining migration and environment gates.
+- [Model research: data scientist guide](../model_research_walkthrough.md) for model declarations, comparison rules, evidence, retries and the worked Shopping Bag example.

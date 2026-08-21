@@ -37,13 +37,13 @@ For the shortest route, read the workflow in section 2 and the Shopping Bag exam
 
 The goal is to compare models fairly in MLflow. Every model uses the same dated Feature Store data—the data that would have been available when the prediction was made—and gets its own run. Only the selected model is checked against the untouched final period and registered.
 
-The system calls each model option a `candidate`. The important rules are:
+The system calls each model option a model candidate. This is different from an advert candidate in the operational NextAds flow: a model candidate is an algorithm being compared, while an advert candidate is an eligible scored advert that could later be assigned. The important rules are:
 
 - The existing `BUILD` route still compares its two fixed models and registers the winner without a research plan.
 - `RESEARCH` is optional. Its dates, models and checks are saved in YAML.
-- Every candidate gets its own MLflow run using the same data and split.
-- Candidate code cannot change the split, publish scores, register itself or move an alias.
-- The parent run compares the results and recommends a candidate. Only the chosen one sees the final test period.
+- Every model candidate gets its own MLflow run using the same data and split.
+- Model-candidate code cannot change the split, publish scores, register itself or move an alias.
+- The parent run compares the results and recommends a model candidate. Only the chosen one sees the final test period.
 - `RESEARCH`, AutoML and `REVIEW_SELECT` can reuse matching completed work. Every `EVALUATE` run creates a new separate attempt.
 
 This workflow does not:
@@ -910,7 +910,7 @@ Use a full name and a reason that cites the validation results and any practical
 
 ### 15.1 Purpose
 
-`EVALUATE` checks how one numeric model version ranks a fixed, accepted NextAds candidate set for one date. It writes separate comparison results only and does not affect customers.
+`EVALUATE` checks how one numeric model version ranks a fixed, accepted set of operational advert options for one date. The implementation calls this an accepted candidate set. It writes separate comparison results only and does not affect customers.
 
 ### 15.2 Required and optional choices
 
@@ -937,7 +937,7 @@ The normal defaults are:
 | Option | Default behaviour | When to override | Risk/control |
 | --- | --- | --- | --- |
 | Feature dates | For each feature, use the latest `READY` snapshot old enough for the run date | Reproducing an earlier comparison | Normal date-lag checks still apply. A poor date can leave missing data or defaults, so `AUTO` is safest |
-| Candidate attempt | Latest accepted v1 `READY_FOR_NEXTADS` attempt for `run_date`: completion time descending, then attempt ID descending | Reproducing one known candidate publication | The attempt must match date, route and status |
+| Advert-option attempt | Latest accepted v1 `READY_FOR_NEXTADS` attempt for `run_date`: completion time descending, then attempt ID descending | Reproducing one known advert-option publication | The attempt must match date, route and status |
 | Account limit | First 10,000 eligible accounts in a stable hashed order | A smaller smoke test or a deliberately larger check | It is an account cap, not row cap; there is currently no coded maximum |
 | Serving slot | `best` | Testing accepted `best_challenger` when that slot exists | Case-sensitive and must exist in the accepted portfolio |
 
@@ -946,7 +946,7 @@ The normal defaults are:
 1. Check that the model build is `READY` and that the current model settings still match it.
 2. Use the numeric `models:/.../<version>` URI. Aliases are not accepted.
 3. Check its Unity Catalog tags, source MLflow run and model hash.
-4. Resolve the accepted candidate build/portfolio/ad sets/scores for `run_date`.
+4. Resolve the accepted advert-option build, score-selection list, advert sets and scores for `run_date`.
 5. Require the declared route and SB1/SB2 evaluation scope.
 6. Keep accounts present in both scopes, sort them consistently and apply the account limit.
 7. Load the chosen Feature Store snapshots using the required date lags.
@@ -1045,17 +1045,17 @@ next_uk_nextads_analytics_pctr_feature_source_receipts
 
 </details>
 
-### 16.2 Generic main NextAds candidate job
+### 16.2 Main NextAds scoring-input and advert-option job
 
 Resource: [`mktg_next_uk_nextads_candidate_build`](../pipelines/databricks/jobs/mktg_next_uk_nextads.yml). It retains the established 18:00 Europe/London schedule.
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `operation` | `CANDIDATE_BUILD` | Exact `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS` |
-| `run_date` | Job start ISO date | Dated control/candidate/assignment partition |
-| `v1_portfolio_policy_id` | `v1_default` | Reviewed v1 provider portfolio policy for candidate build |
-| `v2_portfolio_policy_id` | `v2_default` | Reviewed v2 provider portfolio policy for candidate build |
-| `foundation_snapshot_id` | `same_day` | Accepted customer/candidate foundation snapshot selected by normal candidate build |
+| `run_date` | Job start ISO date | Dated control, advert-option and assignment partition |
+| `v1_portfolio_policy_id` | `v1_default` | Reviewed V1 rule for assigning exact score outputs to route roles |
+| `v2_portfolio_policy_id` | `v2_default` | Reviewed V2 rule for assigning exact score outputs to route roles |
+| `foundation_snapshot_id` | `same_day` | Accepted shared customer information selected by the normal evening build |
 
 `PREPARE_SCORING_INPUTS` is the supporting operation used by generic model scoring. It:
 
@@ -1063,14 +1063,14 @@ Resource: [`mktg_next_uk_nextads_candidate_build`](../pipelines/databricks/jobs/
 2. refreshes item attributes;
 3. builds dated item-theme inputs;
 4. records the fixed scoring-input snapshot;
-5. stops before candidate building, assignments and page building.
+5. stops before advert-option building, assignments and page building.
 
-Portfolio-policy and foundation-snapshot values are used by `CANDIDATE_BUILD`, not normal input preparation. For a preparation run, a DS normally changes only `operation` and `run_date`.
+Score-selection-policy and shared-customer-input values are used by `CANDIDATE_BUILD`, not normal input preparation. For a preparation run, a DS normally changes only `operation` and `run_date`.
 
 <details>
 <summary>All PREPARE_SCORING_INPUTS output tables</summary>
 
-For `<ns> = <catalog_write>.<schema_write>`, `PREPARE_SCORING_INPUTS` writes or checks these destinations and no candidate/assignment destinations:
+For `<ns> = <catalog_write>.<schema_write>`, `PREPARE_SCORING_INPUTS` writes or checks these destinations and no advert-option or assignment destinations:
 
 ```text
 <ns>.next_uk_nextads_scoring_input_theme_mapping_raw
@@ -1093,7 +1093,7 @@ The lower-level item-attribute code can publish to BigQuery, but this saved-job 
 <details>
 <summary>All CANDIDATE_BUILD and child-job outputs</summary>
 
-`CANDIDATE_BUILD` writes or checks the following control, portfolio and candidate destinations:
+`CANDIDATE_BUILD` writes or checks the following control, score-selection and advert-option destinations:
 
 ```text
 <ns>.next_uk_nextads_control_sheet_raw
@@ -1151,17 +1151,17 @@ The v1 page-build child also invokes PLP/Google-Sheets delivery, which writes `n
 
 </details>
 
-The preparation branch never reaches these candidate/page-build/delivery destinations. The candidate branch does not rebuild the selected Candidate Foundation; it reads the accepted `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` receipts.
+The preparation branch never reaches these advert-option, page-build or delivery destinations. The evening branch does not rebuild the selected shared customer information; it reads the accepted `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` receipts.
 
 ### 16.3 Generic operational model-scoring job
 
-Resource: [`mktg_next_uk_nextads_model_scoring`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml). It preserves the existing Theme Affinity resource identity/run history and 12:15 Europe/London schedule. It is declared across SANDBOX, DEV, DEV Integration, PREPROD and PROD, but environment execution still follows release controls.
+Resource: [`mktg_next_uk_nextads_model_scoring`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml). It preserves the existing Theme Affinity resource identity and run history, but moves the combined scoring route from the old Theme Affinity 13:00 start to the former Theme Inputs slot at 12:15 Europe/London. It is declared across SANDBOX, DEV, DEV Integration, PREPROD and PROD, but environment execution still follows release controls.
 
 | Parameter | Default | Normal DS choice | Why |
 | --- | --- | --- | --- |
 | `model_name` | `theme_affinity` | Leave `theme_affinity`; it is the only registered implementation today | Provides a generic route without pretending an undeclared implementation exists |
 | `run_date` | Job start date | Override for a dated DEV/PREPROD proof | Uses the same date for preparation, scoring and outputs |
-| `input_snapshot_id` | `same_day` | Normally leave | Selects accepted scoring-foundation context |
+| `input_snapshot_id` | `same_day` | Normally leave | Selects the accepted fixed versions of theme mapping and item-theme scoring inputs |
 | `publish_source_namespace` | Deployment pipeline namespace | Leave unless an approved isolated validation needs another deployed source | Where staged Lakeflow tables are read from |
 | `publish_target_namespace` | Deployment output namespace | Leave | Where published tables are written |
 | `publish_source_table_prefix` | `next_uk_nextads_account_theme_foundation_stage` | Leave | Prefix used for staged tables |
@@ -1173,7 +1173,7 @@ The current Theme Affinity scoring route:
 
 1. validates `model_name` against the operational declaration;
 2. runs the main job with `PREPARE_SCORING_INPUTS` for the same date;
-3. prepares/reuses a scoring-foundation context;
+3. opens a leased work record that ties the scoring run to those exact inputs and output attempt;
 4. runs Lakeflow data preparation;
 5. loads the requested model URI and publishes standard provider signals and build records;
 6. publishes provider and legacy feature compatibility outputs;
@@ -1241,9 +1241,23 @@ ranked
 
 </details>
 
-### 16.4 Why the jobs are generic
+### 16.4 Where the old model-specific jobs went
 
-These generic routes replace separate saved jobs for Shopping Bag preparation, labels and evaluation; Analytics pCTR source, checks and adoption; and Theme Affinity inputs, compatibility and scoring. A route only works when the named model has an implementation for it. Unsupported model/route combinations fail validation.
+The saved jobs did not all move behind a shared job. Their current positions are:
+
+| Former saved job | Current position |
+| --- | --- |
+| Theme Inputs | Its work is inside the main NextAds job's `PREPARE_SCORING_INPUTS` operation, which model scoring calls for the same date. |
+| Theme Affinity | Expanded into the shared model-scoring job. Its Databricks job identity and history remain, while the combined route starts at 12:15. |
+| Theme feature compatibility | Its compatibility publication and checks run at the end of model scoring. |
+| Analytics pCTR feature source and snapshot verification | The SQL source chain, receipt and general feature-quality checks now run inside Feature Store. The former failure-injection/read-back proof was not absorbed: its script remains available, but no saved bundle job invokes it. |
+| Shopping Bag ongoing evaluation | Replaced by the shared model-development `EVALUATE` operation. |
+| Shopping Bag feature preparation | The shared advert-feature calculation now runs inside Feature Store. The Shopping Bag account-activity builder remains available on demand, but no saved bundle job invokes it. |
+| Shopping Bag label publication | The click-label builder remains available on demand, but no saved bundle job invokes it. Rebuilding those labels therefore needs an explicitly supported invocation route. |
+| Analytics pCTR prediction and adoption | The saved jobs were removed, but the shared model lifecycle does not yet provide an end-to-end Analytics pCTR replacement. |
+| Model-development runtime smoke | The saved job was removed; the retained script has no non-test bundle caller. |
+
+A shared route works only when the named model has an implementation for that operation. Unsupported model/operation combinations fail validation. See [NextAds job and table flow](architecture/nextads_job_table_flow.md) for the daily operational sequence and the difference between model candidates and advert candidates.
 
 ## 17. Find the outputs
 
@@ -1755,8 +1769,8 @@ See the [model lifecycle runbook](model_lifecycle_runbook.md) before moving or a
 | Attempt | One task execution. A repair gets a new execution count |
 | Automatic recommendation | Fixed ordering: highest PR-AUC, then lowest log loss, then candidate ID |
 | AutoML discovery | Separate search over train and validation only; it cannot register a model |
-| Candidate | One model option and its settings in the research comparison |
-| Candidate adapter | Operational code that joins model scores to eligible/ranked NextAds adverts; not a research model |
+| Model candidate | One model option and its settings in the research comparison; different from an operational advert candidate |
+| Advert-candidate adapter | Operational code that joins model scores to eligible/ranked NextAds adverts; not a research model |
 | Candidate evaluation ID | Saved `candidate:<digest>` result ID; different from the readable `candidate_id` used in the run form |
 | Claim | Lock/progress row used to stop two runs building the same research or AutoML request at once |
 | Declaration checksum | SHA-256 hash of the saved model or research settings |
@@ -1770,12 +1784,12 @@ See the [model lifecycle runbook](model_lifecycle_runbook.md) before moving or a
 | Observation date | Date of the labelled rows to which features are joined |
 | Point-in-time join | Lookup that only admits feature values knowable by prediction time after availability lag |
 | Prevalence | Positive-label rate in the evaluated population |
-| Provider | Standard scoring/output format; separate from the model used in research |
+| Score source (`provider` in code) | A named source that publishes the standard scoring/output format; separate from the model used in research |
 | `READY` candidate | Training, prediction, result files, explanation, saving and reload checks all passed |
 | Research build | One saved comparison for a model setup, training-data receipt, research frame and candidate set |
 | Research test | True final test split, different from AutoML's internal validation-derived test |
 | Selection decision | Saved automatic or manual choice made before test results are shown |
-| Serving slot | Accepted portfolio position (`best` or `best_challenger`) used by `EVALUATE` |
+| Serving slot | Position in the accepted score-selection list (`best` or `best_challenger`) used by `EVALUATE` |
 | Slice | Results for one group, with low-volume outcomes hidden |
 | Training-set receipt | Record of the observation and feature snapshots, versions, checksums and future-data checks used to build model data |
 | Validation | Split used to compare candidates and make the recommendation; not the final test |

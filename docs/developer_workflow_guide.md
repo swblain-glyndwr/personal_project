@@ -160,8 +160,6 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | **Deploy PREPROD** | Deploys only from `release/*` using the PREPROD route |
 | **Smoke PREPROD Dependencies** | Runs a metadata-only PREPROD dependency check without reading rows or altering tables |
 | **Initialize PREPROD Tables** | Optional setup stage that creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
-| **Deploy PROD** | Runs only from an approved production tag on `main` |
-| **Initialize PREPROD Tables** | Creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
 | **Deploy PROD** | Runs only from an approved `nextads-vYYYY.MM.DD.N` production tag on `main` |
 
 ---
@@ -193,13 +191,13 @@ The normal model-author workflow is declaration plus parameter selection, not cr
 | Operation | Supply | Result |
 | --- | --- | --- |
 | `BUILD` | `observation_reference_dates`, `feature_reference_dates`, `label_end` | Point-in-time training receipt, selected build and registered personal-DEV model version. |
-| `RESEARCH` | `label_end` | Candidate comparison using train, validation, test, feature-date and selection-policy rules from the declaration. |
-| `REVIEW_SELECT` | `research_build_id`, `candidate_id`, `written_reason`, `reviewed_by` | Durable reviewed decision, selected-only test evaluation and registered personal-DEV model version. |
+| `RESEARCH` | `label_end` | Model-option comparison using train, validation, test, feature-date and selection-policy rules from the declaration. |
+| `REVIEW_SELECT` | `research_build_id`, `candidate_id`, `written_reason`, `reviewed_by` | Durable reviewed decision, selected-model-only test evaluation and registered personal-DEV model version. |
 | `EVALUATE` | `model_build_id`, `run_date`; optional feature dates, account limit, serving slot and candidate-build attempt | Isolated evaluation evidence with no serving, assignment or payload change. |
 
 The job derives the personal DEV namespaces, registered-model name, control tables and MLflow path. It cannot promote, set an alias or copy a model to another environment. For optional AutoML, run the centrally owned `mktg_next_uk_nextads_model_discovery` job with `enabled=true`, the same declared `model_name`, an exact `research_build_id` and an optional bounded timeout; its separate ML runtime never registers or activates a model.
 
-The table above is only the launch summary. Before declaring or running model research, read [Model Research Output Layer: Complete Data Scientist Walkthrough](model_research_walkthrough.md) for every DS-selectable option, declaration-owned choice, platform-controlled value, metric/evidence requirement, output destination, retry rule, current limitation and the worked Shopping Bag values.
+The table above is only the launch summary. Before declaring or running model research, read [Model research: data scientist guide](model_research_walkthrough.md) for every DS-selectable option, declaration-owned choice, platform-controlled value, metric/evidence requirement, output destination, retry rule, current limitation and the worked Shopping Bag values.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 

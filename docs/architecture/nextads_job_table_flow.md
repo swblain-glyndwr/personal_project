@@ -1,8 +1,137 @@
 # NextAds Job And Table Data Flow
 
-This is the inclusive entry point for every NextAds job declared under `pipelines/databricks/jobs`: 39 jobs across 35 YAML definition files in this checkout. It covers the operational assignment and delivery route, reporting, realtime data, Feature Store, model development and research, model lifecycle, validation and table operations. Each row shows what a job consumes and what tables, external outputs, validation evidence or model artifacts it produces.
+Start here for the complete NextAds flow. This page first explains what the
+system does and defines the terms used by its jobs. It then inventories every
+NextAds job declared under `pipelines/databricks/jobs`: 39 jobs across 35 YAML
+definition files in this checkout. It covers assignment and delivery,
+reporting, realtime data, Feature Store, model development and research, model
+movement, validation and table operations. Each inventory row shows what a job
+consumes and what it produces.
 
 The page stays at a human-readable route level. Linked documents own detailed keys, schemas, schedules, runtime evidence and operating instructions. Physical catalogs and schemas vary by bundle target; table names below are logical names. An in-flight job being declared on a feature branch does not prove that it is deployed, scheduled or proven in a shared environment.
+
+## What NextAds Does
+
+NextAds turns three kinds of information into adverts that can be delivered to
+customers:
+
+1. **Advert controls** say which adverts are active and where they are allowed
+   to appear.
+2. **Model scores** estimate which themes or adverts are relevant to each
+   account.
+3. **Customer information** supplies the customer's assignment group, recent
+   advert exposure and advert-performance feedback.
+
+The system combines those inputs to create eligible, scored advert options. A
+later page-build step chooses the final adverts for each account and placement.
+V1 writes location-based assignments for downstream MASID use, checks that
+handoff and delivers the PLP export. V2 writes page-type-and-rank assignments
+and delivers a Bloomreach payload.
+
+The main NextAds saved job is
+`mktg_next_uk_nextads_candidate_build`. Its name describes the scheduled evening
+route, but the job has two mutually exclusive operations:
+
+- `PREPARE_SCORING_INPUTS` prepares fixed theme and item inputs for an earlier
+  scoring run. It stops before loading the evening controls, building advert
+  options or publishing assignments.
+- `CANDIDATE_BUILD` is the 18:00 scheduled default. It chooses the prepared
+  customer and score inputs, loads and audits the separate V1 and V2 controls,
+  builds advert options, and invokes the V1 and V2 page-build jobs. It does not
+  train models or calculate customer cells.
+
+## The Daily Assignment And Delivery Flow
+
+The times below are the declared Europe/London schedules. A declared schedule
+describes the bundle configuration; it is not evidence that a particular
+environment ran successfully on a particular date.
+
+| Time | What happens | What it means |
+| --- | --- | --- |
+| **12:15** | `mktg_next_uk_nextads_model_scoring` starts with `model_name=theme_affinity`. It synchronously calls the main NextAds job with `operation=PREPARE_SCORING_INPUTS` for the same date. | The child run refreshes the authoritative theme mapping, item attributes and item-to-theme data, records their exact accepted versions, and stops. The scoring job then prepares Theme Affinity model inputs, calculates account-to-theme scores, records a READY score output, publishes the older compatibility tables and runs its checks. |
+| **13:00** | `mktg_next_uk_nextads_markov_scoring` calculates Markov scores from an accepted scoring-input snapshot. | Markov uses the same standard score shape, but the current configuration keeps it as a shadow comparison. Its scores do not affect delivered adverts unless a future reviewed configuration explicitly selects them. |
+| **16:00** | `mktg_next_uk_nextads_candidate_foundation` prepares customer cells, repeat-ad exposure and advert feedback, then records the exact accepted versions together. | Both routes select this accepted record. Customer cells and repeat-ad exposure affect V1 and V2; advert feedback is applied only by V1. This is not model training or model scoring. |
+| **18:00** | The main job runs its default `CANDIDATE_BUILD` operation. | It selects one accepted set of customer information, loads and audits V1 and V2 controls, refreshes V2 CMS/sort-order inputs, chooses the exact score output assigned to each route role, checks theme coverage, and maps account-theme scores to adverts that are eligible under each control. Separate V1/V2 advert-quality audits publish diagnostic metrics without gating the mapping tasks. |
+| **After the 18:00 mapping** | The main job synchronously calls the V1 and V2 page-build jobs with the exact accepted advert-option attempts. | V1 chooses and publishes location-based assignments, then calls the read-only MASID handoff check and PLP delivery. V2 chooses and publishes page-type-and-rank assignments, then calls the Bloomreach payload export. A child failure is returned to the calling route rather than being treated as an unrelated run. |
+| **21:00** | `mktg_next_uk_nextads_candidate_compatibility` reads the exact READY V1 and V2 advert-option attempts. | It derives the older preranked table shapes for existing consumers and then invokes assignment validation. The 18:00 mapping tasks do not write those legacy tables directly. |
+
+The current score-selection configuration assigns Theme Affinity to both the
+`best` and `best_challenger` roles. Those are two selected roles, not two
+different scoring methods at present. Markov remains shadow-only.
+
+## Terms Used In This Guide
+
+Plain descriptions come first below. The exact internal name follows only when
+it is needed to find configuration, tasks or tables.
+
+| Plain term | Meaning | Internal wording you may see |
+| --- | --- | --- |
+| **Scoring** | Giving an account/theme or account/advert pair a numeric relevance or likelihood value. A score informs the later choice; it is not the final advert assignment. | Model scoring, provider scoring |
+| **Score source** | A method that calculates scores, such as Theme Affinity or Markov, and publishes them in the same standard shape so later jobs do not need model-specific logic. | Score provider, provider |
+| **Score-selection list** | Reviewed configuration that assigns exact READY score outputs to serving or comparison roles for V1 and V2. It selects previously calculated scores; it does not calculate them. | Scoring portfolio, portfolio entries |
+| **Fixed scoring inputs** | The exact versions of theme mapping, item attributes and item-to-theme data used by a scoring run. Pinning the versions prevents a retry from silently reading different data. | Scoring-input snapshot |
+| **Prepared model-input data** | Theme Affinity's account-to-theme features prepared for one fixed scoring-input snapshot before prediction. This is the first use of “foundation” in implementation names. | Scoring foundation |
+| **Scoring work record** | A temporary record connecting one scoring execution to its exact inputs, output attempt, owner and expiry. It protects retries and concurrent runs. This is the second use of “foundation”. | Foundation context, scoring-foundation run context |
+| **Shared customer information** | Customer cells, recent repeat-ad exposure and advert feedback accepted together for the evening run. Both routes select the record and use the first two inputs; only V1 applies advert feedback. This is the third, separate use of “foundation”. | Candidate Foundation |
+| **Model option** | One algorithm or parameter configuration compared during research. | Model candidate, research candidate |
+| **Advert option** | An eligible, scored advert that might be selected for an account and placement. It is not yet the advert that will be delivered. | Advert candidate, candidate row |
+| **Build** | A recorded logical result for fixed inputs, such as a feature build, score build, advert-option build or assignment build. The surrounding noun must be stated because “build” alone is ambiguous. | Build record |
+| **Attempt** | One execution or retry that tries to create or publish a build. Several attempts can relate to the same logical result without making them different inputs. | Build attempt, run context |
+| **READY** | The output and its checks completed sufficiently for an allowed downstream reader to select the recorded versions. It does not mean a model has been activated for serving. | READY build or snapshot |
+| **Assignment** | A final advert choice written for an account and V1 location, or for an account, V2 page type and rank. | Assignment history/latest tables |
+| **Delivery** | Making accepted assignments available to a serving destination: the V1 assignment table is consumed downstream by MASID, the V1 route exports PLP data, and V2 exports a Bloomreach payload. The MASID child job in this repository checks the handoff but does not write delivery data. | Handoff, export, payload publication |
+
+“Candidate” and “foundation” are therefore not safe shorthand. This guide uses
+“model option” or “advert option”, and describes which of the three foundation
+records it means before giving the internal identifier.
+
+## Research Is Separate From Live Assignment
+
+The Feature Store and model-development jobs support reusable data, model
+research, reviewed selection, registration and isolated evaluation. They do not
+change delivered adverts merely because a model was researched or registered:
+
+- `BUILD` runs the existing declared training route.
+- `RESEARCH` compares declared model options using the same fixed data splits
+  while keeping the final test split hidden from that comparison.
+- `REVIEW_SELECT` records the human-reviewed choice, evaluates only that option
+  on the held-out test split and registers the selected DEV model version.
+- `EVALUATE` applies an exact registered model to accepted historical advert
+  options and writes isolated comparison evidence, not live assignments.
+- The separate AutoML discovery job is manual, DEV-only and disabled by
+  default. Its output is research evidence, not registration or activation.
+
+Registration saves a numbered model version. Moving that exact version to
+another environment copies the reviewed artifact. Activation is a further
+serving change that makes a score source influence advert options, assignments
+and delivery. None should be inferred from another.
+
+## Where The Former Model-Specific Saved Jobs Went
+
+The consolidation did not place every removed saved job behind a new generic
+job. The status must be read literally: **absorbed** means the responsibility
+runs inside a current shared job; **on-demand code only** means an entry point
+remains but no saved bundle job invokes it; **retired without a shared
+replacement** means the saved job was removed and the shared route does not
+currently provide that complete operation.
+
+| Former saved job | Status | Current position |
+| --- | --- | --- |
+| `mktg_next_uk_nextads_theme_inputs` | **Absorbed** | The mapping, attribute and accepted-input work now runs in the main job's `PREPARE_SCORING_INPUTS` operation, called by model scoring. |
+| `mktg_next_uk_nextads_theme_affinity` | **Absorbed and expanded** | Its bundle resource identity and Databricks job history are retained by `mktg_next_uk_nextads_model_scoring`. The combined job is parameterised by `model_name`, currently supports operational `theme_affinity`, and moves the old 13:00 Theme Affinity start to the former Theme Inputs time of 12:15. |
+| `mktg_next_uk_nextads_theme_feature_compatibility` | **Absorbed** | Compatibility publication and its checks now run at the end of the shared model-scoring route. |
+| `mktg_next_uk_nextads_analytics_pctr_feature_source` | **Absorbed** | The retained Analytics pCTR SQL source tasks, validation and exact source receipt now run inside the Feature Store job before publication. |
+| `mktg_next_uk_nextads_analytics_pctr_snapshot_verification` | **Partly absorbed; focused verification retired** | pCTR table preparation, publication and general feature-quality checks now belong to Feature Store. The former failure-injection and read-back proof was not moved into that job: `verify_pctr_feature_snapshot.py` remains as code with no saved-job caller. |
+| `mktg_next_uk_nextads_shopping_bag_ongoing_evaluation` | **Absorbed for the declared Shopping Bag route** | Its evaluation responsibility is available through the model-development job's `EVALUATE` operation. |
+| `mktg_next_uk_nextads_shopping_bag_feature_preparation` | **Partly absorbed; Shopping Bag input remains on demand** | Its shared advert-feature calculation now runs inside Feature Store. The Shopping Bag account-activity builder remains a Python entry point with no saved-job caller. |
+| `mktg_next_uk_nextads_shopping_bag_label_publication` | **On-demand code only** | The Shopping Bag click-label builder remains a Python entry point with no saved-job caller. |
+| `mktg_next_uk_nextads_analytics_pctr_prediction_verification` | **Retired without a shared replacement** | The saved verification job is gone. The retained paused Analytics pCTR job still contains its legacy prediction task, but no shared lifecycle operation owns this proof. |
+| `mktg_next_uk_nextads_analytics_pctr_adoption` | **Retired without a shared replacement** | Analytics pCTR remains compatibility-only in the shared model declaration and is not supported end to end for adoption or activation. |
+| `mktg_next_uk_nextads_model_development_runtime_smoke` | **Retired without a saved-job replacement** | The runtime-smoke script remains for code/test use, but no non-test bundle job calls it. |
+
+Adding a supported invocation for a code-only builder or implementing a missing
+Analytics pCTR lifecycle operation is new orchestration work. It should not be
+presented as something this consolidation already provides.
 
 ## Finding A Run's Outputs
 
@@ -53,7 +182,7 @@ flowchart LR
 | [`mktg_next_uk_nextads_candidate_foundation`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml) | Account populations, existing cell assignments, web/app activity and advert-result history | `next_uk_nextads_customer_cells_fixed_latest`, fixed-cell history, transient/latest cells, `next_uk_nextads_customer_cells_latest`, `next_uk_nextads_candidate_repeat_ad_exposure`, `next_uk_nextads_candidate_ad_feedback`, `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` |
 | [`mktg_next_uk_nextads_data_pull`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_data_pull.yaml) | Landed v2 advert IDs plus CMS and sort-order sources | `nextads_sort_order_v2_latest`, `nextads_sort_order_v2`, `next_uk_nextads_cms_content_latest` and `next_uk_nextads_cms_content` |
 | [`mktg_next_uk_nextads_candidate_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads.yml) | With `operation=PREPARE_SCORING_INPUTS`, authoritative theme mapping, item attributes and product/control inputs; with the default `operation=CANDIDATE_BUILD`, v1/v2 control sheets, one accepted Candidate Foundation, accepted scoring snapshots/provider builds, CMS and sort order | The preparation operation writes the accepted scoring-input snapshot and its exact source bindings; the candidate operation writes versioned control/exclusion tables, scoring portfolios/entries, `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores`, `next_uk_nextads_candidate_ad_sets` and the exclusions Cosmos container, then runs both page-build jobs |
-| [`mktg_next_uk_nextads_page_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml) | One accepted v1 candidate attempt, pinned customer cells, v1 control, NextGen assignments and advert results | `next_uk_nextads_assignments_build_staging`, `next_uk_nextads_assignments`, `next_uk_nextads_assignments_latest` and assignment-build events; then MASID and PLP child jobs |
+| [`mktg_next_uk_nextads_page_build`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml) | One accepted v1 candidate attempt, pinned customer cells, v1 control, NextGen assignments and advert results | `next_uk_nextads_assignments_build_staging`, `next_uk_nextads_assignments`, `next_uk_nextads_assignments_latest` and assignment-build events; then the MASID handoff-check and PLP-delivery child jobs |
 | [`mktg_next_uk_nextads_masid_handoff`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_masid_handoff.yml) | `next_uk_nextads_assignments_latest` | Validation/alert result only; no table write |
 | [`mktg_next_uk_nextads_plp_gs_delivery`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml) | v1 raw/latest control, PLP placement and multipage-location tables | `next_uk_nextads_plp_gs_latest`, the territory-specific latest table and the configured delivery file |
 | [`mktg_next_uk_nextads_page_build_v2`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml) | One accepted v2 candidate attempt, pinned customer cells, v2 control and NextGen assignments | `next_uk_nextads_assignments_v2_build_staging`, `next_uk_nextads_assignments_v2`, `next_uk_nextads_assignments_v2_latest` and assignment-build events; then the payload child job |
@@ -71,10 +200,12 @@ The shared main NextAds job validates its `operation` before entering either bra
 | `select_candidate_foundation` | `next_uk_nextads_candidate_foundation_builds` and `next_uk_nextads_candidate_foundation_sources` | Pinned customer-cell, exposure and feedback table versions in task values; no table write |
 | `load_control_sheet_v1` and `audit_control_sheet_v1` | v1 Google control, PLP placement and multipage inputs | v1 raw/history/latest control tables, PLP raw/history/latest tables, `next_uk_nextads_control_sheet`, `next_uk_nextads_control_sheet_latest`, `next_uk_nextads_multipage_locations` and `next_uk_nextads_multipage_locations_latest`; audit is read-only |
 | `load_control_sheet_v2`, `trigger_data_pull_for_CMS_pull`, `process_control_sheet_v2` and `audit_control_sheet_v2` | v2 Google control/exclusions, refreshed CMS content, sort order and product catalog | v2 raw/history/latest control tables, `next_uk_nextads_exclusions`, `next_uk_nextads_exclusions_latest`, `next_uk_nextads_control_sheet_v2` and `next_uk_nextads_control_sheet_latest_v2`; audit is read-only |
+| `quality_audit_ads_v1` and `quality_audit_ads_v2` | The loaded route control plus advert items, image items and theme evidence | `next_uk_nextads_advert_quality_metrics` and `next_uk_nextads_advert_quality_metrics_latest`; V2 waits for V1 so the two routes do not update the shared latest table concurrently |
 | `write_exclusions` | `next_uk_nextads_exclusions_latest` | Azure Cosmos DB exclusions container |
 | `resolve_scoring_portfolio_v1` and `resolve_scoring_portfolio_v2` | `next_uk_nextads_scoring_input_snapshots`, provider builds/signals and configured portfolio policy | `next_uk_nextads_scoring_portfolios` and `next_uk_nextads_scoring_portfolio_entries`, plus exact selected IDs/versions in task values |
 | `validate_score_provider_theme_coverage_v1` and `validate_score_provider_theme_coverage_v2` | Selected provider signals, accepted item-theme snapshot and the matching v1/v2 latest control | Validation result only; no table write |
-| `map_theme_scores_to_ads_v1` and `map_theme_scores_to_ads_v2` | Selected provider signals, matching control, pinned customer cells, repeat exposure and advert feedback | Route-specific accepted attempts in `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores` and `next_uk_nextads_candidate_ad_sets` |
+| `map_theme_scores_to_ads_v1` | Selected provider signals, V1 control, pinned customer cells, repeat exposure and advert feedback | Accepted V1 attempt in `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores` and `next_uk_nextads_candidate_ad_sets` |
+| `map_theme_scores_to_ads_v2` | Selected provider signals, V2 control, pinned customer cells and repeat exposure; advert feedback is deliberately disabled | Accepted V2 attempt in `next_uk_nextads_candidate_builds`, `next_uk_nextads_candidate_scores` and `next_uk_nextads_candidate_ad_sets` |
 | `run_page_build_v1` and `run_page_build_v2` | Exact candidate, provider, scoring-input and Candidate Foundation identities from the preceding tasks | Synchronous v1/v2 page-build child jobs and their delivery children |
 
 The exact task dependencies and failure boundaries are kept in [`v1_v2_parallel_route.md`](v1_v2_parallel_route.md), while the time-based operational hand-offs are in [`nextads_databricks_runtime_map.md`](../CICD/nextads_databricks_runtime_map.md).
@@ -217,7 +348,7 @@ These are control, evidence and evaluation tables rather than reusable model fea
 | `next_uk_nextads_automl_discovery_receipts` | Optional generic model-discovery job | Pins the discovery request to the exact research-frame version and records its experiment, trials and leaderboard/recipe associations |
 | `next_uk_nextads_model_builds` | Generic model lifecycle `BUILD` or selected-research route | Identifies the definition, training receipt, MLflow run, registered version and artifact digest; nullable research columns link selected builds to their research, decision and candidate receipts |
 | `next_uk_nextads_external_score_receipts` | Explicit external-score adoption implementation | Proves the exact externally produced prediction table and model versions that were adopted |
-| `next_uk_nextads_score_provider_signals`, `next_uk_nextads_score_provider_builds` | Generic model lifecycle or explicit external-score adoption implementation | Holds canonical evaluation-only scores and their selectable build identity |
+| `next_uk_nextads_score_provider_signals`, `next_uk_nextads_score_provider_builds` | Operational Theme Affinity and Markov publishers, shared lifecycle evaluation, or an explicit external-score adoption implementation | Holds standard-shaped operational or evaluation scores and their exact result identity; the evening score-selection step can select accepted serving-capable results from these tables |
 | `next_uk_nextads_model_evaluation_candidates` | Generic model lifecycle `BUILD` operation | Stores the deterministic historical challenger result for review |
 | `next_uk_nextads_model_evaluation_scoring_builds`, `next_uk_nextads_model_evaluation_scores` | Generic model lifecycle `EVALUATE` operation | Records repeated scoring evidence against accepted candidate builds without publishing serving candidates |
 
@@ -232,7 +363,7 @@ These are control, evidence and evaluation tables rather than reusable model fea
 | What order do the Feature Store tasks run in? | [`feature_store_flow.md`](feature_store_flow.md) |
 | What is each feature table's grain, key and refresh expectation? | [`feature_store_table_design.md`](../feature_store/feature_store_table_design.md) |
 | What is implemented, proven in DEV or still blocked? | [Feature Store README](../feature_store/README.md) and [`migration_backlog.md`](../feature_store/migration_backlog.md) |
-| What does a data scientist select for declared research, AutoML, review and isolated evaluation, and why? | [Model Research Output Layer: Complete Data Scientist Walkthrough](../model_research_walkthrough.md) |
+| What does a data scientist select for declared research, AutoML, review and isolated evaluation, and why? | [Model research: data scientist guide](../model_research_walkthrough.md) |
 | How do accepted features become comparable candidate evidence, a selected DEV model and isolated evaluation scores? | [`feature_store_flow.md`](feature_store_flow.md#declared-model-consumption-and-research-boundary) |
 | How does Theme Affinity operate today? | [`theme_affinity_operational_flow.md`](theme_affinity_operational_flow.md) |
 | How are exact model versions promoted? | [`mlflow_model_lifecycle.md`](mlflow_model_lifecycle.md) |

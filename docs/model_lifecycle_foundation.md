@@ -1,8 +1,8 @@
-# Model Lifecycle Foundation
+# Shared Model Lifecycle
 
-This PR establishes the shared model lifecycle shape for Next Ads models. Theme Affinity is the first implementation, but the reusable code lives under `src/next_ads/ml/lifecycle` so pCTR, direct-ad challengers and later models can use the same promotion and monitoring contracts.
+This page describes the shared code and controls for registering, moving and monitoring Next Ads models. Theme Affinity is the first implementation, but the reusable code lives under `src/next_ads/ml/lifecycle` so pCTR, direct-ad challengers and later models can use the same promotion and monitoring contracts.
 
-The foundation is:
+The shared lifecycle consists of:
 
 - `ModelLifecycleSpec`: model identity, Unity Catalog registered model name, experiment path, training table, feature columns and monitoring defaults.
 - Registry helpers: Databricks tracking URI, Unity Catalog registry URI, model alias URIs, alias setting and preprod-to-prod model version copy.
@@ -13,11 +13,11 @@ The foundation is:
 
 Operationally, each model should add a declaration and small adapters that resolve its contracts from repo config, then use the centrally owned model lifecycle resource in DEV and shared lifecycle code for controlled promotion and monitoring. Model-specific code should own only model fitting, scoring and feature contracts.
 
-The exhaustive DS-facing declaration and execution guide is [Model Research Output Layer: Complete Data Scientist Walkthrough](model_research_walkthrough.md). It owns the detailed research/selection/evaluation options; this page owns the broader shared lifecycle foundation.
+The exhaustive DS-facing declaration and execution guide is [Model research: data scientist guide](model_research_walkthrough.md). It owns the detailed research, selection and evaluation options; this page owns the reusable registration, movement and monitoring controls.
 
-## After This PR Lands
+## How new models use it
 
-After this PR is completed, new operational models should treat `src/next_ads/ml/lifecycle` as the shared contract. A new model should not copy Theme Affinity lifecycle code, add another MLflow helper module, or introduce a model-specific promotion framework.
+New operational models should treat `src/next_ads/ml/lifecycle` as the shared contract. A new model should not copy Theme Affinity lifecycle code, add another MLflow helper module, or introduce a model-specific promotion framework.
 
 For a new model, add model-specific code and declarations in the existing package and registry structure, for example:
 
@@ -46,7 +46,7 @@ Each operational model should add:
 
 ## Direct-Ad Challenger Fit
 
-For the direct-ad challenger plan, this means the challenger should be a sibling of Theme Affinity rather than a modification inside Theme Affinity lifecycle code. Theme Affinity can remain the champion signal, while the challenger model uses the shared lifecycle foundation to train, register, monitor and promote its own model.
+For the direct-ad challenger plan, this means the challenger should be a sibling of Theme Affinity rather than a modification inside Theme Affinity lifecycle code. Theme Affinity can remain the champion signal, while the challenger model uses the shared lifecycle tools to train, register, monitor and promote its own model.
 
 The direct-ad challenger should therefore add only the challenger-specific parts:
 
@@ -61,7 +61,7 @@ This keeps the future pCTR/direct-ad work aligned with the Theme Affinity operat
 
 ## Theme Affinity Training Backend
 
-Theme Affinity has two DEV training routes in this PR, and both create challenger model versions rather than replacing the current production model URI.
+Theme Affinity has two DEV training routes, and both create challenger model versions rather than replacing the current production model URI.
 
 Both training routes now start from the same explicit training-frame contract. The old notebook flow trained from the manually prepared `marketingdata_prod.ds_sandbox.dev_adrienne_complete_ranked` table, which was already reduced to roughly 11.2 million rows before pandas/GPU training. The operational DLT ranked table is a full scoring candidate table and can be billions of rows, so it must not be handed directly to either trainer.
 
@@ -132,4 +132,4 @@ Do not add the following for future model lifecycle work:
 - production schedule changes inside the same PR as model lifecycle plumbing;
 - changes to existing production scoring outputs without separate validation.
 
-If a future model needs lifecycle behaviour that does not fit this foundation, extend `src/next_ads/ml/lifecycle` first, then consume that extension from the model-specific package.
+If a future model needs lifecycle behaviour that does not fit these shared tools, extend `src/next_ads/ml/lifecycle` first, then consume that extension from the model-specific package.

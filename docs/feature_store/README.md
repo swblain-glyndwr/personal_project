@@ -17,7 +17,7 @@
 
 ## Using Accepted Features In A Model
 
-For the full consumer workflow, use [Model Research Output Layer: Complete Data Scientist Walkthrough](../model_research_walkthrough.md). It explains every model and ResearchPlan field, the exact BUILD/RESEARCH/REVIEW_SELECT/EVALUATE and AutoML choices, point-in-time and test-withholding controls, output tables, MLflow evidence, retries and the worked Shopping Bag proof. This section remains the concise Feature Store boundary.
+For the full consumer workflow, use [Model research: data scientist guide](../model_research_walkthrough.md). It explains every model and ResearchPlan field, the exact BUILD/RESEARCH/REVIEW_SELECT/EVALUATE and AutoML choices, point-in-time and test-withholding controls, output tables, MLflow evidence, retries and the worked Shopping Bag proof. This section remains the concise Feature Store boundary.
 
 The implemented Shopping Bag declaration demonstrates how the Feature Store is used without making it part of customer serving. Accepted feature builders publish observed click labels, 90-day account activity and advert features for explicit dates. The centrally owned model-development job then resolves only READY snapshots, records their exact Delta versions in a `TrainingSetReceipt`, trains on DBR 15.4 and registers the selected DEV model version in MLflow. A data scientist adds or changes the declaration rather than adding a model-specific Databricks job.
 
@@ -84,7 +84,7 @@ An empty table shell is not a populated feature. An on-demand contract is not ex
 | `sql/features/nextads/` | Physical Feature Store and compatibility-view schemas. |
 | `jobs/table_operations/create_feature_store_tables.py` | Safe Feature Engineering table creation. |
 | `jobs/features/nextads/` | Builders, preflight, quality checks and the read-only plan. |
-| `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` | Personal, Integration and shared DEV Feature Store graph. |
+| `pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml` | Personal `DEV` and scheduled shared `DEV_FEATURE_STORE` graph. |
 | `pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml` | Centrally owned generic DEV lifecycle for declared model build, research, reviewed selection and isolated evaluation. |
 | `pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml` | Centrally owned, disabled-by-default generic AutoML discovery against an exact declared research frame. |
 | `configs/models/nextads_models.yaml` | Model problems, lookups, runtimes, plug-ins and optional research plans. |
