@@ -3,11 +3,43 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import sys
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, Sequence
 
 from pyspark.sql import SparkSession
+
+
+def resolve_project_root() -> Path:
+    """Resolve the synced repository root in local and Databricks runs."""
+    try:
+        return Path(__file__).resolve().parents[2]
+    except NameError:
+        from dsutils.dbc import get_dbutils
+
+        dbutils = get_dbutils()
+        notebook_path = (
+            dbutils.notebook.entry_point.getDbutils()
+            .notebook()
+            .getContext()
+            .notebookPath()
+            .get()
+        )
+        if not notebook_path.startswith("/Workspace"):
+            notebook_path = "/Workspace" + notebook_path
+        return Path(notebook_path).parents[2]
+
+
+PROJECT_ROOT = resolve_project_root()
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(1, str(PROJECT_ROOT))
+
+from next_ads.common.job_logging import configure_job_logging
 
 
 DEV_JOB_ENV = "dev"
@@ -369,9 +401,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> dict[str, object]:
     args = parse_args(argv)
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper()),
-        format="%(asctime)s - %(levelname)s - %(message)s",
+    configure_job_logging(
+        args.log_level,
+        log_format="%(asctime)s - %(levelname)s - %(message)s",
     )
     scope = validate_runtime_scope(
         job_env=args.job_env,

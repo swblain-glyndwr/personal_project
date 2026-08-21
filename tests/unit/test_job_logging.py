@@ -22,6 +22,7 @@ MIGRATED_ENTRYPOINTS = {
     "jobs/model/research/smoke_model_research_runtime.py",
     "jobs/orchestration/validate_model_scoring_request.py",
     "jobs/orchestration/validate_nextads_operation.py",
+    "jobs/table_operations/grant_sp_owned_table_access.py",
     "jobs/table_operations/table_maintenance.py",
     "src/next_ads/delivery/cosmos.py",
 }
