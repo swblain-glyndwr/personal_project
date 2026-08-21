@@ -24,6 +24,7 @@ default:
     credit_ad_accounts: "@format {this.catalog_read}.ds_sandbox.next_uk_nextads_credit_audience_20250828_snapshot_20250915"
     kids_age_groups_latest: "@format {this.catalog_read}.warehouse.purchased_age_groups_latest"
     eid_audience: "@format {this.catalog_read}.ds_sandbox.nextads_eid_2026"
+    exponea_customers: "@format {this.catalog_read}.warehouse.next_uk_exponea_customers"  
     next_ads_sort_order_latest: "@format {this.catalog_write}.{this.schema_write}.next_ads_sort_order_latest"
 
   # Tables written to environment-specific catalog and schema
