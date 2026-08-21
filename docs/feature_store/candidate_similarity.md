@@ -3,7 +3,7 @@
 Azure Boards story: 5149979
 Status: follow-up story concept, not part of the current feature-store production model contracts.
 
-## Purpose
+## Diagnostic Scope
 
 Candidate similarity should be treated as an offline diagnostic capability. It should help analysts understand whether existing Next Ads candidate adverts look similar to a customer's product interests, but it must not feed production Shopping Bag pCTR, Theme Affinity, future ranking/challenger models, scoring, ranking, assignment, or compatibility-view outputs in this feature-store slice.
 
@@ -21,7 +21,7 @@ The diagnostics output must not be read by:
 
 Any later model experiment that wants this signal must copy or join it into an experiment-specific training dataset under a separate story, with clear evidence and release approval before it can affect production.
 
-## Candidate Source
+## Candidate Snapshot Contract
 
 Similarity should be calculated only after a bounded candidate set exists. The preferred first source is the existing theme-to-ad prerank output:
 
@@ -55,7 +55,7 @@ The diagnostics job needs agreed vector sources before implementation:
 
 Both sides must carry compatible model/version metadata before cosine similarity is calculated.
 
-## Proposed Diagnostics Output
+## Proposed Offline Diagnostics Output
 
 The follow-up story should add a non-serving diagnostics table such as:
 

@@ -30,9 +30,9 @@ def test_offline_plan_resolves_the_same_logical_graph_for_every_environment():
 
     assert plan["mode"] == "READ_ONLY"
     assert plan["summary"] == {
-        "ACTIVE": 11,
-        "COMPATIBILITY": 2,
-        "SCAFFOLD": 7,
+        "ACTIVE": 18,
+        "COMPATIBILITY": 4,
+        "SCAFFOLD": 0,
     }
     environments = {
         environment["environment"]: environment
@@ -63,7 +63,7 @@ def test_offline_plan_resolves_the_same_logical_graph_for_every_environment():
         feature_ids_by_environment[0],
         feature_ids_by_environment[0],
     ]
-    assert len(feature_ids_by_environment[0]) == 20
+    assert len(feature_ids_by_environment[0]) == 22
     preprod_first_feature = environments["PREPROD"]["features"][0]
     assert preprod_first_feature["location_state"] == "RELEASE_ID_REQUIRED"
     assert "{release_id}" in preprod_first_feature["table_location"]
@@ -86,17 +86,26 @@ def test_offline_plan_reports_builders_dependencies_and_missing_contracts():
     ]
     assert active["missing_contracts"] == []
 
-    scaffold = features["next_uk_nextads_fs_pctr_model_input"]
-    assert scaffold["state"] == "SCAFFOLD"
-    assert scaffold["implemented"] is False
-    assert scaffold["builder"] == "build_model_inputs"
-    assert scaffold["task_dependencies"] == [
-        "build_theme_affinity_features",
-        "build_pctr_affinity_features",
+    pctr = features["next_uk_nextads_fs_pctr_model_input"]
+    assert pctr["state"] == "COMPATIBILITY"
+    assert pctr["implemented"] is True
+    assert pctr["builder"] == "build_pctr_affinity_features"
+    assert pctr["task_dependencies"] == [
+        "build_account_features",
+        "build_advert_features",
     ]
-    assert scaffold["missing_contracts"] == [
-        "approved_shopping_bag_pctr_source",
-        "materializer",
+    assert pctr["missing_contracts"] == []
+
+    observed_labels = features[
+        "next_uk_nextads_fs_shopping_bag_click_labels"
+    ]
+    assert observed_labels["builder"] == "build_shopping_bag_click_labels"
+    assert observed_labels["builder_job"] == (
+        "mktg_next_uk_nextads_shopping_bag_label_publication"
+    )
+    assert observed_labels["execution_scope"] == "MANUAL_DEV_PROOF"
+    assert observed_labels["task_dependencies"] == [
+        "create_observed_label_table"
     ]
 
 
@@ -116,10 +125,12 @@ def test_compatibility_view_plan_reports_contract_readiness_not_live_state():
         ]
         == []
     )
-    assert views["next_uk_nextads_pctr_features_latest"]["status"] == "BLOCKED"
+    assert views["next_uk_nextads_pctr_features_latest"]["status"] == (
+        "CONTRACT_READY"
+    )
     assert views["next_uk_nextads_pctr_features_latest"][
         "missing_contracts"
-    ] == ["approved_shopping_bag_pctr_source", "materializer"]
+    ] == []
 
 
 def test_plan_output_is_deterministic_and_json_serializable():

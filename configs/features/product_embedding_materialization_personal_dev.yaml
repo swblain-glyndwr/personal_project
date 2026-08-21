@@ -1,0 +1,13 @@
+product_embedding_materialization:
+  environment: DEV
+  purpose: personal_dev_validation
+  registered_model_name: marketingdata_dev.stephen_blain.nextads_pctr_advert_sentence_transformer
+  registered_model_version: 11
+  model_uri: models:/marketingdata_dev.stephen_blain.nextads_pctr_advert_sentence_transformer/11
+  source_registered_model_name: marketingdata_dev.stephen_blain.nextads_pctr_advert_sentence_transformer
+  source_registered_model_version: 11
+  source_run_id: 95be978bd9e24783afe4e68def0c9845
+  artifact_sha256: bc4daec2a2647ce42ad35df49181c762187cd4e1fed008915ce4f76ac89ca384
+  model_staging_root: /Volumes/marketingdata_dev/ds_sandbox/ds_volume/next_ads/embedding_models
+  inference_partitions: 8
+  inference_batch_size: 256

@@ -2,6 +2,11 @@
 #!pip install "/Workspace/Users/claire_wilsonbarnes@next.co.uk/next-ads/wheels/dsutils-0.1.13-py3-none-any.whl"
 
 # COMMAND ----------
+import argparse
+import hashlib
+import json
+import sys
+
 import mlflow
 import mlflow.spark
 
@@ -25,7 +30,35 @@ spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 
 
 # COMMAND ----------
+MODEL_ARGUMENTS = (
+    "catalog_schema_prefix",
+    "lookback_period",
+    "table_prefix",
+    "affinity_weighting_factor",
+    "regressor_model_uri",
+    "classifier_model_uri",
+)
+
+
+def parse_command_line_values(argv):
+    """Read Python-task parameters without breaking notebook widgets."""
+    parser = argparse.ArgumentParser(add_help=False)
+    for name in MODEL_ARGUMENTS:
+        parser.add_argument(f"--{name}")
+    parsed, _unknown = parser.parse_known_args(argv)
+    return {
+        name: value
+        for name, value in vars(parsed).items()
+        if value not in (None, "")
+    }
+
+
+COMMAND_LINE_VALUES = parse_command_line_values(sys.argv[1:])
+
+
 def get_widget_value(name, default):
+    if name in COMMAND_LINE_VALUES:
+        return COMMAND_LINE_VALUES[name]
     try:
         dbutils.widgets.text(name, str(default))
         value = dbutils.widgets.get(name)
@@ -41,6 +74,18 @@ def validate_positive_int(name, value):
             f"Invalid widget value for {name}: {value}. Value must be a positive integer."
         )
     return parsed_value
+
+
+def optional_first_value(rows):
+    """Return the first scalar, or None when an aggregate has no rows."""
+    return rows[0][0] if rows else None
+
+
+def require_non_empty(frame, stage):
+    """Stop before publication when a model stage produces no rows."""
+    if not frame.limit(1).collect():
+        raise ValueError(f"Analytics pCTR {stage} contains no rows")
+    return frame
 
 
 # COMMAND ----------
@@ -161,6 +206,7 @@ baskets_table = spark.table(
 # pctr_prediction_features
 predictions_input = spark.table(FEATURE_TABLE)
 predictions_input = predictions_input.fillna(fill_zeros_columns)
+require_non_empty(predictions_input, "feature input")
 
 # COMMAND ----------
 mlflow.set_registry_uri("databricks-uc")
@@ -174,7 +220,9 @@ except Exception as e:
 
 # COMMAND ----------
 popularity_scored_df = popularity_model.transform(predictions_input)
+require_non_empty(popularity_scored_df, "popularity output")
 affinity_scored_df = affinity_model.transform(popularity_scored_df)
+require_non_empty(affinity_scored_df, "affinity output")
 
 # COMMAND ----------
 # Addition of advert click data over the last 30 days
@@ -236,12 +284,19 @@ global_ads_table = (
 )
 
 # COMMAND ----------
-median_impressions = (
+median_impression_rows = (
     global_ads_table.filter(F.col("median_impressions").isNotNull())
     .dropDuplicates(["median_impressions"])
     .select("median_impressions")
-    .collect()[0][0]
+    .limit(1)
+    .collect()
 )
+median_impressions = optional_first_value(median_impression_rows)
+if median_impressions is None:
+    print(
+        "No advert impression history matched the current control sheet; "
+        "the popularity contribution will be zero."
+    )
 
 # COMMAND ----------
 ## Addition of items from adverts revenue as a tiebreaker if necessary
@@ -317,6 +372,7 @@ predictions = (
         ),
     )
 )
+require_non_empty(predictions, "ranked output")
 
 # COMMAND ----------
 print("Loading output to table (latest)")
@@ -352,27 +408,34 @@ try:
 except AssertionError as e:
     errors.append(str(e))
 
-# rank 1 & 2 have as many predictions as input customers
-rank_1_number_predictions = prediction_scores.filter(
-    F.col(weighted_ranking_col) == 1
-).count()
-rank_2_number_predictions = prediction_scores.filter(
-    F.col(weighted_ranking_col) == 2
-).count()
+# Every input customer has at least one rank 1 and rank 2 prediction. The
+# model deliberately uses dense_rank, so tied adverts can share either rank.
+rank_1_number_customers = (
+    prediction_scores.filter(F.col(weighted_ranking_col) == 1)
+    .select("account_number")
+    .distinct()
+    .count()
+)
+rank_2_number_customers = (
+    prediction_scores.filter(F.col(weighted_ranking_col) == 2)
+    .select("account_number")
+    .distinct()
+    .count()
+)
 number_customers = (
     predictions_input.select("account_number").distinct().count()
 )
 
 try:
-    assert rank_1_number_predictions == number_customers, (
-        f"Number of rank 1 predictions {rank_1_number_predictions} does not match number of customers {number_customers}"
+    assert rank_1_number_customers == number_customers, (
+        f"Number of customers with a rank 1 prediction {rank_1_number_customers} does not match number of customers {number_customers}"
     )
 except AssertionError as e:
     errors.append(str(e))
 
 try:
-    assert rank_2_number_predictions == number_customers, (
-        f"Number of rank 2 predictions {rank_2_number_predictions} does not match number of customers {number_customers}"
+    assert rank_2_number_customers == number_customers, (
+        f"Number of customers with a rank 2 prediction {rank_2_number_customers} does not match number of customers {number_customers}"
     )
 except AssertionError as e:
     errors.append(str(e))
@@ -428,18 +491,52 @@ except AssertionError as e:
 
 # max coverage percentage - does this meet the threshold
 
-rank1_coverage_perc = aggregated_advert_rank1_distribution.select(
-    "perc_total"
-).collect()[0][0]
-try:
-    assert rank1_coverage_perc <= rank1_advert_coverage_threshold, (
-        "Top ranked advert covers 25% or more of all rank 1 & 2 positions"
-    )
-except AssertionError as e:
-    errors.append(str(e))
+rank1_coverage_perc = optional_first_value(
+    aggregated_advert_rank1_distribution.select("perc_total")
+    .limit(1)
+    .collect()
+)
+if rank1_coverage_perc is None:
+    errors.append("No rank 1 or 2 Analytics pCTR predictions were produced")
+else:
+    try:
+        assert rank1_coverage_perc <= rank1_advert_coverage_threshold, (
+            "Top ranked advert covers 25% or more of all rank 1 & 2 positions"
+        )
+    except AssertionError as e:
+        errors.append(str(e))
 
 # COMMAND ----------
 if errors:
     final_errors = "\n".join(errors)
     print(final_errors)
     raise AssertionError(final_errors)
+
+# COMMAND ----------
+latest_history = spark.sql(
+    f"DESCRIBE HISTORY {TARGET_TABLE_LATEST} LIMIT 1"
+).first()
+accepted_dates = [
+    row["rundate"].isoformat()
+    for row in prediction_scores.select("rundate").distinct().collect()
+]
+try:
+    producing_run_id = spark.conf.get("spark.databricks.job.runId")
+except Exception:
+    producing_run_id = "unknown"
+prediction_receipt = {
+    "classifier_model_uri": classifier_model_uri,
+    "output_delta_version": int(latest_history["version"]),
+    "output_row_count": prediction_scores.count(),
+    "output_schema_sha256": hashlib.sha256(
+        prediction_scores.schema.json().encode("utf-8")
+    ).hexdigest(),
+    "output_table": TARGET_TABLE_LATEST,
+    "producing_run_id": producing_run_id,
+    "regressor_model_uri": regressor_model_uri,
+    "run_dates": sorted(accepted_dates),
+}
+print(
+    "ANALYTICS_PCTR_PREDICTION_RECEIPT="
+    + json.dumps(prediction_receipt, sort_keys=True, separators=(",", ":"))
+)

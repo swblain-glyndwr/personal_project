@@ -79,13 +79,18 @@ def test_embedding_smoke_is_read_only_and_requires_exact_model_binding():
         PROJECT_ROOT
         / "jobs/features/nextads/smoke_product_embedding_runtime.py"
     ).read_text()
+    runtime_source = (
+        PROJECT_ROOT / "src/next_ads/features/embedding_runtime.py"
+    ).read_text()
+    runtime_sources = script + runtime_source
 
     assert task["spark_python_task"]["parameters"] == [
         "--log_level",
         "INFO",
     ]
-    assert "mlflow.sentence_transformers.load_model" not in script
-    assert "trust_remote_code=True" not in script
+    assert "next_ads.features.embedding_runtime" in script
+    assert "mlflow.sentence_transformers.load_model" not in runtime_sources
+    assert "trust_remote_code=True" not in runtime_sources
     assert "load_approved_dev_smoke_binding" in script
     for operation in [
         "saveAsTable",
@@ -99,7 +104,7 @@ def test_embedding_smoke_is_read_only_and_requires_exact_model_binding():
         "set_registered_model_alias",
         "register_model",
     ]:
-        assert operation not in script
+        assert operation not in runtime_sources
 
 
 def test_advert_item_bridge_smoke_is_read_only_and_runs_first():

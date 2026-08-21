@@ -13,6 +13,7 @@ from typing import Any
 
 from _registry_job import (
     configure_job_logging,
+    feature_write_kwargs,
     log_owned_tables,
     parse_common_args,
     validate_builder_output_tables,
@@ -459,11 +460,14 @@ def _freshness_evidence(
         else "FAIL"
     )
     metadata = commit_metadata or {}
+    evidence = metadata.get("details", metadata)
+    if not isinstance(evidence, dict):
+        evidence = metadata
     commit_evidence_status = (
         "PASS"
-        if metadata.get("contract") == "nextads_feature_build/v1"
-        and metadata.get("table_name") == expected_table_name
-        and metadata.get("reference_date") == expected_reference_date
+        if evidence.get("contract") == "nextads_feature_build/v1"
+        and evidence.get("table_name") == expected_table_name
+        and evidence.get("reference_date") == expected_reference_date
         else "FAIL"
     )
     status = (
@@ -1164,6 +1168,7 @@ def main() -> None:
             reference_date=reference_date,
             replace_reference_date=False,
             feature_engineering_client=feature_engineering_client,
+            **feature_write_kwargs(args),
         )
         quality_entry["physical_path"] = written_table_path
         written_quality_df = spark.table(written_table_path)
@@ -1223,6 +1228,7 @@ def main() -> None:
             reference_date=reference_date,
             replace_reference_date=False,
             feature_engineering_client=feature_engineering_client,
+            **feature_write_kwargs(args),
         )
 
         (

@@ -4,31 +4,34 @@ import logging
 
 from _registry_job import (
     configure_job_logging,
+    feature_group_identity,
     log_owned_tables,
     parse_common_args,
     validate_builder_output_tables,
 )
 from dsutils.dbc import configure_spark
 from next_ads.features import load_feature_store_registry
-from next_ads.features.materialization import (
-    create_feature_engineering_client,
-    write_feature_table,
-)
+from next_ads.features.analytics_pctr_source import parse_reference_date
 from next_ads.features.nextads_core import build_click_labels_df
 from next_ads.features.theme_affinity import (
     build_theme_affinity_model_input_df,
     read_theme_source_tables,
     resolve_theme_reference_date,
 )
+from next_ads.features.snapshot_publication import (
+    write_and_publish_feature_group,
+)
+from next_ads.features.source_pinning import PinnedSourceSession
 
 
 LOGGER = logging.getLogger(__name__)
+BUILDER = "build_model_inputs"
 
 
 def main() -> None:
     args = parse_common_args()
     configure_job_logging(args.log_level)
-    log_owned_tables("build_model_inputs", args)
+    log_owned_tables(BUILDER, args)
 
     spark = configure_spark()
     registry = load_feature_store_registry()
@@ -43,8 +46,18 @@ def main() -> None:
         args.theme_table_prefix,
         args.reference_date,
     )
-    source_tables = read_theme_source_tables(
+    identity = feature_group_identity(args, BUILDER)
+    pinned_spark = PinnedSourceSession(
         spark,
+        feature_build_id=identity["feature_build_id"],
+        feature_build_attempt_id=identity["feature_build_attempt_id"],
+        reference_date=parse_reference_date(reference_date),
+        target_catalog=target_catalog,
+        target_schema=target_schema,
+        registry=registry,
+    )
+    source_tables = read_theme_source_tables(
+        pinned_spark,
         source_catalog,
         args.theme_source_schema,
         args.theme_table_prefix,
@@ -55,47 +68,38 @@ def main() -> None:
         "next_uk_nextads_fs_theme_affinity_model_input",
         "next_uk_nextads_fs_labels_clicks",
     )
-    validate_builder_output_tables("build_model_inputs", writes, registry)
+    validate_builder_output_tables(BUILDER, writes, registry)
 
-    feature_engineering_client = create_feature_engineering_client()
     model_input_df = build_theme_affinity_model_input_df(
         source_tables["ranked"],
         source_tables["prediction"],
         reference_date,
     )
-    table_path = write_feature_table(
-        spark,
-        "next_uk_nextads_fs_theme_affinity_model_input",
-        model_input_df,
-        catalog=target_catalog,
-        schema=target_schema,
-        reference_date=reference_date,
-        replace_reference_date=replace_reference_date,
-        feature_engineering_client=feature_engineering_client,
-    )
-    LOGGER.info("Wrote Theme Affinity model input feature table: %s", table_path)
-
     click_labels_df = build_click_labels_df(
-        spark,
+        pinned_spark,
         args.source_catalog,
         args.source_schema,
         reference_date,
     )
-    table_path = write_feature_table(
+    _ready_build, snapshot = write_and_publish_feature_group(
         spark,
-        "next_uk_nextads_fs_labels_clicks",
-        click_labels_df,
         catalog=target_catalog,
         schema=target_schema,
-        reference_date=reference_date,
-        reference_date_column="session_date",
+        group_id=BUILDER,
+        reference_date=parse_reference_date(reference_date),
+        frames={
+            "next_uk_nextads_fs_theme_affinity_model_input": model_input_df,
+            "next_uk_nextads_fs_labels_clicks": click_labels_df,
+        },
+        sources=pinned_spark.source_bindings,
+        registry=registry,
         replace_reference_date=replace_reference_date,
-        feature_engineering_client=feature_engineering_client,
+        **identity,
     )
-    LOGGER.info("Wrote click-label feature table: %s", table_path)
     LOGGER.info(
-        "pCTR model input remains dependency-only until CWB analytics pCTR "
-        "source contracts are wired into this branch."
+        "Published READY model-input snapshot: %s attempt %s",
+        snapshot.feature_snapshot_id,
+        snapshot.feature_snapshot_attempt_id,
     )
 
 

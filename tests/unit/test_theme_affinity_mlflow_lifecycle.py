@@ -150,13 +150,37 @@ def test_resolve_model_version_for_alias_delegates_to_mlflow_client():
     ]
 
 
-def test_copy_model_alias_uses_native_mlflow_register_model():
+def test_copy_model_alias_creates_exact_version_without_logged_model_id():
     calls = []
 
     class RegisteredModel:
         version = "42"
 
+    class SourceModel:
+        name = (
+            "marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker"
+        )
+        version = "17"
+        run_id = "source-run"
+        tags = {"lineage": "kept"}
+        description = "source description"
+        model_id = ""
+
     class FakeClient:
+        def copy_model_version(self, **kwargs):
+            raise AssertionError("copy_model_version must not be used")
+
+        def get_model_version_by_alias(self, **kwargs):
+            calls.append(("get", kwargs))
+            return SourceModel()
+
+        def create_registered_model(self, name):
+            calls.append(("create-name", name))
+
+        def create_model_version(self, **kwargs):
+            calls.append(("create-version", kwargs))
+            return RegisteredModel()
+
         def set_registered_model_alias(self, **kwargs):
             calls.append(("alias", kwargs))
 
@@ -169,9 +193,8 @@ def test_copy_model_alias_uses_native_mlflow_register_model():
         tracking = FakeTracking()
 
         @staticmethod
-        def register_model(model_uri, name):
-            calls.append(("register", model_uri, name))
-            return RegisteredModel()
+        def register_model(*args, **kwargs):
+            raise AssertionError("register_model must not be used")
 
     result = copy_model_alias_to_registered_model(
         FakeMlflow,
@@ -184,12 +207,36 @@ def test_copy_model_alias_uses_native_mlflow_register_model():
     assert result.version == "42"
     assert calls == [
         (
-            "register",
-            (
-                "models:/marketingdata_prod.ds_sandbox."
-                "nextads_theme_affinity_ranker@preprod"
-            ),
+            "get",
+            {
+                "name": (
+                    "marketingdata_prod.ds_sandbox."
+                    "nextads_theme_affinity_ranker"
+                ),
+                "alias": "preprod",
+            },
+        ),
+        (
+            "create-name",
             "marketingdata_prod.warehouse.nextads_theme_affinity_ranker",
+        ),
+        (
+            "create-version",
+            {
+                "name": (
+                    "marketingdata_prod.warehouse."
+                    "nextads_theme_affinity_ranker"
+                ),
+                "source": (
+                    "models:/marketingdata_prod.ds_sandbox."
+                    "nextads_theme_affinity_ranker/17"
+                ),
+                "run_id": "source-run",
+                "tags": {"lineage": "kept"},
+                "run_link": None,
+                "description": "source description",
+                "model_id": None,
+            },
         ),
         (
             "alias",
@@ -205,13 +252,42 @@ def test_copy_model_alias_uses_native_mlflow_register_model():
     ]
 
 
-def test_copy_model_version_tags_source_model_details():
+def test_copy_legacy_model_version_omits_empty_logged_model_id():
     calls = []
 
     class RegisteredModel:
         version = "8"
 
+    class SourceModel:
+        name = (
+            "marketingdata_dev.nextads_integration."
+            "nextads_theme_affinity_ranker"
+        )
+        version = "17"
+        run_id = "source-run"
+        tags = {"lineage": "kept"}
+        description = None
+        model_id = ""
+
+    class AlreadyExistsError(Exception):
+        error_code = "RESOURCE_ALREADY_EXISTS"
+
     class FakeClient:
+        def copy_model_version(self, **kwargs):
+            raise AssertionError("copy_model_version must not be used")
+
+        def get_model_version(self, **kwargs):
+            calls.append(("get", kwargs))
+            return SourceModel()
+
+        def create_registered_model(self, name):
+            calls.append(("create-name", name))
+            raise AlreadyExistsError()
+
+        def create_model_version(self, **kwargs):
+            calls.append(("create-version", kwargs))
+            return RegisteredModel()
+
         def set_registered_model_alias(self, **kwargs):
             calls.append(("alias", kwargs))
 
@@ -227,9 +303,8 @@ def test_copy_model_version_tags_source_model_details():
         tracking = FakeTracking()
 
         @staticmethod
-        def register_model(model_uri, name):
-            calls.append(("register", model_uri, name))
-            return RegisteredModel()
+        def register_model(*args, **kwargs):
+            raise AssertionError("register_model must not be used")
 
     result = copy_model_version_to_registered_model(
         FakeMlflow,
@@ -242,12 +317,36 @@ def test_copy_model_version_tags_source_model_details():
     assert result.version == "8"
     assert calls == [
         (
-            "register",
-            (
-                "models:/marketingdata_dev.nextads_integration."
-                "nextads_theme_affinity_ranker/17"
-            ),
+            "get",
+            {
+                "name": (
+                    "marketingdata_dev.nextads_integration."
+                    "nextads_theme_affinity_ranker"
+                ),
+                "version": "17",
+            },
+        ),
+        (
+            "create-name",
             "marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker",
+        ),
+        (
+            "create-version",
+            {
+                "name": (
+                    "marketingdata_prod.ds_sandbox."
+                    "nextads_theme_affinity_ranker"
+                ),
+                "source": (
+                    "models:/marketingdata_dev.nextads_integration."
+                    "nextads_theme_affinity_ranker/17"
+                ),
+                "run_id": "source-run",
+                "tags": {"lineage": "kept"},
+                "run_link": None,
+                "description": None,
+                "model_id": None,
+            },
         ),
         (
             "alias",
@@ -288,6 +387,42 @@ def test_copy_model_version_tags_source_model_details():
             },
         ),
     ]
+
+
+def test_copy_model_version_propagates_target_creation_errors():
+    class PermissionError(Exception):
+        error_code = "PERMISSION_DENIED"
+
+    class SourceModel:
+        name = "catalog.schema.source"
+        version = "3"
+        run_id = None
+        tags = {}
+        description = None
+
+    class FakeClient:
+        def get_model_version(self, **kwargs):
+            return SourceModel()
+
+        def create_registered_model(self, name):
+            raise PermissionError(name)
+
+    class FakeTracking:
+        pass
+
+    FakeTracking.MlflowClient = staticmethod(lambda: FakeClient())
+
+    class FakeMlflow:
+        tracking = FakeTracking()
+
+    with pytest.raises(PermissionError, match="catalog.schema.target"):
+        copy_model_version_to_registered_model(
+            FakeMlflow,
+            "catalog.schema.source",
+            "3",
+            "catalog.schema.target",
+            "integration",
+        )
 
 
 def test_train_and_promote_scripts_use_native_mlflow_not_marketingdata_utils():

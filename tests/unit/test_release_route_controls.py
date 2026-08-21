@@ -259,6 +259,18 @@ def test_dev_deploy_schema_variable_is_normalised_to_lower_case():
     assert "tr '[:upper:]' '[:lower:]'" in script
 
 
+def test_dev_branch_author_can_manage_personal_bundle_resources():
+    bundle = load_yaml("databricks.yml")
+    script = (PROJECT_ROOT / "devops/scripts/set_dab_vars.sh").read_text()
+
+    assert "git_last_commit_user_email" in bundle["variables"]
+    assert {
+        "level": "CAN_MANAGE",
+        "user_name": "${var.git_last_commit_user_email}",
+    } in bundle["targets"]["DEV"]["permissions"]
+    assert "BUNDLE_VAR_git_last_commit_user_email" in script
+
+
 def test_preprod_route_is_release_branch_only():
     config = load_yaml("azure-pipelines.yml")
     stages = {stage["stage"]: stage for stage in config["stages"]}

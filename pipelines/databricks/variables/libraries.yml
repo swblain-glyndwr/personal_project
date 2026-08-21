@@ -22,6 +22,15 @@ variables:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
       - pypi:
           package: mlflow==3.11.1
+  model_development_libraries:
+    default:
+      - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl
+      - pypi:
+          package: databricks-feature-engineering==0.12.1
+      - pypi:
+          package: dynaconf[yaml]==3.2.12
+      - pypi:
+          package: mlflow==3.11.1
   theme_affinity_libraries:
     default:
       - whl: /Volumes/${var.mktgdata_catalog}/ds_sandbox/ds_volume/dslib/dsutils-0.1.13-py3-none-any.whl

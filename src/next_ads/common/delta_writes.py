@@ -12,12 +12,14 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from functools import reduce
 from operator import and_, or_
-from typing import Any
+from typing import Any, Tuple
 
 from delta.exceptions import DeltaConcurrentModificationException
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
+from dsutils.logtools import get_logger
 
+logger = get_logger(__name__)
 
 __all__ = [
     "DeltaRetryPolicy",
@@ -34,6 +36,7 @@ __all__ = [
     "validate_replace_source_scope",
     "validate_unique_non_null_keys",
     "quote_qualified_identifier",
+    "schema_checksum",
 ]
 
 
@@ -153,7 +156,9 @@ def _is_data_write_history_row(row: Any) -> bool:
     return row["operation"] in _DATA_WRITE_OPERATIONS
 
 
-def _operation_row_count(operation_metrics: Mapping[str, Any] | None) -> int | None:
+def _operation_row_count(
+    operation_metrics: Mapping[str, Any] | None,
+) -> int | None:
     metrics = operation_metrics or {}
     raw_row_count = next(
         (
@@ -164,6 +169,8 @@ def _operation_row_count(operation_metrics: Mapping[str, Any] | None) -> int | N
         None,
     )
     return int(raw_row_count) if raw_row_count is not None else None
+
+
 _COMMIT_METADATA_LOCK = threading.Lock()
 
 
@@ -266,7 +273,9 @@ def find_delta_write_receipt(
         .limit(10)
         .collect()
     )
-    write_rows = [row for row in matching_rows if _is_data_write_history_row(row)]
+    write_rows = [
+        row for row in matching_rows if _is_data_write_history_row(row)
+    ]
     if not write_rows:
         return None
     if len(write_rows) != 1:
@@ -443,8 +452,12 @@ def sql_literal(value: SqlLiteral) -> str:
     raise TypeError(f"Unsupported SQL literal type: {type(value).__name__}")
 
 
-def build_equality_predicate(filters: Mapping[str, SqlLiteral]) -> str:
+def build_equality_predicate(
+    filters: Mapping[str, SqlLiteral], predicate_type: str = "="
+) -> str:
     """Build an equality predicate from trusted column names and literal values."""
+    if predicate_type not in ("=", "!="):
+        raise ValueError("predicate_type must be '=' or '!='")
     if not filters:
         raise ValueError("At least one replacement filter is required")
 
@@ -454,7 +467,9 @@ def build_equality_predicate(filters: Mapping[str, SqlLiteral]) -> str:
         if value is None:
             predicates.append(f"{quoted_column} IS NULL")
         else:
-            predicates.append(f"{quoted_column} = {sql_literal(value)}")
+            predicates.append(
+                f"{quoted_column} {predicate_type} {sql_literal(value)}"
+            )
     return " AND ".join(predicates)
 
 
@@ -512,6 +527,20 @@ def build_append_statement(
     )
 
 
+def build_delete_statement(*, target_table: str, delete_scope: str) -> str:
+    """Build a name-aligned append statement."""
+    if not delete_scope:
+        raise ValueError("At least one deletion scope should be included")
+
+    predicate = build_equality_predicate(
+        delete_scope or {}, predicate_type="!="
+    )
+    return (
+        f"DELETE FROM {quote_qualified_identifier(target_table)}\n"
+        f"WHERE {predicate}"
+    )
+
+
 def atomic_replace_where_by_name(
     spark: Any,
     df: DataFrame,
@@ -528,11 +557,13 @@ def atomic_replace_where_by_name(
     capture_receipt: bool = True,
     sleep: Callable[[float], None] = time.sleep,
     jitter: Callable[[], float] = random.random,
+    delete_scope: Mapping[str, SqlLiteral] | None = None,
 ) -> DeltaWriteReceipt:
     """Atomically replace a target slice, matching source columns by name."""
-    if replace_all == bool(filters):
-        raise ValueError("Specify exactly one of filters or replace_all=True")
-
+    if (replace_all + bool(filters) + bool(delete_scope)) != 1:
+        raise ValueError(
+            "Specify exactly one of filters delete_Scope or replace_all=True"
+        )
     selected_columns = list(columns or df.columns)
     target_columns = validate_target_columns(
         spark,
@@ -548,12 +579,26 @@ def atomic_replace_where_by_name(
                 "Replacement filter columns must be written: "
                 f"{', '.join(omitted_filters)}"
             )
+    if delete_scope:
+        omitted_deletions = [
+            column for column in delete_scope if column not in selected_columns
+        ]
+        if omitted_deletions:
+            raise ValueError(
+                "Replacement deletion columns must be written: "
+                f"{', '.join(omitted_filters)}"
+            )
+
     return _write_from_temporary_view(
         spark,
         df,
         target_table=target_table,
         statement_builder=lambda source_view, selected_columns: (
-            build_replace_where_statement(
+            build_delete_statement(
+                target_table=target_table, delete_scope=delete_scope
+            )
+            if delete_scope
+            else build_replace_where_statement(
                 target_table=target_table,
                 source_view=source_view,
                 columns=selected_columns,
@@ -573,6 +618,7 @@ def atomic_replace_where_by_name(
         capture_receipt=capture_receipt,
         sleep=sleep,
         jitter=jitter,
+        delete_run=True if delete_scope else False,
     )
 
 
@@ -635,6 +681,55 @@ def replace_scope_by_name(
     )
 
 
+def replace_and_update_scope_by_name(
+    df: DataFrame,
+    table: str,
+    scope: Mapping[str, SqlLiteral],
+    columns: Sequence[str] | None = None,
+    *,
+    spark: Any | None = None,
+    retry_policy: DeltaRetryPolicy | None = None,
+    build_id: str | None = None,
+    attempt_id: str | None = None,
+    git_commit: str | None = None,
+    commit_metadata: Mapping[str, Any] | None = None,
+    capture_receipt: bool = True,
+    delete_scope: Mapping[str, SqlLiteral] | None = None,
+) -> Tuple[DeltaWriteReceipt, DeltaWriteReceipt]:
+    """Atomically replace structured equality/date scope by column name
+    and remove all otherrecords not in scope columns
+    """
+    logger.info("Deleting records from table based on deletion scope")
+    delete_receipt = atomic_replace_where_by_name(
+        spark or df.sparkSession,
+        df,
+        target_table=table,
+        columns=columns,
+        retry_policy=retry_policy,
+        build_id=build_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata=commit_metadata,
+        capture_receipt=False,
+        delete_scope=delete_scope,
+    )
+    logger.info("Updating records in table based on deletion scope")
+    replace_reciept = atomic_replace_where_by_name(
+        spark or df.sparkSession,
+        df,
+        target_table=table,
+        filters=scope,
+        columns=columns,
+        retry_policy=retry_policy,
+        build_id=build_id,
+        attempt_id=attempt_id,
+        git_commit=git_commit,
+        commit_metadata=commit_metadata,
+        capture_receipt=capture_receipt,
+    )
+    return (delete_receipt, replace_reciept)
+
+
 def atomic_append_by_name(
     spark: Any,
     df: DataFrame,
@@ -691,17 +786,22 @@ def _write_from_temporary_view(
     capture_receipt: bool,
     sleep: Callable[[float], None],
     jitter: Callable[[], float],
+    delete_run: bool = False,
 ) -> DeltaWriteReceipt:
-    selected_columns = list(columns or df.columns)
-    if not selected_columns:
+    selected_columns = list(columns or df.columns) if not delete_run else []
+    if not selected_columns and not delete_run:
         raise ValueError("At least one output column is required")
     missing = [
         column for column in selected_columns if column not in df.columns
     ]
-    if missing:
+    if missing and not delete_run:
         raise ValueError(f"Missing output columns: {', '.join(missing)}")
 
-    source_view = f"_nextads_delta_write_{uuid.uuid4().hex}"
+    if not delete_run:
+        source_view = f"_nextads_delta_write_{uuid.uuid4().hex}"
+        df.select(*selected_columns).createOrReplaceTempView(source_view)
+    else:
+        source_view = None
     statement = statement_builder(source_view, selected_columns)
     receipt_metadata = _ReceiptMetadata(
         receipt_id=uuid.uuid4().hex,
@@ -711,7 +811,6 @@ def _write_from_temporary_view(
         git_commit=git_commit,
         details=commit_metadata,
     )
-    df.select(*selected_columns).createOrReplaceTempView(source_view)
     started = time.monotonic()
     try:
         if _supports_commit_receipts(spark):
@@ -771,7 +870,8 @@ def _write_from_temporary_view(
                 write_duration_ms=int((time.monotonic() - started) * 1000),
             )
     finally:
-        spark.catalog.dropTempView(source_view)
+        if not delete_run:
+            spark.catalog.dropTempView(source_view)
     return receipt
 
 
@@ -796,14 +896,19 @@ def _restore_commit_metadata(spark: Any, previous: str | None) -> None:
         spark.conf.set(_DELTA_COMMIT_METADATA_KEY, previous)
 
 
-def _target_schema_checksum(spark: Any, target_table: str) -> str:
-    schema = spark.table(target_table).schema
+def schema_checksum(frame: Any) -> str:
+    """Return a stable checksum for an ordered Spark schema."""
+    schema = frame.schema
     signature = [
         (field.name, field.dataType.simpleString()) for field in schema
     ]
     return hashlib.sha256(
         json.dumps(signature, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def _target_schema_checksum(spark: Any, target_table: str) -> str:
+    return schema_checksum(spark.table(target_table))
 
 
 def _read_commit_receipt(
@@ -824,7 +929,9 @@ def _read_commit_receipt(
         .limit(10)
         .collect()
     )
-    write_rows = [row for row in matching_rows if _is_data_write_history_row(row)]
+    write_rows = [
+        row for row in matching_rows if _is_data_write_history_row(row)
+    ]
     if not write_rows:
         raise RuntimeError(
             "Delta write completed without a matching transaction receipt: "

@@ -24,6 +24,7 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_monitor.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_quality_monitor_setup.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_preprod.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_assignment_validation.yml
@@ -37,6 +38,15 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml
   - pipelines/databricks/jobs/table_size_monitoring.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_feature_source.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_prediction_verification.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_adoption.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_feature_preparation.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_label_publication.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development_runtime_smoke.yml
   - pipelines/databricks/jobs/dev_setup.yml
   - pipelines/databricks/jobs/table_operations.yml
   - pipelines/databricks/jobs/preprod_dependency_smoke.yml
@@ -99,6 +109,9 @@ variables:
   git_last_commit_user_name:
     description: Username of the last git commit author, e.g. 'john_doe'
     default: ${workspace.current_user.userName}
+  git_last_commit_user_email:
+    description: Databricks login of the last git commit author
+    default: ${workspace.current_user.userName}
   deployed_by:
     description: Deployed by user, e.g. 'Doe, John'
     default: ${workspace.current_user.userName}
@@ -138,6 +151,15 @@ variables:
   feature_store_theme_training_table_prefix:
     description: Staging table prefix used when creating labelled Theme Affinity training input from historical prep
     default: next_uk_nextads_theme_affinity_training
+  feature_store_product_embedding_binding:
+    description: Exact model binding used by Feature Store embedding builders
+    default: configs/features/product_embedding_materialization_dev.yaml
+  feature_store_analytics_pctr_source_binding:
+    description: Approved Analytics pCTR feature-source binding for this DEV route
+    default: configs/features/analytics_pctr_source_dev.yaml
+  feature_store_analytics_pctr_source_schema:
+    description: Repository-owned schema used to assemble Analytics pCTR source features
+    default: nextads_integration
   theme_affinity_training_input_table:
     description: Theme Affinity labelled training input table for DEV model-building jobs
     default: ""
@@ -192,6 +214,8 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}/${var.git_last_commit_user_name}
     permissions:
       - level: CAN_MANAGE
+        user_name: ${var.git_last_commit_user_email}
+      - level: CAN_MANAGE
         group_name: AzUsers-DBK-MarketingData-Contributor-Dev
       - level: CAN_MANAGE
         group_name: AzUsers-AADPAG-DBK-MKT-CatalogContributor-Dev
@@ -211,6 +235,9 @@ targets:
       # override user schema to last git commit author for dev environment, this is because for DEV deployment the SP would be the user and we want to avoid collision of user schemas in dev when multiple developers are deploying.
       user_schema: ${var.git_last_commit_user_name}
       feature_store_schema: ${var.git_last_commit_user_name}
+      feature_store_product_embedding_binding: configs/features/product_embedding_materialization_personal_dev.yaml
+      feature_store_analytics_pctr_source_binding: configs/features/analytics_pctr_source_personal_dev.yaml
+      feature_store_analytics_pctr_source_schema: ${var.git_last_commit_user_name}
       theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
       theme_affinity_monitor_baseline_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
       theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
@@ -286,6 +313,8 @@ targets:
       feature_store_source_schema: warehouse
       feature_store_theme_source_catalog: marketingdata_prod
       feature_store_theme_source_schema: warehouse
+      feature_store_analytics_pctr_source_binding: configs/features/analytics_pctr_source_dev.yaml
+      feature_store_analytics_pctr_source_schema: nextads_integration
       theme_affinity_training_input_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
       theme_affinity_monitor_baseline_table: marketingdata_dev.nextads_feature_store.next_uk_nextads_fs_theme_affinity_training_input
       theme_affinity_monitor_candidate_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked

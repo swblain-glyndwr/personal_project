@@ -419,7 +419,7 @@ def make_payload(df_combined):
         .withColumn(
             "fulltriggers",
             F.sort_array(  # sort by the struct with Max_TriggerScore first, sort descending so the most important triggers are at the front of the list
-                F.collect_list(  # list the max TriggerScore, for each fragmentId, for that customer
+                F.collect_set(  # list the max TriggerScore, for each fragmentId, for that customer
                     F.when(
                         F.col("fragmentId").isNotNull(),
                         F.struct(
@@ -640,9 +640,7 @@ def resolve_run_date(spark, run_date: str | date | None) -> date:
     try:
         parsed_run_date = date.fromisoformat(run_date_text)
     except ValueError as exc:
-        raise ValueError(
-            "--run_date must use ISO format YYYY-MM-DD"
-        ) from exc
+        raise ValueError("--run_date must use ISO format YYYY-MM-DD") from exc
     if parsed_run_date.isoformat() != run_date_text:
         raise ValueError("--run_date must use ISO format YYYY-MM-DD")
     return parsed_run_date
@@ -725,15 +723,33 @@ def main(
             start_bloomreach_import(config, logger)
         else:
             logger.info("Bloomreach import trigger is disabled")
+        EXPONEA_CUSTOMERS = spark.table(config.tables_read.exponea_customers)
 
-        exponea_cust = spark.sql("""select distinct trim(roamingprofileid) as roamingprofileid from pii.next_uk_exponea_customers
-                         where roamingprofileid is not null
-                         and trim(roamingprofileid)!=''
-                         and (next_ads is not null)""")
-        in_exp_notin_source=exponea_cust.join(df_latest_payload, ["roamingprofileid"], "left_anti") #GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
-        distinct_nextads_blank=in_exp_notin_source.withColumn("next_ads", F.lit(""))
+        exponea_cust = (
+            EXPONEA_CUSTOMERS.filter(
+                F.col("roamingprofileid").isNotNull()
+                & (F.trim(F.col("roamingprofileid")) != "")
+                & F.col("next_ads").isNotNull()
+            )
+            .select(
+                F.trim(F.col("roamingprofileid")).alias("roamingprofileid")
+            )
+            .distinct()
+        )
 
-        write_output_to_csv(distinct_nextads_blank, config.pii_exponea_next_uk_path, logger, process="next_ads_blanking")
+        in_exp_notin_source = exponea_cust.join(
+            df_latest_payload, ["roamingprofileid"], "left_anti"
+        )  # GET RECORDS IN EXPONEA NOT IN MASID AND BLANK THEM
+        distinct_nextads_blank = in_exp_notin_source.withColumn(
+            "next_ads", F.lit("")
+        )
+
+        write_output_to_csv(
+            distinct_nextads_blank,
+            config.pii_exponea_next_uk_path,
+            logger,
+            process="next_ads_blanking",
+        )
 
     logger.info("Output complete")
     logger.info(f"Output row count: {df_latest_payload.count()}")

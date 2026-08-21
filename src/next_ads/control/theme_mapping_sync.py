@@ -22,9 +22,13 @@ def canonicalise_theme_mapping_for_comparison(df: DataFrame) -> DataFrame:
     for column_name in THEME_MAPPING_COMPARE_COLUMNS:
         column = F.col(column_name)
         if column_name in {"ThemeTypeRank", "AdTypeRank"}:
-            normalised = F.coalesce(column.cast("int").cast("string"), F.lit(""))
+            normalised = F.coalesce(
+                column.cast("int").cast("string"), F.lit("")
+            )
         else:
-            normalised = F.coalesce(F.lower(F.trim(column.cast("string"))), F.lit(""))
+            normalised = F.coalesce(
+                F.lower(F.trim(column.cast("string"))), F.lit("")
+            )
         select_exprs.append(normalised.alias(column_name))
 
     return df.select(*select_exprs).where(F.col("Theme") != "").distinct()

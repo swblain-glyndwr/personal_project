@@ -2,60 +2,56 @@
 
 Status: Working agreement
 
-This page defines which Databricks Asset Bundle jobs should exist in each
-target. The rule is that a target should only receive jobs that belong to that
-route. `DEV_FEATURE_STORE` is deliberately single-purpose and should not receive
-normal operational jobs.
+This page records the bundle targets in which each of the 48 NextAds jobs is
+declared in this checkout. It describes repository availability, not proof that
+a job is deployed, enabled or successfully run in an environment. For job
+inputs and outputs, see
+[`nextads_job_table_flow.md`](../architecture/nextads_job_table_flow.md); for
+schedules and child-job relationships, see
+[`nextads_databricks_runtime_map.md`](nextads_databricks_runtime_map.md).
 
-For the DS-facing runtime shape, task graphs and observed run durations, see [nextads_databricks_runtime_map.md](nextads_databricks_runtime_map.md).
-
-## Target Policy
+## Bundle Target And Release Policy
 
 | Target | Purpose | Job availability rule |
 | --- | --- | --- |
-| `SANDBOX` | Personal isolated bundle testing in the DEV workspace. | Normal operational jobs only. |
-| `DEV` | Developer-specific feature branch validation in the DEV workspace. | Normal operational jobs plus DEV-only setup where required. |
-| `DEV_INTEGRATION` | Shared integration validation from `develop`. | Normal operational jobs plus DEV integration setup/migration support. |
-| `DEV_FEATURE_STORE` | Shared scheduled DEV feature-store refresh. | Only `mktg_next_uk_nextads_feature_store`. |
-| `PREPROD` | Release-candidate validation in the PROD workspace writing to `ds_sandbox`. | Normal operational jobs plus PREPROD setup/smoke and import-to-preprod model movement. |
-| `PROD` | Tagged production deployment writing to `warehouse`. | Normal operational jobs plus PROD-only model/quality controls. |
+| `SANDBOX` | Personal isolated bundle testing in the DEV workspace. | Operational routes and the manual table-operations job. |
+| `DEV` | Developer-specific feature-branch validation in the DEV workspace. | Operational routes plus personal Feature Store, model-development, smoke and setup jobs. |
+| `DEV_INTEGRATION` | Shared integration validation from `develop`. | Operational routes, Theme Affinity training, reviewed model import and integration table setup/migration jobs. |
+| `DEV_FEATURE_STORE` | Shared scheduled DEV Feature Store refresh. | Only the Feature Store job and its Analytics pCTR feature-source child job. |
+| `PREPROD` | Release-candidate validation in the PROD workspace, writing to the release validation namespace. | Operational routes plus PREPROD setup, dependency smoke and exact model-import jobs. |
+| `PROD` | Tagged production deployment. | Operational routes plus explicit model-promotion, model-monitoring and read-only contract-control jobs. |
 
-## Job Matrix
+## Job Availability By Bundle Target
 
-| Job or group | Targets | What it affects | Why it belongs there | Notes and risks |
-| --- | --- | --- | --- | --- |
-| `mktg_next_uk_nextads_candidate_build` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Main NextAds generation route: customer cells, independent v1/v2 control-sheet loads, ad mapping and page-build triggers. | It is the core operational route and needs the same bundle shape through development, release validation and production. | It does not depend on the Markov shadow job; schedules remain target-controlled by bundle presets. |
-| `mktg_next_uk_nextads_markov_scoring` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Independent Markov shadow-provider build plus legacy transition and score compatibility outputs. | It waits for the accepted daily input, publishes through the canonical provider contract, and remains independently alerted so failure cannot block candidate publication. | Scheduled at 13:00 Europe/London, waits up to 90 minutes for input, and has a 26,100-second deadline ending at 20:15; do not deploy this into `DEV_FEATURE_STORE`. |
-| `mktg_next_uk_nextads_page_build` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Page assignment/build outputs and asynchronous downstream job triggers. | It is part of normal NextAds delivery and must be available wherever the candidate build can trigger it. | Requires QA, MASID handoff, payload export and PLP Google Sheets delivery jobs in the same targets. |
-| `mktg_next_uk_nextads_qa` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Operational QA checks after page outputs exist. | Page-build references this job by resource id, so it must travel with page-build. | This is operational QA, not the PROD-only Databricks quality monitor setup. |
-| `mktg_next_uk_nextads_masid_handoff` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | MASID handoff checks after page outputs. | Page-build triggers this downstream route in the normal flow. | Keep scoped with page-build to avoid broken resource references. |
-| `mktg_next_uk_nextads_payload_export` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Bloomreach/global-solution payload export outputs. | It is a delivery route triggered from page-build. | Output location follows target runtime config; not a feature-store job. |
-| `mktg_next_uk_nextads_plp_gs_delivery` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | PLP Google Sheets delivery. | It is part of the normal downstream delivery bundle. | Keep deployment separate from feature-store refreshes. |
-| `mktg_next_uk_nextads_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Results, performance checks, BigQuery output and Theme Affinity inference-log enrichment. | Reporting must be validated through the same branch/release route as the operational output. | Can write external/reporting outputs; check target and release route before running. |
-| `mktg_next_uk_nextads_realtime_inputs` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Realtime input preparation. | It supports the normal realtime route across environments. | Not part of feature-store deployment. |
-| `mktg_next_uk_nextads_realtime_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Realtime result outputs. | Realtime reporting needs the normal environment route. | Production schedules should remain controlled by release/tag deployment. |
-| `mktg_next_uk_nextads_theme_affinity` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Theme Affinity Lakeflow/DLT prep, publish, prediction, clean output and sense checks. | It is a normal operational model route, not the shared DEV feature-store route. | Must only exist where `nextads_theme_affinity_predict_data_prep` pipeline also exists. |
-| `mktg_next_uk_nextads_data_pull` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Sort-order data-pull pipeline and archive task. | It is an operational data route that can be validated through normal targets. | Must only exist where `mktg_next_uk_nextads_data_pull` pipeline also exists. |
-| `mktg_next_uk_nextads_feature_store` | `DEV`, `DEV_FEATURE_STORE` | Personal branch validation in the commit author's DEV schema and shared model-building tables in `marketingdata_dev.nextads_feature_store`. | `DEV` supplies a manual, one-run-at-a-time copy; `DEV_FEATURE_STORE` keeps the shared definitions refreshed from stable sources. | The personal copy has no schedule. No other jobs should be deployed into `DEV_FEATURE_STORE`. |
-| `mktg_next_uk_nextads_theme_affinity_model_train` and `mktg_next_uk_nextads_theme_affinity_model_train_spark` | `DEV`, `DEV_INTEGRATION` | Theme Affinity challenger training jobs. | Training belongs in development/integration until a promoted model is selected. | Not scheduled production controls. |
-| `mktg_next_uk_nextads_model_import_dev_integration` | `DEV_INTEGRATION` | Copies a reviewed personal DEV model version into `marketingdata_dev.nextads_integration`. | The shared namespace is a stable source for PREPROD import after the PR is completed. | Generic lifecycle movement job. Does not retrain; source version must match the reviewed PR evidence. |
-| `mktg_next_uk_nextads_theme_affinity_model_import_dev` | `PREPROD` | Imports reviewed DEV model version into PREPROD model namespace. | It is a release-validation movement step, not a production promotion. | Requires explicit version parameters and release evidence. |
-| `mktg_next_uk_nextads_theme_affinity_model_promote` | `PROD` | Promotes reviewed model from PREPROD namespace to production namespace. | Production model movement should only happen on the PROD route. | Manual/explicit control; do not deploy to DEV feature-store. |
-| `mktg_next_uk_nextads_theme_affinity_model_monitor` | `PROD` | MLflow drift evidence for Theme Affinity model tables. | Production monitoring evidence belongs to the production route. | Separate from operational QA. |
-| `mktg_next_uk_nextads_theme_affinity_quality_monitor_setup` | `PROD` | Databricks quality monitor setup for Theme Affinity ranked outputs. | Native Databricks quality-monitor setup is production-control work. | Sensitive to table ownership and workspace identity. |
-| `mktg_next_uk_nextads_table_operations` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Manual table create/alter/recreate/drop support, plus explicit DEV-only PROD-to-DEV source table copy. | It is an operational support tool with inert dry-run defaults. | Mutating/destructive runs require explicit runtime confirmations. |
-| DEV integration setup/migrate/alter jobs | `DEV_INTEGRATION` | Shared DEV integration table setup and schema migration. | These jobs only manage `marketingdata_dev.nextads_integration`. | Do not run as routine smoke if destructive recreation is enabled. |
-| `mktg_next_uk_nextads_preprod_setup` | `PREPROD` | Creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox`. | PREPROD setup is release-owner controlled. | Metadata-changing but non-destructive by default. |
-| `mktg_next_uk_nextads_preprod_dependency_smoke` | `PREPROD` | Metadata-only release dependency smoke. | It validates release-candidate routing without altering data. | Must remain read-only. |
-| `mktg_next_uk_nextads_prod_table_contract_smoke` | `PROD` | Read-only production table-contract smoke. | Production contract checks belong to the tagged PROD route. | Must remain read-only. |
-| `mktg_next_uk_nextads_dev_setup` | `DEV` | Personal DEV table setup. | It exists only for developer-specific DEV setup. | Should not create shared integration, PREPROD or PROD tables. |
-| `mktg_next_uk_nextads_table_monitoring` | `DEV` | Table size monitoring support route. | Current bundle scope is DEV-only support. | Re-scope separately if this becomes a formal production monitor. |
+Jobs are grouped only when their target set and release boundary are identical.
+Every declared job name appears once below.
 
-## Bundle Resource Rules
+| Job group | Declared jobs | Targets | Boundary |
+| --- | --- | --- | --- |
+| Operational inputs and scoring | `mktg_next_uk_nextads_theme_inputs`<br>`mktg_next_uk_nextads_theme_affinity`<br>`mktg_next_uk_nextads_theme_feature_compatibility`<br>`mktg_next_uk_nextads_markov_scoring`<br>`mktg_next_uk_nextads_candidate_foundation`<br>`mktg_next_uk_nextads_candidate_build`<br>`mktg_next_uk_nextads_data_pull` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Normal assignment-route dependencies. Pipeline-backed jobs must travel with their referenced pipeline resources. |
+| Assignment, delivery and validation | `mktg_next_uk_nextads_page_build`<br>`mktg_next_uk_nextads_page_build_v2`<br>`mktg_next_uk_nextads_masid_handoff`<br>`mktg_next_uk_nextads_plp_gs_delivery`<br>`mktg_next_uk_nextads_payload_export`<br>`mktg_next_uk_nextads_candidate_compatibility`<br>`mktg_next_uk_nextads_assignment_validation` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Child jobs and monitoring resources must exist beside their caller; validation does not create a data table. |
+| Reporting, realtime and retention | `mktg_next_uk_nextads_results_cicd`<br>`mktg_next_uk_nextads_realtime_results_cicd`<br>`mktg_next_uk_nextads_realtime_inputs`<br>`mktg_next_uk_nextads_realtime_data`<br>`mktg_next_uk_nextads_table_maintenance` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | These can write reporting, realtime or retained-state changes; schedule and target must be checked before a manual run. |
+| Manual table operations | `mktg_next_uk_nextads_table_operations` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Dry-run by default. Mutating and destructive operations require their explicit confirmations. |
+| Shared Feature Store route | `mktg_next_uk_nextads_feature_store`<br>`mktg_next_uk_nextads_analytics_pctr_feature_source` | `DEV`, `DEV_FEATURE_STORE` | The DEV copies are manual and personal-schema scoped. The `DEV_FEATURE_STORE` copies form the scheduled shared refresh and no operational delivery job belongs there. |
+| Personal DEV model and feature proof | `mktg_next_uk_nextads_analytics_pctr`<br>`mktg_next_uk_nextads_analytics_pctr_adoption`<br>`mktg_next_uk_nextads_analytics_pctr_prediction_verification`<br>`mktg_next_uk_nextads_analytics_pctr_snapshot_verification`<br>`mktg_next_uk_nextads_model_development`<br>`mktg_next_uk_nextads_model_development_runtime_smoke`<br>`mktg_next_uk_nextads_product_embedding_runtime_smoke`<br>`mktg_next_uk_nextads_shopping_bag_feature_preparation`<br>`mktg_next_uk_nextads_shopping_bag_label_publication`<br>`mktg_next_uk_nextads_shopping_bag_ongoing_evaluation` | `DEV` | Manual or paused proof routes. Their `EVALUATE` outputs do not select a serving provider or change assignments. |
+| Personal DEV support | `mktg_next_uk_nextads_dev_setup`<br>`mktg_next_uk_nextads_table_monitoring` | `DEV` | Personal setup and current DEV-only table-size monitoring. |
+| Theme Affinity training | `mktg_next_uk_nextads_theme_affinity_model_train`<br>`mktg_next_uk_nextads_theme_affinity_model_train_spark` | `DEV`, `DEV_INTEGRATION` | Development training only; neither job selects the production model URI. |
+| DEV Integration model and table preparation | `mktg_next_uk_nextads_model_import_dev_integration`<br>`mktg_next_uk_nextads_dev_integration_setup`<br>`mktg_next_uk_nextads_dev_integration_alter`<br>`mktg_next_uk_nextads_dev_integration_migrate` | `DEV_INTEGRATION` | Exact reviewed model movement plus deliberate shared-schema setup or migration. The migrate job is destructive. |
+| PREPROD release preparation | `mktg_next_uk_nextads_model_import_preprod`<br>`mktg_next_uk_nextads_theme_affinity_model_import_dev`<br>`mktg_next_uk_nextads_preprod_setup`<br>`mktg_next_uk_nextads_preprod_dependency_smoke` | `PREPROD` | Release-owner-controlled table setup, read-only dependency proof and exact reviewed model import. |
+| PROD model and contract controls | `mktg_next_uk_nextads_theme_affinity_model_promote`<br>`mktg_next_uk_nextads_theme_affinity_model_monitor`<br>`mktg_next_uk_nextads_theme_affinity_quality_monitor_setup`<br>`mktg_next_uk_nextads_prod_table_contract_smoke` | `PROD` | Explicit model movement and monitoring controls. Promotion does not automatically change the scoring selection; the contract smoke remains read-only. |
 
-- Normal operational jobs must be target-scoped to `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD` and `PROD`.
-- The `DEV` Feature Store copy must remain manual, author-schema scoped and limited to one concurrent run.
-- `DEV_FEATURE_STORE` must contain exactly one job: `mktg_next_uk_nextads_feature_store`.
-- A job with a `pipeline_task` must only be present in targets where the referenced pipeline resource is also declared.
-- Jobs triggered by another job through `${resources.jobs.<job_key>.id}` must exist in the same target as the triggering job.
-- New bundle job files should not declare top-level `resources.jobs` unless a review explicitly agrees that the job is truly global across every target.
+## Bundle Resource Declaration Rules
+
+- `DEV_FEATURE_STORE` contains exactly
+  `mktg_next_uk_nextads_feature_store` and
+  `mktg_next_uk_nextads_analytics_pctr_feature_source`.
+- A job with a `pipeline_task` is declared only where the referenced pipeline
+  resource also exists.
+- Jobs called through `${resources.jobs.<job_key>.id}` are declared in the same
+  target as their caller.
+- Personal DEV Feature Store and model jobs remain manual, author-schema scoped
+  and limited to their declared concurrency.
+- PREPROD and PROD model movement uses exact reviewed versions; registering or
+  copying a version does not select it for live scoring.
+- New job files use explicit target blocks unless a review agrees that the job
+  belongs in every target.

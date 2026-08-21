@@ -46,6 +46,19 @@ feature_store:
       state: ACTIVE
       training_safe: true
       consumers: [pctr, ltr]
+    - name: next_uk_nextads_fs_shopping_bag_account_activity_90d
+      entity: account
+      grain: one row per active web account and reference date
+      primary_keys: [account_number, reference_date]
+      timestamp_key: reference_date
+      source_job: build_shopping_bag_account_activity
+      builder: build_shopping_bag_account_activity
+      owner: marketing_data
+      freshness: on_demand
+      state: ACTIVE
+      preflight_mode: BUILDER
+      training_safe: true
+      consumers: [shopping_bag_pctr]
     - name: next_uk_nextads_fs_item_attributes_latest
       entity: item
       grain: one row per item
@@ -61,11 +74,12 @@ feature_store:
       entity: item
       grain: one row per item and embedding model
       primary_keys: [item_id, embedding_model_name, embedding_model_version]
-      source_job: build_advert_features
+      source_job: build_product_embeddings_latest
       owner: marketing_data
-      freshness: weekly
-      state: SCAFFOLD
-      missing_contracts: [promoted_embedding_source, materializer]
+      freshness: daily
+      write_mode: overwrite
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_advert_core_daily
@@ -95,23 +109,23 @@ feature_store:
       grain: one row per advert, feature date, and embedding model
       primary_keys: [advert_id, feature_date, embedding_model_name, embedding_model_version]
       timestamp_key: feature_date
-      source_job: build_advert_features
+      source_job: build_advert_semantic_profile_daily
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [promoted_embedding_source, materializer]
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_advert_product_profile_daily
       entity: advert
-      grain: one row per advert and feature date
-      primary_keys: [advert_id, feature_date]
+      grain: one row per advert, feature date, and exact embedding model version
+      primary_keys: [advert_id, feature_date, embedding_model_name, embedding_model_version]
       timestamp_key: feature_date
-      source_job: build_advert_features
+      source_job: build_advert_product_profile_daily
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [promoted_embedding_source, materializer]
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_seasonal_product_demand_daily
@@ -119,11 +133,11 @@ feature_store:
       grain: one row per entity, product, and feature date
       primary_keys: [entity_type, entity_id, item_id, feature_date]
       timestamp_key: feature_date
-      source_job: build_advert_features
+      source_job: build_seasonal_product_demand_daily
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [approved_source_contract, materializer]
+      preflight_mode: BUILDER
+      state: ACTIVE
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_account_theme_interactions_daily
@@ -161,14 +175,14 @@ feature_store:
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_fs_account_advert_affinity_daily
       entity: account_advert
-      grain: one row per account, advert, location, and reference date
-      primary_keys: [account_number, advert_id, location, reference_date]
+      grain: one row per account, advert, and reference date
+      primary_keys: [account_number, advert_id, reference_date]
       timestamp_key: reference_date
       source_job: build_pctr_affinity_features
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [approved_shopping_bag_pctr_source, materializer]
+      state: ACTIVE
+      preflight_mode: BUILDER
       training_safe: true
       consumers: [pctr, ltr]
     - name: next_uk_nextads_fs_session_context_daily
@@ -179,8 +193,8 @@ feature_store:
       source_job: build_pctr_affinity_features
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [approved_shopping_bag_pctr_source, materializer]
+      state: ACTIVE
+      preflight_mode: BUILDER
       training_safe: true
       consumers: [pctr]
     - name: next_uk_nextads_fs_theme_affinity_model_input
@@ -207,16 +221,17 @@ feature_store:
       consumers: [theme_affinity]
     - name: next_uk_nextads_fs_pctr_model_input
       entity: account_advert
-      grain: one row per account, advert, location, session date, and reference date
-      primary_keys: [account_number, advert_id, location, session_date, reference_date]
+      grain: one Analytics pCTR feature row per account, advert, and reference date
+      primary_keys: [account_number, advert_id, reference_date]
       timestamp_key: reference_date
-      source_job: build_model_inputs
+      source_job: build_pctr_affinity_features
+      builder: build_pctr_affinity_features
       owner: marketing_data
       freshness: daily
-      state: SCAFFOLD
-      missing_contracts: [approved_shopping_bag_pctr_source, materializer]
+      state: COMPATIBILITY
+      preflight_mode: BUILDER
       training_safe: true
-      consumers: [pctr]
+      consumers: [analytics_pctr]
     - name: next_uk_nextads_fs_labels_clicks
       entity: label
       grain: one row per account, advert, location, session date, and label horizon
@@ -225,9 +240,22 @@ feature_store:
       source_job: build_model_inputs
       owner: marketing_data
       freshness: daily
-      state: ACTIVE
-      training_safe: true
+      state: COMPATIBILITY
+      training_safe: false
       consumers: [pctr, ltr]
+    - name: next_uk_nextads_fs_shopping_bag_click_labels
+      entity: advert_exposure_label
+      grain: one real Shopping Bag advert impression and mature label horizon
+      primary_keys: [exposure_id, label_horizon_days, exposure_timestamp]
+      timestamp_key: exposure_timestamp
+      source_job: build_shopping_bag_click_labels
+      builder: build_shopping_bag_click_labels
+      owner: marketing_data
+      freshness: daily
+      state: ACTIVE
+      preflight_mode: BUILDER
+      training_safe: true
+      consumers: [shopping_bag_pctr, ltr]
     - name: next_uk_nextads_fs_labels_theme_response
       entity: label
       grain: one row per account, theme, reference date, and label name
@@ -257,6 +285,6 @@ feature_store:
       source_feature: next_uk_nextads_fs_theme_affinity_model_input
       consumers: [theme_affinity, ltr]
     - name: next_uk_nextads_pctr_features_latest
-      source_job: build_model_inputs
+      source_job: build_pctr_affinity_features
       source_feature: next_uk_nextads_fs_pctr_model_input
-      consumers: [pctr]
+      consumers: [analytics_pctr]

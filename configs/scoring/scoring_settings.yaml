@@ -59,6 +59,28 @@ default:
         entity_id_column: NextTheme
         raw_score_column: ProbAgg
         score_column: ProbAggRebased
+      analytics_pctr:
+        provider_id: analytics_pctr
+        provider_version: analytics_pctr/v1
+        implementation: model_development
+        compatibility_publisher: none
+        capability: account_ad
+        foundation_id: null
+        adapter: canonical_provider_job
+        entity_type: ad
+        score_direction: higher_is_better
+        max_entities_per_account: 100
+      shopping_bag_pctr:
+        provider_id: shopping_bag_pctr
+        provider_version: shopping_bag_pctr/v1
+        implementation: model_development
+        compatibility_publisher: none
+        capability: account_ad
+        foundation_id: null
+        adapter: canonical_provider_job
+        entity_type: ad
+        score_direction: higher_is_better
+        max_entities_per_account: 100
     client_portfolios:
       next_uk:
         theme_ranking:

@@ -21,6 +21,7 @@ from jobs.table_operations.create_tables import (
     table_matches_selection,
 )
 from next_ads.common.paths import resolve_sql_contract_path
+from next_ads.features.sql_contracts import extract_partition_columns
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -90,6 +91,7 @@ PARTITIONED BY (rundate)
         ("FY20", "STRING"),
         ("rundate", "DATE"),
     ]
+    assert extract_partition_columns(sql) == ["rundate"]
 
 
 def test_create_table_applies_registered_checks_after_create():

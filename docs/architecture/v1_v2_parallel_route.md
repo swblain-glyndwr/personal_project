@@ -8,7 +8,7 @@ Candidate Foundation prepares the customer cells, repeat-ad exposure and advert 
 
 The v1 and v2 page jobs are separate synchronous children. V1 calculates all 79 location scopes in one Spark graph; v2 calculates all five page types in one Spark graph. Each route writes its dated history before replacing live latest. Delivery starts only after the relevant live table has advanced successfully.
 
-## Diagram Legend
+## Route Ownership And Colour Legend
 
 | Colour | Meaning |
 | --- | --- |
@@ -19,7 +19,7 @@ The v1 and v2 page jobs are separate synchronous children. V1 calculates all 79 
 | Amber | Validation or compatibility work. |
 | Yellow | External CMS dependency. |
 
-## Databricks Job DAG
+## Scheduled And Child-Job DAG
 
 ```mermaid
 flowchart TD
@@ -71,7 +71,7 @@ flowchart TD
     V2_BUILD --> PAYLOAD
   end
 
-  COMPAT["21:00 candidate compatibility<br/>and assignment quality monitoring"]:::monitor
+  COMPAT["21:00 candidate compatibility<br/>and assignment validation"]:::monitor
 
   CANDIDATE_FOUNDATION --> SELECT_FOUNDATION
   V2_CONTROL_RAW --> CMS --> V2_CONTROL
@@ -100,10 +100,13 @@ flowchart TD
   FOUNDATION["select_candidate_foundation"]:::shared
   LOAD_V1["load_control_sheet_v1"]:::v1
   AUDIT_V1["audit_control_sheet_v1"]:::guard
+  ADVERT_QUALITY_AUDIT_V1["advert_quality_audit_v1"]:::guard
   LOAD_V2["load_control_sheet_v2<br/>land raw inputs"]:::v2
   CMS["trigger_data_pull_for_CMS_pull<br/>use landed advert IDs"]:::external
   PROCESS_V2["process_control_sheet_v2<br/>check refreshed CMS"]:::v2
   AUDIT_V2["audit_control_sheet_v2"]:::guard
+  ADVERT_QUALITY_AUDIT_V2["advert_quality_audit_v2"]:::guard
+
   SELECT_V1["resolve_scoring_portfolio_v1"]:::v1
   SELECT_V2["resolve_scoring_portfolio_v2"]:::v2
   COVER_V1["validate_score_provider_theme_coverage_v1"]:::guard
@@ -113,9 +116,12 @@ flowchart TD
   PAGE_V1["run_page_build_v1 and wait"]:::v1
   PAGE_V2["run_page_build_v2 and wait"]:::v2
 
+  
   LOAD_V1 --> AUDIT_V1 --> COVER_V1
+  LOAD_V1 --> ADVERT_QUALITY_AUDIT_V1
   SELECT_V1 --> COVER_V1
   LOAD_V2 --> CMS --> PROCESS_V2 --> AUDIT_V2 --> COVER_V2
+  PROCESS_V2 --> ADVERT_QUALITY_AUDIT_V2 
   SELECT_V2 --> COVER_V2
   FOUNDATION --> MAP_V1
   FOUNDATION --> MAP_V2
@@ -123,7 +129,7 @@ flowchart TD
   COVER_V2 --> MAP_V2 --> PAGE_V2
 ```
 
-## Why The Route Splits Here
+## V1/V2 Separation Boundaries
 
 The earlier migration assumption was that v2 would replace v1 after a short parallel run. Home Page remains on v1 while new page types use v2, so the routes now split at control loading, provider selection, candidate mapping and assignment publication.
 
@@ -135,9 +141,9 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | Provider selection | V1 and v2 resolve separate configured selections and exact provider versions. | A failure or future configuration change in one route does not have to block the other. |
 | Candidate mapping | V1 and v2 publish separate accepted candidate attempts through the same internal contract. | Each route keeps its own output grain while sharing the same readiness and repair rules. |
 | Page build | V1 and v2 run separate bulk Spark jobs. | Each route replaces its complete live result independently and cannot leave a mixture of old and new scopes. |
-| Compatibility and monitoring | Legacy candidate shapes and assignment quality checks run at 21:00 from accepted outputs. | Monitoring or compatibility failures do not invalidate the canonical candidate or serving build. |
+| Compatibility and validation | Legacy candidate shapes and assignment validation run at 21:00 from accepted outputs. | Validation or compatibility failures do not invalidate the canonical candidate or serving build. |
 
-## Current Jobs And Tasks
+## Job And Candidate-Task Responsibilities
 
 | Databricks job | YAML | Current responsibility |
 | --- | --- | --- |
@@ -147,17 +153,19 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Selects the foundation, loads/audits both controls, selects provider builds, publishes candidate attempts and waits for both page jobs. |
 | `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Builds and publishes all v1 assignments in one task, then runs MASID and PLP delivery. |
 | `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Builds and publishes all v2 assignments in one task, then runs payload export. |
-| `mktg_next_uk_nextads_candidate_compatibility` | `pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml` | Publishes the legacy v1/v2 candidate table shapes and triggers assignment quality monitoring independently. |
+| `mktg_next_uk_nextads_candidate_compatibility` | `pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml` | Publishes the legacy v1/v2 candidate table shapes and triggers `mktg_next_uk_nextads_assignment_validation` independently. |
 
 | Candidate-build task | Script or task type | Upstream task dependencies |
 | --- | --- | --- |
 | `select_candidate_foundation` | `jobs/orchestration/select_candidate_foundation.py` | None |
 | `load_control_sheet_v1` | `jobs/nextads_control/load_control_sheet.py` | None |
 | `audit_control_sheet_v1` | `jobs/nextads_control/audit_control_sheet.py` | `load_control_sheet_v1` |
+| `quality_audit_ads_v1` | `jobs/nextads_control/quality_audit_adverts.py` | `load_control_sheet_v1` |
 | `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase land` | None |
 | `trigger_data_pull_for_CMS_pull` | Native `run_job_task` | `load_control_sheet_v2` |
 | `process_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase process` | `trigger_data_pull_for_CMS_pull` |
 | `audit_control_sheet_v2` | `jobs/nextads_control/audit_control_sheet.py` | `process_control_sheet_v2` |
+| `quality_audit_ads_v2` | `jobs/nextads_control/quality_audit_adverts.py` | `process_control_sheet_v2` |
 | `resolve_scoring_portfolio_v1` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
 | `resolve_scoring_portfolio_v2` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
 | `validate_score_provider_theme_coverage_v1` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |

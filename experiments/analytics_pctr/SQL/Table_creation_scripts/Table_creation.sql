@@ -1,7 +1,7 @@
 -- Databricks notebook source
 
 -- CREATE WIDGETS
-CREATE WIDGET TEXT catalog_schema_prefix  'marketingdata_dev.ds_sandbox';
+CREATE WIDGET TEXT catalog_schema_prefix DEFAULT 'OUTPUT_LOCATION_REQUIRED';
 CREATE WIDGET TEXT table_prefix  'next_uk_nextAds_analytics_pctr';
 
 

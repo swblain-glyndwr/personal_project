@@ -3,13 +3,13 @@
 Azure Boards story: 5111869
 Feature: 5111595 - Reusable feature layer (Databricks Feature Store)
 
-## Purpose
+## When To Use This Route
 
 This note explains how a data scientist should add a reusable feature when the feature logic already exists in SQL.
 
 Add the feature through the feature-store contract route. Do not write directly to the shared feature-store schema, and do not hide reusable feature creation inside a model training or scoring job.
 
-## Fit Check
+## SQL-Built Feature Eligibility
 
 Before adding the feature, confirm that it belongs in the feature store:
 
@@ -20,7 +20,7 @@ Before adding the feature, confirm that it belongs in the feature store:
 
 If the feature is only a model run result, keep it in a model output table. If it changes ranking, assignment or production delivery behaviour, treat that as a separate model or decisioning change.
 
-## Process
+## Contract-To-Publication Steps
 
 1. Choose the target contract. Reuse an existing feature-store table when the grain and ownership already match; otherwise add a new physical table entry to `configs/features/nextads_feature_store.yaml`.
 2. Define the table metadata in the registry, including `name`, `entity`, `grain`, `primary_keys`, optional `timestamp_key`, `source_job`, `owner`, `freshness`, `training_safe` and `consumers`.
@@ -38,7 +38,7 @@ SQL logic -> Spark DataFrame builder -> feature job entrypoint
 -> write_feature_table -> Databricks Feature Engineering table
 ```
 
-## Evidence for PRs
+## Review Evidence
 
 For a feature-store PR, include:
 

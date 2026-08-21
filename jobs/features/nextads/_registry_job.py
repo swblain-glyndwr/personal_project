@@ -33,6 +33,7 @@ def configure_job_logging(log_level: str) -> None:
 def parse_common_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference_date", default=None)
+    parser.add_argument("--label_end", default=None)
     parser.add_argument("--catalog", default=None)
     parser.add_argument("--schema", default=None)
     parser.add_argument("--source_catalog", default="marketingdata_prod")
@@ -44,15 +45,59 @@ def parse_common_args() -> argparse.Namespace:
         default="next_uk_nextads_account_theme_foundation",
     )
     parser.add_argument("--replace_reference_date", default="true")
+    parser.add_argument("--feature_build_id", default=None)
+    parser.add_argument("--feature_build_attempt_id", default=None)
+    parser.add_argument("--git_commit", default=None)
     parser.add_argument("--job_env", default="dev")
     parser.add_argument("--client", default="next_uk")
     parser.add_argument("--theme_training_reference_date", default="skip")
+    parser.add_argument(
+        "--product_embedding_binding",
+        default="configs/features/product_embedding_materialization_dev.yaml",
+    )
     parser.add_argument(
         "--theme_training_table_prefix",
         default="next_uk_nextads_theme_affinity_training",
     )
     parser.add_argument("--log_level", default="INFO")
     return parser.parse_args()
+
+
+def feature_write_kwargs(args: argparse.Namespace) -> dict[str, str]:
+    """Return a complete build identity for exact Delta write receipts."""
+    values = {
+        "build_id": getattr(args, "feature_build_id", None),
+        "attempt_id": getattr(args, "feature_build_attempt_id", None),
+        "git_commit": getattr(args, "git_commit", None),
+    }
+    supplied = {name: value for name, value in values.items() if value}
+    if supplied and len(supplied) != len(values):
+        missing = sorted(set(values).difference(supplied))
+        raise ValueError(
+            "Feature write identity is incomplete; missing "
+            + ", ".join(missing)
+        )
+    return supplied
+
+
+def feature_group_identity(
+    args: argparse.Namespace,
+    group_id: str,
+) -> dict[str, str]:
+    """Give each group in one job run its own immutable build identity."""
+    identity = feature_write_kwargs(args)
+    if not identity:
+        raise ValueError(
+            "READY feature publication requires build ID, attempt ID and Git SHA"
+        )
+    group = group_id.strip()
+    if not group:
+        raise ValueError("Feature group ID must not be blank")
+    return {
+        "feature_build_id": f"{identity['build_id']}:{group}",
+        "feature_build_attempt_id": f"{identity['attempt_id']}:{group}",
+        "git_commit": identity["git_commit"],
+    }
 
 
 def _builder_table_names(

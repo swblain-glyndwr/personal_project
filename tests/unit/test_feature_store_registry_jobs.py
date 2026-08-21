@@ -6,6 +6,64 @@ from jobs.features.nextads import _registry_job
 from next_ads.features import load_feature_store_registry
 
 
+def test_feature_write_identity_is_all_or_nothing():
+    args = Namespace(
+        feature_build_id="build-1",
+        feature_build_attempt_id="attempt-1",
+        git_commit="abc123",
+    )
+
+    assert _registry_job.feature_write_kwargs(args) == {
+        "build_id": "build-1",
+        "attempt_id": "attempt-1",
+        "git_commit": "abc123",
+    }
+    with pytest.raises(ValueError, match="missing git_commit"):
+        _registry_job.feature_write_kwargs(
+            Namespace(
+                feature_build_id="build-1",
+                feature_build_attempt_id="attempt-1",
+                git_commit=None,
+            )
+        )
+
+
+def test_feature_group_identity_is_unique_within_one_job_run():
+    args = Namespace(
+        feature_build_id="run-1",
+        feature_build_attempt_id="attempt-1",
+        git_commit="abc123",
+    )
+
+    account = _registry_job.feature_group_identity(
+        args,
+        "build_account_features",
+    )
+    advert = _registry_job.feature_group_identity(
+        args,
+        "build_advert_features",
+    )
+
+    assert account == {
+        "feature_build_id": "run-1:build_account_features",
+        "feature_build_attempt_id": "attempt-1:build_account_features",
+        "git_commit": "abc123",
+    }
+    assert account["feature_build_id"] != advert["feature_build_id"]
+
+
+def test_feature_group_identity_requires_a_complete_job_identity():
+    with pytest.raises(ValueError, match="READY feature publication"):
+        _registry_job.feature_group_identity(
+            Namespace(
+                feature_build_id=None,
+                feature_build_attempt_id=None,
+                git_commit=None,
+            ),
+            "build_account_features",
+        )
+
+
 def test_registry_selects_implemented_features_by_logical_builder():
     registry = load_feature_store_registry()
 
@@ -23,7 +81,7 @@ def test_registry_selects_implemented_features_by_logical_builder():
     assert theme_features[-1].builder == "build_theme_affinity_features"
 
 
-def test_registry_excludes_scaffolds_from_builder_outputs_by_default():
+def test_registry_selects_active_builder_outputs_and_excludes_scaffolds():
     registry = load_feature_store_registry()
 
     assert [
@@ -34,17 +92,40 @@ def test_registry_excludes_scaffolds_from_builder_outputs_by_default():
         "next_uk_nextads_fs_advert_core_daily",
         "next_uk_nextads_fs_advert_attribute_profile_daily",
     ]
-    assert registry.features_for_builder("build_pctr_affinity_features") == ()
-    assert {
+    assert [
         feature.name
         for feature in registry.features_for_builder(
-            "build_pctr_affinity_features",
-            include_scaffolds=True,
+            "build_pctr_affinity_features"
         )
-    } == {
+    ] == [
         "next_uk_nextads_fs_account_advert_affinity_daily",
         "next_uk_nextads_fs_session_context_daily",
-    }
+        "next_uk_nextads_fs_pctr_model_input",
+    ]
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_product_embeddings_latest"
+        )
+    ] == ["next_uk_nextads_fs_product_embeddings_latest"]
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_advert_product_profile_daily"
+        )
+    ] == ["next_uk_nextads_fs_advert_product_profile_daily"]
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_shopping_bag_click_labels"
+        )
+    ] == ["next_uk_nextads_fs_shopping_bag_click_labels"]
+    assert [
+        feature.name
+        for feature in registry.features_for_builder(
+            "build_shopping_bag_account_activity"
+        )
+    ] == ["next_uk_nextads_fs_shopping_bag_account_activity_90d"]
 
 
 def test_builder_output_validation_accepts_the_exact_implemented_set():
