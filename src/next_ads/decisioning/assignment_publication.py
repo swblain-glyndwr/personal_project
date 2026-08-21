@@ -22,6 +22,7 @@ from next_ads.common.delta_writes import (
     validate_typed_table_schema,
     validate_unique_non_null_keys,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.ranking.scoring_inputs import read_delta_version
 from next_ads.common.snapshot_writes import (
     publish_history_and_latest,
@@ -1073,6 +1074,17 @@ def publish_bulk_assignment_build(
         history_version = existing_history.delta_version
         if history_version is None:
             raise ValueError("Assignment history receipt has no Delta version")
+        log_output_location(
+            tables.history_table,
+            kind="delta_table",
+            details={
+                "delta_version": history_version,
+                "receipt_id": existing_history.receipt_id,
+                "row_count": existing_history.row_count,
+                "reused": True,
+                "route": scope_contract.route,
+            },
+        )
         exact_history = read_delta_version(
             spark, tables.history_table, history_version
         ).where(

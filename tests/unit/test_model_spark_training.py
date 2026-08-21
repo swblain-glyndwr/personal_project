@@ -50,6 +50,19 @@ def test_trainer_uses_unity_catalog_safe_version_tags():
     assert "registered_model_artifact_digest(registered_model_uri)" in source
     assert "client.download_artifacts" not in source
     assert '"nextads.' not in source
+    assert "definition.training_observation.observation_date_column" in source
+    assert (
+        "definition.training_observation.observation_timestamp" not in source
+    )
+
+
+def test_generic_build_registers_an_exact_version_without_assigning_an_alias():
+    source = inspect.getsource(SparkBinaryClassifierTrainer.train)
+
+    assert "mlflow.register_model(" in source
+    assert "set_model_version_tag(" in source
+    assert "set_registered_model_alias(" not in source
+    assert "dev_candidate" not in source
 
 
 def test_temporal_validation_holds_out_the_latest_whole_dates():

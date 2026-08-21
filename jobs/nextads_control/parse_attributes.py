@@ -35,6 +35,7 @@ from next_ads.control.item_attributes import (
     build_recent_catalog,
 )
 from next_ads.common import config_manager, etl
+from next_ads.common.output_locations import log_output_location
 from next_ads.common.paths import load_client_config
 from next_ads.common.snapshot_writes import (
     capture_run_date,
@@ -242,6 +243,10 @@ def main(
                 .option("parentProject", bq_options["parentProject"])
                 .option("table", target_bq_table)
                 .save()
+            )
+            log_output_location(
+                f"{bq_options['parentProject']}.{target_bq_table}",
+                kind="bigquery_table",
             )
 
     logger.info("Run complete")

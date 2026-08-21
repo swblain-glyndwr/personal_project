@@ -1,12 +1,14 @@
-# NextAds v2 Migration Plan
+# NextAds v2 Migration Record
 
-This plan documents the current TL v2 branch direction and the long-lived v1/v2 route split. The route files have been moved out of `scripts/` into route-oriented job folders. V2 candidate mapping now changes at the control-sheet join layer because v2 must remain active beside v1 rather than being a short cutover route.
+> Historical design record. This page records the route-migration decisions and the TL branches reviewed during that work. For the current running design, start with [NextAds job and table flow](architecture/nextads_job_table_flow.md) and use [V1/V2 parallel route](architecture/v1_v2_parallel_route.md) for exact task dependencies.
+
+The long-lived decision remains that V1 and V2 run beside one another. The route files have moved out of `scripts/` into route-oriented job folders, and candidate mapping splits at the control-sheet join because the two routes have different placement grains.
 
 ## Current Decision
 
-V2 is not a full replacement for v1. Home Page remains on the v1 location-based route, while new page-type assignments use v2. Customer cells, item attributes, product Theme Mapping, and lightweight theme scoring remain shared in this PR. Candidate mapping splits by route because v1 and v2 read different loaded control sheets: v1 uses `control_sheet_latest` with `Location`, and v2 uses workbook `1UuqCDDvjrGIDPLIdc4Sq09KMHv8zy9VL0zehb0EJXp4` through `control_sheet_latest_v2` with `PageType`.
+V2 is not a full replacement for V1. Home Page remains on the V1 location-based route, while newer page-type assignments use V2. Both routes use the same accepted customer-state inputs and selected score outputs. Candidate mapping splits by route because V1 reads `control_sheet_latest` with `Location`, while V2 reads `control_sheet_latest_v2` with `PageType`.
 
-The v2 workbook is the operational source of truth for the `Theme Mapping` tab. A Google Sheets Apps Script copies that tab into the v1 workbook, and the v1 tab should be locked so Trade cannot edit the copied version directly. The candidate build runs `validate_theme_mapping_sync` before `parse_theme_mapping`; differences stop the job and should be raised to Trade because shared product theme scoring would otherwise be built from a stale copy.
+The V2 workbook is the operational source for the `Theme Mapping` tab. During the earlier scoring-input operation, the job lands that V2 mapping directly and uses it to build the accepted item-to-theme input. It also compares the copied V1 tab and reports differences, but the comparison is warning-only and does not replace the V2 source or stop candidate building.
 
 ## Current Rule
 
@@ -18,25 +20,25 @@ Current v2 runtime paths are already route-oriented and should remain stable unl
 - `jobs/nextads_delivery/build_v2_payload.py`
 - existing v2 DAB `python_file` references now point at these route folders
 
-Do not move all v2 files into `jobs/nextads_v2/` by default; `jobs/nextads_control`, `jobs/nextads_candidates`, and `jobs/nextads_delivery` are valid homes when the route role is clearer. The v2 candidate task maps the selected provider scores directly to ads from the exact `control_sheet_latest_v2` version and publishes the canonical accepted candidate tables without reading v1 output. The separate candidate compatibility job derives `preranked_ads_from_themes_v2_latest` from that exact accepted v2 attempt.
+Do not move all V2 files into `jobs/nextads_v2/` by default; `jobs/nextads_control`, `jobs/nextads_candidates`, and `jobs/nextads_delivery` are valid homes when the route role is clearer. The V2 candidate task maps the exact selected score output to adverts from the captured `control_sheet_latest_v2` version and publishes accepted `candidate_*` tables without reading V1 output. The separate 21:00 candidate-compatibility job derives `preranked_ads_from_themes_v2_latest` from that exact accepted V2 attempt.
 
 ## Route Boundaries
 
 | Layer | V1 route | V2 route | Notes |
 | --- | --- | --- | --- |
 | Control sheet | `load_control_sheet_v1` writes `control_sheet_latest` | `load_control_sheet_v2` writes `control_sheet_latest_v2` | Separate inputs and table contracts. |
-| Product Theme Mapping | Shared `parse_theme_mapping` writes `theme_mapping_latest` and `item_themes_latest` from the copied v1 tab | Shared upstream task, validated against the v2 source tab first | V2 is the source of truth; the v1 workbook copy preserves the current parser/table contract. |
-| Score providers | Independent Theme Affinity serving build; Markov `build_markov_scores` publishes a canonical shadow build and legacy `next_theme_scores_latest` compatibility output | Both routes select an accepted serving provider by configuration | Model output is adapted and validated through the shared provider contract. Markov remains non-serving, so its failure does not block candidate publication. |
-| Theme Mapping sync validation | `validate_theme_mapping_sync` compares copied v1 Theme Mapping to v2 source | Same hard-stop validation | Stops the candidate build if the Apps Script copy has not kept the workbooks aligned. |
-| Theme Affinity coverage validation | `validate_theme_affinity_theme_coverage` checks v1/v2 ad `Themes` against shared `theme_affinity_model_latest.NextTheme` | Warning-only validation in the candidate build | Calls out route themes that cannot currently be scored by the single customer-theme model output, without blocking the rest of the build. |
-| Candidate mapping | `map_theme_scores_to_ads_v1` reads `control_sheet_latest` plus shared Theme Affinity scores and writes `preranked_ads_from_themes_latest` | `map_theme_scores_to_ads_v2` reads `control_sheet_latest_v2` plus shared Theme Affinity scores and writes `preranked_ads_from_themes_v2_latest` | Both routes join customer `NextTheme` to their control sheet's ad `Themes`; v2 does not read or reshape v1 preranked output. |
+| Product Theme Mapping | The scoring-input operation lands the V2 mapping and builds accepted item-theme inputs | Shared input used by both routes | The copied V1 tab is compared for visibility only; a mismatch warns rather than replacing or blocking the V2 source. |
+| Score sources | Theme Affinity supplies both current serving positions; Markov publishes a shadow comparison output | Both routes bind exact accepted score outputs through reviewed configuration | Markov remains non-serving, so its failure does not block advert-candidate publication. |
+| Theme Mapping copy check | Compares the copied V1 Theme Mapping with the V2 source | Warning-only check during scoring-input preparation | Reports a stale copy without preventing use of the authoritative V2 mapping. |
+| Score coverage check | Compares active V1/V2 advert themes with the exact selected score-output version | Warning-only check in the candidate build | Reports business coverage gaps; inability to read or validate the selected data still fails the affected route. |
+| Candidate mapping | `map_theme_scores_to_ads_v1` reads `control_sheet_latest` and writes accepted V1 `candidate_*` records | `map_theme_scores_to_ads_v2` reads `control_sheet_latest_v2` and writes accepted V2 `candidate_*` records | The separate 21:00 compatibility job converts those accepted records into the two legacy preranked table shapes. |
 | Output grain | `Location` | `PageType` | The shared mapper is parameterised by output grain. |
 | Page build | `mktg_next_uk_nextads_page_build` runs `jobs/nextads_assignment/build_page.py` | `mktg_next_uk_nextads_page_build_v2` runs `jobs/nextads_v2/build_page.py` | Separate triggered jobs keep route contracts clear. |
-| Downstream fan-out | Assignment validation, MASID handoff, PLP Google Sheets delivery | V2 payload export | Delivery remains route-specific. |
+| Downstream fan-out | V1 page building, MASID handoff and PLP/Google Sheets delivery | V2 page building and Bloomreach payload export | The independent 21:00 compatibility job publishes legacy candidate shapes, then starts assignment validation. |
 
-## TL Branch Findings
+## Historical TL Branch Findings
 
-Latest inspected TL branches:
+The following branch observations were captured during the migration work. They are not current runtime evidence:
 
 | Branch | Latest observed commit | Direction |
 | --- | --- | --- |
@@ -53,7 +55,7 @@ Latest inspected TL branches:
 
 Several branches pre-date the current `src/`, `jobs/`, `configs/`, and grouped `sql/` layout. Do not merge any branch wholesale into the restructure branch. Cherry-pick or port the v2 changes after the restructure lands.
 
-## Deferred Target Shape
+## Historical Deferred Target Shape
 
 Once non-v2 restructure is complete, move reusable v2 logic as a dedicated PR:
 
@@ -70,7 +72,7 @@ Keep v2 output table names, config keys, and downstream payload contracts stable
 
 CMS/data-pull work was reconciled through completed PR `249403` (`feature/TL/cmsdata`). Treat the current data-pull job/pipeline route as part of the post-v2 baseline, not as outstanding Ads v2 structural cleanup.
 
-## Suggested v2 Move Order
+## Historical Suggested V2 Move Order
 
 1. Re-check active TL branches and open PRs.
 2. Port v2 control-sheet schema/load changes into `src/next_ads/control/adsv2` while keeping the current `jobs/nextads_control/load_control_sheet_v2.py` route entrypoint unless the job boundary changes.
@@ -79,7 +81,7 @@ CMS/data-pull work was reconciled through completed PR `249403` (`feature/TL/cms
 5. Add output contract checks comparing v1/v2 where relevant.
 6. Update DAB paths only after DEV Integration validation is ready.
 
-## Validation Expected
+## Historical Validation Expectations
 
 - v2 config load tests for DEV and DEV Integration.
 - v2 control-sheet schema tests.

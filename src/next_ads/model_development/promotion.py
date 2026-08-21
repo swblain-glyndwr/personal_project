@@ -10,6 +10,7 @@ from typing import Any
 from next_ads.model_development.contracts import (
     MODEL_VERSION_TAG_ARTIFACT_DIGEST,
     MODEL_VERSION_TAG_BUILD_ID,
+    MODEL_VERSION_TAG_REGISTRATION_CODE_SHA,
     MODEL_VERSION_TAG_SOURCE_MODEL_NAME,
     MODEL_VERSION_TAG_SOURCE_MODEL_VERSION,
     MODEL_VERSION_TAG_TRAINING_RECEIPT_ID,
@@ -39,7 +40,10 @@ _LEGACY_MODEL_VERSION_TAGS = {
 
 
 def _model_version_tag(tags: dict[str, str], key: str) -> str | None:
-    return tags.get(key) or tags.get(_LEGACY_MODEL_VERSION_TAGS[key])
+    legacy_key = _LEGACY_MODEL_VERSION_TAGS.get(key)
+    return tags.get(key) or (
+        None if legacy_key is None else tags.get(legacy_key)
+    )
 
 
 def _set_model_version_tags(
@@ -103,7 +107,9 @@ def recover_registered_model_build(
             continue
         run = client.get_run(run_id)
         params = getattr(run.data, "params", {}) or {}
-        if all(params.get(key) == value for key, value in expected_params.items()):
+        if all(
+            params.get(key) == value for key, value in expected_params.items()
+        ):
             matches.append((version, run))
     if not matches:
         return None
@@ -197,6 +203,13 @@ def validate_registered_model_build(client: Any, build: ModelBuild) -> None:
         != build.artifact_digest
     ):
         raise ValueError("Registered model version has a different digest tag")
+    if build.registration_code_sha is not None and (
+        _model_version_tag(tags, MODEL_VERSION_TAG_REGISTRATION_CODE_SHA)
+        != build.registration_code_sha
+    ):
+        raise ValueError(
+            "Registered model version has different registration code provenance"
+        )
     source_model_uri = _exact_registered_model_uri(
         build.registered_model_name,
         build.registered_model_version,
@@ -261,10 +274,13 @@ def _existing_destination_version(
             destination_model_name,
             summary.version,
         )
-        if _model_version_tag(
-            version.tags or {},
-            MODEL_VERSION_TAG_BUILD_ID,
-        ) == model_build_id:
+        if (
+            _model_version_tag(
+                version.tags or {},
+                MODEL_VERSION_TAG_BUILD_ID,
+            )
+            == model_build_id
+        ):
             return version
     return None
 

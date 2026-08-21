@@ -6,6 +6,8 @@ from pathlib import Path
 import string
 from typing import Any
 
+from next_ads.common.output_locations import log_output_location
+
 
 def calculate_target_month(
     reference_date: str,
@@ -389,6 +391,10 @@ def write_complete_table(spark, runtime):
         .option("overwriteSchema", "true")
         .saveAsTable(_runtime_table(runtime, "complete"))
     )
+    log_output_location(
+        _runtime_table(runtime, "complete"),
+        kind="delta_table",
+    )
 
 
 def rank_complete_table(spark, runtime):
@@ -398,6 +404,7 @@ def rank_complete_table(spark, runtime):
         f"CREATE OR REPLACE TABLE {predict_input_table} AS\n"
         + build_ranked_sql(predict_complete)
     )
+    log_output_location(predict_input_table, kind="delta_table")
 
 
 def build_ranked_sql(predict_complete: str) -> str:
@@ -538,7 +545,9 @@ def execute_sql_entry(spark, entry, common_params, namespace, dry_run=False):
         writer = writer.option("overwriteSchema", "true")
     if entry.get("partition_by"):
         writer = writer.partitionBy(*entry["partition_by"])
-    writer.saveAsTable(f"{namespace}.{table_name}")
+    destination = f"{namespace}.{table_name}"
+    writer.saveAsTable(destination)
+    log_output_location(destination, kind="delta_table")
 
 
 def render_sql_file(entry, common_params):

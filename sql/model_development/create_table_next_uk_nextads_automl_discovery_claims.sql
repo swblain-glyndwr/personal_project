@@ -1,0 +1,33 @@
+CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_automl_discovery_claims (
+  discovery_id STRING NOT NULL,
+  discovery_attempt_id STRING NOT NULL,
+  request_checksum STRING NOT NULL,
+  research_build_id STRING NOT NULL,
+  research_attempt_id STRING NOT NULL,
+  research_frame_id STRING NOT NULL,
+  research_frame_attempt_id STRING NOT NULL,
+  research_frame_delta_version BIGINT NOT NULL,
+  timeout_minutes BIGINT NOT NULL,
+  experiment_path STRING NOT NULL,
+  code_sha STRING NOT NULL,
+  owner_invocation_id STRING NOT NULL,
+  lease_token STRING NOT NULL,
+  lease_expires_at TIMESTAMP NOT NULL,
+  checkpoint STRING NOT NULL,
+  checkpoint_version BIGINT NOT NULL,
+  experiment_id STRING,
+  trial_count BIGINT,
+  best_trial_id STRING,
+  primary_metric STRING,
+  trial_evidence_json STRING,
+  leaderboard_run_id STRING,
+  leaderboard_artifact_sha256 STRING,
+  leaderboard_artifact_uri STRING,
+  recipe_artifact_uri STRING,
+  failure_reason STRING,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  CONSTRAINT pk_nextads_automl_discovery_claims
+    PRIMARY KEY (discovery_id)
+)
+USING delta

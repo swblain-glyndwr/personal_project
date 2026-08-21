@@ -2,6 +2,7 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -123,6 +124,9 @@ def test_quality_audit_scopes_cover_daily_latest_on_demand_and_generated_events(
     training = registry.table_spec(
         "next_uk_nextads_fs_theme_affinity_training_input"
     )
+    observed_labels = registry.table_spec(
+        "next_uk_nextads_fs_shopping_bag_click_labels"
+    )
     quality = registry.table_spec(quality_checks.QUALITY_TABLE_NAME)
 
     assert quality_checks.feature_audit_scope(
@@ -138,8 +142,65 @@ def test_quality_audit_scopes_cover_daily_latest_on_demand_and_generated_events(
         training, REFERENCE_DATE, "2026-07-01"
     ) == {"kind": "REQUESTED_PARTITION", "date": "2026-07-01"}
     assert quality_checks.feature_audit_scope(
+        observed_labels, REFERENCE_DATE, "skip"
+    ) == {"kind": "REQUESTED_PARTITION", "date": REFERENCE_DATE}
+    assert quality_checks.feature_audit_scope(
         quality, REFERENCE_DATE, "skip"
     ) == {"kind": "GENERATED_EVENTS", "date": REFERENCE_DATE}
+
+
+def test_snapshot_date_filter_keeps_point_in_time_timestamp_separate(
+    monkeypatch,
+):
+    class Expression:
+        def __init__(self, value):
+            self.value = value
+
+        def cast(self, data_type):
+            return Expression(("cast", self.value, data_type))
+
+        def __eq__(self, other):
+            return ("eq", self.value, other.value)
+
+    class Frame:
+        def __init__(self):
+            self.filters = []
+
+        def where(self, condition):
+            self.filters.append(condition)
+            return self
+
+    monkeypatch.setattr(
+        quality_checks,
+        "F",
+        SimpleNamespace(
+            col=lambda name: Expression(("col", name)),
+            lit=lambda value: Expression(("lit", value)),
+            to_date=lambda expression: Expression(
+                ("to_date", expression.value)
+            ),
+        ),
+    )
+    feature = SimpleNamespace(
+        timestamp_key="exposure_timestamp",
+        snapshot_date_key="session_date",
+    )
+    frame = Frame()
+
+    result = quality_checks._filter_snapshot_date(
+        frame,
+        feature,
+        "2026-08-07",
+    )
+
+    assert result is frame
+    assert frame.filters == [
+        (
+            "eq",
+            ("to_date", ("col", "session_date")),
+            ("cast", ("lit", "2026-08-07"), "date"),
+        )
+    ]
 
 
 def test_quality_event_matches_the_existing_sql_contract_fields():

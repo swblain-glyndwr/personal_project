@@ -188,6 +188,7 @@ def test_ranked_foundation_is_written_once_and_repair_reuses_its_receipt(
         table=lambda _table: frame,
     )
     writes = []
+    output_locations = []
     receipt = DeltaWriteReceipt(
         statement="replace ranked",
         attempts=1,
@@ -207,6 +208,13 @@ def test_ranked_foundation_is_written_once_and_repair_reuses_its_receipt(
         publication,
         "replace_table_by_name",
         lambda *_a, **_k: writes.append("ranked") or receipt,
+    )
+    monkeypatch.setattr(
+        publication,
+        "log_output_location",
+        lambda destination, **kwargs: output_locations.append(
+            (destination, kwargs)
+        ),
     )
     spec = FoundationOutputSpec(
         output_name="ranked",
@@ -240,6 +248,21 @@ def test_ranked_foundation_is_written_once_and_repair_reuses_its_receipt(
         git_commit="abc123",
     )
     assert writes == ["ranked"]
+    assert output_locations == [
+        (
+            "catalog.target.ranked",
+            {
+                "kind": "delta_table",
+                "details": {
+                    "delta_version": 42,
+                    "output_name": "ranked",
+                    "receipt_id": "receipt-ranked",
+                    "row_count": 10,
+                    "reused": True,
+                },
+            },
+        )
+    ]
 
 
 def test_ready_foundation_manifest_is_typed_and_written_last(monkeypatch):

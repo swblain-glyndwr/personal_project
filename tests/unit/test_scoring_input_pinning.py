@@ -419,22 +419,30 @@ def test_jobs_pin_same_day_inputs_and_static_context_slot():
     affinity = yaml.safe_load(
         (
             PROJECT_ROOT / "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_theme_affinity.yml"
+            "mktg_next_uk_nextads_model_scoring.yml"
         ).read_text()
-    )["mktg_next_uk_nextads_theme_affinity_config"][
+    )["mktg_next_uk_nextads_model_scoring_config"][
         "mktg_next_uk_nextads_theme_affinity_cicd"
     ]
     inputs = yaml.safe_load(
         (
             PROJECT_ROOT / "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_theme_inputs.yml"
+            "mktg_next_uk_nextads.yml"
         ).read_text()
-    )["mktg_next_uk_nextads_theme_inputs_config"][
-        "mktg_next_uk_nextads_theme_inputs_cicd"
-    ]
+    )["mktg_next_uk_nextads_config"]["mktg_next_uk_nextads_cicd"]
 
-    assert inputs["schedule"]["quartz_cron_expression"] == "0 15 12 * * ?"
-    assert affinity["schedule"]["quartz_cron_expression"] == "0 0 13 * * ?"
+    assert inputs["schedule"]["quartz_cron_expression"] == "0 0 18 * * ?"
+    assert affinity["schedule"]["quartz_cron_expression"] == "0 15 12 * * ?"
+    input_tasks = {task["task_key"]: task for task in inputs["tasks"]}
+    assert input_tasks["accept_scoring_inputs"]["depends_on"] == [
+        {"task_key": "build_authoritative_item_themes"}
+    ]
+    assert input_tasks["land_authoritative_theme_mapping"]["depends_on"] == [
+        {
+            "task_key": "prepare_scoring_inputs_operation",
+            "outcome": "true",
+        }
+    ]
     assert "context_slot" not in {
         parameter["name"] for parameter in affinity["parameters"]
     }
@@ -493,9 +501,9 @@ def test_canonical_provider_lifecycle_is_flattened_before_compatibility():
     affinity = yaml.safe_load(
         (
             PROJECT_ROOT / "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_theme_affinity.yml"
+            "mktg_next_uk_nextads_model_scoring.yml"
         ).read_text()
-    )["mktg_next_uk_nextads_theme_affinity_config"][
+    )["mktg_next_uk_nextads_model_scoring_config"][
         "mktg_next_uk_nextads_theme_affinity_cicd"
     ]
     markov = yaml.safe_load(
@@ -509,11 +517,13 @@ def test_canonical_provider_lifecycle_is_flattened_before_compatibility():
     affinity_tasks = {task["task_key"]: task for task in affinity["tasks"]}
     markov_tasks = {task["task_key"]: task for task in markov["tasks"]}
 
-    assert set(affinity_tasks) == {
+    assert {
         "prepare_foundation_context",
         "predict_data_prep",
         "publish_and_score",
-    }
+        "publish_provider_compatibility",
+        "publish_feature_compatibility",
+    } <= set(affinity_tasks)
     assert affinity_tasks["publish_and_score"]["depends_on"] == [
         {"task_key": "predict_data_prep"}
     ]

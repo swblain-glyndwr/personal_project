@@ -1,40 +1,38 @@
-# Manual DEV proof for a model built from declared Feature Store inputs.
+# Shared manual DEV entry point for declared model lifecycle operations.
 model_development_job: &model_development_job
   name: mktg_next_uk_nextads_model_development
   queue:
     enabled: true
   parameters:
+    - name: operation
+      default: REQUIRED
     - name: model_name
-      default: shopping_bag_pctr
-    - name: feature_catalog
-      default: ${var.mktgdata_catalog}
-    - name: feature_schema
-      default: ${var.feature_store_schema}
-    - name: model_catalog
-      default: ${var.mktgdata_catalog}
-    - name: model_schema
-      default: ${var.user_schema}
+      default: REQUIRED
     - name: observation_reference_dates
-      default: REQUIRED
-    - name: feature_reference_dates
-      default: REQUIRED
-    - name: label_end
-      default: REQUIRED
-    - name: registered_model_name
-      default: ${var.mktgdata_catalog}.${var.user_schema}.nextads_shopping_bag_pctr
-    - name: experiment_path
-      default: ${workspace.root_path}/shopping_bag_pctr
-    - name: provider_signals_table
-      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_signals
-    - name: provider_builds_table
-      default: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_score_provider_builds
-    - name: promotion_model_name
       default: ""
-    - name: promotion_mode
-      default: NONE
-    - name: promotion_alias
-      default: dev_evaluation_candidate
-  job_clusters: ${var.job_clusters_config}
+    - name: feature_reference_dates
+      default: ""
+    - name: label_end
+      default: ""
+    - name: research_build_id
+      default: ""
+    - name: candidate_id
+      default: ""
+    - name: written_reason
+      default: ""
+    - name: reviewed_by
+      default: ""
+    - name: model_build_id
+      default: ""
+    - name: run_date
+      default: ""
+    - name: evaluation_account_limit
+      default: ""
+    - name: evaluation_serving_slot
+      default: ""
+    - name: evaluation_candidate_build_attempt_id
+      default: ""
+  job_clusters: ${var.model_research_job_clusters_config}
   tags:
     deployed_at: ${var.deploy_timestamp}
     git_commit: ${var.git_commit_sha}
@@ -45,44 +43,52 @@ model_development_job: &model_development_job
     domain: model_development
     activation_mode: EVALUATE
   max_concurrent_runs: 1
-  timeout_seconds: 10800
+  timeout_seconds: 21600
   tasks:
-    - task_key: build_train_and_score_declared_model
+    - task_key: run_declared_model_operation
       spark_python_task:
-        python_file: ../../../jobs/model/development/run_declared_model.py
+        python_file: ../../../jobs/model/development/run_declared_model_operation.py
         parameters:
+          - --operation
+          - "{{job.parameters.operation}}"
           - --model_name
           - "{{job.parameters.model_name}}"
           - --feature_catalog
-          - "{{job.parameters.feature_catalog}}"
+          - ${var.mktgdata_catalog}
           - --feature_schema
-          - "{{job.parameters.feature_schema}}"
+          - ${var.feature_store_schema}
           - --model_catalog
-          - "{{job.parameters.model_catalog}}"
+          - ${var.mktgdata_catalog}
           - --model_schema
-          - "{{job.parameters.model_schema}}"
+          - ${var.user_schema}
+          - --experiment_root
+          - ${workspace.root_path}
           - --observation_reference_dates
           - "{{job.parameters.observation_reference_dates}}"
           - --feature_reference_dates
           - "{{job.parameters.feature_reference_dates}}"
           - --label_end
           - "{{job.parameters.label_end}}"
+          - --research_build_id
+          - "{{job.parameters.research_build_id}}"
+          - --candidate_id
+          - "{{job.parameters.candidate_id}}"
+          - --written_reason
+          - "{{job.parameters.written_reason}}"
+          - --reviewed_by
+          - "{{job.parameters.reviewed_by}}"
+          - --model_build_id
+          - "{{job.parameters.model_build_id}}"
+          - --run_date
+          - "{{job.parameters.run_date}}"
+          - --evaluation_account_limit
+          - "{{job.parameters.evaluation_account_limit}}"
+          - --evaluation_serving_slot
+          - "{{job.parameters.evaluation_serving_slot}}"
+          - --evaluation_candidate_build_attempt_id
+          - "{{job.parameters.evaluation_candidate_build_attempt_id}}"
           - --code_sha
           - ${var.git_commit_sha}
-          - --registered_model_name
-          - "{{job.parameters.registered_model_name}}"
-          - --experiment_path
-          - "{{job.parameters.experiment_path}}"
-          - --provider_signals_table
-          - "{{job.parameters.provider_signals_table}}"
-          - --provider_builds_table
-          - "{{job.parameters.provider_builds_table}}"
-          - --promotion_model_name
-          - "{{job.parameters.promotion_model_name}}"
-          - --promotion_mode
-          - "{{job.parameters.promotion_mode}}"
-          - --promotion_alias
-          - "{{job.parameters.promotion_alias}}"
           - --orchestration_run_id
           - "{{job.run_id}}"
           - --task_run_id
@@ -91,9 +97,9 @@ model_development_job: &model_development_job
           - "{{task.execution_count}}"
           - --log_level
           - INFO
-      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
-      libraries: ${var.model_development_libraries}
-      timeout_seconds: 10800
+      job_cluster_key: next_ads_job_cluster_model_research_D32ads_v5_4
+      libraries: ${var.model_research_libraries}
+      timeout_seconds: 21600
 
 model_development_config: &model_development_config
   mktg_next_uk_nextads_model_development:

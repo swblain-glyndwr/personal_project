@@ -11,6 +11,7 @@ from next_ads.common.delta_writes import (
     quote_qualified_identifier,
     schema_checksum,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.features.analytics_pctr_source import latest_delta_version
 from next_ads.features.feature_builds import FeatureSourceBinding
 from next_ads.features.feature_store_registry import (
@@ -57,6 +58,11 @@ def snapshot_view_source(
         target_schema=target_schema,
     )
     if spark.catalog.tableExists(target):
+        log_output_location(
+            target,
+            kind="delta_table",
+            details={"reused": True, "role": "pinned_source"},
+        )
         return target
     (
         spark.table(source_view)
@@ -69,6 +75,11 @@ def snapshot_view_source(
         "ALTER TABLE "
         f"{quote_qualified_identifier(target)} SET TBLPROPERTIES "
         f"('nextads.source_view' = '{escaped_source_view}')"
+    )
+    log_output_location(
+        target,
+        kind="delta_table",
+        details={"reused": False, "role": "pinned_source"},
     )
     return target
 

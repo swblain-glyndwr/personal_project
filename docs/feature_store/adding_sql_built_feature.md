@@ -23,7 +23,7 @@ If the feature is only a model run result, keep it in a model output table. If i
 ## Contract-To-Publication Steps
 
 1. Choose the target contract. Reuse an existing feature-store table when the grain and ownership already match; otherwise add a new physical table entry to `configs/features/nextads_feature_store.yaml`.
-2. Define the table metadata in the registry, including `name`, `entity`, `grain`, `primary_keys`, optional `timestamp_key`, `source_job`, `owner`, `freshness`, `training_safe` and `consumers`.
+2. Define the table metadata in the registry, including `name`, `entity`, `grain`, `primary_keys`, optional `timestamp_key` and `snapshot_date_key`, `source_job`, `owner`, `freshness`, `training_safe` and `consumers`.
 3. Add or update the SQL DDL contract under `sql/features/nextads/`. New table files must be named `create_table_<table_name>.sql` so the setup script can resolve them from the registry.
 4. Move the feature-building SQL into repo-owned feature code, usually as a Spark builder function under `src/next_ads/features/` that returns a DataFrame. Keep source catalog/schema/reference-date values parameterised.
 5. Wire the builder into the relevant entrypoint under `jobs/features/nextads/` and write through `next_ads.features.materialization.write_feature_table`. That helper aligns to the SQL contract, validates primary keys, replaces the requested date partition where applicable, and writes through the Databricks Feature Engineering client.
@@ -37,6 +37,8 @@ The expected write path is:
 SQL logic -> Spark DataFrame builder -> feature job entrypoint
 -> write_feature_table -> Databricks Feature Engineering table
 ```
+
+For a date-partitioned READY snapshot, `snapshot_date_key` defines which rows belong to the requested snapshot date. It defaults to `timestamp_key`. Declare the two separately when the daily business date differs from the exact event time used for point-in-time lookups. Shopping Bag click labels are scoped by `session_date`, while `exposure_timestamp` remains their Feature Store time-series key.
 
 ## Review Evidence
 

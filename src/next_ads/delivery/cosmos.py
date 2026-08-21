@@ -3,14 +3,15 @@ from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosHttpResponseError
 from azure.identity import ClientSecretCredential
 from dsutils.dbc import get_dbutils
+from next_ads.common.job_logging import configure_job_logging
 
 logger = logging.getLogger(__name__)
 
 
 def get_logger(name=__name__):
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    configure_job_logging(
+        logging.INFO,
+        log_format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         force=True,  # ensures it resets config in Databricks
     )
     return logging.getLogger(name)

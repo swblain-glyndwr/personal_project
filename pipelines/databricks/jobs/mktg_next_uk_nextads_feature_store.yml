@@ -35,7 +35,10 @@ nextads_feature_store_job: &nextads_feature_store_job
     department: marketing
     project: nextads
     domain: feature_store
-  timeout_seconds: 43200
+  # Covers the inlined source-build gate and the longest downstream materialisation
+  # while ending before the next 21:00 daily schedule.
+  timeout_seconds: 82800
+  max_concurrent_runs: 1
   tasks:
     - task_key: resolve_feature_store_reference_date
       spark_python_task:
@@ -96,7 +99,7 @@ nextads_feature_store_job: &nextads_feature_store_job
     - task_key: preflight_feature_store_sources
       depends_on:
         - task_key: create_feature_store_tables
-        - task_key: refresh_analytics_pctr_feature_source
+        - task_key: receipt_analytics_pctr_feature_source
       spark_python_task:
         python_file: ../../../jobs/features/nextads/preflight_checks.py
         parameters:
@@ -226,22 +229,164 @@ nextads_feature_store_job: &nextads_feature_store_job
       job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
       libraries: ${var.feature_store_libraries}
       timeout_seconds: 7200
-    - task_key: refresh_analytics_pctr_feature_source
+    - task_key: analytics_pctr_base_sessions
       depends_on:
         - task_key: create_feature_store_tables
-      run_job_task:
-        job_id: ${resources.jobs.mktg_next_uk_nextads_analytics_pctr_feature_source.id}
-        job_parameters:
-          reference_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
-          output_catalog: ${var.mktgdata_catalog}
-          output_schema: "{{job.parameters.analytics_pctr_source_schema}}"
-          source_binding: "{{job.parameters.analytics_pctr_source_binding}}"
-          source_catalog: "{{job.parameters.source_catalog}}"
-          source_schema: "{{job.parameters.source_schema}}"
-          theme_source_catalog: "{{job.parameters.theme_source_catalog}}"
-          theme_source_schema: "{{job.parameters.theme_source_schema}}"
-          theme_table_prefix: "{{job.parameters.theme_table_prefix}}"
-          receipt_correlation_id: "{{job.run_id}}"
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/00_base_sessions
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          start_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          end_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          lookback_period: "30"
+          year_lookback_period: "365"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_core_datasets
+      depends_on:
+        - task_key: analytics_pctr_base_sessions
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/01_core_datasets
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          start_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          end_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          lookback_period: "30"
+          year_lookback_period: "365"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 7200
+    - task_key: analytics_pctr_customer_advert_base
+      depends_on:
+        - task_key: analytics_pctr_core_datasets
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/02_customer_advert_base-predictions
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          lookback_period: "30"
+          year_lookback_period: "365"
+          start_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          end_date: "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_session_aggregation
+      depends_on:
+        - task_key: analytics_pctr_customer_advert_base
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/03_session_aggregation
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          lookback_period: "30"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_ctr_metrics
+      depends_on:
+        - task_key: analytics_pctr_customer_advert_base
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/04_ctr_metrics
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          lookback_period: "30"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_page_views
+      depends_on:
+        - task_key: analytics_pctr_customer_advert_base
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/05_page_views
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          lookback_period: "30"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_purchases
+      depends_on:
+        - task_key: analytics_pctr_customer_advert_base
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/06_purchases
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          lookback_period: "30"
+          year_lookback_period: "365"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_customer_ad_exposure
+      depends_on:
+        - task_key: analytics_pctr_customer_advert_base
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/07_customer_advert_exposure
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          lookback_period: "30"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_view_advert_affinity
+      depends_on:
+        - task_key: analytics_pctr_customer_advert_base
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/08_view_advert_affinity
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          lookback_period: "30"
+          table_prefix: next_uk_nextads_analytics_pctr
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 3600
+    - task_key: analytics_pctr_combine_features
+      depends_on:
+        - task_key: analytics_pctr_session_aggregation
+        - task_key: analytics_pctr_ctr_metrics
+        - task_key: analytics_pctr_page_views
+        - task_key: analytics_pctr_purchases
+        - task_key: analytics_pctr_customer_ad_exposure
+        - task_key: analytics_pctr_view_advert_affinity
+      notebook_task:
+        notebook_path: ${workspace.file_path}/experiments/analytics_pctr/SQL/09_combining_data
+        base_parameters:
+          catalog_schema_prefix: "${var.mktgdata_catalog}.{{job.parameters.analytics_pctr_source_schema}}"
+          table_prefix: next_uk_nextads_analytics_pctr
+          output_table_name: _features
+        source: WORKSPACE
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      timeout_seconds: 7200
+    - task_key: receipt_analytics_pctr_feature_source
+      depends_on:
+        - task_key: analytics_pctr_combine_features
+      spark_python_task:
+        python_file: ../../../jobs/features/nextads/validate_analytics_pctr_source.py
+        parameters:
+          - --reference_date
+          - "{{tasks.resolve_feature_store_reference_date.values.reference_date}}"
+          - --source_binding
+          - "{{job.parameters.analytics_pctr_source_binding}}"
+          - --source_catalog
+          - ${var.mktgdata_catalog}
+          - --source_schema
+          - "{{job.parameters.analytics_pctr_source_schema}}"
+          - --producing_job_run_id
+          - "{{job.run_id}}"
+          - --receipt_correlation_id
+          - "{{job.run_id}}"
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+      libraries: ${var.feature_store_libraries}
+      timeout_seconds: 1800
     - task_key: build_theme_affinity_training_input
       depends_on:
         - task_key: create_feature_store_tables

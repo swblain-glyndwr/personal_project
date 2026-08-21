@@ -27,6 +27,7 @@ from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager
 from next_ads.common.paths import load_client_config
 from next_ads.common import etl
+from next_ads.common.output_locations import log_output_location
 
 
 jobparser = get_job_parser()
@@ -67,7 +68,15 @@ RESULTS_EXPORTS = list(BQ_OPTIONS["tables"].keys())
 if JOB_ENV == "prod":
     for results_export in RESULTS_EXPORTS:
         results_table = etl.map_tbl(tbls[results_export], **tbl_args)
-        logger.info(f"Exporting {results_export} to Big Query")
+        target_table = etl.map_tbl(
+            BQ_OPTIONS["tables"][results_export], **tbl_args
+        )
+        logger.info(
+            "Exporting %s from %s to BigQuery table %s",
+            results_export,
+            results_table,
+            target_table,
+        )
         df_export = spark.table(results_table)
 
         (
@@ -77,9 +86,10 @@ if JOB_ENV == "prod":
             .option("parentProject", BQ_OPTIONS["parentProject"])
             .option(
                 "table",
-                etl.map_tbl(BQ_OPTIONS["tables"][results_export], **tbl_args),
+                target_table,
             )
             .save()
         )
+        log_output_location(target_table, kind="bigquery_table")
 
 logger.info("Run Complete")

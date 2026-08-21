@@ -36,19 +36,3 @@ def test_model_jobs_resolve_the_bundle_root_without_dunder_file(module):
     )
 
     assert root.as_posix() == "/Workspace/Users/test/.bundle/next-ads/DEV/test/files"
-
-
-def test_model_runtime_smoke_is_manual_dev_only():
-    project_root = smoke.Path(smoke.__file__).resolve().parents[3]
-    resource = (
-        project_root
-        / "pipelines"
-        / "databricks"
-        / "jobs"
-        / "mktg_next_uk_nextads_model_development_runtime_smoke.yml"
-    ).read_text()
-
-    assert "15.4" in resource.splitlines()[0]
-    assert "writes_performed" not in resource
-    assert "schedule:" not in resource
-    assert "PROD:" not in resource

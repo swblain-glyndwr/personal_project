@@ -1,8 +1,8 @@
-# Model Lifecycle Foundation
+# Shared Model Lifecycle
 
-This PR establishes the shared model lifecycle shape for Next Ads models. Theme Affinity is the first implementation, but the reusable code lives under `src/next_ads/ml/lifecycle` so pCTR, direct-ad challengers and later models can use the same promotion and monitoring contracts.
+This page describes the shared code and controls for registering, moving and monitoring Next Ads models. Theme Affinity is the first implementation, but the reusable code lives under `src/next_ads/ml/lifecycle` so pCTR, direct-ad challengers and later models can use the same promotion and monitoring contracts.
 
-The foundation is:
+The shared lifecycle consists of:
 
 - `ModelLifecycleSpec`: model identity, Unity Catalog registered model name, experiment path, training table, feature columns and monitoring defaults.
 - Registry helpers: Databricks tracking URI, Unity Catalog registry URI, model alias URIs, alias setting and preprod-to-prod model version copy.
@@ -11,25 +11,26 @@ The foundation is:
 - MLflow logging: drift metrics, thresholds and assessment tags are logged to native MLflow runs, without `marketingdata_utils`.
 - Databricks data quality monitoring: model input/output tables can be profiled through Unity Catalog quality monitors, giving native metric tables, drift tables and dashboards alongside MLflow promotion evidence.
 
-Operationally, each model should add a small adapter that resolves its `ModelLifecycleSpec` from repo config, then use shared lifecycle code from training, promotion and monitoring jobs. Model-specific code should own only model fitting, scoring and feature contracts.
+Operationally, each model should add a declaration and small adapters that resolve its contracts from repo config, then use the centrally owned model lifecycle resource in DEV and shared lifecycle code for controlled promotion and monitoring. Model-specific code should own only model fitting, scoring and feature contracts.
 
-## After This PR Lands
+The exhaustive DS-facing declaration and execution guide is [Model research: data scientist guide](model_research_walkthrough.md). It owns the detailed research, selection and evaluation options; this page owns the reusable registration, movement and monitoring controls.
 
-After this PR is completed, new operational models should treat `src/next_ads/ml/lifecycle` as the shared contract. A new model should not copy Theme Affinity lifecycle code, add another MLflow helper module, or introduce a model-specific promotion framework.
+## How new models use it
 
-For a new model, add model-specific code in its own domain package, for example:
+New operational models should treat `src/next_ads/ml/lifecycle` as the shared contract. A new model should not copy Theme Affinity lifecycle code, add another MLflow helper module, or introduce a model-specific promotion framework.
+
+For a new model, add model-specific code and declarations in the existing package and registry structure, for example:
 
 - `src/next_ads/ranking/direct_ad_challenger/` for a direct advert challenger.
 - `src/next_ads/ranking/pctr/` for a pCTR model.
-- `jobs/model/<model_name>/` for thin Databricks model entrypoints.
+- `configs/models/nextads_models.yaml` for the model, data, split, plug-in and optional research declaration.
+- `jobs/model/development/` for centrally owned lifecycle entrypoints shared by declared models.
 - `jobs/model/lifecycle/` for generic lifecycle movement entrypoints shared by all model families.
-- `pipelines/databricks/jobs/mktg_next_uk_nextads_<model_name>_model_train.yml`.
-- `pipelines/databricks/jobs/mktg_next_uk_nextads_<model_name>_model_monitor.yml`.
-- `pipelines/databricks/jobs/mktg_next_uk_nextads_<model_name>_model_promote.yml`.
+- `pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml` for personal-DEV build, research, reviewed selection and isolated evaluation.
 
 The shared lifecycle package should stay model-agnostic. It should know how to configure MLflow, register model versions, set aliases, copy reviewed versions between environments and log drift evidence. It should not know how Theme Affinity, pCTR or a direct-ad challenger builds features, fits a model, scores candidates or writes serving outputs.
 
-Lifecycle movement jobs should call generic scripts and pass model-specific registered model names, versions, aliases and guardrail prefixes as parameters. For example, `jobs/model/lifecycle/promote_model.py` can move a fixed model version from DEV integration to PREPROD or from PREPROD to PROD. The Databricks job resource may still be model-specific so it can set safe defaults, libraries, clusters and target scoping for that model.
+Lifecycle movement jobs should call generic scripts and pass exact registered model names, versions, aliases and guardrail prefixes as parameters. For example, `jobs/model/lifecycle/promote_model.py` can move a fixed model version from DEV integration to PREPROD or from PREPROD to PROD. Existing Theme Affinity movement resources remain transitional release controls; a future model must use an agreed centrally owned privileged route rather than add another model-specific saved resource.
 
 ## Required New Model Shape
 
@@ -37,16 +38,15 @@ Each operational model should add:
 
 - A config section containing model name, registered model name, experiment path, training table, train/test split, feature columns, categorical drift columns and drift thresholds.
 - A small lifecycle adapter that resolves that config into `ModelLifecycleSpec`.
-- A train script that calls shared MLflow registry helpers and registers the trained model with an environment alias.
-- A monitor script that calls `log_table_drift_to_mlflow` and logs drift status, retrain recommendation and promotion-blocking evidence.
-- A Databricks quality monitor setup job or resource for the model's serving, inference or scored feature table when the table is a stable Delta/Unity Catalog contract. Prefer an `inference_log` monitor when the table contains model id, prediction, timestamp and optional label columns; otherwise use a `time_series` or `snapshot` monitor on the model feature/output table.
-- A promote job that uses the generic lifecycle promotion script with model-specific parameters, and does not import `marketingdata_utils`.
-- Databricks jobs for train, monitor and promote. These jobs should be unscheduled unless a separate operational decision explicitly schedules them.
-- Unit tests proving the model resolves its lifecycle spec, uses the shared lifecycle package, has correctly scoped DAB resources and avoids old one-off artifacts.
+- Trainer, score-provider, prediction-adapter and optional research/evidence plug-ins registered through the shared model contracts.
+- A monitor implementation that calls `log_table_drift_to_mlflow` and logs drift status, retrain recommendation and promotion-blocking evidence when monitoring is required.
+- A Databricks quality monitor resource for the model's serving, inference or scored feature table only when the table is a stable Delta/Unity Catalog operational contract with an owner. Prefer an `inference_log` monitor when the table contains model id, prediction, timestamp and optional label columns; otherwise use a `time_series` or `snapshot` monitor on the model feature/output table.
+- Use of the generic lifecycle promotion script through an agreed centrally owned release route, without importing `marketingdata_utils`.
+- Unit tests proving the model resolves its declaration and lifecycle spec, uses the shared lifecycle package, passes the generic job contract and avoids one-off saved resources.
 
 ## Direct-Ad Challenger Fit
 
-For the direct-ad challenger plan, this means the challenger should be a sibling of Theme Affinity rather than a modification inside Theme Affinity lifecycle code. Theme Affinity can remain the champion signal, while the challenger model uses the shared lifecycle foundation to train, register, monitor and promote its own model.
+For the direct-ad challenger plan, this means the challenger should be a sibling of Theme Affinity rather than a modification inside Theme Affinity lifecycle code. Theme Affinity can remain the champion signal, while the challenger model uses the shared lifecycle tools to train, register, monitor and promote its own model.
 
 The direct-ad challenger should therefore add only the challenger-specific parts:
 
@@ -55,13 +55,13 @@ The direct-ad challenger should therefore add only the challenger-specific parts
 - challenger scoring and ranking logic;
 - output contract for challenger advert choice;
 - a lifecycle adapter that maps its config into `ModelLifecycleSpec`;
-- train, monitor and promote jobs that reuse `next_ads.ml.lifecycle`.
+- trainer, monitoring and promotion adapters that reuse `next_ads.ml.lifecycle` through centrally owned resources.
 
 This keeps the future pCTR/direct-ad work aligned with the Theme Affinity operationalisation without making the generic lifecycle package depend on any one model.
 
 ## Theme Affinity Training Backend
 
-Theme Affinity has two DEV training routes in this PR, and both create challenger model versions rather than replacing the current production model URI.
+Theme Affinity has two DEV training routes, and both create challenger model versions rather than replacing the current production model URI.
 
 Both training routes now start from the same explicit training-frame contract. The old notebook flow trained from the manually prepared `marketingdata_prod.ds_sandbox.dev_adrienne_complete_ranked` table, which was already reduced to roughly 11.2 million rows before pandas/GPU training. The operational DLT ranked table is a full scoring candidate table and can be billions of rows, so it must not be handed directly to either trainer.
 
@@ -132,4 +132,4 @@ Do not add the following for future model lifecycle work:
 - production schedule changes inside the same PR as model lifecycle plumbing;
 - changes to existing production scoring outputs without separate validation.
 
-If a future model needs lifecycle behaviour that does not fit this foundation, extend `src/next_ads/ml/lifecycle` first, then consume that extension from the model-specific package.
+If a future model needs lifecycle behaviour that does not fit these shared tools, extend `src/next_ads/ml/lifecycle` first, then consume that extension from the model-specific package.

@@ -15,6 +15,7 @@ sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(1, str(PROJECT_ROOT))
 
 
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.ml.lifecycle import configure_mlflow
 from next_ads.model_development import promote_exact_registered_version
 
@@ -47,7 +48,7 @@ def _require_prefix(value: str, prefix: str, field_name: str) -> None:
 
 def main() -> None:
     args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     _require_prefix(
         args.source_model_name,
         args.allowed_source_model_prefix,

@@ -194,7 +194,7 @@ def temporal_train_validation_split(
     timestamp_column: str,
     validation_percent: int = 20,
 ) -> tuple[Any, Any, Any]:
-    """Train on earlier exposure dates and validate on later exposure dates."""
+    """Train on earlier logical dates and validate on later logical dates."""
     from pyspark.sql import functions as F
 
     if timestamp_column not in frame.columns:
@@ -330,7 +330,7 @@ class SparkBinaryClassifierTrainer:
         train, validation, validation_start = temporal_train_validation_split(
             training_frame,
             timestamp_column=(
-                definition.training_observation.observation_timestamp
+                definition.training_observation.observation_date_column
             ),
             validation_percent=self.validation_percent,
         )
@@ -520,11 +520,6 @@ class SparkBinaryClassifierTrainer:
                 key=key,
                 value=value,
             )
-        client.set_registered_model_alias(
-            name=self.registered_model_name,
-            alias="dev_candidate",
-            version=version,
-        )
         completed_at = datetime.now(timezone.utc)
         return ModelBuild(
             model_build_id=build_id,

@@ -39,6 +39,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(1, str(PROJECT_ROOT))
 
 from next_ads.common import config_manager
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.decisioning.table_maintenance import (
     build_maintenance_plan,
     execute_maintenance_plan,
@@ -76,9 +77,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     """Resolve the allowlist and execute its logical-date maintenance plan."""
     args = parse_args(argv)
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s %(message)s",
+    configure_job_logging(
+        getattr(logging, args.log_level.upper(), logging.INFO),
+        log_format="%(asctime)s %(levelname)s %(message)s",
     )
     logger = logging.getLogger(__name__)
     config = config_manager.load_config(args.job_env, client=args.client)

@@ -27,6 +27,7 @@ class SparkAccountAdvertScoreProvider:
     run_date: date
     account_column: str = "account_number"
     advert_column: str = "advert_id"
+    score_column: str = "score"
     probability_column: str = "probability"
 
     def _predictions(
@@ -48,10 +49,22 @@ class SparkAccountAdvertScoreProvider:
         from pyspark.sql import functions as F
 
         model = mlflow.spark.load_model(model_build.model_uri)
-        return model.transform(feature_frame).withColumn(
-            "__model_pctr",
-            vector_to_array(F.col(self.probability_column)).getItem(1),
-        )
+        predictions = model.transform(feature_frame)
+        if self.score_column in predictions.columns:
+            score = F.col(self.score_column).cast("double")
+        elif self.probability_column in predictions.columns:
+            score = (
+                vector_to_array(F.col(self.probability_column))
+                .getItem(1)
+                .cast("double")
+            )
+        else:
+            raise ValueError(
+                "Scored model output contains neither scalar score nor "
+                f"probability: score={self.score_column}, "
+                f"probability={self.probability_column}"
+            )
+        return predictions.withColumn("__model_pctr", score)
 
     def _latest_predictions(
         self,

@@ -19,6 +19,8 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from dsutils.logtools import get_logger
 
+from next_ads.common.output_locations import log_output_location
+
 logger = get_logger(__name__)
 
 __all__ = [
@@ -872,6 +874,15 @@ def _write_from_temporary_view(
     finally:
         if not delete_run:
             spark.catalog.dropTempView(source_view)
+    log_output_location(
+        receipt.target_table or target_table,
+        kind="delta_table",
+        details={
+            "delta_version": receipt.delta_version,
+            "receipt_id": receipt.receipt_id,
+            "row_count": receipt.row_count,
+        },
+    )
     return receipt
 
 

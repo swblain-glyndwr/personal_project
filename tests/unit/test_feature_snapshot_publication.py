@@ -197,7 +197,9 @@ def test_group_writer_marks_ready_only_after_every_output(monkeypatch):
     )
     registry = SimpleNamespace(
         table_spec=lambda _feature_id: SimpleNamespace(
-            timestamp_key="reference_date", write_mode="merge"
+            timestamp_key="reference_date",
+            snapshot_date_key="reference_date",
+            write_mode="merge",
         )
     )
 
@@ -217,6 +219,67 @@ def test_group_writer_marks_ready_only_after_every_output(monkeypatch):
 
     assert result == ("ready-build", "ready-snapshot")
     assert operations == ["begin", "feature_a", "feature_b", "ready"]
+
+
+def test_group_writer_scopes_aug7_labels_by_session_date(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        publication,
+        "begin_feature_build",
+        lambda *_args, **_kwargs: _build(),
+    )
+
+    cross_calendar_frame = SimpleNamespace(
+        session_date=date(2026, 8, 7),
+        exposure_timestamp=datetime(2026, 8, 6, 22, 46),
+    )
+
+    def capture_write(_spark, _feature_id, frame, **kwargs):
+        assert frame is cross_calendar_frame
+        captured.update(kwargs)
+        return SimpleNamespace(receipt="receipt:labels")
+
+    monkeypatch.setattr(publication, "write_feature_table", capture_write)
+    monkeypatch.setattr(
+        publication,
+        "FeatureMaterializationResult",
+        SimpleNamespace,
+    )
+    monkeypatch.setattr(
+        publication,
+        "publish_ready_feature_group",
+        lambda *_args, **_kwargs: ("ready-build", "ready-snapshot"),
+    )
+    registry = SimpleNamespace(
+        table_spec=lambda _feature_id: SimpleNamespace(
+            timestamp_key="exposure_timestamp",
+            snapshot_date_key="session_date",
+            write_mode="merge",
+        )
+    )
+
+    result = publication.write_and_publish_feature_group(
+        object(),
+        catalog="catalog",
+        schema="schema",
+        group_id="build_shopping_bag_click_labels",
+        feature_build_id=BUILD_ID,
+        feature_build_attempt_id=ATTEMPT_ID,
+        reference_date=date(2026, 8, 7),
+        git_commit="abc123",
+        frames={
+            "next_uk_nextads_fs_shopping_bag_click_labels": (
+                cross_calendar_frame
+            )
+        },
+        sources=(),
+        registry=registry,
+    )
+
+    assert result == ("ready-build", "ready-snapshot")
+    assert cross_calendar_frame.exposure_timestamp.date() == date(2026, 8, 6)
+    assert captured["reference_date"] == date(2026, 8, 7)
+    assert captured["reference_date_column"] == "session_date"
 
 
 def test_group_writer_records_failure_without_publishing_ready(monkeypatch):
@@ -249,7 +312,9 @@ def test_group_writer_records_failure_without_publishing_ready(monkeypatch):
     )
     registry = SimpleNamespace(
         table_spec=lambda _feature_id: SimpleNamespace(
-            timestamp_key="reference_date", write_mode="merge"
+            timestamp_key="reference_date",
+            snapshot_date_key="reference_date",
+            write_mode="merge",
         )
     )
 

@@ -1,14 +1,32 @@
 # NextAds Architecture And Data-Flow Guides
 
-These pages map the complete NextAds job and table flow, then provide detailed
-views of the assignment, Feature Store, Theme Affinity and model-promotion
-routes. Operating settings and evidence remain in the linked reference pages.
+Start with the [plain-language job and table flow](nextads_job_table_flow.md).
+It explains what NextAds does, what the repeated terms mean, how the daily route
+fits together and what each job consumes and produces. The other pages answer
+more focused questions and assume that introduction has been read.
 
-| Page | Use it for |
+## Choose A Route
+
+| Reader or question | Read these pages |
 | --- | --- |
-| [nextads_job_table_flow.md](nextads_job_table_flow.md) | Inclusive guide to the operational assignment/delivery route and the in-flight Feature Store/model jobs, including what they consume and produce. |
-| [theme_affinity_operational_flow.md](theme_affinity_operational_flow.md) | Theme Affinity DLT/Lakeflow and prediction route, including where its outputs feed Feature Store. |
-| [v1_v2_parallel_route.md](v1_v2_parallel_route.md) | Long-lived v1/v2 candidate mapping and page-build DAG, including the shared Theme Affinity boundary. |
-| [feature_store_flow.md](feature_store_flow.md) | Detailed DEV Feature Store task order and parallel build branches; use the inclusive job-and-table page for cross-route inputs and outputs. |
-| [mlflow_model_lifecycle.md](mlflow_model_lifecycle.md) | DEV-to-PROD model movement through MLflow and Unity Catalog. |
-| [future_model_adoption.md](future_model_adoption.md) | How pCTR, LTR and direct-ad challengers should reuse feature contracts and lifecycle jobs. |
+| New to NextAds | [Job and table flow](nextads_job_table_flow.md), beginning with “What NextAds Does” and “Terms Used In This Guide” |
+| Operating or investigating a daily run | [Databricks runtime map](../CICD/nextads_databricks_runtime_map.md) for schedules and hand-offs, then [job settings](../CICD/nextads_databricks_job_settings.md) for parameters and defaults |
+| Investigating V1/V2 candidate, assignment or delivery behavior | [V1/V2 parallel route](v1_v2_parallel_route.md) for exact task dependencies and failure boundaries |
+| Understanding operational Theme Affinity scoring | [Theme Affinity operational flow](theme_affinity_operational_flow.md) for its input preparation, prediction, publication and checks |
+| Building reusable model data | [Feature Store flow](feature_store_flow.md) for task order and the [Feature Store table design](../feature_store/feature_store_table_design.md) for table grain, keys and refresh rules |
+| Researching or reviewing a model | [Model research walkthrough](../model_research_walkthrough.md) for declared research, AutoML, review selection and isolated evaluation |
+| Moving an approved model between environments | [MLflow model lifecycle](mlflow_model_lifecycle.md) for exact version movement and its separation from serving activation |
+| Connecting a future score source | [Future model adoption](future_model_adoption.md) for the shared feature, scoring and evaluation contracts |
+| Releasing or checking target availability | [Job environment matrix](../CICD/nextads_databricks_job_environment_matrix.md) and [branch and release route](../CICD/nextads_branch_release_route.md) |
+
+## Page Responsibilities
+
+- The [job and table flow](nextads_job_table_flow.md) owns the complete written
+  walkthrough, shared vocabulary and cross-job input/output inventory.
+- The [runtime map](../CICD/nextads_databricks_runtime_map.md) owns declared
+  schedules, job triggers and dated runtime observations.
+- The [job settings](../CICD/nextads_databricks_job_settings.md) page owns
+  parameters, defaults and valid values.
+- Detailed route pages own task order, data contracts and failure behavior for
+  their named area; they should link back to the complete walkthrough instead
+  of repeating it.

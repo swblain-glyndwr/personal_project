@@ -189,9 +189,6 @@ def main() -> None:
         sources=pinned_spark.source_bindings,
         registry=registry,
         replace_reference_date=args.replace_reference_date.lower() == "true",
-        write_options={
-            OBSERVED_TABLE: {"reference_date_column": "session_date"}
-        },
         **identity,
     )
     LOGGER.info(

@@ -119,6 +119,7 @@ class OfflineFeatureDefinition:
     training_safe: bool
     consumers: tuple[str, ...]
     timestamp_key: str | None = None
+    snapshot_date_key: str | None = None
     state: OfflineFeatureState = OfflineFeatureState.ACTIVE
     missing_contracts: tuple[str, ...] = ()
     builder: str | None = None
@@ -126,9 +127,15 @@ class OfflineFeatureDefinition:
     preflight_mode: str = "CENTRAL"
 
     def __post_init__(self) -> None:
-        """Default the logical builder to the legacy source-job metadata."""
+        """Default optional registry values to their existing contracts."""
         if self.builder is None:
             object.__setattr__(self, "builder", self.source_job)
+        if self.snapshot_date_key is None:
+            object.__setattr__(
+                self,
+                "snapshot_date_key",
+                self.timestamp_key,
+            )
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "OfflineFeatureDefinition":
@@ -182,6 +189,11 @@ class OfflineFeatureDefinition:
             timestamp_key = _required_text(
                 timestamp_key, "timestamp_key", context
             )
+        snapshot_date_key = raw.get("snapshot_date_key")
+        if snapshot_date_key is not None:
+            snapshot_date_key = _required_text(
+                snapshot_date_key, "snapshot_date_key", context
+            )
         write_mode = str(raw.get("write_mode", "merge")).lower()
         if write_mode not in {"merge", "overwrite"}:
             raise ValueError(
@@ -208,6 +220,7 @@ class OfflineFeatureDefinition:
             training_safe=raw["training_safe"],
             consumers=consumers,
             timestamp_key=timestamp_key,
+            snapshot_date_key=snapshot_date_key,
             state=state,
             missing_contracts=missing_contracts,
             builder=(

@@ -318,6 +318,11 @@ def test_main_pins_analytics_output_and_writes_both_registered_tables(
                 if table_name == job.SESSION_TABLE
                 else "reference_date"
             ),
+            snapshot_date_key=(
+                "session_date"
+                if table_name == job.SESSION_TABLE
+                else "reference_date"
+            ),
             write_mode="merge",
         ),
     )

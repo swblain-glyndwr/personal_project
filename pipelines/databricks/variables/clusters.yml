@@ -156,6 +156,25 @@ variables:
             CURRENT_ENV: ${var.environment_name}
             GOOGLE_CLOUD_PROJECT: big-query-156009
             PYSPARK_PYTHON: /databricks/python3/bin/python3
+  model_research_job_clusters_config:
+    description: Fixed four-worker DBR 15.4 cluster for model research
+    default:
+      - job_cluster_key: next_ads_job_cluster_model_research_D32ads_v5_4
+        new_cluster:
+          <<: *base_cluster_fixed_standard
+          node_type_id: Standard_D32ads_v5
+          driver_node_type_id: Standard_D32ads_v5
+          num_workers: 4
+  model_research_automl_job_clusters_config:
+    description: No-library DBR 15.4 ML cluster for bounded AutoML discovery
+    default:
+      - job_cluster_key: next_ads_job_cluster_model_research_automl_D32ads_v5_4
+        new_cluster:
+          <<: *base_cluster_fixed_standard
+          spark_version: 15.4.x-cpu-ml-scala2.12
+          node_type_id: Standard_D32ads_v5
+          driver_node_type_id: Standard_D32ads_v5
+          num_workers: 4
   pipeline_clusters_config:
     description: Cluster configuration for Lakeflow pipelines
     default:

@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from next_ads.common.output_locations import log_output_location
+
 
 VACUUM_RETENTION_HOURS = 168
 WEEKLY_MAINTENANCE_WEEKDAY = 6  # Sunday
@@ -56,6 +58,7 @@ class MaintenanceStatement:
     """One deterministic maintenance operation."""
 
     table_name: str
+    destination_table: str
     operation: str
     sql: str
 
@@ -429,6 +432,7 @@ def build_retention_statement(
     )
     return MaintenanceStatement(
         table_name=table.spec.name,
+        destination_table=table.table,
         operation="retention",
         sql=sql,
     )
@@ -442,11 +446,13 @@ def build_weekly_statements(
     return (
         MaintenanceStatement(
             table_name=table.spec.name,
+            destination_table=table.table,
             operation="optimize",
             sql=f"OPTIMIZE {quoted_table}",
         ),
         MaintenanceStatement(
             table_name=table.spec.name,
+            destination_table=table.table,
             operation="vacuum",
             sql=(
                 f"VACUUM {quoted_table} "
@@ -498,3 +504,11 @@ def execute_maintenance_plan(
             statement.table_name,
         )
         spark.sql(statement.sql)
+        log_output_location(
+            statement.destination_table,
+            kind="delta_table",
+            details={
+                "operation": statement.operation,
+                "run_date": run_date.isoformat(),
+            },
+        )

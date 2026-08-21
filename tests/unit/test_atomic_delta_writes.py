@@ -1,4 +1,6 @@
 from datetime import date
+import json
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -6,6 +8,7 @@ from delta.exceptions import DeltaConcurrentModificationException
 from pyspark.sql.types import LongType, StringType, StructField, StructType
 
 import next_ads.common.delta_writes as delta_writes
+from next_ads.common.output_locations import OUTPUT_DESTINATION_PREFIX
 from next_ads.common.delta_writes import (
     DeltaRetryPolicy,
     atomic_append_by_name,
@@ -433,6 +436,28 @@ def test_append_uses_selected_columns_and_name_alignment():
     assert frame.selected_columns == ["Scope", "Status"]
     assert "BY NAME" in result.statement
     assert "`Unused`" not in result.statement
+
+
+def test_successful_delta_write_logs_the_concrete_destination(caplog):
+    spark = FakeSpark([None], target_columns=["Scope", "Status"])
+    frame = FakeFrame(["Scope", "Status"])
+
+    with caplog.at_level(logging.INFO, logger="next_ads.outputs"):
+        result = atomic_append_by_name(
+            spark,
+            frame,
+            target_table="catalog.schema.events",
+            sleep=lambda _: None,
+        )
+
+    message = caplog.records[-1].getMessage()
+    payload = json.loads(message.removeprefix(OUTPUT_DESTINATION_PREFIX))
+    assert message.startswith(OUTPUT_DESTINATION_PREFIX)
+    assert payload == {
+        "destination": "catalog.schema.events",
+        "kind": "delta_table",
+        "receipt_id": result.receipt_id,
+    }
 
 
 def test_repo_owned_replace_interfaces_select_table_or_scope(monkeypatch):

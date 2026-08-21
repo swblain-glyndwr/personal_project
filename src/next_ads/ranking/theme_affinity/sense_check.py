@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from next_ads.common.output_locations import log_output_location
 from next_ads.ranking.theme_affinity.config import ThemeAffinityRuntime
 
 
@@ -145,6 +146,7 @@ def run_sense_checks(spark, runtime: ThemeAffinityRuntime, config):
         .option("overwriteSchema", "true")
         .saveAsTable(config.summary_table)
     )
+    log_output_location(config.summary_table, kind="delta_table")
     return summary_df
 
 

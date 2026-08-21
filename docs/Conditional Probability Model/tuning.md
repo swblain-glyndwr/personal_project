@@ -2,7 +2,7 @@
 
 ### Code summary
 
-The `task_conditional_probability_recs.py` script contains several weights, filters and parameters that change the behaviour of the final scoring metrics. This document is meant to capture these levers which can be tweaked to change the behaviour of the recommender.
+The [`conditional_probability_recs.py`](../../jobs/nextads_candidates/conditional_probability_recs.py) script contains several weights, filters and parameters that change the behaviour of the final scoring metrics. This document captures the settings that can change the behaviour of the recommender.
 
 
 
@@ -21,7 +21,7 @@ TIME_DECAY_FACTOR = jobparser.get_arg('--time_decay_factor') or -0.1
 ## 1. Interaction Time Windows (Interaction Lookback Periods)
 
 ### A. Purchase Lookback
-Location: [`task_conditional_probability_recs.py`](task_conditional_probability_recs.py) TABLE 4
+Location: [`conditional_probability_recs.py`](../../jobs/nextads_candidates/conditional_probability_recs.py) TABLE 4
 ```python
 "baskets": {"lookback": BASKETS_LOOKBACK_DAYS}  # Currently 1 year
 ```
@@ -40,7 +40,7 @@ Location: [`task_conditional_probability_recs.py`](task_conditional_probability_
   - Less data = weaker statistical signals for niche themes
 
 ### B. Views Lookback
-**Location:** [`task_conditional_probability_recs.py`](task_conditional_probability_recs.py) TABLE 2
+**Location:** [`conditional_probability_recs.py`](../../jobs/nextads_candidates/conditional_probability_recs.py) TABLE 2
 ```python
 "views": {"lookback": VIEWS_LOOKBACK_DAYS}  # Currently 28 days
 ```
@@ -60,7 +60,7 @@ Location: [`task_conditional_probability_recs.py`](task_conditional_probability_
 
 ## 2. Iteractions Type Weights
 
-Location: [`task_conditional_probability_recs.py`](task_conditional_probability_recs.py) line 68 TABLE 2
+Location: [`conditional_probability_recs.py`](../../jobs/nextads_candidates/conditional_probability_recs.py) line 68 TABLE 2
 ```python
 CASE
   WHEN interaction_type = 'purchase' THEN PURCHASE_WEIGHT
@@ -85,7 +85,7 @@ END
 
 ## 3. Time Decay On Weights
 
-**Location:** [`task_conditional_probability_recs.py`](task_conditional_probability_recs.py) TABLE 2
+**Location:** [`conditional_probability_recs.py`](../../jobs/nextads_candidates/conditional_probability_recs.py) TABLE 2
 ```python
 exp(TIME_DECAY_FACTOR * days_ago)  # Decay factor = 0.1
 ```
@@ -111,7 +111,7 @@ exp(TIME_DECAY_FACTOR * days_ago)  # Decay factor = 0.1
 ## 4. Theme Associations Filters
 
 ### A. Minimum Frequency Threshold
-**Location:** [`task_conditional_probability_recs.py`](task_conditional_probability_recs.py) line 209
+**Location:** [`conditional_probability_recs.py`](../../jobs/nextads_candidates/conditional_probability_recs.py) line 209
 ```python
 WHERE freq12 > 100  # Strong patterns only
    OR (freq12 > 5 AND confidence > 0.01)  # Weak but high-confidence
@@ -131,7 +131,7 @@ WHERE freq12 > 100  # Strong patterns only
   - Computational overhead (more pairs to evaluate)
 
 ### B. Top-N Associations per Theme
-**Location:** [`task_conditional_probability_recs.py`](task_conditional_probability_recs.py) line 215
+**Location:** [`conditional_probability_recs.py`](../../jobs/nextads_candidates/conditional_probability_recs.py) line 215
 ```python
 QUALIFY ROW_NUMBER() ... <= 20  # Top 20 per seed theme
 ```

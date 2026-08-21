@@ -1,0 +1,33 @@
+CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_model_research_builds (
+  research_build_id STRING NOT NULL,
+  research_attempt_id STRING NOT NULL,
+  model_name STRING NOT NULL,
+  training_receipt_id STRING NOT NULL,
+  model_definition_checksum STRING NOT NULL,
+  research_plan_checksum STRING NOT NULL,
+  evaluation_schema_version STRING NOT NULL,
+  code_sha STRING NOT NULL,
+  research_frame_id STRING NOT NULL,
+  research_frame_attempt_id STRING NOT NULL,
+  research_frame_table STRING NOT NULL,
+  research_frame_delta_version BIGINT NOT NULL,
+  research_frame_row_count BIGINT NOT NULL,
+  research_frame_schema_checksum STRING NOT NULL,
+  research_frame_data_checksum STRING NOT NULL,
+  research_frame_write_receipt_id STRING NOT NULL,
+  research_frame_feature_schema_json STRING NOT NULL,
+  research_frame_slice_schema_json STRING NOT NULL,
+  candidate_count BIGINT NOT NULL,
+  successful_candidate_count BIGINT NOT NULL,
+  status STRING NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  completed_at TIMESTAMP,
+  mlflow_experiment_id STRING,
+  mlflow_parent_run_id STRING,
+  automatic_candidate_id STRING,
+  artifact_manifest_digest STRING,
+  failure_reason STRING,
+  CONSTRAINT pk_nextads_model_research_builds
+    PRIMARY KEY (research_build_id, research_attempt_id)
+)
+USING delta

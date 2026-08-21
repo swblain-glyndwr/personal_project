@@ -28,6 +28,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
+from next_ads.common.output_locations import log_output_location
 from next_ads.ml.lifecycle.monitoring import log_table_drift_to_mlflow
 from next_ads.ranking.theme_affinity.lifecycle_spec import (
     resolve_lifecycle_config,
@@ -89,4 +90,9 @@ logger.info(
     "Logged drift monitor run %s with status %s",
     result["run_id"],
     result["assessment"].status,
+)
+log_output_location(
+    f"runs:/{result['run_id']}",
+    kind="mlflow_run",
+    details={"experiment_path": lifecycle_config.experiment_path},
 )

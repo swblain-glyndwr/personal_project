@@ -20,6 +20,7 @@ from next_ads.common.delta_writes import (
     quote_qualified_identifier,
     schema_checksum,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.features import load_feature_store_registry
 from next_ads.features.analytics_pctr_source import (
     latest_delta_version,
@@ -217,6 +218,11 @@ def snapshot_view_source(
     table_name = f"next_uk_nextads_fs_source_{safe_source_name}_{identity}"
     target = f"{target_catalog}.{target_schema}.{table_name}"
     if spark.catalog.tableExists(target):
+        log_output_location(
+            target,
+            kind="delta_table",
+            details={"reused": True, "role": "pinned_source"},
+        )
         return target
     (
         spark.table(source_view)
@@ -229,6 +235,11 @@ def snapshot_view_source(
         "ALTER TABLE "
         f"{quote_qualified_identifier(target)} SET TBLPROPERTIES "
         f"('nextads.source_view' = '{escaped_source_view}')"
+    )
+    log_output_location(
+        target,
+        kind="delta_table",
+        details={"reused": False, "role": "pinned_source"},
     )
     return target
 
@@ -398,7 +409,7 @@ def main() -> None:
                 catalog=target_catalog,
                 schema=target_schema,
                 reference_date=reference_date,
-                reference_date_column=table.timestamp_key,
+                reference_date_column=table.snapshot_date_key,
                 replace_reference_date=replace_reference_date,
                 mode=table.write_mode,
                 registry=registry,

@@ -129,6 +129,12 @@ def _context_row(context, *, status="FAILED", execution_count=1):
 def test_same_run_higher_execution_can_reclaim_its_context(monkeypatch):
     context = _context()
     spark = _Spark()
+    outputs = []
+    monkeypatch.setattr(
+        provider_context,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append((destination, kwargs)),
+    )
     monkeypatch.setattr(
         provider_context,
         "load_active_provider_context",
@@ -151,6 +157,19 @@ def test_same_run_higher_execution_can_reclaim_its_context(monkeypatch):
     assert spark.created_schemas == ["provider-context-schema"]
     assert spark.created[0].rows[0]["ScoringFoundationBuildID"] is None
     assert spark.created[0].rows[0]["ScoringFoundationBuildAttemptID"] is None
+    assert outputs == [
+        (
+            "catalog.schema.contexts",
+            {
+                "kind": "delta_table",
+                "details": {
+                    "context_slot": "theme_affinity_serving",
+                    "operation": "activate_provider_context",
+                    "status": "ACTIVE",
+                },
+            },
+        )
+    ]
 
 
 @pytest.mark.parametrize("status", ["ACTIVE", "FAILED"])
@@ -257,6 +276,12 @@ def test_transition_requires_exact_run_build_and_attempt_ownership(
         }
     ]
     spark = _Spark(rows)
+    outputs = []
+    monkeypatch.setattr(
+        provider_context,
+        "log_output_location",
+        lambda destination, **kwargs: outputs.append((destination, kwargs)),
+    )
     monkeypatch.setattr(
         provider_context.F,
         "col",
@@ -275,6 +300,19 @@ def test_transition_requires_exact_run_build_and_attempt_ownership(
     assert "AND OrchestrationRunID = 123" in statement
     assert "AND ProviderBuildID = 'build'" in statement
     assert "AND ProviderBuildAttemptID = 'build:task:2'" in statement
+    assert outputs == [
+        (
+            "catalog.schema.contexts",
+            {
+                "kind": "delta_table",
+                "details": {
+                    "context_slot": "theme_affinity_serving",
+                    "operation": "transition_provider_context",
+                    "status": "CONSUMED",
+                },
+            },
+        )
+    ]
 
 
 @pytest.mark.parametrize("rows", [[], [{"Status": "CONSUMED"}]])

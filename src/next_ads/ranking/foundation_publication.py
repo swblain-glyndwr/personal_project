@@ -15,6 +15,7 @@ from next_ads.common.delta_writes import (
     typed_table_frame,
     validate_typed_table_schema,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.ranking.scoring_inputs import (
     latest_delta_version,
     read_delta_version,
@@ -265,6 +266,17 @@ def _publish_one_output(
             "Reusing foundation output %s at Delta version %s",
             spec.output_name,
             receipt.delta_version,
+        )
+        log_output_location(
+            spec.target_table,
+            kind="delta_table",
+            details={
+                "delta_version": receipt.delta_version,
+                "output_name": spec.output_name,
+                "receipt_id": receipt.receipt_id,
+                "row_count": receipt.row_count,
+                "reused": True,
+            },
         )
     if receipt.delta_version is None or receipt.row_count is None:
         raise RuntimeError(

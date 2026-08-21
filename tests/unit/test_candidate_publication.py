@@ -338,6 +338,7 @@ def test_manifest_failure_repairs_from_existing_candidate_receipts(
     }
     receipt_lookups = []
     manifest_writes = []
+    output_locations = []
 
     def find_receipt(_spark, *, target_table, **_kwargs):
         receipt_lookups.append(target_table)
@@ -355,6 +356,10 @@ def test_manifest_failure_repairs_from_existing_candidate_receipts(
         "next_ads.candidates.publication.replace_scope_by_name",
         lambda _frame, table, *_args, **_kwargs: manifest_writes.append(table),
     )
+    monkeypatch.setattr(
+        "next_ads.candidates.publication.log_output_location",
+        lambda destination, **_kwargs: output_locations.append(destination),
+    )
 
     with pytest.raises(RuntimeError, match="injected manifest failure"):
         publisher.finalize(
@@ -371,6 +376,12 @@ def test_manifest_failure_repairs_from_existing_candidate_receipts(
     assert repaired.status == "READY_FOR_NEXTADS"
     assert manifest_writes == ["candidate_builds"]
     assert receipt_lookups == [
+        "candidate_ad_sets",
+        "candidate_scores",
+        "candidate_ad_sets",
+        "candidate_scores",
+    ]
+    assert output_locations == [
         "candidate_ad_sets",
         "candidate_scores",
         "candidate_ad_sets",
