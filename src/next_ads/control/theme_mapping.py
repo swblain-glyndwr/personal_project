@@ -92,8 +92,12 @@ def rank_item_themes(
                 on="theme",
                 how="left",
             )
-            .withColumn("AdTypeScore", F.lit(1.0) / F.col("AdTypeRank").cast("float"))
-            .withColumn("FreqScore", F.lit(1.0) / F.col("MatchingItems").cast("float"))
+            .withColumn(
+                "AdTypeScore", F.lit(1.0) / F.col("AdTypeRank").cast("float")
+            )
+            .withColumn(
+                "FreqScore", F.lit(1.0) / F.col("MatchingItems").cast("float")
+            )
             .fillna({"AdTypeScore": -1.0, "AdTypeRank": -1.0})
             .withColumn(
                 "theme_rank",
@@ -115,7 +119,9 @@ def rank_item_themes(
                 on="theme",
                 how="left",
             )
-            .withColumn("AdTypeScore", F.lit(1.0) / F.col("AdTypeRank").cast("float"))
+            .withColumn(
+                "AdTypeScore", F.lit(1.0) / F.col("AdTypeRank").cast("float")
+            )
             .withColumn(
                 "ThemeTypeScore",
                 F.lit(1.0) / F.col("ThemeTypeRank").cast("float"),

@@ -196,7 +196,8 @@ def align_control_sheet_to_read_schema(
         return TargetColumnAlignment(df=df_control_sheet, extra_columns=[])
 
     temp_columns = [
-        f"__control_sheet_column_{index}" for index in range(len(actual_columns))
+        f"__control_sheet_column_{index}"
+        for index in range(len(actual_columns))
     ]
     df_with_unique_columns = df_control_sheet.toDF(*temp_columns)
     df_aligned = df_with_unique_columns.select(
@@ -248,9 +249,13 @@ def assert_append_rundate_target_schema(
         "`current_date() as rundate`, so table columns must match exactly.",
     ]
     if missing_columns:
-        details.append(f"Missing target columns: {', '.join(missing_columns)}.")
+        details.append(
+            f"Missing target columns: {', '.join(missing_columns)}."
+        )
     if extra_columns:
-        details.append(f"Unexpected target columns: {', '.join(extra_columns)}.")
+        details.append(
+            f"Unexpected target columns: {', '.join(extra_columns)}."
+        )
     if first_order_mismatch:
         details.append(f"First order mismatch: {first_order_mismatch}.")
 
@@ -438,7 +443,9 @@ def build_processed_control_sheet(
     valid_locations: Sequence[str],
 ) -> DataFrame:
     """Build the joined control-sheet output before quality checks."""
-    df_id_loc = build_requested_ad_locations(df_control_active, valid_locations)
+    df_id_loc = build_requested_ad_locations(
+        df_control_active, valid_locations
+    )
     df_ad_attributes = (
         df_control_active.drop(*list(valid_locations))
         .drop_duplicates()
@@ -465,9 +472,7 @@ def constrain_premium_ads_to_sibling_locations(
     """Only keep premium sibling ads where the target location is valid."""
     location_lookup_df = (
         df_processed.groupBy("UniqueAdID")
-        .agg(
-            F.sort_array(F.collect_set("Location")).alias("ValidLocations")
-        )
+        .agg(F.sort_array(F.collect_set("Location")).alias("ValidLocations"))
         .withColumnRenamed("UniqueAdID", "LookupAdID")
     )
     df_processed = df_processed.join(
@@ -641,7 +646,9 @@ def process_control_sheet(
         inherited_locations,
     )
 
-    df_id_loc = build_requested_ad_locations(df_control_active, valid_locations)
+    df_id_loc = build_requested_ad_locations(
+        df_control_active, valid_locations
+    )
     active_locations = sorted(
         set([row[0] for row in df_id_loc.select("Location").collect()])
     )
@@ -655,7 +662,9 @@ def process_control_sheet(
     df_processed = constrain_premium_ads_to_sibling_locations(df_processed)
     assert_pk(df_processed, ["UniqueAdID", "Location"])
 
-    duplicate_masid_resolution = resolve_duplicate_masid_conflicts(df_processed)
+    duplicate_masid_resolution = resolve_duplicate_masid_conflicts(
+        df_processed
+    )
     df_processed = duplicate_masid_resolution.df
 
     df_processed = clean_theme_strings(df_processed)
@@ -668,19 +677,18 @@ def process_control_sheet(
             else F.current_date()
         )
         df_underperforming_ids = (
-            df_underperforming_ads
-            .filter(F.col("rundate") == underperforming_date)
+            df_underperforming_ads.filter(
+                F.col("rundate") == underperforming_date
+            )
             .select("UniqueAdID")
             .distinct()
             .withColumn("IsUnderperforming", F.lit(True))
         )
-        df_processed = (
-            df_processed
-            .join(df_underperforming_ids, on="UniqueAdID", how="left")
-            .withColumn(
-                "IsUnderperforming",
-                F.coalesce(F.col("IsUnderperforming"), F.lit(False)),
-            )
+        df_processed = df_processed.join(
+            df_underperforming_ids, on="UniqueAdID", how="left"
+        ).withColumn(
+            "IsUnderperforming",
+            F.coalesce(F.col("IsUnderperforming"), F.lit(False)),
         )
     else:
         df_processed = df_processed.withColumn(

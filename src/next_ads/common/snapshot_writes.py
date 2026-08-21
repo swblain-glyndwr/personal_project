@@ -14,9 +14,12 @@ from next_ads.common.delta_writes import (
     KeyValidationSummary,
     replace_scope_by_name,
     replace_table_by_name,
+    replace_and_update_scope_by_name,
     validate_unique_non_null_keys,
 )
+from dsutils.logtools import get_logger
 
+logger = get_logger(__name__)
 
 __all__ = [
     "SnapshotPublicationResult",
@@ -151,8 +154,11 @@ def publish_history_and_latest(
     run_date: date | str | None = None,
     run_date_column: str = "rundate",
     columns: Sequence[str] | None = None,
+    scope: dict | None = None,
 ) -> SnapshotPublicationResult:
-    """Publish an idempotent date slice, then its serving snapshot."""
+    """Publish an idempotent date slice, then its serving snapshot.
+    Can publish only latest by providing an empty string for history table
+    """
     resolved_run_date = _resolve_run_date(spark, run_date)
     prepared_with_date = with_run_date(
         df,
@@ -164,26 +170,50 @@ def publish_history_and_latest(
         StorageLevel.MEMORY_AND_DISK
     )
     try:
+        if not scope:
+            _scope = {run_date_column: resolved_run_date}
+        else:
+            _scope = scope
+            _scope.update({run_date_column: resolved_run_date})
+
         validation = validate_unique_non_null_keys(
             prepared,
             _validation_keys(
                 key_columns,
-                scope_columns=[run_date_column],
+                scope_columns=list(_scope.keys()),
             ),
         )
-        history_write = replace_scope_by_name(
-            prepared,
-            history_table,
-            {run_date_column: resolved_run_date},
-            selected_columns,
-            spark=spark,
-        )
-        latest_write = replace_table_by_name(
-            prepared,
-            latest_table,
-            selected_columns,
-            spark=spark,
-        )
+        if history_table:
+            logger.info("Writing history table")
+            history_write = replace_scope_by_name(
+                prepared,
+                history_table,
+                _scope,
+                selected_columns,
+                spark=spark,
+            )
+
+        else:
+            history_write = None
+            logger.info("No history table provided-skipping")
+        logger.info("Writing latest table")
+
+        if scope:
+            latest_write = replace_and_update_scope_by_name(
+                prepared,
+                latest_table,
+                _scope,
+                selected_columns,
+                spark=spark,
+                delete_scope={run_date_column: resolved_run_date},
+            )
+        else:
+            latest_write = replace_table_by_name(
+                prepared,
+                latest_table,
+                selected_columns,
+                spark=spark,
+            )
         return SnapshotPublicationResult(
             run_date=resolved_run_date,
             validation=validation,
