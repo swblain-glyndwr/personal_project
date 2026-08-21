@@ -10,9 +10,14 @@ from typing import Iterable, Sequence
 from pyspark.sql import SparkSession
 
 
+DEV_JOB_ENV = "dev"
+DEV_CATALOG = "marketingdata_dev"
+DEV_SERVICE_PRINCIPAL = "7ecc733a-4b66-4783-b984-985333d55c38"
+DEV_RELATION_SCOPE = "ALL_SP_OWNED_SCHEMAS"
 PROD_JOB_ENV = "prod"
 PROD_CATALOG = "marketingdata_prod"
-PROD_SCHEMA = "warehouse"
+PROD_RELATION_SCOPE = "WAREHOUSE_AND_DS_SANDBOX"
+PROD_SCHEMAS = ("warehouse", "ds_sandbox")
 PROD_SERVICE_PRINCIPAL = "2be8d1c2-d35b-4438-891e-558b9b5880f6"
 ACCESS_RECIPIENTS = (
     "stephen_blain@next.co.uk",
@@ -22,7 +27,16 @@ ACCESS_RECIPIENTS = (
 TABLE_TYPES = frozenset({"EXTERNAL", "MANAGED"})
 READ_ONLY_TYPES = frozenset({"VIEW", "MATERIALIZED_VIEW"})
 SUPPORTED_RELATION_TYPES = TABLE_TYPES | READ_ONLY_TYPES
-MAX_RELATION_COUNT = 1000
+MAX_RELATION_COUNT = 2000
+MAXIMUM_GRANTABLE_ACCESS = ("ALL PRIVILEGES", "MANAGE")
+
+
+@dataclass(frozen=True)
+class RuntimeScope:
+    job_env: str
+    catalog: str
+    relation_scope: str
+    owner: str
 
 
 @dataclass(frozen=True, order=True)
@@ -76,20 +90,34 @@ def qualified_name(relation: Relation) -> str:
 
 
 def validate_runtime_scope(
-    *, job_env: str, catalog: str, schema: str, expected_owner: str
-) -> None:
-    actual = (job_env, catalog, schema, expected_owner)
-    expected = (
-        PROD_JOB_ENV,
-        PROD_CATALOG,
-        PROD_SCHEMA,
-        PROD_SERVICE_PRINCIPAL,
+    *, job_env: str, catalog: str, relation_scope: str, expected_owner: str
+) -> RuntimeScope:
+    scope = RuntimeScope(
+        job_env=job_env,
+        catalog=catalog,
+        relation_scope=relation_scope,
+        owner=expected_owner,
     )
-    if actual != expected:
-        raise ValueError(
-            "This job only supports the fixed PROD scope "
-            f"{expected!r}; received {actual!r}"
-        )
+    prod_scope = RuntimeScope(
+        job_env=PROD_JOB_ENV,
+        catalog=PROD_CATALOG,
+        relation_scope=PROD_RELATION_SCOPE,
+        owner=PROD_SERVICE_PRINCIPAL,
+    )
+    if scope == prod_scope:
+        return scope
+    if (
+        scope.job_env == DEV_JOB_ENV
+        and scope.catalog == DEV_CATALOG
+        and scope.relation_scope == DEV_RELATION_SCOPE
+        and scope.owner == DEV_SERVICE_PRINCIPAL
+    ):
+        return scope
+    raise ValueError(
+        "This job only supports the fixed DEV whole-catalog owner scope or "
+        "the fixed PROD warehouse and ds_sandbox owner scope; "
+        f"received {scope!r}"
+    )
 
 
 def current_principal(spark) -> str:
@@ -97,25 +125,37 @@ def current_principal(spark) -> str:
     return str(row["principal"])
 
 
-def assert_expected_execution_identity(spark) -> str:
+def assert_expected_execution_identity(spark, scope: RuntimeScope) -> str:
     principal = current_principal(spark)
-    if principal != PROD_SERVICE_PRINCIPAL:
+    if principal != scope.owner:
         raise RuntimeError(
             "Refusing to continue because the job is not running as the "
-            "expected production service principal. "
-            f"actual={principal!r} expected={PROD_SERVICE_PRINCIPAL!r}"
+            "expected service principal. "
+            f"actual={principal!r} expected={scope.owner!r}"
         )
     return principal
 
 
-def owned_relations_query() -> str:
+def relation_scope_schemas(scope: RuntimeScope) -> frozenset[str] | None:
+    if scope.relation_scope == DEV_RELATION_SCOPE:
+        return None
+    if scope.relation_scope == PROD_RELATION_SCOPE:
+        return frozenset(PROD_SCHEMAS)
+    raise ValueError(f"Unsupported relation scope: {scope.relation_scope!r}")
+
+
+def owned_relations_query(scope: RuntimeScope) -> str:
+    schema_filter = ""
+    allowed_schemas = relation_scope_schemas(scope)
+    if allowed_schemas is not None:
+        schema_literals = ", ".join(f"'{schema}'" for schema in PROD_SCHEMAS)
+        schema_filter = f"\n          AND table_schema IN ({schema_literals})"
     return f"""
         SELECT table_catalog, table_schema, table_name, table_type, table_owner
-        FROM {quote_identifier(PROD_CATALOG)}.information_schema.tables
-        WHERE table_catalog = '{PROD_CATALOG}'
-          AND table_schema = '{PROD_SCHEMA}'
-          AND table_owner = current_user()
-        ORDER BY table_name, table_type
+        FROM {quote_identifier(scope.catalog)}.information_schema.tables
+        WHERE table_catalog = '{scope.catalog}'
+          AND table_owner = current_user(){schema_filter}
+        ORDER BY table_schema, table_name, table_type
     """.strip()
 
 
@@ -129,14 +169,19 @@ def _relation_from_row(row) -> Relation:
     )
 
 
-def discover_owned_relations(spark) -> list[Relation]:
+def discover_owned_relations(spark, scope: RuntimeScope) -> list[Relation]:
     relations = sorted(
         _relation_from_row(row)
-        for row in spark.sql(owned_relations_query()).collect()
+        for row in spark.sql(owned_relations_query(scope)).collect()
     )
     if not relations:
+        allowed_schemas = relation_scope_schemas(scope)
+        scope_name = scope.catalog
+        if allowed_schemas is not None:
+            scope_name += ".{" + ",".join(PROD_SCHEMAS) + "}"
         raise RuntimeError(
-            "No production service-principal-owned relations were found; "
+            "No service-principal-owned relations were found in the approved "
+            f"scope {scope_name}; "
             "refusing to continue"
         )
     if len(relations) > MAX_RELATION_COUNT:
@@ -146,10 +191,16 @@ def discover_owned_relations(spark) -> list[Relation]:
         )
 
     seen_names: set[tuple[str, str, str]] = set()
+    allowed_schemas = relation_scope_schemas(scope)
     for relation in relations:
-        if relation.catalog != PROD_CATALOG or relation.schema != PROD_SCHEMA:
+        if relation.catalog != scope.catalog:
             raise RuntimeError(f"Unexpected relation namespace: {relation!r}")
-        if relation.owner != PROD_SERVICE_PRINCIPAL:
+        if (
+            allowed_schemas is not None
+            and relation.schema not in allowed_schemas
+        ):
+            raise RuntimeError(f"Unexpected relation namespace: {relation!r}")
+        if relation.owner != scope.owner:
             raise RuntimeError(f"Unexpected relation owner: {relation!r}")
         if relation.relation_type not in SUPPORTED_RELATION_TYPES:
             raise RuntimeError(f"Unsupported relation type: {relation!r}")
@@ -163,11 +214,11 @@ def discover_owned_relations(spark) -> list[Relation]:
 def relation_grant_policy(relation_type: str) -> tuple[str, tuple[str, ...]]:
     relation_type = relation_type.upper()
     if relation_type in TABLE_TYPES:
-        return "TABLE", ("SELECT", "MODIFY")
+        return "TABLE", MAXIMUM_GRANTABLE_ACCESS
     if relation_type == "VIEW":
-        return "VIEW", ("SELECT",)
+        return "VIEW", MAXIMUM_GRANTABLE_ACCESS
     if relation_type == "MATERIALIZED_VIEW":
-        return "MATERIALIZED VIEW", ("SELECT",)
+        return "MATERIALIZED VIEW", MAXIMUM_GRANTABLE_ACCESS
     raise ValueError(f"Unsupported relation type: {relation_type!r}")
 
 
@@ -177,18 +228,19 @@ def build_grant_plan(
 ) -> list[GrantOperation]:
     operations = []
     for relation in sorted(relations):
-        securable_type, privileges = relation_grant_policy(
+        securable_type, grant_clauses = relation_grant_policy(
             relation.relation_type
         )
         for principal in principals:
-            operations.append(
-                GrantOperation(
-                    relation=relation,
-                    principal=principal,
-                    securable_type=securable_type,
-                    privileges=privileges,
+            for grant_clause in grant_clauses:
+                operations.append(
+                    GrantOperation(
+                        relation=relation,
+                        principal=principal,
+                        securable_type=securable_type,
+                        privileges=(grant_clause,),
+                    )
                 )
-            )
     return operations
 
 
@@ -228,24 +280,35 @@ def verify_expected_grants(
 def reconcile_access(
     spark,
     *,
+    scope: RuntimeScope,
     confirm_mutating: bool,
     dry_run: bool,
     logger: logging.Logger | None = None,
 ) -> dict[str, object]:
     logger = logger or logging.getLogger(__name__)
+    scope = validate_runtime_scope(
+        job_env=scope.job_env,
+        catalog=scope.catalog,
+        relation_scope=scope.relation_scope,
+        expected_owner=scope.owner,
+    )
     if not dry_run and not confirm_mutating:
         raise ValueError(
             "--confirm_mutating true is required when dry_run=false"
         )
 
-    execution_identity = assert_expected_execution_identity(spark)
-    relations = discover_owned_relations(spark)
+    execution_identity = assert_expected_execution_identity(spark, scope)
+    relations = discover_owned_relations(spark, scope)
     operations = build_grant_plan(relations)
     type_counts = Counter(relation.relation_type for relation in relations)
+    relation_schemas = sorted({relation.schema for relation in relations})
     summary: dict[str, object] = {
         "status": "DRY_RUN" if dry_run else "APPLYING",
-        "catalog": PROD_CATALOG,
-        "schema": PROD_SCHEMA,
+        "job_env": scope.job_env,
+        "catalog": scope.catalog,
+        "relation_scope": scope.relation_scope,
+        "schema_count": len(relation_schemas),
+        "schemas": relation_schemas,
         "run_as": execution_identity,
         "recipients": list(ACCESS_RECIPIENTS),
         "relation_count": len(relations),
@@ -289,11 +352,14 @@ def reconcile_access(
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Grant access to PROD service-principal-owned relations"
+        description=(
+            "Grant maximum object access to DEV or PROD "
+            "service-principal-owned relations"
+        )
     )
     parser.add_argument("--job_env", required=True)
     parser.add_argument("--catalog", required=True)
-    parser.add_argument("--schema", required=True)
+    parser.add_argument("--relation_scope", required=True)
     parser.add_argument("--expected_owner", required=True)
     parser.add_argument("--confirm_mutating", required=True, type=parse_bool)
     parser.add_argument("--dry_run", required=True, type=parse_bool)
@@ -307,15 +373,16 @@ def main(argv: Sequence[str] | None = None) -> dict[str, object]:
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    validate_runtime_scope(
+    scope = validate_runtime_scope(
         job_env=args.job_env,
         catalog=args.catalog,
-        schema=args.schema,
+        relation_scope=args.relation_scope,
         expected_owner=args.expected_owner,
     )
     spark = SparkSession.builder.getOrCreate()
     result = reconcile_access(
         spark,
+        scope=scope,
         confirm_mutating=args.confirm_mutating,
         dry_run=args.dry_run,
     )
