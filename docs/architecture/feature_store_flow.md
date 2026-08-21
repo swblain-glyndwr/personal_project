@@ -1,6 +1,6 @@
 # Feature Store Job Flow
 
-This page shows the dependency order inside `mktg_next_uk_nextads_feature_store`. For the inclusive inputs-and-outputs guide covering all 39 NextAds jobs declared in this checkout, start with [`nextads_job_table_flow.md`](nextads_job_table_flow.md).
+This page shows the dependency order inside `mktg_next_uk_nextads_feature_store`. For the inclusive inputs-and-outputs guide covering all 40 NextAds jobs declared in this checkout, start with [`nextads_job_table_flow.md`](nextads_job_table_flow.md).
 
 The shared route runs in the `DEV_FEATURE_STORE` target and writes to `marketingdata_dev.nextads_feature_store`. It is a model-building layer, not part of live production delivery.
 

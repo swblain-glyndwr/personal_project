@@ -2,7 +2,7 @@
 
 Start here for the complete NextAds flow. This page first explains what the
 system does and defines the terms used by its jobs. It then inventories every
-NextAds job declared under `pipelines/databricks/jobs`: 39 jobs across 35 YAML
+NextAds job declared under `pipelines/databricks/jobs`: 40 jobs across 36 YAML
 definition files in this checkout. It covers assignment and delivery,
 reporting, realtime data, Feature Store, model development and research, model
 movement, validation and table operations. Each inventory row shows what a job
@@ -296,6 +296,7 @@ These jobs support the data routes but do not represent another modelling or ass
 | --- | --- | --- |
 | [`mktg_next_uk_nextads_dev_setup`](../../pipelines/databricks/jobs/dev_setup.yml) | Repository SQL contracts and, only in seed mode, the approved small PROD reference/latest set | Missing personal DEV tables and optional seeded reference/latest data |
 | [`mktg_next_uk_nextads_table_operations`](../../pipelines/databricks/jobs/table_operations.yml) | Repository SQL contracts plus the explicit operation, namespace and table selection | A dry-run plan by default, or deliberately created, altered, recreated, dropped or PROD-to-DEV-copied tables after the required confirmation |
+| [`mktg_next_uk_nextads_sp_owned_table_access`](../../pipelines/databricks/jobs/mktg_next_uk_nextads_sp_owned_table_access.yml) | Unity Catalog relation metadata in a fixed DEV or PROD scope, the expected executing service principal, and a fixed recipient list held in source | A dry-run grant plan by default, or confirmed object-level `ALL PRIVILEGES` and `MANAGE` grants on qualifying service-principal-owned tables and views; no data-table write and no catalog/schema-use grant |
 | [`mktg_next_uk_nextads_dev_integration_setup`](../../pipelines/databricks/jobs/table_operations.yml) | Repository SQL contracts and the shared DEV Integration namespace | Missing shared DEV Integration tables |
 | [`mktg_next_uk_nextads_dev_integration_alter`](../../pipelines/databricks/jobs/table_operations.yml) | Existing shared DEV Integration tables and repository SQL contracts | Supported additive schema repairs in shared DEV Integration |
 | [`mktg_next_uk_nextads_dev_integration_migrate`](../../pipelines/databricks/jobs/table_operations.yml) | The explicit shared DEV Integration migration table set and repository SQL contracts | Deliberately recreated shared DEV Integration tables; existing selected data is replaced |

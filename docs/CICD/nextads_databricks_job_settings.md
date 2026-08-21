@@ -163,6 +163,18 @@ Do not run a blank `run_alter_tables` pass as part of this clean personal-schema
 
 In a non-disposable environment where the wider split-table state must be retained, the minimum mandatory migration is still to recreate `assignments_build_staging`, `assignments_v2_build_staging`, and `assignment_build_events` when they lack the accepted advert-option, score-selection and shared-customer-input identifiers. Broad `alter_tables` intentionally refuses to backup-copy this transient data because doing so can exceed the one-hour table-operations timeout.
 
+### `mktg_next_uk_nextads_sp_owned_table_access`
+
+Manual DEV/PROD object-access reconciliation for relations owned by the service principal that runs the bundle. It is unscheduled, has one task and defaults to an inert dry run. The code fixes the recipient list, expected execution identities and allowed scopes; job parameters cannot broaden them.
+
+| Setting | Meaning | Options / format |
+| --- | --- | --- |
+| `dry_run` | Discovers qualifying relations and logs the proposed grants without changing access. | Defaults to `true`. |
+| `confirm_mutating` | Explicitly permits the fixed grant plan to be applied. | Defaults to `false`; both `confirm_mutating=true` and `dry_run=false` are required to write grants. |
+| Target-owned scope | Limits relation discovery to service-principal-owned objects. | DEV covers the approved `marketingdata_dev` owner scope; PROD covers only `marketingdata_prod.warehouse` and `marketingdata_prod.ds_sandbox`. |
+
+Before applying, the task confirms that it is running as the expected target service principal, rejects an empty or unexpectedly large relation set and accepts only managed/external tables, views and materialized views. It grants the maximum supported object-level access (`ALL PRIVILEGES` and `MANAGE`) to the fixed recipients, then reads the grants back. It does not grant `USE CATALOG` or `USE SCHEMA`; those namespace permissions remain a separate access prerequisite.
+
 ### DEV Integration And PREPROD Table Setup Job Settings
 
 These are fixed-parameter wrappers around `table_operations.py`.
