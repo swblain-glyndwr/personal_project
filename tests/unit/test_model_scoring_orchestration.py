@@ -6,6 +6,7 @@ import yaml
 
 from jobs.orchestration import (
     validate_model_scoring_request as model_scoring_validator_module,
+    validate_nextads_operation as nextads_operation_validator_module,
 )
 from jobs.orchestration.validate_model_scoring_request import (
     validate_model_scoring_request,
@@ -82,6 +83,30 @@ def test_model_scoring_validator_resolves_databricks_workspace_path(
     )
 
     assert model_scoring_validator_module.resolve_project_root() == Path(
+        "/Workspace/release/files"
+    )
+
+
+def test_nextads_operation_validator_resolves_databricks_workspace_path(
+    monkeypatch,
+):
+    dbutils = MagicMock()
+    notebook_path = (
+        dbutils.notebook.entry_point.getDbutils.return_value
+        .notebook.return_value.getContext.return_value
+        .notebookPath.return_value.get
+    )
+    notebook_path.return_value = (
+        "/Workspace/release/files/jobs/orchestration/"
+        "validate_nextads_operation.py"
+    )
+    monkeypatch.setattr("dsutils.dbc.get_dbutils", lambda: dbutils)
+    monkeypatch.delitem(
+        nextads_operation_validator_module.__dict__,
+        "__file__",
+    )
+
+    assert nextads_operation_validator_module.resolve_project_root() == Path(
         "/Workspace/release/files"
     )
 
