@@ -1,12 +1,6 @@
 # NextAds Job And Table Data Flow
 
-Start here for the complete NextAds flow. This page first explains what the
-system does and defines the terms used by its jobs. It then inventories every
-NextAds job declared under `pipelines/databricks/jobs`: 41 jobs across 37 YAML
-definition files in this checkout. It covers assignment and delivery,
-reporting, realtime data, Feature Store, model development and research, model
-movement, validation and table operations. Each inventory row shows what a job
-consumes and what it produces.
+Start here for the complete NextAds flow. This page first explains what the system does and defines the terms used by its jobs. It then inventories every NextAds job declared under `pipelines/databricks/jobs`: 41 jobs across 37 YAML definition files in this checkout. It covers assignment and delivery, reporting, realtime data, Feature Store, model development and research, model movement, validation and table operations. Each inventory row shows what a job consumes and what it produces.
 
 The page stays at a human-readable route level. Linked documents own detailed keys, schemas, schedules, runtime evidence and operating instructions. Physical catalogs and schemas vary by bundle target; table names below are logical names. An in-flight job being declared on a feature branch does not prove that it is deployed, scheduled or proven in a shared environment.
 
@@ -28,13 +22,7 @@ V1 writes location-based assignments for downstream MASID use, checks that
 handoff and delivers the PLP export. V2 writes page-type-and-rank assignments
 and delivers a Bloomreach payload.
 
-The route deliberately separates three responsibilities. The unscheduled
-`mktg_next_uk_nextads_scoring_inputs` job prepares reusable fixed theme and item
-inputs. The scheduled `mktg_next_uk_nextads_model_scoring` job calls it and then
-publishes a standard score output. The independently scheduled
-`mktg_next_uk_nextads_candidate_build` job selects accepted score and customer
-inputs, builds V1 and V2 advert options, and invokes the page-build jobs. It
-does not prepare scoring inputs, train models or calculate customer cells.
+The route deliberately separates three responsibilities. The unscheduled `mktg_next_uk_nextads_scoring_inputs` job prepares reusable fixed theme and item inputs. The scheduled `mktg_next_uk_nextads_model_scoring` job calls it and then publishes a standard score output. The independently scheduled `mktg_next_uk_nextads_candidate_build` job selects accepted score and customer inputs, builds V1 and V2 advert options, and invokes the page-build jobs. It does not prepare scoring inputs, train models or calculate customer cells.
 
 ## The Daily Assignment And Delivery Flow
 
