@@ -85,6 +85,9 @@ variables:
   theme_affinity_pipeline_schema:
     description: Schema used by the Theme Affinity Lakeflow pipeline outputs before optional warehouse publication
     default: ${var.user_schema}
+  theme_affinity_pipeline_table_prefix:
+    description: Table prefix used by the Theme Affinity Lakeflow pipeline and its publisher
+    default: next_uk_nextads_account_theme_foundation_stage
   theme_affinity_publish_table_suffixes:
     description: Comma-separated non-foundation Theme Affinity compatibility outputs
     default: advanced_features,customer_features,customer_segments,popularity_metrics
@@ -356,6 +359,7 @@ targets:
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: preprod
       user_schema: ds_sandbox
+      theme_affinity_pipeline_table_prefix: next_uk_nextads_account_theme_foundation_pp_stage
       theme_affinity_monitor_baseline_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
       theme_affinity_monitor_candidate_table: marketingdata_prod.ds_sandbox.next_uk_nextads_account_theme_foundation_ranked
 

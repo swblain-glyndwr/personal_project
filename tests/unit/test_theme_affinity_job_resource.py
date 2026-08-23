@@ -93,7 +93,7 @@ def test_theme_affinity_job_uses_lakeflow_and_script_tasks():
         },
         {
             "name": "publish_source_table_prefix",
-            "default": "next_uk_nextads_account_theme_foundation_stage",
+            "default": "${var.theme_affinity_pipeline_table_prefix}",
         },
         {
             "name": "publish_target_table_prefix",
@@ -653,7 +653,7 @@ def test_theme_affinity_sense_checks_run_after_compatibility_publication():
     )
 
 
-def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
+def test_theme_affinity_pipeline_uses_target_schema_and_table_prefix_variables():
     pipeline = _load_yaml(
         "pipelines/databricks/pipelines/mktg_next_uk_nextads_predict_data_prep.yml"
     )
@@ -664,6 +664,19 @@ def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
         bundle["variables"]["theme_affinity_pipeline_schema"]["default"]
         == "${var.user_schema}"
     )
+    assert (
+        bundle["variables"]["theme_affinity_pipeline_table_prefix"]["default"]
+        == "next_uk_nextads_account_theme_foundation_stage"
+    )
+    assert (
+        bundle["targets"]["PREPROD"]["variables"][
+            "theme_affinity_pipeline_table_prefix"
+        ]
+        == "next_uk_nextads_account_theme_foundation_pp_stage"
+    )
+    assert "theme_affinity_pipeline_table_prefix" not in bundle["targets"]["PROD"][
+        "variables"
+    ]
     assert bundle["variables"]["theme_affinity_publish_table_suffixes"][
         "default"
     ] == (
@@ -704,7 +717,7 @@ def test_theme_affinity_pipeline_uses_target_pipeline_schema_variable():
         )
         assert (
             pipeline_config["configuration"]["pipeline.table_prefix"]
-            == "next_uk_nextads_account_theme_foundation_stage"
+            == "${var.theme_affinity_pipeline_table_prefix}"
         )
         assert (
             pipeline_config["configuration"]["pipeline.sql_path"]

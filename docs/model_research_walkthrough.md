@@ -1164,7 +1164,7 @@ Resource: [`mktg_next_uk_nextads_model_scoring`](../pipelines/databricks/jobs/mk
 | `input_snapshot_id` | `same_day` | Normally leave | Selects the accepted fixed versions of theme mapping and item-theme scoring inputs |
 | `publish_source_namespace` | Deployment pipeline namespace | Leave unless an approved isolated validation needs another deployed source | Where staged Lakeflow tables are read from |
 | `publish_target_namespace` | Deployment output namespace | Leave | Where published tables are written |
-| `publish_source_table_prefix` | `next_uk_nextads_account_theme_foundation_stage` | Leave | Prefix used for staged tables |
+| `publish_source_table_prefix` | Deployment pipeline table prefix | Leave | Resolves to `next_uk_nextads_account_theme_foundation_pp_stage` in PREPROD and `next_uk_nextads_account_theme_foundation_stage` in PROD |
 | `publish_target_table_prefix` | `next_uk_nextads_account_theme_foundation` | Leave | Prefix used for published tables |
 | `table_suffixes` | Deployment variable | Leave | Approved list of table suffixes to publish |
 | `model_uri` | Deployment Theme Affinity URI | Override with a numeric imported model URI for deliberate validation | Use a numeric version when deliberately checking a specific imported model |
@@ -1203,7 +1203,7 @@ The job writes or checks these Delta tables. The child `PREPARE_SCORING_INPUTS` 
 <catalog>.<schema>.next_uk_nextads_theme_affinity_model_sense_check_summary
 ```
 
-The Lakeflow pipeline materialises the following controlled stage suffixes under `<publish_source_namespace>.next_uk_nextads_account_theme_foundation_stage_<suffix>`:
+The Lakeflow pipeline materialises the following controlled stage suffixes under `<publish_source_namespace>.<theme_affinity_pipeline_table_prefix>_<suffix>`. The configured prefix is `next_uk_nextads_account_theme_foundation_pp_stage` in PREPROD and `next_uk_nextads_account_theme_foundation_stage` in PROD:
 
 ```text
 product_catalog
