@@ -33,7 +33,7 @@ flowchart TD
   classDef external fill:#fef9c3,stroke:#ca8a04,color:#111827
 
   MODEL_REQUEST["12:15 model_scoring<br/>validate model_name=theme_affinity"]:::provider
-  THEME_INPUTS["main NextAds child operation<br/>PREPARE_SCORING_INPUTS<br/>accepted mapping and attributes"]:::shared
+  THEME_INPUTS["shared scoring-inputs child job<br/>accepted mapping and attributes"]:::shared
   THEME_AFFINITY["model_scoring theme_affinity path<br/>accepted provider + compatibility"]:::provider
   MARKOV["13:00 Markov<br/>optional shadow output"]:::provider
   CANDIDATE_FOUNDATION["16:00 Candidate Foundation<br/>cells, exposure and feedback"]:::shared
@@ -90,7 +90,7 @@ flowchart TD
 
 ## Candidate-Build Task DAG
 
-The main NextAds job has two validated operations. The generic model-scoring job calls `PREPARE_SCORING_INPUTS` for the same logical date; that branch creates the accepted theme-input snapshot and stops. The scheduled 18:00 run defaults to `CANDIDATE_BUILD`; that branch contains no customer-cell or model calculation, selects already accepted inputs, handles the two control routes independently and waits for both page-build child jobs.
+Candidate Build is an independently scheduled 18:00 job. It contains no scoring-input, customer-cell or model calculation; it selects already accepted inputs, handles the two control routes independently and waits for both page-build child jobs. The generic model-scoring job calls the separate shared scoring-inputs job earlier for the same logical date.
 
 ```mermaid
 flowchart TD
@@ -107,9 +107,6 @@ flowchart TD
   LOAD_V2["load_control_sheet_v2<br/>land raw inputs"]:::v2
   WRITE_EXCLUSIONS["write_exclusions<br/>publish Cosmos exclusions"]:::external
   CMS["trigger_data_pull_for_CMS_pull<br/>use landed advert IDs"]:::external
-  VALIDATE["validate_operation"]:::guard
-  OPERATION["prepare_scoring_inputs_operation"]:::guard
-  PREP_INPUTS["PREPARE_SCORING_INPUTS branch<br/>mapping + attributes + READY snapshot"]:::shared
   PROCESS_V2["process_control_sheet_v2<br/>check refreshed CMS"]:::v2
   AUDIT_V2["audit_control_sheet_v2"]:::guard
   QUALITY_AUDIT_ADS_V2["quality_audit_ads_v2"]:::guard
@@ -123,13 +120,6 @@ flowchart TD
   PAGE_V1["run_page_build_v1 and wait"]:::v1
   PAGE_V2["run_page_build_v2 and wait"]:::v2
 
-  VALIDATE --> OPERATION
-  OPERATION -- true --> PREP_INPUTS
-  OPERATION -- false --> LOAD_V1
-  OPERATION -- false --> LOAD_V2
-  OPERATION -- false --> FOUNDATION
-  OPERATION -- false --> SELECT_V1
-  OPERATION -- false --> SELECT_V2
   LOAD_V1 --> AUDIT_V1 --> COVER_V1
   LOAD_V1 --> QUALITY_AUDIT_ADS_V1
   SELECT_V1 --> COVER_V1
@@ -163,30 +153,28 @@ The earlier migration assumption was that v2 would replace v1 after a short para
 | Databricks job | YAML | Current responsibility |
 | --- | --- | --- |
 | `mktg_next_uk_nextads_candidate_foundation` | `pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml` | Builds customer cells, repeat-ad exposure and advert feedback in parallel, then records one accepted foundation. |
-| `mktg_next_uk_nextads_model_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml` | Validates `model_name`, calls the main NextAds `PREPARE_SCORING_INPUTS` operation for the same date, runs the supported scoring implementation and records the accepted provider build as READY before publishing compatibility outputs. Theme Affinity is the current supported implementation. |
+| `mktg_next_uk_nextads_scoring_inputs` | `pipelines/databricks/jobs/mktg_next_uk_nextads_scoring_inputs.yml` | Builds the reusable accepted theme-input snapshot for one date. It is unscheduled and contains no scoring or candidate tasks. |
+| `mktg_next_uk_nextads_model_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml` | Validates `model_name`, calls the shared scoring-inputs job for the same date, runs the supported scoring implementation and records the accepted provider build as READY before publishing compatibility outputs. Theme Affinity is the current supported implementation. |
 | `mktg_next_uk_nextads_markov_scoring` | `pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml` | Builds and publishes the optional shadow provider, then writes its legacy compatibility outputs. |
-| `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | With `PREPARE_SCORING_INPUTS`, builds the accepted theme-input snapshot for the caller; with the scheduled default `CANDIDATE_BUILD`, selects the foundation, loads/audits both controls, selects provider builds, publishes candidate attempts and waits for both page jobs. |
+| `mktg_next_uk_nextads_candidate_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads.yml` | Selects the foundation, loads/audits both controls, selects provider builds, publishes candidate attempts and waits for both page jobs. |
 | `mktg_next_uk_nextads_page_build` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build.yml` | Builds and publishes all v1 assignments in one task, then runs the read-only MASID handoff check and PLP delivery. |
 | `mktg_next_uk_nextads_page_build_v2` | `pipelines/databricks/jobs/mktg_next_uk_nextads_page_build_v2.yml` | Builds and publishes all v2 assignments in one task, then runs payload export. |
 | `mktg_next_uk_nextads_candidate_compatibility` | `pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml` | Publishes the legacy v1/v2 candidate table shapes and triggers `mktg_next_uk_nextads_assignment_validation` independently. |
 
 | Candidate-build task | Script or task type | Upstream task dependencies |
 | --- | --- | --- |
-| `validate_operation` | `jobs/orchestration/validate_nextads_operation.py` | None; accepts only `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS` |
-| `prepare_scoring_inputs_operation` | Native condition task | `validate_operation`; selects exactly one operation branch |
-| `land_authoritative_theme_mapping`, `refresh_item_attributes`, `build_authoritative_item_themes`, `accept_scoring_inputs` | Main NextAds scoring-input entrypoints | `prepare_scoring_inputs_operation=true`; writes the exact accepted input snapshot and does not enter candidate build |
-| `select_candidate_foundation` | `jobs/orchestration/select_candidate_foundation.py` | `prepare_scoring_inputs_operation=false` |
-| `load_control_sheet_v1` | `jobs/nextads_control/load_control_sheet.py` | `prepare_scoring_inputs_operation=false` |
+| `select_candidate_foundation` | `jobs/orchestration/select_candidate_foundation.py` | None |
+| `load_control_sheet_v1` | `jobs/nextads_control/load_control_sheet.py` | None |
 | `audit_control_sheet_v1` | `jobs/nextads_control/audit_control_sheet.py` | `load_control_sheet_v1` |
 | `quality_audit_ads_v1` | `jobs/nextads_control/quality_audit_adverts.py` | `load_control_sheet_v1` |
-| `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase land` | `prepare_scoring_inputs_operation=false` |
+| `load_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase land` | None |
 | `write_exclusions` | `jobs/nextads_control/exclusions_export.py` | `load_control_sheet_v2`; publishes the landed exclusions to the configured Cosmos container without gating V2 mapping |
 | `trigger_data_pull_for_CMS_pull` | Native `run_job_task` | `load_control_sheet_v2` |
 | `process_control_sheet_v2` | `jobs/nextads_control/load_control_sheet_v2.py --phase process` | `trigger_data_pull_for_CMS_pull` |
 | `audit_control_sheet_v2` | `jobs/nextads_control/audit_control_sheet.py` | `process_control_sheet_v2` |
 | `quality_audit_ads_v2` | `jobs/nextads_control/quality_audit_adverts.py` | `process_control_sheet_v2`, `quality_audit_ads_v1` |
-| `resolve_scoring_portfolio_v1` | `jobs/orchestration/resolve_scoring_portfolio.py` | `prepare_scoring_inputs_operation=false` |
-| `resolve_scoring_portfolio_v2` | `jobs/orchestration/resolve_scoring_portfolio.py` | `prepare_scoring_inputs_operation=false` |
+| `resolve_scoring_portfolio_v1` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
+| `resolve_scoring_portfolio_v2` | `jobs/orchestration/resolve_scoring_portfolio.py` | None |
 | `validate_score_provider_theme_coverage_v1` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v1`, `resolve_scoring_portfolio_v1` |
 | `validate_score_provider_theme_coverage_v2` | `jobs/nextads_candidates/validate_theme_affinity_theme_coverage.py` | `audit_control_sheet_v2`, `resolve_scoring_portfolio_v2` |
 | `map_theme_scores_to_ads_v1` | `jobs/nextads_candidates/build_theme_ad_candidates.py` | `select_candidate_foundation`, `validate_score_provider_theme_coverage_v1` |

@@ -243,12 +243,7 @@ def test_main_job_waits_for_native_page_build_results():
     assert data_pull_task["run_job_task"]["job_parameters"] == {
         "run_date": "{{job.parameters.run_date}}",
     }
-    assert tasks_by_key["load_control_sheet_v2"]["depends_on"] == [
-        {
-            "task_key": "prepare_scoring_inputs_operation",
-            "outcome": "false",
-        }
-    ]
+    assert "depends_on" not in tasks_by_key["load_control_sheet_v2"]
     assert data_pull_task["depends_on"] == [
         {"task_key": "load_control_sheet_v2"},
     ]
@@ -293,7 +288,6 @@ def test_main_job_waits_for_native_page_build_results():
         assert "spark_python_task" not in task
         assert "run_if" not in task
     assert _job_parameters(job) == {
-        "operation": "CANDIDATE_BUILD",
         "run_date": "{{job.start_time.iso_date}}",
         "v1_portfolio_policy_id": "v1_default",
         "v2_portfolio_policy_id": "v2_default",
@@ -645,12 +639,7 @@ def test_provider_selection_and_coverage_pin_each_route_mapper():
     assert foundation_selector["spark_python_task"]["python_file"] == (
         "../../../jobs/orchestration/select_candidate_foundation.py"
     )
-    assert foundation_selector["depends_on"] == [
-        {
-            "task_key": "prepare_scoring_inputs_operation",
-            "outcome": "false",
-        }
-    ]
+    assert "depends_on" not in foundation_selector
     _assert_cli_values(
         foundation_selector,
         {
@@ -818,11 +807,7 @@ def test_v1_and_v2_candidate_routes_share_only_candidate_foundation():
     v1_ancestors = _ancestors(tasks_by_key, "run_page_build_v1")
     v2_ancestors = _ancestors(tasks_by_key, "run_page_build_v2")
 
-    assert v1_ancestors & v2_ancestors == {
-        "validate_operation",
-        "prepare_scoring_inputs_operation",
-        "select_candidate_foundation",
-    }
+    assert v1_ancestors & v2_ancestors == {"select_candidate_foundation"}
     assert {
         "load_control_sheet_v1",
         "audit_control_sheet_v1",

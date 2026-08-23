@@ -24,14 +24,25 @@ Task names, operation values, parameters, table names and manifest fields retain
 
 ## Job-Specific Settings
 
+### `mktg_next_uk_nextads_scoring_inputs`
+
+Unscheduled shared-input job. It accepts only `run_date`, which defaults to the job start date. Shared model scoring calls it synchronously for the same logical date. It prepares and accepts reusable scoring inputs; it does not score a model, build advert options or publish assignments.
+
+| Task | Settings | Notes / options |
+| --- | --- | --- |
+| `land_authoritative_theme_mapping` | `client`, `job_env`, `run_date`, Git/task identity | Lands the configured theme mapping and returns its exact landing ID and Delta version. |
+| `refresh_item_attributes` | `client`, `job_env`, date-gated attribute refresh, `run_date` | Refreshes item attributes independently of theme-mapping landing. |
+| `build_authoritative_item_themes` | `client`, `job_env`, date-gated theme refresh, mapping config and exact landing values | Runs after both input branches and creates the item-theme source available to score sources. |
+| `accept_scoring_inputs` | `client`, `job_env`, `run_date`, exact landing values and Git/task identity | Records the accepted scoring-input snapshot and its exact source bindings. |
+
 ### `mktg_next_uk_nextads_model_scoring`
 
-Scheduled at 12:15 Europe/London and parameterised by `model_name`. The current supported value is `theme_affinity`. The job validates that name against the repository scoring declaration, calls the main NextAds job with `operation=PREPARE_SCORING_INPUTS` and the same `run_date`, then runs the resolved scoring implementation and both compatibility branches. A future implementation extends this shared route instead of adding another saved scoring job.
+Scheduled at 12:15 Europe/London and parameterised by `model_name`. The current supported value is `theme_affinity`. The job validates that name against the repository scoring declaration, calls the separate shared scoring-inputs job with the same `run_date`, then runs the resolved scoring implementation and both compatibility branches. A future implementation extends this shared route instead of adding another saved scoring job.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
 | `validate_model_scoring_request` | `model_name` | Requires an exact declared score source (`provider`) and supported implementation before any operational write; currently resolves only `theme_affinity`. |
-| `prepare_scoring_inputs` | Native child job with `operation=PREPARE_SCORING_INPUTS` and the same `run_date` | Calls `mktg_next_uk_nextads_candidate_build`, waits for its input-preparation branch and does not generate advert options. |
+| `prepare_scoring_inputs` | Native child job with the same `run_date` | Calls `mktg_next_uk_nextads_scoring_inputs`, waits for its accepted snapshot and does not generate advert options. |
 | `use_theme_affinity_scoring` | Implementation returned by request validation | Selects the current Theme Affinity implementation; an unsupported implementation fails validation rather than silently using this branch. |
 | `prepare_foundation_context` | `run_date`, `input_snapshot_id`, publication namespaces/prefixes and run identity | Pins the accepted scoring-input snapshot and opens the work record called a foundation context. |
 | `predict_data_prep` | Theme Affinity Lakeflow pipeline | Builds the complete, ranked and feature relations for the pinned context. |
@@ -53,28 +64,22 @@ Scheduled at 16:00 Europe/London. It prepares the shared customer information av
 
 ### `mktg_next_uk_nextads_candidate_build`
 
-Scheduled at 18:00 Europe/London with `operation=CANDIDATE_BUILD` by default. That branch selects the accepted shared customer inputs produced by the separate 16:00 `Candidate Foundation` job, loads and audits the independent v1/v2 control sheets, resolves the configured score selection for each route, maps the selected scores to eligible adverts, and waits for the route-specific page-build jobs. The same saved job also exposes `PREPARE_SCORING_INPUTS` for the shared model-scoring caller; that mutually exclusive branch prepares theme inputs and stops before advert-option work. Model scoring remains upstream, and Markov remains an independently runnable shadow score source that advert-option publication does not wait for.
+Scheduled at 18:00 Europe/London. It selects the accepted shared customer inputs produced by the separate 16:00 `Candidate Foundation` job, loads and audits the independent v1/v2 control sheets, resolves the configured score selection for each route, maps the selected scores to eligible adverts, and waits for the route-specific page-build jobs. Shared scoring inputs and model scoring remain separate upstream jobs, and Markov remains an independently runnable shadow score source that advert-option publication does not wait for.
 
-The `operation` parameter accepts only `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS`; invalid values fail before route writes. `run_date` defaults to `{{job.start_time.iso_date}}` and is forwarded to both page-build jobs in the advert-option branch. The `v1_portfolio_policy_id` and `v2_portfolio_policy_id` parameters default to the declared score-selection policies. The parameters cannot name an undeclared policy or override a higher-precedence matching policy. A v1 control or required score-source failure cannot block the v2 route, and the reverse is also true. Business coverage findings remain warning-only; technical inability to run an audit or read the pinned score output fails only that route.
+`run_date` defaults to `{{job.start_time.iso_date}}` and is forwarded to both page-build jobs. The `v1_portfolio_policy_id` and `v2_portfolio_policy_id` parameters default to the declared score-selection policies. The parameters cannot name an undeclared policy or override a higher-precedence matching policy. A v1 control or required score-source failure cannot block the v2 route, and the reverse is also true. Business coverage findings remain warning-only; technical inability to run an audit or read the pinned score output fails only that route.
 
 | Task | Settings | Notes / options |
 | --- | --- | --- |
-| `validate_operation` | `operation` | Fails closed unless the value is exactly `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS`. |
-| `prepare_scoring_inputs_operation` | Validated operation | Routes the run to one mutually exclusive branch. |
-| `land_authoritative_theme_mapping` | `client`, `job_env`, `run_date`, Git/task identity | In `PREPARE_SCORING_INPUTS`, lands the configured theme mapping and returns its exact landing ID and Delta version. |
-| `refresh_item_attributes` | `client`, `job_env`, date-gated attribute refresh, `run_date` | In `PREPARE_SCORING_INPUTS`, refreshes item attributes independently of theme-mapping landing. |
-| `build_authoritative_item_themes` | `client`, `job_env`, date-gated theme refresh, mapping config and exact landing values | Runs after both preparation branches and creates the item-theme source used by score sources. |
-| `accept_scoring_inputs` | `client`, `job_env`, `run_date`, exact landing values and Git/task identity | Writes the accepted scoring-input snapshot and ends the preparation operation. |
 | `select_candidate_foundation` | `client`, `job_env`, `run_date`, shared-customer-input snapshot (`foundation` snapshot) selection and task attempt | Selects one accepted shared-customer-input snapshot for the run and passes its exact table/version bindings to both routes. |
 | `load_control_sheet_v1` | `client`, `job_env`, `run_date` | Loads v1 location control-sheet data and writes `control_sheet_latest`. Home Page remains on this route. |
 | `audit_control_sheet_v1` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Reports business findings as warnings. A technical audit failure stops v1 before mapping. |
-| `quality_audit_ads_v1` | `route=v1`, `client`, `job_env`, `run_date`, `item-num-threshold=10`, `item-coverage=0.75`, `theme-coverage=0.5`, `image-item-coverage=0.7` | Runs after `load_control_sheet_v1` and publishes v1 advert-quality measurements. It runs only on the `CANDIDATE_BUILD` branch. |
+| `quality_audit_ads_v1` | `route=v1`, `client`, `job_env`, `run_date`, `item-num-threshold=10`, `item-coverage=0.75`, `theme-coverage=0.5`, `image-item-coverage=0.7` | Runs after `load_control_sheet_v1` and publishes v1 advert-quality measurements. |
 | `load_control_sheet_v2` | `client`, `job_env`, `run_date`, `phase=land` | Reads the current v2 Google Sheet and exclusions, then replaces their dated raw and latest tables before any CMS request is made. |
 | `write_exclusions` | `client`, `job_env` | Runs after `load_control_sheet_v2` and publishes the landed exclusions to the configured Cosmos container. It does not gate V2 control processing or advert-option mapping. |
 | `trigger_data_pull_for_CMS_pull` | Native child job with `run_date` | Runs after the raw v2 control sheet is landed, so CMS and sort-order acquisition use the advert IDs from that exact sheet. |
 | `process_control_sheet_v2` | `client`, `job_env`, `run_date`, `phase=process` | Runs after CMS acquisition, reads the same-date landed inputs, checks them against the refreshed CMS and sort-order data, then writes `control_sheet_latest_v2`. |
 | `audit_control_sheet_v2` | `route`, `client`, `job_env`, `run_date`, `warn-only` | Runs after v2 processing and reports business findings as warnings. A technical audit failure stops v2 before mapping. |
-| `quality_audit_ads_v2` | `route=v2`, `client`, `job_env`, `run_date`, `item-num-threshold=10`, `item-coverage=0.75`, `theme-coverage=0.5`, `image-item-coverage=0.7` | Runs after `process_control_sheet_v2` and `quality_audit_ads_v1`. The extra v1 dependency serialises the two writers to their shared quality tables. It runs only on the `CANDIDATE_BUILD` branch. |
+| `quality_audit_ads_v2` | `route=v2`, `client`, `job_env`, `run_date`, `item-num-threshold=10`, `item-coverage=0.75`, `theme-coverage=0.5`, `image-item-coverage=0.7` | Runs after `process_control_sheet_v2` and `quality_audit_ads_v1`. The extra v1 dependency serialises the two writers to their shared quality tables. |
 | `resolve_scoring_portfolio_v1` and `resolve_scoring_portfolio_v2` | policy id, capability, use case, route, run date, task attempt | Resolve each route's score-selection list (`portfolio`) by priority and then stable policy-ID precedence. Required serving score sources wait until the fixed 18:30 Europe/London deadline and select same-day readiness or an accepted fallback no more than 24 hours old. Shadow score sources never block the route. Each entry pins the exact score-source attempt, table, Delta version, input snapshot, experiment and variant; entries publish before the ready selection-list header. |
 | `validate_score_provider_theme_coverage_v1` and `validate_score_provider_theme_coverage_v2` | route plus serving score-selection entry (`portfolio` entry), score-source/current input snapshots and `warn-only` | Compare active advert themes with the exact serving score output. When fallback uses an older input snapshot, themes whose accepted definition changed are excluded. Missing business coverage warns; an unreadable or invalid score-source version fails the route. |
 | `map_theme_scores_to_ads_v1` | run date, exact score-selection attempt (`portfolio` attempt), current input snapshot, customer-cell, exposure and feedback bindings, task attempt and compatibility limit | Captures the control-table Delta version once, calculates each unique serving score source once, applies V1 advert feedback, writes the standard advert sets and up to 20 advert-option rows per account/ad set/selection entry, then marks the advert-option result ready. |
@@ -98,7 +103,7 @@ Independent 21:00 compatibility and validation job. Its v1 and v2 branches selec
 
 ### `mktg_next_uk_nextads_markov_scoring`
 
-Independent Markov score-source graph. It starts at 13:00 Europe/London and waits for the accepted daily scoring input for up to 90 minutes. That input carries the item-theme mapping produced through the main NextAds `PREPARE_SCORING_INPUTS` operation invoked by the 12:15 shared model-scoring job; Markov does not refresh the mapping itself. It has its own failure alert and a 26,100-second timeout measured from the actual run start. An on-time 13:00 run therefore reaches that limit at 20:15, while a delayed start moves the cutoff later. A Markov failure remains outside the advert-option job's failure domain because Markov is registered as a shadow score source, not selected for serving.
+Independent Markov score-source graph. It starts at 13:00 Europe/London and waits for the accepted daily scoring input for up to 90 minutes. That input carries the item-theme mapping produced by the shared scoring-inputs job invoked by the 12:15 model-scoring job; Markov does not refresh the mapping itself. It has its own failure alert and a 26,100-second timeout measured from the actual run start. An on-time 13:00 run therefore reaches that limit at 20:15, while a delayed start moves the cutoff later. A Markov failure remains outside the advert-option job's failure domain because Markov is registered as a shadow score source, not selected for serving.
 
 Before a non-training run starts, Markov resolves the existing transition matrix from the production read catalog, rejects an empty model, and records its exact Delta table and version in the score-source work record and scoring-result identity. DEV scoring therefore uses the same fixed transition model as the current route while every scoring event, score-source signal, receipt and compatibility output continues to write only to the named DEV schema.
 

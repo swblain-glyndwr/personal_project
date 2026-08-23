@@ -118,7 +118,7 @@ or:
 models:/marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker@preprod_spark_xgboost
 ```
 
-Review the full shared scoring run evidence: request validation, same-date `PREPARE_SCORING_INPUTS` child run, Lakeflow/data-prep status, accepted score-source publication, both compatibility branches, both sense checks and output-table movement. For future supported models, use the same shared job with that model's declared implementation and equivalent operational checks. Keep the PREPROD run ids, model name, model URI, output tables and review outcome in the release evidence.
+Review the full shared scoring run evidence: request validation, the same-date `mktg_next_uk_nextads_scoring_inputs` child run and accepted snapshot, Lakeflow/data-prep status, accepted score-source publication, both compatibility branches, both sense checks and output-table movement. Candidate Build is a separate downstream job and is not part of this model-scoring proof. For future supported models, use the same shared job with that model's declared implementation and equivalent operational checks. Keep the PREPROD run ids, model name, model URI, output tables and review outcome in the release evidence.
 
 ## 6. Promote PREPROD Version To PROD
 

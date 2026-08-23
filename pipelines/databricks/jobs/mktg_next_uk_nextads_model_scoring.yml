@@ -57,9 +57,8 @@ mktg_next_uk_nextads_model_scoring_config: &mktg_next_uk_nextads_model_scoring_c
         depends_on:
           - task_key: validate_model_scoring_request
         run_job_task:
-          job_id: ${resources.jobs.mktg_next_uk_nextads_cicd.id}
+          job_id: ${resources.jobs.mktg_next_uk_nextads_scoring_inputs_cicd.id}
           job_parameters:
-            operation: PREPARE_SCORING_INPUTS
             run_date: "{{job.parameters.run_date}}"
         timeout_seconds: 7200
       - task_key: use_theme_affinity_scoring

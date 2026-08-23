@@ -1045,32 +1045,37 @@ next_uk_nextads_analytics_pctr_feature_source_receipts
 
 </details>
 
-### 16.2 Main NextAds scoring-input and advert-option job
+### 16.2 Shared scoring-input and Candidate Build jobs
 
-Resource: [`mktg_next_uk_nextads_candidate_build`](../pipelines/databricks/jobs/mktg_next_uk_nextads.yml). It retains the established 18:00 Europe/London schedule.
+Shared-input resource: [`mktg_next_uk_nextads_scoring_inputs`](../pipelines/databricks/jobs/mktg_next_uk_nextads_scoring_inputs.yml). It has no schedule and is called synchronously by shared model scoring.
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `operation` | `CANDIDATE_BUILD` | Exact `CANDIDATE_BUILD` or `PREPARE_SCORING_INPUTS` |
-| `run_date` | Job start ISO date | Dated control, advert-option and assignment partition |
-| `v1_portfolio_policy_id` | `v1_default` | Reviewed V1 rule for assigning exact score outputs to route roles |
-| `v2_portfolio_policy_id` | `v2_default` | Reviewed V2 rule for assigning exact score outputs to route roles |
-| `foundation_snapshot_id` | `same_day` | Accepted shared customer information selected by the normal evening build |
+| `run_date` | Job start ISO date | Dated fixed scoring-input snapshot |
 
-`PREPARE_SCORING_INPUTS` is the supporting operation used by generic model scoring. It:
+It:
 
 1. loads the current Theme Mapping;
 2. refreshes item attributes;
 3. builds dated item-theme inputs;
 4. records the fixed scoring-input snapshot;
-5. stops before advert-option building, assignments and page building.
+5. stops before model scoring, advert-option building, assignments and page building.
 
-Score-selection-policy and shared-customer-input values are used by `CANDIDATE_BUILD`, not normal input preparation. For a preparation run, a DS normally changes only `operation` and `run_date`.
+Candidate resource: [`mktg_next_uk_nextads_candidate_build`](../pipelines/databricks/jobs/mktg_next_uk_nextads.yml). It independently retains the established 18:00 Europe/London schedule.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `run_date` | Job start ISO date | Dated control, advert-option and assignment partition |
+| `v1_portfolio_policy_id` | `v1_default` | Reviewed V1 rule for assigning exact score outputs to route roles |
+| `v2_portfolio_policy_id` | `v2_default` | Reviewed V2 rule for assigning exact score outputs to route roles |
+| `foundation_snapshot_id` | `same_day` | Accepted shared customer information selected by the normal evening build |
+
+Score-selection-policy and shared-customer-input values belong only to Candidate Build. Shared input preparation takes only `run_date`. The ownership sequence is shared scoring inputs, shared scoring, then the independent Candidate Build.
 
 <details>
-<summary>All PREPARE_SCORING_INPUTS output tables</summary>
+<summary>All shared scoring-input job output tables</summary>
 
-For `<ns> = <catalog_write>.<schema_write>`, `PREPARE_SCORING_INPUTS` writes or checks these destinations and no advert-option or assignment destinations:
+For `<ns> = <catalog_write>.<schema_write>`, the shared scoring-inputs job writes or checks these destinations and no score, advert-option or assignment destinations:
 
 ```text
 <ns>.next_uk_nextads_scoring_input_theme_mapping_raw
@@ -1086,14 +1091,14 @@ For `<ns> = <catalog_write>.<schema_write>`, `PREPARE_SCORING_INPUTS` writes or 
 <ns>.next_uk_nextads_scoring_input_snapshot_sources
 ```
 
-The lower-level item-attribute code can publish to BigQuery, but this saved-job operation does not enable that option. The BigQuery popularity table is not an output here.
+The lower-level item-attribute code can publish to BigQuery, but this saved job does not enable that option. The BigQuery popularity table is not an output here.
 
 </details>
 
 <details>
-<summary>All CANDIDATE_BUILD and child-job outputs</summary>
+<summary>All Candidate Build and child-job outputs</summary>
 
-`CANDIDATE_BUILD` writes or checks the following control, score-selection and advert-option destinations:
+Candidate Build writes or checks the following control, score-selection and advert-option destinations:
 
 ```text
 <ns>.next_uk_nextads_control_sheet_raw
@@ -1172,7 +1177,7 @@ Resource: [`mktg_next_uk_nextads_model_scoring`](../pipelines/databricks/jobs/mk
 The current Theme Affinity scoring route:
 
 1. validates `model_name` against the operational declaration;
-2. runs the main job with `PREPARE_SCORING_INPUTS` for the same date;
+2. runs the shared scoring-inputs job for the same date;
 3. opens a leased work record that ties the scoring run to those exact inputs and output attempt;
 4. runs Lakeflow data preparation;
 5. loads the requested model URI and publishes standard provider signals and build records;
@@ -1182,7 +1187,7 @@ The current Theme Affinity scoring route:
 <details>
 <summary>All Theme Affinity output and Lakeflow stage tables</summary>
 
-The job writes or checks these Delta tables. The child `PREPARE_SCORING_INPUTS` destinations in section 16.2 are also part of the scoring run.
+The job writes or checks these Delta tables. The shared scoring-inputs child destinations in section 16.2 are also part of the scoring run.
 
 ```text
 <catalog>.<schema>.next_uk_nextads_score_provider_signals
@@ -1247,7 +1252,7 @@ The saved jobs did not all move behind a shared job. Their current positions are
 
 | Former saved job | Current position |
 | --- | --- |
-| Theme Inputs | Its work is inside the main NextAds job's `PREPARE_SCORING_INPUTS` operation, which model scoring calls for the same date. |
+| Theme Inputs | Its work is inside the separate `mktg_next_uk_nextads_scoring_inputs` job, which shared model scoring calls for the same date. The input job is reusable and contains no Theme Affinity scoring or Candidate Build work. |
 | Theme Affinity | Expanded into the shared model-scoring job. Its Databricks job identity and history remain, while the combined route starts at 12:15. |
 | Theme feature compatibility | Its compatibility publication and checks run at the end of model scoring. |
 | Analytics pCTR feature source and snapshot verification | The SQL source chain, receipt and general feature-quality checks now run inside Feature Store. The former failure-injection/read-back proof was not absorbed: its script remains available, but no saved bundle job invokes it. |
@@ -1804,7 +1809,8 @@ See the [model lifecycle runbook](model_lifecycle_runbook.md) before moving or a
 - [Generic lifecycle job](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml)
 - [Generic discovery job](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml)
 - [Generic model-scoring job](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml)
-- [Generic main candidate job](../pipelines/databricks/jobs/mktg_next_uk_nextads.yml)
+- [Shared scoring-inputs job](../pipelines/databricks/jobs/mktg_next_uk_nextads_scoring_inputs.yml)
+- [Candidate Build job](../pipelines/databricks/jobs/mktg_next_uk_nextads.yml)
 - [Feature Store job](../pipelines/databricks/jobs/mktg_next_uk_nextads_feature_store.yml)
 
 <details>
