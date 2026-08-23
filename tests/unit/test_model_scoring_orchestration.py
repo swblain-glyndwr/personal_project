@@ -1,8 +1,12 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
 
+from jobs.orchestration import (
+    validate_model_scoring_request as model_scoring_validator_module,
+)
 from jobs.orchestration.validate_model_scoring_request import (
     validate_model_scoring_request,
 )
@@ -56,6 +60,30 @@ def test_model_scoring_validator_accepts_only_an_owned_implementation():
         validate_model_scoring_request("analytics_pctr")
     with pytest.raises(ValueError, match="scoring provider unknown"):
         validate_model_scoring_request("unknown")
+
+
+def test_model_scoring_validator_resolves_databricks_workspace_path(
+    monkeypatch,
+):
+    dbutils = MagicMock()
+    notebook_path = (
+        dbutils.notebook.entry_point.getDbutils.return_value
+        .notebook.return_value.getContext.return_value
+        .notebookPath.return_value.get
+    )
+    notebook_path.return_value = (
+        "/Workspace/release/files/jobs/orchestration/"
+        "validate_model_scoring_request.py"
+    )
+    monkeypatch.setattr("dsutils.dbc.get_dbutils", lambda: dbutils)
+    monkeypatch.delitem(
+        model_scoring_validator_module.__dict__,
+        "__file__",
+    )
+
+    assert model_scoring_validator_module.resolve_project_root() == Path(
+        "/Workspace/release/files"
+    )
 
 
 def test_model_scoring_validator_rejects_theme_implementation_alias(tmp_path):

@@ -12,7 +12,27 @@ from typing import Any
 import yaml
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+def resolve_project_root() -> Path:
+    """Resolve the bundle root for file and Databricks workspace execution."""
+    try:
+        return Path(__file__).resolve().parents[2]
+    except NameError:
+        from dsutils.dbc import get_dbutils
+
+        dbutils = get_dbutils()
+        notebook_path = (
+            dbutils.notebook.entry_point.getDbutils()
+            .notebook()
+            .getContext()
+            .notebookPath()
+            .get()
+        )
+        if not notebook_path.startswith("/Workspace"):
+            notebook_path = "/Workspace" + notebook_path
+        return Path(notebook_path).parents[2]
+
+
+PROJECT_ROOT = resolve_project_root()
 SRC_ROOT = PROJECT_ROOT / "src"
 if not (SRC_ROOT / "next_ads").is_dir():
     raise RuntimeError(f"Canonical NextAds package not found under {SRC_ROOT}")
