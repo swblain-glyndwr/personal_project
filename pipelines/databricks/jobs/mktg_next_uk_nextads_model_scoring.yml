@@ -36,7 +36,7 @@ mktg_next_uk_nextads_model_scoring_config: &mktg_next_uk_nextads_model_scoring_c
       - name: publish_target_namespace
         default: ${var.mktgdata_catalog}.${var.user_schema}
       - name: publish_source_table_prefix
-        default: next_uk_nextads_account_theme_foundation_stage
+        default: ${var.theme_affinity_pipeline_table_prefix}
       - name: publish_target_table_prefix
         default: next_uk_nextads_account_theme_foundation
       - name: table_suffixes
