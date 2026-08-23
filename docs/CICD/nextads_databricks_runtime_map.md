@@ -11,7 +11,7 @@ This is a runtime map, not a deployment policy. For target availability rules, s
 
 ## Evidence Boundaries
 
-The diagrams and declared schedule inventory show the job structure currently defined under `pipelines/databricks/jobs`. A child-job arrow means the caller waits for that run to finish. A called job may also have its own schedule: notably, the main NextAds resource is called at 12:15 for input preparation and independently runs its scheduled 18:00 advert-option operation.
+The diagrams and declared schedule inventory show the job structure currently defined under `pipelines/databricks/jobs`. A child-job arrow means the caller waits for that run to finish. The shared scoring-inputs job has no schedule and is called at 12:15 by model scoring. Candidate Build is a separate job with its own 18:00 schedule; it is not called by the scoring route.
 
 Every duration appears under a heading that says **Historical observed runtime**. Those measurements came from successful runs captured on 2026-07-03 against an earlier task graph; they are not current timings or SLAs. Do not combine them with the current declared schedules when estimating completion time.
 
@@ -40,7 +40,7 @@ flowchart LR
 
   subgraph INPUTS["PREPARED INPUTS"]
     direction TB
-    theme_inputs["main NextAds job<br/>PREPARE_SCORING_INPUTS<br/>mapping + attributes"]:::input
+    theme_inputs["shared scoring_inputs job<br/>mapping + attributes"]:::input
     input_snapshot[("READY scoring input<br/>exact source Delta versions<br/>schema receipts + Git identity")]:::state
     candidate_foundation["shared customer inputs<br/>candidate_foundation job"]:::input
     foundation_snapshot[("READY shared-customer-input record<br/>exact source and output versions")]:::state
@@ -162,7 +162,7 @@ flowchart TD
   realtime_results["07:30 realtime results"]:::reporting
   legacy_pctr["10:00 legacy Analytics pCTR<br/>DEV schedule paused"]:::reporting
   model_scoring["12:15 model_scoring<br/>model_name=theme_affinity"]:::sharedModel
-  theme_inputs["main NextAds child job<br/>PREPARE_SCORING_INPUTS"]:::sharedTask
+  theme_inputs["shared scoring_inputs child job<br/>same run_date"]:::sharedTask
   theme_affinity["Theme Affinity scoring<br/>shared score output + compatibility"]:::sharedModel
   markov["13:00 markov_scoring<br/>optional shadow"]:::sharedModel
   candidate_foundation["16:00 shared customer inputs<br/>candidate_foundation"]:::sharedTask
@@ -205,10 +205,10 @@ The diagram includes every schedule declared by the current job YAML. It does no
 | 07:15 | `mktg_next_uk_nextads_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 07:30 | `mktg_next_uk_nextads_realtime_results_cicd` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 10:00 | `mktg_next_uk_nextads_analytics_pctr` | `DEV` | Paused |
-| 12:15 | `mktg_next_uk_nextads_model_scoring` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared; currently `model_name=theme_affinity`, with a synchronous same-date call to the main NextAds `PREPARE_SCORING_INPUTS` operation before scoring and compatibility publication |
+| 12:15 | `mktg_next_uk_nextads_model_scoring` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared; currently `model_name=theme_affinity`, with a synchronous same-date call to the unscheduled shared scoring-inputs job before scoring and compatibility publication |
 | 13:00 | `mktg_next_uk_nextads_markov_scoring` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 16:00 | `mktg_next_uk_nextads_candidate_foundation` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
-| 18:00 | `mktg_next_uk_nextads_candidate_build` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared with default `operation=CANDIDATE_BUILD`; its `PREPARE_SCORING_INPUTS` operation is invoked earlier as a child run rather than separately scheduled |
+| 18:00 | `mktg_next_uk_nextads_candidate_build` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared independently; contains only advert-option orchestration and its page-build child calls |
 | 18:00 | `mktg_next_uk_nextads_realtime_inputs` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
 | 18:00 | `mktg_next_uk_nextads_table_monitoring` | `DEV` | Declared |
 | 21:00 | `mktg_next_uk_nextads_candidate_compatibility` | `SANDBOX`, `DEV`, `DEV_INTEGRATION`, `PREPROD`, `PROD` | Declared |
@@ -233,9 +233,9 @@ These measurements were captured on 2026-07-03 against the earlier job graph. Th
 | Historical Theme Affinity job | PROD | `27892907532455` | 09:00 at the observation date; replaced in the current bundle by 12:15 shared model scoring | `11890698402594` | 3h 14m 33s; 3h 41m 37s; 4h 2m 16s |
 | Feature store | DEV | `643939878851484` | 21:00 daily in `DEV_FEATURE_STORE` | None found in recent successful runs | No recent successful durations found |
 
-## Current Declared `CANDIDATE_BUILD` Task Graph
+## Current Declared Candidate Build Task Graph
 
-This is the main NextAds job's scheduled `CANDIDATE_BUILD` operation. It selects one accepted shared-customer-input record for v1 and v2, while each route independently captures its control input, resolves a declared score-selection list and publishes accepted advert options from its serving entries. The same job's `PREPARE_SCORING_INPUTS` operation is an earlier child run of shared model scoring. The shared-customer-input job, model scoring and Markov scoring remain upstream of the evening advert-option branch.
+This is the independently scheduled Candidate Build job. It selects one accepted shared-customer-input record for v1 and v2, while each route independently captures its control input, resolves a declared score-selection list and publishes accepted advert options from its serving entries. Shared scoring inputs, model scoring, shared customer inputs and Markov scoring remain upstream of the evening advert-option job.
 
 Each route audit and coverage task reports business findings without hiding technical failures. Missing themes are surfaced for follow-up and naturally cannot produce theme-matched advert options; an unreadable control or pinned score output stops only the affected route before mapping. The separate advert-quality tasks measure the loaded adverts and write shared quality tables; their writes are serialised by making `quality_audit_ads_v2` wait for `quality_audit_ads_v1`.
 
@@ -303,18 +303,18 @@ This table comes from the current bundle and contains no measured durations.
 
 | Task | Current start and dependency rule |
 | --- | --- |
-| `select_candidate_foundation` | Starts with the `CANDIDATE_BUILD` branch. It returns immediately when the same-date shared-customer-input record is ready or waits for up to 30 minutes. |
-| `load_control_sheet_v1` | Starts with the `CANDIDATE_BUILD` branch. |
+| `select_candidate_foundation` | Starts with Candidate Build. It returns immediately when the same-date shared-customer-input record is ready or waits for up to 30 minutes. |
+| `load_control_sheet_v1` | Starts with Candidate Build. |
 | `audit_control_sheet_v1` | Starts after `load_control_sheet_v1`. |
 | `quality_audit_ads_v1` | Starts after `load_control_sheet_v1`; writes v1 advert-quality measurements to the shared quality tables. |
-| `load_control_sheet_v2` | Starts with the `CANDIDATE_BUILD` branch. |
+| `load_control_sheet_v2` | Starts with Candidate Build. |
 | `write_exclusions` | Starts after `load_control_sheet_v2` and publishes the landed exclusions to Cosmos without gating the remaining V2 route. |
 | `trigger_data_pull_for_CMS_pull` | Starts after `load_control_sheet_v2` lands the raw v2 control input. |
 | `process_control_sheet_v2` | Starts after `trigger_data_pull_for_CMS_pull` completes. |
 | `audit_control_sheet_v2` | Starts after `process_control_sheet_v2`. |
 | `quality_audit_ads_v2` | Starts after both `process_control_sheet_v2` and `quality_audit_ads_v1`; the v1 dependency prevents concurrent writes to the shared quality tables. |
-| `resolve_scoring_portfolio_v1` | Starts with the `CANDIDATE_BUILD` branch; a required serving score may wait until 18:30. |
-| `resolve_scoring_portfolio_v2` | Starts with the `CANDIDATE_BUILD` branch; a required serving score may wait until 18:30. |
+| `resolve_scoring_portfolio_v1` | Starts with Candidate Build; a required serving score may wait until 18:30. |
+| `resolve_scoring_portfolio_v2` | Starts with Candidate Build; a required serving score may wait until 18:30. |
 | `validate_score_provider_theme_coverage_v1` | Starts after `audit_control_sheet_v1` and `resolve_scoring_portfolio_v1`. |
 | `validate_score_provider_theme_coverage_v2` | Starts after `audit_control_sheet_v2` and `resolve_scoring_portfolio_v2`. |
 | `map_theme_scores_to_ads_v1` | Starts after `select_candidate_foundation` and the v1 coverage check; writes advert sets and top-20 advert-option rows before accepting the attempt. |
@@ -386,12 +386,18 @@ The delivery jobs remain single-purpose and independently runnable, but the nigh
 
 ## Current Declared Scheduled Model-Scoring Route
 
-`mktg_next_uk_nextads_model_scoring` is the scheduled operational scoring route and is parameterised by `model_name`. The current implementation is `theme_affinity`. It starts at 12:15, validates the declared score source, synchronously calls the main NextAds job with `operation=PREPARE_SCORING_INPUTS` for the same date, then scores and publishes both compatibility branches and their sense checks. It is separate from Feature Store source preparation and from the main job's 18:00 `CANDIDATE_BUILD` operation.
+`mktg_next_uk_nextads_model_scoring` is the scheduled operational scoring route and is parameterised by `model_name`. The current implementation is `theme_affinity`. It starts at 12:15, validates the declared score source, synchronously calls the unscheduled shared scoring-inputs job for the same date, then scores and publishes both compatibility branches and their sense checks. It is separate from Feature Store source preparation and from the independently scheduled 18:00 Candidate Build job.
 
 ```mermaid
 flowchart TD
-  validate_model_scoring_request --> prepare_scoring_inputs["main NextAds child<br/>PREPARE_SCORING_INPUTS"]
-  prepare_scoring_inputs --> prepare_foundation_context --> predict_data_prep
+  validate_model_scoring_request --> prepare_scoring_inputs["call shared scoring_inputs job<br/>same run_date"]
+  subgraph shared_inputs["Unscheduled shared scoring inputs"]
+    land_authoritative_theme_mapping --> build_authoritative_item_themes
+    refresh_item_attributes --> build_authoritative_item_themes
+    build_authoritative_item_themes --> accept_scoring_inputs["accept exact input snapshot"]
+  end
+  prepare_scoring_inputs --> land_authoritative_theme_mapping
+  accept_scoring_inputs --> prepare_foundation_context --> predict_data_prep
   predict_data_prep --> publish_and_score["publish_and_score<br/>ranked once; predict in memory<br/>score-source signals once; READY last"]
   publish_and_score --> provider_compatibility["score-output compatibility<br/>then model-output sense check"]
   publish_and_score --> feature_compatibility["feature compatibility<br/>then prepared-data sense check"]
