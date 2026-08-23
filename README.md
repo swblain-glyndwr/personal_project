@@ -18,9 +18,9 @@ the [NextAds job and table flow](docs/architecture/nextads_job_table_flow.md).
 
 The daily assignment route is:
 
-1. **12:15 — prepare scoring inputs and calculate Theme Affinity scores.** The
-   model-scoring job asks the main NextAds job to prepare fixed theme and item
-   inputs, then publishes account-to-theme scores.
+1. **12:15 — prepare shared scoring inputs and calculate Theme Affinity
+   scores.** The model-scoring job calls the separate scoring-inputs job to
+   prepare fixed theme and item inputs, then publishes account-to-theme scores.
 2. **13:00 — calculate Markov comparison scores.** Markov currently runs as a
    shadow score source and does not affect delivered assignments.
 3. **16:00 — prepare shared customer information.** Customer cells, repeat-ad
@@ -36,14 +36,20 @@ The daily assignment route is:
    job derives the older preranked table shapes from accepted advert options
    and then runs assignment validation.
 
-The main job is `mktg_next_uk_nextads_candidate_build`. Despite its saved-job
-name, it has two separate operations:
+The ownership boundary is deliberately three-stage:
 
-- `PREPARE_SCORING_INPUTS` prepares fixed scoring inputs for the earlier
-  model-scoring run and stops before advert-option or assignment work.
-- `CANDIDATE_BUILD`, the scheduled default, creates the V1 and V2 advert
-  options and invokes their assignment and delivery children. It does not
-  train models or calculate customer cells.
+```mermaid
+flowchart LR
+  inputs["Shared Scoring Inputs<br/>fixed theme and item snapshot"] --> scoring["Shared Model Scoring<br/>Theme Affinity today"]
+  scoring --> candidate["Candidate Build<br/>V1 and V2 advert options"]
+  candidate --> assignments["Page builds, assignments<br/>and delivery"]
+```
+
+`mktg_next_uk_nextads_scoring_inputs` owns only the reusable input snapshot and
+has no schedule of its own. `mktg_next_uk_nextads_model_scoring` calls it for
+the same date before scoring. `mktg_next_uk_nextads_candidate_build` keeps the
+18:00 schedule and owns only V1 and V2 advert-option orchestration; it does not
+prepare scoring inputs, train models or calculate customer cells.
 
 ## Documentation
 

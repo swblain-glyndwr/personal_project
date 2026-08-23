@@ -34,9 +34,11 @@ flowchart TD
   end
 
   subgraph decisioning["Production decisioning boundary"]
-    adapter["Champion/challenger or scoring adapter"]
-    output["Model output or decisioning table"]
-    delivery["Existing delivery route"]
+    shared_inputs["Shared Scoring Inputs job<br/>reusable accepted snapshot"]
+    adapter["Shared Model Scoring job<br/>model implementation + adapter"]
+    output["Standard READY score output"]
+    candidate["Candidate Build<br/>select score and build advert options"]
+    delivery["Existing page-build and delivery route"]
   end
 
   fs_base --> pctr
@@ -55,12 +57,16 @@ flowchart TD
   model_version --> monitor
 
   model_version -. "release-controlled selection" .-> adapter
-  adapter --> output --> delivery
+  shared_inputs --> adapter --> output --> candidate --> delivery
 ```
 
 Feature creation should stay in reusable feature contracts when the signal is
-shared across models. Final scores, rankings, assignment choices and delivery
-payloads should stay in model output, decisioning or delivery contracts.
+shared across models. Operational input preparation belongs in the separate
+shared scoring-inputs job only when its accepted snapshot is genuinely reusable
+by score sources; model-specific preparation stays inside that model's shared
+scoring implementation. Final scores, advert rankings, assignment choices and
+delivery payloads stay in scoring, Candidate Build or delivery contracts. A new
+model does not move its inputs into Candidate Build.
 
 ## Operational connection steps
 

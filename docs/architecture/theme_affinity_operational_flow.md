@@ -8,11 +8,11 @@ Theme Affinity writes the same **score-source output** that Markov or a future s
 flowchart TD
   subgraph scoring_job["12:15 mktg_next_uk_nextads_model_scoring"]
     validate["validate model_name<br/>resolve supported implementation"]
-    call_inputs["call main NextAds job<br/>operation=PREPARE_SCORING_INPUTS<br/>same run_date"]
+    call_inputs["call shared scoring-inputs job<br/>same run_date"]
     validate --> call_inputs
   end
 
-  subgraph inputs["Main NextAds scoring-input operation"]
+  subgraph inputs["Unscheduled mktg_next_uk_nextads_scoring_inputs"]
     theme_mapping["land authoritative theme mapping"]
     attributes["refresh item attributes"]
     item_themes["build authoritative item themes"]
@@ -63,7 +63,9 @@ flowchart TD
 
 The scheduled job starts at 12:15 Europe/London with `model_name=theme_affinity`. `validate_model_scoring_request` resolves the declared score source and fails closed if the name or implementation is unsupported. A future supported model extends the declaration and shared implementation dispatch; it does not get another saved job.
 
-`prepare_scoring_inputs` calls `mktg_next_uk_nextads_candidate_build` with `operation=PREPARE_SCORING_INPUTS` and the same `run_date`. That branch of the main NextAds job lands the theme mapping, refreshes item attributes, creates authoritative item themes and accepts the exact scoring-input snapshot. It does not run the 18:00 advert-option tasks. The main job's own scheduled run keeps `operation=CANDIDATE_BUILD` as its default.
+`prepare_scoring_inputs` calls the separate, unscheduled `mktg_next_uk_nextads_scoring_inputs` job with the same `run_date`. That job lands the theme mapping, refreshes item attributes, creates authoritative item themes and accepts the exact scoring-input snapshot. The tasks, arguments, compute, retry rules and timeouts are unchanged from their former position, but their ownership is now explicit. The scoring-inputs job contains no scoring, advert-option, assignment or delivery tasks.
+
+The boundary is therefore shared scoring inputs, then shared model scoring, then the independently scheduled 18:00 Candidate Build. Candidate Build is not a child of model scoring and is not invoked by input preparation.
 
 ## Theme Affinity Scoring Outputs
 

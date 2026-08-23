@@ -11,11 +11,6 @@ from jobs.orchestration import (
 from jobs.orchestration.validate_model_scoring_request import (
     validate_model_scoring_request,
 )
-from jobs.orchestration.validate_nextads_operation import (
-    CANDIDATE_BUILD,
-    PREPARE_SCORING_INPUTS,
-    validate_operation,
-)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -28,20 +23,6 @@ def _job(path: str, config_key: str, resource_key: str):
 
 def _tasks(job):
     return {task["task_key"]: task for task in job["tasks"]}
-
-
-def test_nextads_operation_validator_fails_closed():
-    assert validate_operation(CANDIDATE_BUILD) == CANDIDATE_BUILD
-    assert validate_operation(PREPARE_SCORING_INPUTS) == (
-        PREPARE_SCORING_INPUTS
-    )
-
-    with pytest.raises(ValueError, match="operation must be one of"):
-        validate_operation("candidate_build")
-    with pytest.raises(ValueError, match="operation must be one of"):
-        validate_operation(f" {PREPARE_SCORING_INPUTS} ")
-    with pytest.raises(ValueError, match="operation must be one of"):
-        validate_operation("")
 
 
 def test_model_scoring_validator_accepts_only_an_owned_implementation():
@@ -176,9 +157,11 @@ def test_model_scoring_runs_same_day_inputs_before_scoring():
         "prepare_scoring_inputs"
     ]
     assert tasks["prepare_scoring_inputs"]["run_job_task"] == {
-        "job_id": "${resources.jobs.mktg_next_uk_nextads_cicd.id}",
+        "job_id": (
+            "${resources.jobs."
+            "mktg_next_uk_nextads_scoring_inputs_cicd.id}"
+        ),
         "job_parameters": {
-            "operation": "PREPARE_SCORING_INPUTS",
             "run_date": "{{job.parameters.run_date}}",
         },
     }
@@ -211,7 +194,50 @@ def test_compatibility_runs_only_after_the_provider_is_ready():
     ] == "{{job.parameters.table_suffixes}}"
 
 
-def test_main_job_keeps_1800_candidates_and_exposes_input_only_branch():
+def test_shared_scoring_inputs_owns_only_input_preparation():
+    relative_path = (
+        "pipelines/databricks/jobs/"
+        "mktg_next_uk_nextads_scoring_inputs.yml"
+    )
+    config = yaml.safe_load((PROJECT_ROOT / relative_path).read_text())
+    inputs = config["mktg_next_uk_nextads_scoring_inputs_config"][
+        "mktg_next_uk_nextads_scoring_inputs_cicd"
+    ]
+    tasks = _tasks(inputs)
+    parameters = {
+        item["name"]: item["default"] for item in inputs["parameters"]
+    }
+
+    assert inputs["name"] == "mktg_next_uk_nextads_scoring_inputs"
+    assert "schedule" not in inputs
+    assert parameters == {"run_date": "{{job.start_time.iso_date}}"}
+    assert set(tasks) == {
+        "land_authoritative_theme_mapping",
+        "refresh_item_attributes",
+        "build_authoritative_item_themes",
+        "accept_scoring_inputs",
+    }
+    assert "depends_on" not in tasks["land_authoritative_theme_mapping"]
+    assert "depends_on" not in tasks["refresh_item_attributes"]
+    assert tasks["build_authoritative_item_themes"]["depends_on"] == [
+        {"task_key": "refresh_item_attributes"},
+        {"task_key": "land_authoritative_theme_mapping"},
+    ]
+    assert tasks["accept_scoring_inputs"]["depends_on"] == [
+        {"task_key": "build_authoritative_item_themes"}
+    ]
+    assert set(config["targets"]) == {
+        "SANDBOX",
+        "DEV",
+        "DEV_INTEGRATION",
+        "PREPROD",
+        "PROD",
+    }
+    bundle = yaml.safe_load((PROJECT_ROOT / "databricks.yml").read_text())
+    assert relative_path in bundle["include"]
+
+
+def test_main_job_keeps_only_the_1800_candidate_route():
     main = _job(
         "pipelines/databricks/jobs/mktg_next_uk_nextads.yml",
         "mktg_next_uk_nextads_config",
@@ -223,10 +249,15 @@ def test_main_job_keeps_1800_candidates_and_exposes_input_only_branch():
     }
 
     assert main["schedule"]["quartz_cron_expression"] == "0 0 18 * * ?"
-    assert parameters["operation"] == CANDIDATE_BUILD
-    assert tasks["prepare_scoring_inputs_operation"]["depends_on"] == [
-        {"task_key": "validate_operation"}
-    ]
+    assert "operation" not in parameters
+    assert not {
+        "validate_operation",
+        "prepare_scoring_inputs_operation",
+        "land_authoritative_theme_mapping",
+        "refresh_item_attributes",
+        "build_authoritative_item_themes",
+        "accept_scoring_inputs",
+    } & set(tasks)
     child_job_ids = {
         task["run_job_task"]["job_id"]
         for task in main["tasks"]
@@ -237,25 +268,10 @@ def test_main_job_keeps_1800_candidates_and_exposes_input_only_branch():
         not in child_job_ids
     )
     for task_key in (
-        "land_authoritative_theme_mapping",
-        "refresh_item_attributes",
-    ):
-        assert tasks[task_key]["depends_on"] == [
-            {
-                "task_key": "prepare_scoring_inputs_operation",
-                "outcome": "true",
-            }
-        ]
-    for task_key in (
         "select_candidate_foundation",
         "load_control_sheet_v1",
         "load_control_sheet_v2",
         "resolve_scoring_portfolio_v1",
         "resolve_scoring_portfolio_v2",
     ):
-        assert tasks[task_key]["depends_on"] == [
-            {
-                "task_key": "prepare_scoring_inputs_operation",
-                "outcome": "false",
-            }
-        ]
+        assert "depends_on" not in tasks[task_key]
