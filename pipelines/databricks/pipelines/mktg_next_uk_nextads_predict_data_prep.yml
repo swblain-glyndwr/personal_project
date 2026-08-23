@@ -4,7 +4,7 @@ mktg_next_uk_nextads_predict_data_prep_config: &mktg_next_uk_nextads_predict_dat
     configuration:
       pipeline.schema: ${var.theme_affinity_pipeline_schema}
       pipeline.job_env: ${var.job_parameter_environment_name}
-      pipeline.table_prefix: next_uk_nextads_account_theme_foundation_stage
+      pipeline.table_prefix: ${var.theme_affinity_pipeline_table_prefix}
       pipeline.sql_path: ${workspace.file_path}/src/next_ads/ranking/theme_affinity/sql
       pipeline.context_table: ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_scoring_foundation_run_contexts
       pipeline.context_slot: account_theme_features_v2

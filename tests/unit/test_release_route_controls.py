@@ -495,12 +495,17 @@ def test_preprod_and_prod_output_routes_are_separate():
     bundle = load_yaml("databricks.yml")
     settings = load_yaml("configs/runtime/settings.yaml")
 
+    default_vars = bundle["variables"]
     preprod_vars = bundle["targets"]["PREPROD"]["variables"]
     prod_vars = bundle["targets"]["PROD"]["variables"]
 
     assert preprod_vars["mktgdata_catalog"] == "marketingdata_prod"
     assert preprod_vars["job_parameter_environment_name"] == "preprod"
     assert preprod_vars["user_schema"] == "ds_sandbox"
+    assert (
+        preprod_vars["theme_affinity_pipeline_table_prefix"]
+        == "next_uk_nextads_account_theme_foundation_pp_stage"
+    )
     assert settings["preprod"]["catalog_write"] == "marketingdata_prod"
     assert settings["preprod"]["schema_write"] == "ds_sandbox"
 
@@ -508,5 +513,14 @@ def test_preprod_and_prod_output_routes_are_separate():
     assert prod_vars["job_parameter_environment_name"] == "prod"
     assert prod_vars["user_schema"] == "warehouse"
     assert prod_vars["theme_affinity_pipeline_schema"] == "ds_sandbox"
+    assert (
+        default_vars["theme_affinity_pipeline_table_prefix"]["default"]
+        == "next_uk_nextads_account_theme_foundation_stage"
+    )
+    assert "theme_affinity_pipeline_table_prefix" not in prod_vars
+    assert (
+        preprod_vars["theme_affinity_pipeline_table_prefix"]
+        != default_vars["theme_affinity_pipeline_table_prefix"]["default"]
+    )
     assert settings["prod"]["catalog_write"] == "marketingdata_prod"
     assert settings["prod"]["schema_write"] == "warehouse"

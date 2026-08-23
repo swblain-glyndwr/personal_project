@@ -42,4 +42,5 @@ Jobs are grouped only when their target set and release boundary are identical. 
 - Jobs called through `${resources.jobs.<job_key>.id}` are declared in the same target as their caller.
 - Personal DEV Feature Store and model jobs remain manual, author-schema scoped and limited to their declared concurrency.
 - PREPROD and PROD model movement uses exact reviewed versions; registering or copying a version does not select it for live scoring.
+- PREPROD Theme Affinity Lakeflow relations use the `_pp_` table prefix; PROD retains the unqualified stage prefix even though both pipelines use `marketingdata_prod.ds_sandbox`.
 - New job files use explicit target blocks unless a review agrees that the job belongs in every target.
