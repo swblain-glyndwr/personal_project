@@ -427,22 +427,19 @@ def test_jobs_pin_same_day_inputs_and_static_context_slot():
     inputs = yaml.safe_load(
         (
             PROJECT_ROOT / "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads.yml"
+            "mktg_next_uk_nextads_scoring_inputs.yml"
         ).read_text()
-    )["mktg_next_uk_nextads_config"]["mktg_next_uk_nextads_cicd"]
+    )["mktg_next_uk_nextads_scoring_inputs_config"][
+        "mktg_next_uk_nextads_scoring_inputs_cicd"
+    ]
 
-    assert inputs["schedule"]["quartz_cron_expression"] == "0 0 18 * * ?"
+    assert "schedule" not in inputs
     assert affinity["schedule"]["quartz_cron_expression"] == "0 15 12 * * ?"
     input_tasks = {task["task_key"]: task for task in inputs["tasks"]}
     assert input_tasks["accept_scoring_inputs"]["depends_on"] == [
         {"task_key": "build_authoritative_item_themes"}
     ]
-    assert input_tasks["land_authoritative_theme_mapping"]["depends_on"] == [
-        {
-            "task_key": "prepare_scoring_inputs_operation",
-            "outcome": "true",
-        }
-    ]
+    assert "depends_on" not in input_tasks["land_authoritative_theme_mapping"]
     assert "context_slot" not in {
         parameter["name"] for parameter in affinity["parameters"]
     }
