@@ -7,34 +7,20 @@ NextAds selects relevant adverts for customers browsing NEXT. It combines:
 - shared customer information such as customer cells, recent advert exposure and advert feedback;
 - separate V1 and V2 assignment and delivery routes.
 
-The result is a set of final advert assignments for each supported location or
-page type, followed by delivery to the systems that serve them.
+The result is a set of final advert assignments for each supported location or page type, followed by delivery to the systems that serve them.
 
 ## Start Here
 
-For the complete explanation, including plain definitions of scoring,
-score-selection, foundations, advert candidates, builds and assignments, read
-the [NextAds job and table flow](docs/architecture/nextads_job_table_flow.md).
+For the complete explanation, including plain definitions of scoring, score-selection, foundations, advert candidates, builds and assignments, read the [NextAds job and table flow](docs/architecture/nextads_job_table_flow.md).
 
 The daily assignment route is:
 
-1. **12:15 — prepare shared scoring inputs and calculate Theme Affinity
-   scores.** The model-scoring job calls the separate scoring-inputs job to
-   prepare fixed theme and item inputs, then publishes account-to-theme scores.
-2. **13:00 — calculate Markov comparison scores.** Markov currently runs as a
-   shadow score source and does not affect delivered assignments.
-3. **16:00 — prepare shared customer information.** Customer cells, repeat-ad
-   exposure and advert feedback are recorded together for the evening run.
-4. **18:00 — build advert options and assignments.** The main NextAds job loads
-   V1 and V2 controls, selects exact approved score outputs, maps those scores
-   to eligible adverts, and calls the V1 and V2 page-build jobs.
-5. **After the page builds — hand off and deliver.** V1 publishes
-   location-based assignments, runs a read-only MASID handoff check and triggers
-   PLP delivery. V2 publishes page-type-and-rank assignments and triggers the
-   Bloomreach payload export.
-6. **21:00 — publish compatibility outputs and validate.** The compatibility
-   job derives the older preranked table shapes from accepted advert options
-   and then runs assignment validation.
+1. **12:15 — prepare shared scoring inputs and calculate Theme Affinity scores.** The model-scoring job calls the separate scoring-inputs job to prepare fixed theme and item inputs, then publishes account-to-theme scores.
+2. **13:00 — calculate Markov comparison scores.** Markov currently runs as a shadow score source and does not affect delivered assignments.
+3. **16:00 — prepare shared customer information.** Customer cells, repeat-ad exposure and advert feedback are recorded together for the evening run.
+4. **18:00 — build advert options and assignments.** The main NextAds job loads V1 and V2 controls, selects exact approved score outputs, maps those scores to eligible adverts, and calls the V1 and V2 page-build jobs.
+5. **After the page builds — hand off and deliver.** V1 publishes location-based assignments, runs a read-only MASID handoff check and triggers PLP delivery. V2 publishes page-type-and-rank assignments and triggers the Bloomreach payload export.
+6. **21:00 — publish compatibility outputs and validate.** The compatibility job derives the older preranked table shapes from accepted advert options and then runs assignment validation.
 
 The ownership boundary is deliberately three-stage:
 
@@ -45,11 +31,7 @@ flowchart LR
   candidate --> assignments["Page builds, assignments<br/>and delivery"]
 ```
 
-`mktg_next_uk_nextads_scoring_inputs` owns only the reusable input snapshot and
-has no schedule of its own. `mktg_next_uk_nextads_model_scoring` calls it for
-the same date before scoring. `mktg_next_uk_nextads_candidate_build` keeps the
-18:00 schedule and owns only V1 and V2 advert-option orchestration; it does not
-prepare scoring inputs, train models or calculate customer cells.
+`mktg_next_uk_nextads_scoring_inputs` owns only the reusable input snapshot and has no schedule of its own. `mktg_next_uk_nextads_model_scoring` calls it for the same date before scoring. `mktg_next_uk_nextads_candidate_build` keeps the 18:00 schedule and owns only V1 and V2 advert-option orchestration; it does not prepare scoring inputs, train models or calculate customer cells.
 
 ## Documentation
 
@@ -66,8 +48,7 @@ prepare scoring inputs, train models or calculate customer cells.
 | Branch, release and deployment routes | [CI/CD pipeline guide](docs/CICD/cicd_pipeline_guide.md) |
 | The repository layout | [Repository structure](docs/repo_structure.md) |
 
-The diagrams and job tables are reference material. Begin with the written
-walkthrough before using them to investigate a particular task or table.
+The diagrams and job tables are reference material. Begin with the written walkthrough before using them to investigate a particular task or table.
 
 ## Repository Areas
 
@@ -81,8 +62,4 @@ walkthrough before using them to investigate a particular task or table.
 | `tests/` | Unit, contract and orchestration tests |
 | `docs/` | Architecture, operation, development and model guidance |
 
-Feature work normally targets `develop`. The release route is documented in
-the [branch and release guide](docs/CICD/nextads_branch_release_route.md).
-Production job changes, deployments and destructive table operations require
-the relevant controlled runbook and approval; the root README does not provide
-shortcuts for those actions.
+Feature work normally targets `develop`. The release route is documented in the [branch and release guide](docs/CICD/nextads_branch_release_route.md). Production job changes, deployments and destructive table operations require the relevant controlled runbook and approval; the root README does not provide shortcuts for those actions.

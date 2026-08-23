@@ -1,9 +1,6 @@
 # NextAds Architecture And Data-Flow Guides
 
-Start with the [plain-language job and table flow](nextads_job_table_flow.md).
-It explains what NextAds does, what the repeated terms mean, how the daily route
-fits together and what each job consumes and produces. The other pages answer
-more focused questions and assume that introduction has been read.
+Start with the [plain-language job and table flow](nextads_job_table_flow.md). It explains what NextAds does, what the repeated terms mean, how the daily route fits together and what each job consumes and produces. The other pages answer more focused questions and assume that introduction has been read.
 
 ## Choose A Route
 
@@ -21,12 +18,7 @@ more focused questions and assume that introduction has been read.
 
 ## Page Responsibilities
 
-- The [job and table flow](nextads_job_table_flow.md) owns the complete written
-  walkthrough, shared vocabulary and cross-job input/output inventory.
-- The [runtime map](../CICD/nextads_databricks_runtime_map.md) owns declared
-  schedules, job triggers and dated runtime observations.
-- The [job settings](../CICD/nextads_databricks_job_settings.md) page owns
-  parameters, defaults and valid values.
-- Detailed route pages own task order, data contracts and failure behavior for
-  their named area; they should link back to the complete walkthrough instead
-  of repeating it.
+- The [job and table flow](nextads_job_table_flow.md) owns the complete written walkthrough, shared vocabulary and cross-job input/output inventory.
+- The [runtime map](../CICD/nextads_databricks_runtime_map.md) owns declared schedules, job triggers and dated runtime observations.
+- The [job settings](../CICD/nextads_databricks_job_settings.md) page owns parameters, defaults and valid values.
+- Detailed route pages own task order, data contracts and failure behavior for their named area; they should link back to the complete walkthrough instead of repeating it.

@@ -60,13 +60,7 @@ flowchart TD
   shared_inputs --> adapter --> output --> candidate --> delivery
 ```
 
-Feature creation should stay in reusable feature contracts when the signal is
-shared across models. Operational input preparation belongs in the separate
-shared scoring-inputs job only when its accepted snapshot is genuinely reusable
-by score sources; model-specific preparation stays inside that model's shared
-scoring implementation. Final scores, advert rankings, assignment choices and
-delivery payloads stay in scoring, Candidate Build or delivery contracts. A new
-model does not move its inputs into Candidate Build.
+Feature creation should stay in reusable feature contracts when the signal is shared across models. Operational input preparation belongs in the separate shared scoring-inputs job only when its accepted snapshot is genuinely reusable by score sources; model-specific preparation stays inside that model's shared scoring implementation. Final scores, advert rankings, assignment choices and delivery payloads stay in scoring, Candidate Build or delivery contracts. A new model does not move its inputs into Candidate Build.
 
 ## Operational connection steps
 
