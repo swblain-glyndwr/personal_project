@@ -6,29 +6,19 @@ The page stays at a human-readable route level. Linked documents own detailed ke
 
 ## What NextAds Does
 
-NextAds turns three kinds of information into adverts that can be delivered to
-customers:
+NextAds turns three kinds of information into adverts that can be delivered to customers:
 
-1. **Advert controls** say which adverts are active and where they are allowed
-   to appear.
-2. **Model scores** estimate which themes or adverts are relevant to each
-   account.
-3. **Customer information** supplies the customer's assignment group, recent
-   advert exposure and advert-performance feedback.
+1. **Advert controls** say which adverts are active and where they are allowed to appear.
+2. **Model scores** estimate which themes or adverts are relevant to each account.
+3. **Customer information** supplies the customer's assignment group, recent advert exposure and advert-performance feedback.
 
-The system combines those inputs to create eligible, scored advert options. A
-later page-build step chooses the final adverts for each account and placement.
-V1 writes location-based assignments for downstream MASID use, checks that
-handoff and delivers the PLP export. V2 writes page-type-and-rank assignments
-and delivers a Bloomreach payload.
+The system combines those inputs to create eligible, scored advert options. A later page-build step chooses the final adverts for each account and placement. V1 writes location-based assignments for downstream MASID use, checks that handoff and delivers the PLP export. V2 writes page-type-and-rank assignments and delivers a Bloomreach payload.
 
 The route deliberately separates three responsibilities. The unscheduled `mktg_next_uk_nextads_scoring_inputs` job prepares reusable fixed theme and item inputs. The scheduled `mktg_next_uk_nextads_model_scoring` job calls it and then publishes a standard score output. The independently scheduled `mktg_next_uk_nextads_candidate_build` job selects accepted score and customer inputs, builds V1 and V2 advert options, and invokes the page-build jobs. It does not prepare scoring inputs, train models or calculate customer cells.
 
 ## The Daily Assignment And Delivery Flow
 
-The times below are the declared Europe/London schedules. A declared schedule
-describes the bundle configuration; it is not evidence that a particular
-environment ran successfully on a particular date.
+The times below are the declared Europe/London schedules. A declared schedule describes the bundle configuration; it is not evidence that a particular environment ran successfully on a particular date.
 
 | Time | What happens | What it means |
 | --- | --- | --- |
@@ -39,14 +29,11 @@ environment ran successfully on a particular date.
 | **After the 18:00 mapping** | The main job synchronously calls the V1 and V2 page-build jobs with the exact accepted advert-option attempts. | V1 chooses and publishes location-based assignments, then calls the read-only MASID handoff check and PLP delivery. V2 chooses and publishes page-type-and-rank assignments, then calls the Bloomreach payload export. A child failure is returned to the calling route rather than being treated as an unrelated run. |
 | **21:00** | `mktg_next_uk_nextads_candidate_compatibility` reads the exact READY V1 and V2 advert-option attempts. | It derives the older preranked table shapes for existing consumers and then invokes assignment validation. The 18:00 mapping tasks do not write those legacy tables directly. |
 
-The current score-selection configuration assigns Theme Affinity to both the
-`best` and `best_challenger` roles. Those are two selected roles, not two
-different scoring methods at present. Markov remains shadow-only.
+The current score-selection configuration assigns Theme Affinity to both the `best` and `best_challenger` roles. Those are two selected roles, not two different scoring methods at present. Markov remains shadow-only.
 
 ## Terms Used In This Guide
 
-Plain descriptions come first below. The exact internal name follows only when
-it is needed to find configuration, tasks or tables.
+Plain descriptions come first below. The exact internal name follows only when it is needed to find configuration, tasks or tables.
 
 | Plain term | Meaning | Internal wording you may see |
 | --- | --- | --- |
@@ -65,39 +52,23 @@ it is needed to find configuration, tasks or tables.
 | **Assignment** | A final advert choice written for an account and V1 location, or for an account, V2 page type and rank. | Assignment history/latest tables |
 | **Delivery** | Making accepted assignments available to a serving destination: the V1 assignment table is consumed downstream by MASID, the V1 route exports PLP data, and V2 exports a Bloomreach payload. The MASID child job in this repository checks the handoff but does not write delivery data. | Handoff, export, payload publication |
 
-“Candidate” and “foundation” are therefore not safe shorthand. This guide uses
-“model option” or “advert option”, and describes which of the three foundation
-records it means before giving the internal identifier.
+“Candidate” and “foundation” are therefore not safe shorthand. This guide uses “model option” or “advert option”, and describes which of the three foundation records it means before giving the internal identifier.
 
 ## Research Is Separate From Live Assignment
 
-The Feature Store and model-development jobs support reusable data, model
-research, reviewed selection, registration and isolated evaluation. They do not
-change delivered adverts merely because a model was researched or registered:
+The Feature Store and model-development jobs support reusable data, model research, reviewed selection, registration and isolated evaluation. They do not change delivered adverts merely because a model was researched or registered:
 
 - `BUILD` runs the existing declared training route.
-- `RESEARCH` compares declared model options using the same fixed data splits
-  while keeping the final test split hidden from that comparison.
-- `REVIEW_SELECT` records the human-reviewed choice, evaluates only that option
-  on the held-out test split and registers the selected DEV model version.
-- `EVALUATE` applies an exact registered model to accepted historical advert
-  options and writes isolated comparison evidence, not live assignments.
-- The separate AutoML discovery job is manual, DEV-only and disabled by
-  default. Its output is research evidence, not registration or activation.
+- `RESEARCH` compares declared model options using the same fixed data splits while keeping the final test split hidden from that comparison.
+- `REVIEW_SELECT` records the human-reviewed choice, evaluates only that option on the held-out test split and registers the selected DEV model version.
+- `EVALUATE` applies an exact registered model to accepted historical advert options and writes isolated comparison evidence, not live assignments.
+- The separate AutoML discovery job is manual, DEV-only and disabled by default. Its output is research evidence, not registration or activation.
 
-Registration saves a numbered model version. Moving that exact version to
-another environment copies the reviewed artifact. Activation is a further
-serving change that makes a score source influence advert options, assignments
-and delivery. None should be inferred from another.
+Registration saves a numbered model version. Moving that exact version to another environment copies the reviewed artifact. Activation is a further serving change that makes a score source influence advert options, assignments and delivery. None should be inferred from another.
 
 ## Where The Former Model-Specific Saved Jobs Went
 
-The consolidation did not place every removed saved job behind a new generic
-job. The status must be read literally: **absorbed** means the responsibility
-runs inside a current shared job; **on-demand code only** means an entry point
-remains but no saved bundle job invokes it; **retired without a shared
-replacement** means the saved job was removed and the shared route does not
-currently provide that complete operation.
+The consolidation did not place every removed saved job behind a new generic job. The status must be read literally: **absorbed** means the responsibility runs inside a current shared job; **on-demand code only** means an entry point remains but no saved bundle job invokes it; **retired without a shared replacement** means the saved job was removed and the shared route does not currently provide that complete operation.
 
 | Former saved job | Status | Current position |
 | --- | --- | --- |
@@ -113,9 +84,7 @@ currently provide that complete operation.
 | `mktg_next_uk_nextads_analytics_pctr_adoption` | **Retired without a shared replacement** | Analytics pCTR remains compatibility-only in the shared model declaration and is not supported end to end for adoption or activation. |
 | `mktg_next_uk_nextads_model_development_runtime_smoke` | **Retired without a saved-job replacement** | The runtime-smoke script remains for code/test use, but no non-test bundle job calls it. |
 
-Adding a supported invocation for a code-only builder or implementing a missing
-Analytics pCTR lifecycle operation is new orchestration work. It should not be
-presented as something this consolidation already provides.
+Adding a supported invocation for a code-only builder or implementing a missing Analytics pCTR lifecycle operation is new orchestration work. It should not be presented as something this consolidation already provides.
 
 ## Finding A Run's Outputs
 
