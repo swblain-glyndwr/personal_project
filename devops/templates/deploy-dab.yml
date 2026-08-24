@@ -11,6 +11,9 @@ parameters:
     type: string
   - name: KeyVaultName
     type: string
+  - name: forceDeploymentLock
+    type: boolean
+    default: false
 
 jobs:
   - job: ValidateAndDeployDAB
@@ -47,7 +50,18 @@ jobs:
           echo "Deploying to ${{ parameters.target }} target..."
           unset DATABRICKS_CLUSTER_ID
           source devops/scripts/set_dab_vars.sh ${{ parameters.target }}
-          databricks bundle deploy -t ${{ parameters.target }} --auto-approve
+          force_deployment_lock='${{ parameters.forceDeploymentLock }}'
+          force_deployment_lock=${force_deployment_lock,,}
+          if [ "$force_deployment_lock" = 'true' ]; then
+            if [ '${{ parameters.target }}' != 'PROD' ]; then
+              echo "Force deployment lock is restricted to PROD."
+              exit 1
+            fi
+            echo "Forcing acquisition of the stale PROD deployment lock..."
+            databricks bundle deploy -t PROD --auto-approve --force-lock
+          else
+            databricks bundle deploy -t ${{ parameters.target }} --auto-approve
+          fi
         displayName: 'Deploy DAB to ${{ parameters.target }}'
 
       - script: |

@@ -14,6 +14,10 @@ parameters:
     type: boolean
     default: "false"
     displayName: 'Recreate DEV integration tables'
+  - name: forceProdDeploymentLock
+    type: boolean
+    default: "false"
+    displayName: 'Force stale PROD deployment lock'
 
 variables:
   - template: devops/variables/common.yml
@@ -298,3 +302,4 @@ stages:
           AzureBuildAgentPool: $(agentpool_prod)
           azureSubscription: $(serviceConnectionName_prod)
           KeyVaultName: $(strKeyVaultName)
+          forceDeploymentLock: ${{ parameters.forceProdDeploymentLock }}
