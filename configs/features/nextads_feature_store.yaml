@@ -248,6 +248,7 @@ feature_store:
       grain: one real Shopping Bag advert impression and mature label horizon
       primary_keys: [exposure_id, label_horizon_days, exposure_timestamp]
       timestamp_key: exposure_timestamp
+      snapshot_date_key: session_date
       source_job: build_shopping_bag_click_labels
       builder: build_shopping_bag_click_labels
       owner: marketing_data

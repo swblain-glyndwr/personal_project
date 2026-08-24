@@ -28,3 +28,11 @@ def test_dev_deployment_shortcut_always_removes_json_body_file():
 
     assert "Test-Path -LiteralPath $bodyFile" in finally_block
     assert "Remove-Item -LiteralPath $bodyFile -Force" in finally_block
+
+
+def test_dev_deployment_shortcut_does_not_reference_removed_prod_tests():
+    script = (
+        PROJECT_ROOT / "devops/scripts/queue-dev-deployment.ps1"
+    ).read_text()
+
+    assert '"IntegrationTests"' not in script

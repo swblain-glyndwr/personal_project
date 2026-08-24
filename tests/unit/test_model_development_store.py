@@ -96,6 +96,13 @@ def test_setup_creates_receipts_builds_and_scoped_evaluation_candidates():
         def sql(self, query):
             self.queries.append(query)
 
+        def table(self, _table):
+            fields = [
+                SimpleNamespace(name=column)
+                for column in store.MODEL_BUILD_RESEARCH_COLUMNS
+            ]
+            return SimpleNamespace(schema=SimpleNamespace(fields=fields))
+
     spark = Spark()
     paths = store.create_model_development_tables(
         spark, catalog="marketingdata_dev", schema="Stephen_Blain"
@@ -111,9 +118,61 @@ def test_setup_creates_receipts_builds_and_scoped_evaluation_candidates():
         "next_uk_nextads_model_evaluation_candidates",
     )
     assert len(spark.queries) == 4
-    assert all("CREATE TABLE IF NOT EXISTS" in query for query in spark.queries)
+    assert all(
+        "CREATE TABLE IF NOT EXISTS" in query for query in spark.queries
+    )
     assert "route STRING NOT NULL" in spark.queries[-1]
     assert "location STRING NOT NULL" in spark.queries[-1]
+
+
+def test_model_build_schema_migration_is_additive_and_idempotent():
+    class Spark:
+        def __init__(self, columns):
+            self.columns = columns
+            self.queries = []
+
+        def table(self, _table):
+            fields = [SimpleNamespace(name=name) for name in self.columns]
+            return SimpleNamespace(schema=SimpleNamespace(fields=fields))
+
+        def sql(self, query):
+            self.queries.append(query)
+
+    spark = Spark(
+        (
+            "model_build_id",
+            "research_build_id",
+            "selection_decision_id",
+        )
+    )
+    missing = store.ensure_model_build_research_columns(
+        spark,
+        catalog="catalog",
+        schema="schema",
+    )
+
+    assert missing == (
+        "selected_candidate_id",
+        "selected_candidate_evaluation_id",
+        "registration_code_sha",
+    )
+    assert spark.queries == [
+        "ALTER TABLE `catalog`.`schema`.`next_uk_nextads_model_builds` "
+        "ADD COLUMNS (`selected_candidate_id` STRING, "
+        "`selected_candidate_evaluation_id` STRING, "
+        "`registration_code_sha` STRING)"
+    ]
+
+    complete = Spark(store.MODEL_BUILD_RESEARCH_COLUMNS)
+    assert (
+        store.ensure_model_build_research_columns(
+            complete,
+            catalog="catalog",
+            schema="schema",
+        )
+        == ()
+    )
+    assert complete.queries == []
 
 
 def test_training_receipt_is_replaced_by_deterministic_receipt_id(monkeypatch):
@@ -163,6 +222,41 @@ def test_model_build_persists_exact_mlflow_version_and_digest(monkeypatch):
     assert row["model_uri"] == "models:/catalog.schema.model/4"
     assert row["artifact_digest"] == "f" * 64
     assert row["metrics_json"] == '{"auc_pr":0.42}'
+    assert row["research_build_id"] is None
+    assert row["selected_candidate_evaluation_id"] is None
+
+
+def test_model_build_persists_nullable_selected_research_lineage(monkeypatch):
+    calls = []
+    monkeypatch.setattr(store, "typed_table_frame", lambda _s, _t, rows: rows)
+    monkeypatch.setattr(
+        store,
+        "replace_scope_by_name",
+        lambda frame, _table, _scope, **_kwargs: calls.append(frame[0]),
+    )
+    build = ModelBuild(
+        **{
+            **_build().__dict__,
+            "research_build_id": "research-1",
+            "selection_decision_id": "selection-1",
+            "selected_candidate_id": "random_forest",
+            "selected_candidate_evaluation_id": "evaluation-1",
+            "registration_code_sha": "registration-sha",
+        }
+    )
+
+    store.persist_model_build(
+        object(),
+        catalog="catalog",
+        schema="schema",
+        build=build,
+    )
+
+    assert calls[0]["research_build_id"] == "research-1"
+    assert calls[0]["selection_decision_id"] == "selection-1"
+    assert calls[0]["selected_candidate_id"] == "random_forest"
+    assert calls[0]["selected_candidate_evaluation_id"] == "evaluation-1"
+    assert calls[0]["registration_code_sha"] == "registration-sha"
 
 
 def test_external_score_receipt_persists_component_model_versions(monkeypatch):
@@ -186,9 +280,10 @@ def test_external_score_receipt_persists_component_model_versions(monkeypatch):
     row = calls[0][0][0]
     assert target.endswith(store.EXTERNAL_SCORE_RECEIPT_TABLE)
     assert row["source_delta_version"] == 5
-    assert '"model_uri":"models:/catalog.schema.classifier/2"' in row[
-        "components_json"
-    ]
+    assert (
+        '"model_uri":"models:/catalog.schema.classifier/2"'
+        in row["components_json"]
+    )
 
 
 def test_ready_receipt_loader_reconstructs_feature_bindings(monkeypatch):

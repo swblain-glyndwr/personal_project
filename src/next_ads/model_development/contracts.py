@@ -7,23 +7,24 @@ from datetime import date, datetime
 import hashlib
 import json
 import re
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from next_ads.model_development.research_contracts import ResearchPlan
 
 
 DBR_15_4_SPARK_CPU = "dbr_15_4_spark_cpu"
 DBR_18_1_THEME_GPU = "dbr_18_1_theme_gpu"
-ALLOWED_RUNTIME_PROFILES = frozenset(
-    {DBR_15_4_SPARK_CPU, DBR_18_1_THEME_GPU}
-)
+ALLOWED_RUNTIME_PROFILES = frozenset({DBR_15_4_SPARK_CPU, DBR_18_1_THEME_GPU})
 EVALUATE = "EVALUATE"
 READY = "READY"
 FAILED = "FAILED"
 VALID_RECEIPT_STATUSES = frozenset({READY, FAILED})
-VALID_MODEL_BUILD_STATUSES = frozenset(
-    {"TRAINING", "READY", "FAILED"}
-)
+VALID_MODEL_BUILD_STATUSES = frozenset({"TRAINING", "READY", "FAILED"})
 MODEL_VERSION_TAG_ARTIFACT_DIGEST = "nextads_artifact_digest"
 MODEL_VERSION_TAG_BUILD_ID = "nextads_model_build_id"
+MODEL_VERSION_TAG_DECISION_CODE_SHA = "nextads_decision_code_sha"
+MODEL_VERSION_TAG_REGISTRATION_CODE_SHA = "nextads_registration_code_sha"
 MODEL_VERSION_TAG_TRAINING_RECEIPT_ID = "nextads_training_receipt_id"
 MODEL_VERSION_TAG_SOURCE_MODEL_NAME = "nextads_source_model_name"
 MODEL_VERSION_TAG_SOURCE_MODEL_VERSION = "nextads_source_model_version"
@@ -100,7 +101,9 @@ class FeatureLookupSpec:
 
     def __post_init__(self) -> None:
         """Validate lookup keys, selected values and time semantics."""
-        object.__setattr__(self, "feature_id", _text(self.feature_id, "feature_id"))
+        object.__setattr__(
+            self, "feature_id", _text(self.feature_id, "feature_id")
+        )
         selected = _names(self.selected_columns, "selected_columns")
         object.__setattr__(self, "selected_columns", selected)
         object.__setattr__(
@@ -177,16 +180,34 @@ class TrainingObservationSpec:
     context_features: tuple[str, ...] = ()
     label_maturity_column: str | None = None
     filters: tuple[tuple[str, str | int | float | bool], ...] = ()
+    observation_date_column: str | None = None
 
     def __post_init__(self) -> None:
         """Require explicit modelling columns and scalar row filters."""
-        object.__setattr__(self, "feature_id", _text(self.feature_id, "feature_id"))
+        object.__setattr__(
+            self, "feature_id", _text(self.feature_id, "feature_id")
+        )
         selected = _names(self.selected_columns, "selected_columns")
         object.__setattr__(self, "selected_columns", selected)
         timestamp = _text(self.observation_timestamp, "observation_timestamp")
         if timestamp not in selected:
             raise ValueError("Observation timestamp must be a selected column")
         object.__setattr__(self, "observation_timestamp", timestamp)
+        observation_date_column = _optional_text(
+            self.observation_date_column,
+            "observation_date_column",
+        )
+        if observation_date_column is None:
+            observation_date_column = timestamp
+        if observation_date_column not in selected:
+            raise ValueError(
+                "Observation date column must be selected from observations"
+            )
+        object.__setattr__(
+            self,
+            "observation_date_column",
+            observation_date_column,
+        )
         context_features = tuple(self.context_features)
         if context_features:
             context_features = _names(context_features, "context_features")
@@ -200,6 +221,10 @@ class TrainingObservationSpec:
             raise ValueError(
                 "Observation timestamp cannot be used as a model feature"
             )
+        if observation_date_column in context_features:
+            raise ValueError(
+                "Observation date column cannot be used as a model feature"
+            )
         object.__setattr__(self, "context_features", context_features)
         maturity_column = _optional_text(
             self.label_maturity_column,
@@ -210,10 +235,14 @@ class TrainingObservationSpec:
                 "Label maturity column must be selected from observations"
             )
         if maturity_column in context_features:
-            raise ValueError("Label maturity cannot be used as a model feature")
+            raise ValueError(
+                "Label maturity cannot be used as a model feature"
+            )
         object.__setattr__(self, "label_maturity_column", maturity_column)
         filters = _pairs(self.filters, "filters")
-        unknown = sorted(set(name for name, _value in filters).difference(selected))
+        unknown = sorted(
+            set(name for name, _value in filters).difference(selected)
+        )
         if unknown:
             raise ValueError(
                 "Observation filters reference unselected columns: "
@@ -227,7 +256,7 @@ class TrainingObservationSpec:
         object.__setattr__(self, "filters", filters)
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "feature_id": self.feature_id,
             "selected_columns": self.selected_columns,
             "observation_timestamp": self.observation_timestamp,
@@ -235,6 +264,11 @@ class TrainingObservationSpec:
             "label_maturity_column": self.label_maturity_column,
             "filters": self.filters,
         }
+        if self.observation_date_column != self.observation_timestamp:
+            payload["observation_date_column"] = (
+                self.observation_date_column
+            )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -258,6 +292,7 @@ class ModelDefinition:
     evaluation_use_case: str = "advert_ranking"
     evaluation_scope: tuple[tuple[str, tuple[str, ...]], ...] = ()
     activation_mode: str = EVALUATE
+    research: ResearchPlan | None = None
 
     def __post_init__(self) -> None:
         """Keep definitions model-neutral, reproducible and evaluate-only."""
@@ -334,10 +369,14 @@ class ModelDefinition:
             )
         lookups = tuple(self.feature_lookups)
         if not lookups:
-            raise ValueError("A model definition needs at least one feature lookup")
+            raise ValueError(
+                "A model definition needs at least one feature lookup"
+            )
         feature_ids = [lookup.feature_id for lookup in lookups]
         if len(feature_ids) != len(set(feature_ids)):
-            raise ValueError("A model definition cannot repeat a feature lookup")
+            raise ValueError(
+                "A model definition cannot repeat a feature lookup"
+            )
         object.__setattr__(self, "feature_lookups", lookups)
         output_columns = list(self.training_observation.context_features)
         for lookup in lookups:
@@ -347,7 +386,9 @@ class ModelDefinition:
                 for column in lookup.selected_columns
             )
         duplicate_outputs = sorted(
-            name for name in set(output_columns) if output_columns.count(name) > 1
+            name
+            for name in set(output_columns)
+            if output_columns.count(name) > 1
         )
         if duplicate_outputs:
             raise ValueError(
@@ -369,9 +410,20 @@ class ModelDefinition:
                 "New model definitions must remain EVALUATE until a separate "
                 "activation policy is approved"
             )
+        if self.research is not None:
+            from next_ads.model_development.research_contracts import (
+                ResearchPlan,
+            )
 
-    def as_dict(self) -> dict[str, object]:
-        return {
+            if not isinstance(self.research, ResearchPlan):
+                raise TypeError("research must be a ResearchPlan or None")
+
+    def as_dict(
+        self,
+        *,
+        include_research: bool = False,
+    ) -> dict[str, object]:
+        payload: dict[str, object] = {
             "model_name": self.model_name,
             "provider_id": self.provider_id,
             "problem_statement": self.problem_statement,
@@ -392,6 +444,9 @@ class ModelDefinition:
             "evaluation_scope": self.evaluation_scope,
             "activation_mode": self.activation_mode,
         }
+        if include_research and self.research is not None:
+            payload["research"] = self.research.as_dict()
+        return payload
 
     @property
     def model_feature_columns(self) -> tuple[str, ...]:
@@ -443,7 +498,9 @@ class TrainingFeatureBinding:
                 _text(getattr(self, field_name), field_name),
             )
         if self.delta_version < 0 or self.row_count < 0:
-            raise ValueError("Feature Delta version and row count cannot be negative")
+            raise ValueError(
+                "Feature Delta version and row count cannot be negative"
+            )
         _digest(self.schema_checksum, "schema_checksum")
         _digest(self.value_checksum, "value_checksum")
 
@@ -494,11 +551,21 @@ class TrainingSetReceipt:
             for binding in bindings
         ]
         if len(identities) != len(set(identities)):
-            raise ValueError("Training receipt feature bindings must be unique")
+            raise ValueError(
+                "Training receipt feature bindings must be unique"
+            )
         object.__setattr__(self, "feature_bindings", bindings)
-        for field_name in ("observation_start", "observation_end", "label_end"):
+        for field_name in (
+            "observation_start",
+            "observation_end",
+            "label_end",
+        ):
             _date(getattr(self, field_name), field_name)
-        if not self.observation_start <= self.observation_end <= self.label_end:
+        if (
+            not self.observation_start
+            <= self.observation_end
+            <= self.label_end
+        ):
             raise ValueError(
                 "Training receipt dates must be observation_start <= "
                 "observation_end <= label_end"
@@ -506,7 +573,9 @@ class TrainingSetReceipt:
         if self.leakage_status not in {"PASS", "FAIL"}:
             raise ValueError("leakage_status must be PASS or FAIL")
         if self.status not in VALID_RECEIPT_STATUSES:
-            raise ValueError(f"Unsupported training receipt status: {self.status}")
+            raise ValueError(
+                f"Unsupported training receipt status: {self.status}"
+            )
         _timestamp(self.created_at, "created_at")
         _timestamp(self.completed_at, "completed_at")
         if self.completed_at < self.created_at:
@@ -541,6 +610,11 @@ class ModelBuild:
     metrics: tuple[tuple[str, float], ...] = ()
     completed_at: datetime | None = None
     failure_reason: str | None = None
+    research_build_id: str | None = None
+    selection_decision_id: str | None = None
+    selected_candidate_id: str | None = None
+    selected_candidate_evaluation_id: str | None = None
+    registration_code_sha: str | None = None
 
     def __post_init__(self) -> None:
         """Ensure READY builds identify one exact registered artifact."""
@@ -563,7 +637,10 @@ class ModelBuild:
             raise ValueError(f"Unsupported model build status: {self.status}")
         _timestamp(self.created_at, "created_at")
         metrics = _pairs(self.metrics, "metrics")
-        if any(isinstance(value, bool) or not isinstance(value, (int, float)) for _name, value in metrics):
+        if any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for _name, value in metrics
+        ):
             raise ValueError("Model metrics must be numeric")
         object.__setattr__(
             self,
@@ -580,6 +657,18 @@ class ModelBuild:
         )
         failure = _optional_text(self.failure_reason, "failure_reason")
         object.__setattr__(self, "failure_reason", failure)
+        for field_name in (
+            "research_build_id",
+            "selection_decision_id",
+            "selected_candidate_id",
+            "selected_candidate_evaluation_id",
+            "registration_code_sha",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _optional_text(getattr(self, field_name), field_name),
+            )
         if self.status == "TRAINING":
             if any(value is not None for value in terminal_fields) or failure:
                 raise ValueError("A TRAINING model build cannot be terminal")

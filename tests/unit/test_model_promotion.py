@@ -210,7 +210,9 @@ def test_promotion_copies_and_verifies_the_exact_artifact(monkeypatch):
         MODEL_VERSION_TAG_ARTIFACT_DIGEST,
         MODEL_VERSION_TAG_BUILD_ID,
     }
-    assert all("." not in tag["key"] and "=" not in tag["key"] for tag in client.tags)
+    assert all(
+        "." not in tag["key"] and "=" not in tag["key"] for tag in client.tags
+    )
     assert client.aliases[0]["version"] == 7
 
 
@@ -242,9 +244,7 @@ class RecoveryClient(Client):
         }
         if self.mismatch:
             params["training_receipt_id"] = "different"
-        metrics = {
-            name: 0.1 for name in promotion.MODEL_EVALUATION_METRICS
-        }
+        metrics = {name: 0.1 for name in promotion.MODEL_EVALUATION_METRICS}
         return SimpleNamespace(
             info=SimpleNamespace(
                 run_id=run_id,
@@ -443,6 +443,31 @@ def test_ready_build_validation_rejects_a_changed_digest_tag(monkeypatch):
 
     with pytest.raises(ValueError, match="different digest tag"):
         promotion.validate_registered_model_build(client, _build())
+
+
+def test_ready_build_validation_checks_registration_code_provenance(
+    monkeypatch,
+):
+    client = Client()
+    client.get_model_version = lambda _name, version: SimpleNamespace(
+        version=version,
+        run_id="run-1",
+        tags={
+            "nextads.model_build_id": "build-1",
+            "nextads.artifact_digest": "b" * 64,
+            "nextads_registration_code_sha": "different-sha",
+        },
+    )
+    _record_uri_digests(monkeypatch)
+    build = ModelBuild(
+        **{
+            **_build().__dict__,
+            "registration_code_sha": "registration-sha",
+        }
+    )
+
+    with pytest.raises(ValueError, match="registration code provenance"):
+        promotion.validate_registered_model_build(client, build)
 
 
 def test_exact_registered_version_copy_is_digest_checked_and_idempotent(

@@ -28,45 +28,20 @@ DEFAULT_JOB_DEFINITION_PATH = (
 )
 JOB_CONFIG_KEY = "nextads_feature_store_config"
 JOB_RESOURCE_KEY = "mktg_next_uk_nextads_feature_store"
-MANUAL_BUILDER_JOB_DEFINITIONS = (
-    (
-        PROJECT_ROOT
-        / "pipelines"
-        / "databricks"
-        / "jobs"
-        / "mktg_next_uk_nextads_shopping_bag_label_publication.yml",
-        "mktg_next_uk_nextads_shopping_bag_label_publication",
-    ),
-    (
-        PROJECT_ROOT
-        / "pipelines"
-        / "databricks"
-        / "jobs"
-        / "mktg_next_uk_nextads_shopping_bag_feature_preparation.yml",
-        "mktg_next_uk_nextads_shopping_bag_feature_preparation",
-    ),
-)
+ON_DEMAND_BUILDER_ROOT = PROJECT_ROOT / "jobs" / "features" / "nextads"
 
 
 def _job_tasks(
     raw_job: dict[str, Any],
     job_path: Path,
-    *,
-    config_key: str | None = None,
-    resource_key: str,
-    target: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return one repository-declared job's tasks from a bundle fragment."""
     try:
-        if config_key is not None:
-            return raw_job[config_key][resource_key]["tasks"]
-        return raw_job["targets"][str(target)]["resources"]["jobs"][
-            resource_key
-        ]["tasks"]
+        return raw_job[JOB_CONFIG_KEY][JOB_RESOURCE_KEY]["tasks"]
     except (KeyError, TypeError) as exc:
         raise ValueError(
             f"Offline feature-store job definition is missing the task graph "
-            f"for {resource_key}: {job_path}"
+            f"for {JOB_RESOURCE_KEY}: {job_path}"
         ) from exc
 
 
@@ -76,59 +51,40 @@ def _load_builder_tasks(
     """Load the repository task graph without invoking Databricks APIs."""
     job_path = Path(job_definition_path)
     raw_job = yaml.safe_load(job_path.read_text())
-    task_sources = [
-        (
-            job_path,
-            JOB_RESOURCE_KEY,
-            "SHARED",
-            _job_tasks(
-                raw_job,
-                job_path,
-                config_key=JOB_CONFIG_KEY,
-                resource_key=JOB_RESOURCE_KEY,
-            ),
-        )
-    ]
-    for manual_path, resource_key in MANUAL_BUILDER_JOB_DEFINITIONS:
-        manual_raw_job = yaml.safe_load(manual_path.read_text())
-        task_sources.append(
-            (
-                manual_path,
-                resource_key,
-                "MANUAL_DEV_PROOF",
-                _job_tasks(
-                    manual_raw_job,
-                    manual_path,
-                    resource_key=resource_key,
-                    target="DEV",
-                ),
-            )
-        )
-
     builder_tasks: dict[str, dict[str, Any]] = {}
-    for source_path, resource_key, execution_scope, tasks in task_sources:
-        for task in tasks:
-            task_key = str(task["task_key"])
-            if task_key in builder_tasks:
-                raise ValueError(
-                    f"Duplicate offline feature-store task key: {task_key}"
-                )
-            task_dependencies = tuple(
-                str(dependency["task_key"])
-                for dependency in task.get("depends_on", ())
+    for task in _job_tasks(raw_job, job_path):
+        task_key = str(task["task_key"])
+        if task_key in builder_tasks:
+            raise ValueError(
+                f"Duplicate offline feature-store task key: {task_key}"
             )
-            python_file = task.get("spark_python_task", {}).get("python_file")
-            entrypoint = (
-                (source_path.parent / str(python_file)).resolve()
-                if python_file
-                else None
-            )
-            builder_tasks[task_key] = {
-                "task_dependencies": task_dependencies,
-                "entrypoint": entrypoint,
-                "job_resource": resource_key,
-                "execution_scope": execution_scope,
-            }
+        task_dependencies = tuple(
+            str(dependency["task_key"])
+            for dependency in task.get("depends_on", ())
+        )
+        python_file = task.get("spark_python_task", {}).get("python_file")
+        entrypoint = (
+            (job_path.parent / str(python_file)).resolve()
+            if python_file
+            else None
+        )
+        builder_tasks[task_key] = {
+            "task_dependencies": task_dependencies,
+            "entrypoint": entrypoint,
+            "job_resource": JOB_RESOURCE_KEY,
+            "execution_scope": "SHARED",
+        }
+
+    for builder_path in sorted(ON_DEMAND_BUILDER_ROOT.glob("build_*.py")):
+        task_key = builder_path.stem
+        if task_key in builder_tasks:
+            continue
+        builder_tasks[task_key] = {
+            "task_dependencies": (),
+            "entrypoint": builder_path.resolve(),
+            "job_resource": None,
+            "execution_scope": "ON_DEMAND_ENTRYPOINT",
+        }
 
     known_tasks = set(builder_tasks)
     for task_key, task in builder_tasks.items():
@@ -304,6 +260,7 @@ def build_offline_feature_store_plan(
                     "grain": feature.grain,
                     "primary_keys": list(feature.primary_keys),
                     "timestamp_key": feature.timestamp_key,
+                    "snapshot_date_key": feature.snapshot_date_key,
                     "write_mode": feature.write_mode,
                     "freshness": feature.freshness,
                     "owner": feature.owner,

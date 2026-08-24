@@ -24,6 +24,10 @@ https://learn.microsoft.com/en-us/azure/devops/repos/git/pull-request-templates
 Azure Repos applies branch-specific templates based on the first level of the
 target branch name.
 
+The selected template already identifies the destination route. Do not repeat
+the target branch or branch-route checklist inside the PR description; use the
+space for the change goal, evidence, impact and reviewer guidance.
+
 | Target branch | Template used | Purpose |
 | --- | --- | --- |
 | `develop` | `.azuredevops/pull_request_template/branches/develop.md` | Normal feature, fix and documentation work |
@@ -82,6 +86,8 @@ It prompts for:
 - Keep templates short enough that contributors will actually complete them.
 - Keep branch-specific templates aligned with
   `docs/CICD/nextads_branch_release_route.md`.
+- Do not add a target-branch section to a template. Azure Repos selects the
+  template from the target, and the release-route guide owns route rules.
 - Update the templates when the release route changes, not separately from it.
 - Do not duplicate long process documentation inside the template. Link to the
   relevant docs instead.

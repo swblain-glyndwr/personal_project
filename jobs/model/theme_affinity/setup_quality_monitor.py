@@ -29,6 +29,7 @@ from dsutils.dbc import configure_spark
 from dsutils.logtools import configure_logging, get_logger
 
 from next_ads.common import config_manager
+from next_ads.common.output_locations import log_output_location
 from next_ads.ml.lifecycle.databricks_monitoring import (
     InferenceLogQualityMonitorSpec,
     TimeSeriesQualityMonitorSpec,
@@ -54,6 +55,34 @@ def _split_csv(value: str | None) -> tuple[str, ...]:
 def _optional_arg(value: str | None) -> str | None:
     value = str(value or "").strip()
     return value or None
+
+
+def _monitor_table(monitor, field_name: str) -> str | None:
+    if isinstance(monitor, dict):
+        value = monitor.get(field_name)
+    else:
+        value = getattr(monitor, field_name, None)
+    value = str(value or "").strip()
+    return value or None
+
+
+def _log_monitor_outputs(monitor, *, source_table: str, **details) -> None:
+    log_output_location(
+        source_table,
+        kind="quality_monitor",
+        details=details,
+    )
+    for field_name, output_role in (
+        ("profile_metrics_table_name", "profile_metrics"),
+        ("drift_metrics_table_name", "drift_metrics"),
+    ):
+        destination = _monitor_table(monitor, field_name)
+        if destination:
+            log_output_location(
+                destination,
+                kind="delta_table",
+                details={"output_role": output_role, **details},
+            )
 
 
 jobparser = get_job_parser()
@@ -101,8 +130,15 @@ if ACTION == "delete":
     )
 elif ACTION == "refresh":
     logger.info("Starting quality monitor refresh for %s", table_name)
+    monitor = workspace_client.quality_monitors.get(table_name)
     refresh = refresh_quality_monitor(workspace_client, table_name)
     logger.info("Quality monitor refresh started: %s", refresh)
+    _log_monitor_outputs(
+        monitor,
+        source_table=table_name,
+        operation="refresh",
+        refresh_id=getattr(refresh, "refresh_id", None),
+    )
 elif ACTION != "setup":
     raise ValueError("action must be one of setup, refresh or delete")
 
@@ -151,3 +187,10 @@ if ACTION == "setup":
         raise ValueError("monitor_type must be time_series or inference_log")
 
     logger.info("Quality monitor ready for %s: %s", table_name, monitor)
+    _log_monitor_outputs(
+        monitor,
+        source_table=table_name,
+        assets_dir=assets_dir,
+        operation="setup",
+        output_schema=output_schema_name,
+    )

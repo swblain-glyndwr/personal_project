@@ -39,6 +39,7 @@ from jobs.orchestration.publish_scoring_foundation import (
 )
 from next_ads.common import config_manager
 from next_ads.common.delta_writes import find_delta_write_receipt
+from next_ads.common.output_locations import log_output_location
 from next_ads.common.spark_runtime import configure_lean_spark
 from next_ads.ranking.provider_publication import (
     publish_provider_build,
@@ -155,6 +156,16 @@ def main(
                 "Reusing provider signals receipt %s at Delta version %s",
                 receipt.receipt_id,
                 receipt.delta_version,
+            )
+            log_output_location(
+                config.tables_write.score_provider_signals,
+                kind="delta_table",
+                details={
+                    "delta_version": receipt.delta_version,
+                    "receipt_id": receipt.receipt_id,
+                    "row_count": receipt.row_count,
+                    "reused": True,
+                },
             )
         provider = config.scoring.providers[context.provider_id]
         publish_provider_build(

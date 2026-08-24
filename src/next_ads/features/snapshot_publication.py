@@ -306,7 +306,7 @@ def write_and_publish_feature_group(
                 reference_date=reference_date,
                 reference_date_column=options.pop(
                     "reference_date_column",
-                    feature.timestamp_key or "reference_date",
+                    feature.snapshot_date_key or "reference_date",
                 ),
                 replace_reference_date=options.pop(
                     "replace_reference_date", replace_reference_date

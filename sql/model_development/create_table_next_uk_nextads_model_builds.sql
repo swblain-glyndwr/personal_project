@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS {catalog}.{schema}.next_uk_nextads_model_builds (
   metrics_json STRING NOT NULL,
   completed_at TIMESTAMP,
   failure_reason STRING,
+  research_build_id STRING,
+  selection_decision_id STRING,
+  selected_candidate_id STRING,
+  selected_candidate_evaluation_id STRING,
+  registration_code_sha STRING,
   CONSTRAINT pk_nextads_model_builds PRIMARY KEY (model_build_id)
 )
 USING delta

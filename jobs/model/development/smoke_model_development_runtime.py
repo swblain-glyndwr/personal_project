@@ -41,6 +41,7 @@ sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from dsutils.dbc import configure_spark
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.features.embedding_runtime import (
     installed_package_versions,
     resolve_runtime_version,
@@ -110,7 +111,7 @@ def prove_future_binding_rejection() -> str:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_job_logging("INFO")
     spark = configure_spark()
     runtime_version = resolve_runtime_version(spark)
     package_versions = installed_package_versions(EXPECTED_PACKAGES)

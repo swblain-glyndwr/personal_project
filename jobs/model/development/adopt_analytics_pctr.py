@@ -43,6 +43,7 @@ sys.path.insert(1, str(PROJECT_ROOT))
 
 
 from dsutils.dbc import configure_spark
+from next_ads.common.job_logging import configure_job_logging
 from next_ads.features.feature_builds import feature_value_checksum
 from next_ads.model_development import (
     AccountAdvertCandidateAdapter,
@@ -105,7 +106,7 @@ def _provider_build_id(receipt_id: str) -> str:
 
 def main() -> None:
     args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper()))
+    configure_job_logging(args.log_level)
     spark = configure_spark()
     run_date = date.fromisoformat(args.run_date)
     components = _components(args)

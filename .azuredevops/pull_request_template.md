@@ -4,14 +4,6 @@
 - What is the goal of the change?
 - Linked work item:
 
-### Target Branch
-
-- Target branch:
-- Confirm this follows the route in `docs/CICD/nextads_branch_release_route.md`:
-  - `feature/* -> develop`
-  - `release/* -> main`
-  - `hotfix/* -> main` and back to `develop`
-
 ### File Changes
 
 - `file1.py`: High-level description of changes.

@@ -1,5 +1,7 @@
 from dsutils.logtools import get_logger
 
+from next_ads.common.output_locations import log_output_location
+
 logger = get_logger(__name__)
 
 
@@ -138,6 +140,7 @@ def build_product_catid_df(spark, cfg, reference_date: str, output_table: str):
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated")
+    log_output_location(output_table, kind="delta_table")
 
     return
 
@@ -263,6 +266,7 @@ def build_advert_items_df(
         "overwriteSchema", "true"
     ).saveAsTable(output_table)
     logger.info(f"Data in {output_table} updated ")
+    log_output_location(output_table, kind="delta_table")
 
     return
 
@@ -369,6 +373,7 @@ def determine_ad_profile_similiarity(
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated ")
+    log_output_location(output_table, kind="delta_table")
 
     return
 
@@ -929,5 +934,6 @@ def build_advert_affinity(
     ).saveAsTable(output_table)
 
     logger.info(f"Data in {output_table} updated")
+    log_output_location(output_table, kind="delta_table")
 
     return

@@ -243,7 +243,7 @@ def test_main_job_waits_for_native_page_build_results():
     assert data_pull_task["run_job_task"]["job_parameters"] == {
         "run_date": "{{job.parameters.run_date}}",
     }
-    assert tasks_by_key["load_control_sheet_v2"].get("depends_on") is None
+    assert "depends_on" not in tasks_by_key["load_control_sheet_v2"]
     assert data_pull_task["depends_on"] == [
         {"task_key": "load_control_sheet_v2"},
     ]
@@ -420,9 +420,9 @@ def test_markov_scoring_has_an_independent_scheduled_resource():
     assert compatibility["timeout_seconds"] == 5400
 
 
-def test_theme_affinity_foundation_and_provider_stages_are_explicit():
+def test_declared_model_scoring_stages_and_compatibility_are_explicit():
     job = _load_job(
-        "pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml",
+        "pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml",
         "mktg_next_uk_nextads_theme_affinity_cicd",
     )
     tasks = {task["task_key"]: task for task in job["tasks"]}
@@ -433,9 +433,16 @@ def test_theme_affinity_foundation_and_provider_stages_are_explicit():
         {"task_key": "prepare_foundation_context"}
     ]
     assert list(tasks) == [
+        "validate_model_scoring_request",
+        "prepare_scoring_inputs",
+        "use_theme_affinity_scoring",
         "prepare_foundation_context",
         "predict_data_prep",
         "publish_and_score",
+        "publish_provider_compatibility",
+        "publish_feature_compatibility",
+        "sense_check_foundation",
+        "sense_check_model_outputs",
     ]
     assert tasks["publish_and_score"]["depends_on"] == [
         {"task_key": "predict_data_prep"}
@@ -447,7 +454,12 @@ def test_theme_affinity_foundation_and_provider_stages_are_explicit():
     assert publisher["job_cluster_key"] == (
         "next_ads_job_cluster_D32ads_v5_1_4"
     )
-    assert "publish_compatibility_outputs" not in tasks
+    assert tasks["publish_provider_compatibility"]["depends_on"] == [
+        {"task_key": "publish_and_score"}
+    ]
+    assert tasks["publish_feature_compatibility"]["depends_on"] == [
+        {"task_key": "publish_and_score"}
+    ]
 
 
 @pytest.mark.parametrize(
@@ -455,7 +467,7 @@ def test_theme_affinity_foundation_and_provider_stages_are_explicit():
     [
         (
             "pipelines/databricks/jobs/"
-            "mktg_next_uk_nextads_theme_affinity.yml",
+            "mktg_next_uk_nextads_model_scoring.yml",
             "mktg_next_uk_nextads_theme_affinity_cicd",
         ),
         (

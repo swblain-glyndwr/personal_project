@@ -486,6 +486,8 @@ def configure_logging(log_level: str) -> None:
         level=getattr(logging, log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(message)s",
     )
+    logging.getLogger("py4j").setLevel(logging.WARNING)
+    logging.getLogger("py4j.clientserver").setLevel(logging.WARNING)
 
 
 def main() -> None:

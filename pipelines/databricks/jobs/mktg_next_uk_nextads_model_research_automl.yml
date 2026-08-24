@@ -1,0 +1,67 @@
+# Optional bounded DEV-only model discovery. It never registers or activates a model.
+model_research_automl_job: &model_research_automl_job
+  name: mktg_next_uk_nextads_model_discovery
+  queue:
+    enabled: true
+  parameters:
+    - name: enabled
+      default: "false"
+    - name: model_name
+      default: REQUIRED
+    - name: research_build_id
+      default: REQUIRED
+    - name: timeout_minutes
+      default: "30"
+  job_clusters: ${var.model_research_automl_job_clusters_config}
+  tags:
+    deployed_at: ${var.deploy_timestamp}
+    git_commit: ${var.git_commit_sha}
+    git_branch: ${var.git_branch}
+    deployed_by: ${var.deployed_by}
+    department: marketing
+    project: nextads
+    domain: model_discovery
+    activation_mode: EVALUATE
+  max_concurrent_runs: 1
+  timeout_seconds: 9000
+  tasks:
+    - task_key: run_bounded_automl_discovery
+      spark_python_task:
+        python_file: ../../../jobs/model/research/run_automl_discovery.py
+        parameters:
+          - --enabled
+          - "{{job.parameters.enabled}}"
+          - --model_name
+          - "{{job.parameters.model_name}}"
+          - --research_build_id
+          - "{{job.parameters.research_build_id}}"
+          - --model_catalog
+          - ${var.mktgdata_catalog}
+          - --model_schema
+          - ${var.user_schema}
+          - --timeout_minutes
+          - "{{job.parameters.timeout_minutes}}"
+          - --experiment_path
+          - ${workspace.root_path}/{{job.parameters.model_name}}_automl
+          - --code_sha
+          - ${var.git_commit_sha}
+          - --orchestration_run_id
+          - "{{job.run_id}}"
+          - --task_run_id
+          - "{{task.run_id}}"
+          - --execution_count
+          - "{{task.execution_count}}"
+          - --log_level
+          - INFO
+      job_cluster_key: next_ads_job_cluster_model_research_automl_D32ads_v5_4
+      timeout_seconds: 9000
+
+model_research_automl_config: &model_research_automl_config
+  mktg_next_uk_nextads_model_research_automl:
+    <<: *model_research_automl_job
+
+targets:
+  DEV:
+    resources:
+      jobs:
+        <<: *model_research_automl_config

@@ -1,15 +1,9 @@
-mktg_next_uk_nextads_theme_inputs_config: &mktg_next_uk_nextads_theme_inputs_config
-  mktg_next_uk_nextads_theme_inputs_cicd:
-    name: mktg_next_uk_nextads_theme_inputs
+mktg_next_uk_nextads_scoring_inputs_config: &mktg_next_uk_nextads_scoring_inputs_config
+  mktg_next_uk_nextads_scoring_inputs_cicd:
+    name: mktg_next_uk_nextads_scoring_inputs
     queue:
       enabled: true
     max_concurrent_runs: 1
-    schedule:
-      quartz_cron_expression: 0 15 12 * * ?
-      timezone_id: Europe/London
-    parameters:
-      - name: run_date
-        default: "{{job.start_time.iso_date}}"
     job_clusters: ${var.job_clusters_config}
     tags:
       deployed_at: ${var.deploy_timestamp}
@@ -18,13 +12,16 @@ mktg_next_uk_nextads_theme_inputs_config: &mktg_next_uk_nextads_theme_inputs_con
       deployed_by: ${var.deployed_by}
       department: marketing
       project: nextads
-      purpose: scoring_inputs
+      domain: scoring_inputs
     email_notifications:
       on_failure: ${var.data_team_notification_emails}
     notification_settings:
       no_alert_for_skipped_runs: true
       no_alert_for_canceled_runs: true
     timeout_seconds: 7200
+    parameters:
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
     tasks:
       - task_key: land_authoritative_theme_mapping
         spark_python_task:
@@ -128,20 +125,20 @@ targets:
   SANDBOX:
     resources:
       jobs:
-        <<: *mktg_next_uk_nextads_theme_inputs_config
+        <<: *mktg_next_uk_nextads_scoring_inputs_config
   DEV:
     resources:
       jobs:
-        <<: *mktg_next_uk_nextads_theme_inputs_config
+        <<: *mktg_next_uk_nextads_scoring_inputs_config
   DEV_INTEGRATION:
     resources:
       jobs:
-        <<: *mktg_next_uk_nextads_theme_inputs_config
+        <<: *mktg_next_uk_nextads_scoring_inputs_config
   PREPROD:
     resources:
       jobs:
-        <<: *mktg_next_uk_nextads_theme_inputs_config
+        <<: *mktg_next_uk_nextads_scoring_inputs_config
   PROD:
     resources:
       jobs:
-        <<: *mktg_next_uk_nextads_theme_inputs_config
+        <<: *mktg_next_uk_nextads_scoring_inputs_config

@@ -60,19 +60,10 @@ def test_prediction_proof_records_the_exact_output_needed_for_adoption():
     source = (
         PROJECT_ROOT / "experiments/analytics_pctr/run_predictions.py"
     ).read_text()
-    job_source = (
-        PROJECT_ROOT
-        / "pipelines/databricks/jobs"
-        / "mktg_next_uk_nextads_analytics_pctr_prediction_verification.yml"
-    ).read_text()
 
     assert "ANALYTICS_PCTR_PREDICTION_RECEIPT=" in source
     assert "DESCRIBE HISTORY {TARGET_TABLE_LATEST} LIMIT 1" in source
     assert 'spark.conf.get("spark.databricks.job.runId")' in source
-    assert "activation_mode: EVALUATE" in job_source
-    assert "schedule:" not in job_source
-    assert "mktg_next_uk_nextads.yml" not in job_source
-    assert "PROD:" not in job_source
 
 
 def test_prediction_route_handles_empty_impression_history():

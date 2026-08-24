@@ -86,6 +86,12 @@ def test_shopping_bag_pctr_uses_feature_store_labels_and_reusable_features():
     assert definition.training_observation.observation_timestamp == (
         "exposure_timestamp"
     )
+    assert definition.training_observation.observation_date_column == (
+        "session_date"
+    )
+    assert {
+        lookup.observation_timestamp for lookup in definition.feature_lookups
+    } == {"exposure_timestamp"}
     assert definition.training_observation.label_maturity_column == (
         "label_maturity_date"
     )

@@ -12,6 +12,7 @@ from next_ads.common.delta_writes import (
     replace_scope_by_name,
     replace_table_by_name,
 )
+from next_ads.common.output_locations import log_output_location
 from next_ads.features.feature_store_registry import (
     FeatureStoreRegistry,
     load_feature_store_registry,
@@ -250,6 +251,11 @@ def write_feature_table(
             client.write_table(name=table_path, df=aligned_df, mode="merge")
         finally:
             _restore_feature_commit_metadata(spark, previous_metadata)
+        log_output_location(
+            table_path,
+            kind="feature_table",
+            details={"mode": "merge"},
+        )
         return table_path
     result = FeatureMaterializationResult(table_path, receipt)
     return result if return_receipt else result.table_path

@@ -2,51 +2,52 @@
 
 Status: Working runbook
 
-This is the current DS-facing path for testing the Next Ads model lifecycle process. Theme Affinity is the worked example because it is the first model wired into the new lifecycle jobs; use it as a guideline for new models rather than as a signal that this process belongs only to Theme Affinity. The concrete job names, model names and table names below are Theme Affinity-specific and should be replaced by the equivalent model-specific resources as new models adopt the lifecycle.
+This is the current DS-facing path for testing the Next Ads model lifecycle process. New DEV model work is declared in `configs/models/nextads_models.yaml` and run through the centrally owned `mktg_next_uk_nextads_model_development` job. Theme Affinity remains the worked operational example later in this runbook, but its existing training, movement and monitoring resources are transitional controls rather than a template for creating more model-specific saved jobs.
 
 This runbook documents the jobs as they operate today. Do not run PREPROD or PROD model movement without release-owner agreement.
 
-For the visual model movement path, see
-[architecture/mlflow_model_lifecycle.md](architecture/mlflow_model_lifecycle.md).
+For the visual model movement path, see [architecture/mlflow_model_lifecycle.md](architecture/mlflow_model_lifecycle.md).
+
+For the complete data-scientist workflow—including every model/research declaration field, every lifecycle and AutoML run option, evidence interpretation, retries, outputs, limitations and the end-to-end Shopping Bag proof—use [Model research: data scientist guide](model_research_walkthrough.md). This runbook owns environment movement; the guide owns DEV research and isolated evaluation.
+
+The operation names below are technical API values. `BUILD` trains the model declared for a fixed set of dates. `RESEARCH` compares several model options on the same fixed data. Those options are called `candidate` in parameters and stored records. `REVIEW_SELECT` records the human choice and tests only the selected option. `EVALUATE` applies an exact registered DEV model version to an isolated comparison output; it does not activate that version in live scoring.
 
 ## Reference Files
 
 - Shared lifecycle contract: [`src/next_ads/ml/lifecycle/spec.py`](../src/next_ads/ml/lifecycle/spec.py)
 - Shared registry and promotion helpers: [`src/next_ads/ml/lifecycle/registry.py`](../src/next_ads/ml/lifecycle/registry.py)
-- Generic promotion job: [`jobs/model/lifecycle/promote_model.py`](../jobs/model/lifecycle/promote_model.py)
+- Shared model-copy job: [`jobs/model/lifecycle/promote_model.py`](../jobs/model/lifecycle/promote_model.py)
 - Theme Affinity config-to-lifecycle mapping example: [`src/next_ads/ranking/theme_affinity/lifecycle_spec.py`](../src/next_ads/ranking/theme_affinity/lifecycle_spec.py)
 - Theme Affinity Spark training example: [`src/next_ads/ranking/theme_affinity/mlflow_lifecycle.py`](../src/next_ads/ranking/theme_affinity/mlflow_lifecycle.py)
 - Theme Affinity GPU training example: [`src/next_ads/ranking/theme_affinity/gpu_xgboost_lifecycle.py`](../src/next_ads/ranking/theme_affinity/gpu_xgboost_lifecycle.py)
-- Model lifecycle job resources: [`pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml)
-- Theme Affinity training examples: [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml)
+- Shared DEV model lifecycle resource: [`pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml)
+- Existing Theme Affinity transition resources: [`pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_model_import_dev_integration.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_import_dev.yml), [`pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml`](../pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_promote.yml)
 
 ## Principles
 
-- Train the reviewed challenger once in DEV unless there is a specific reason to recreate evidence. Use lifecycle movement jobs to copy exact reviewed model versions into controlled namespaces.
+- Train the reviewed comparison model once in DEV unless there is a specific reason to recreate evidence. Use lifecycle movement jobs to copy exact reviewed model versions into controlled namespaces.
 - Promote exact Unity Catalog model versions between environments. Do not retrain in PREPROD or PROD to recreate a reviewed model.
 - Prefer explicit `source_model_version` parameters for import and promotion evidence. `source_alias` is supported when it already resolves to the reviewed version, but it is less explicit in release notes.
-- Keep the current production prediction URI unchanged until the challenger version has been reviewed and deliberately selected. For Theme Affinity, that means leaving the existing production model URI alone while the lifecycle process is being proven.
+- Keep the current production prediction URI unchanged until the comparison model version has been reviewed and deliberately selected. For Theme Affinity, that means leaving the existing production model URI alone while the lifecycle process is being proven.
 - Do not run PREPROD or PROD jobs from a feature branch. Use the normal release route.
 
 ## 1. Personal DEV Proof
 
-Use this step to prove the branch, data contract and model evidence before the change is merged. The Theme Affinity job names below are the current lifecycle test path. Future models should follow the same shape by adding a model-specific training job and a small config-mapping function that turns that model's config into the shared `ModelLifecycleSpec`.
+Use this step to prove the branch, data contract and model evidence before the change is merged. Add the model declaration and reusable plug-ins, then use the shared lifecycle job; do not add a model-specific job resource.
 
 1. Deploy or use the `DEV` target for the feature branch.
-2. Confirm the training input is a labelled training table, not an unlabelled scoring snapshot. The job parameter is `input_table`; the bundle default is `${var.theme_affinity_training_input_table}`.
-3. Run one challenger training job:
-   - `mktg_next_uk_nextads_theme_affinity_model_train_spark` for the preferred Spark XGBoost route.
-   - `mktg_next_uk_nextads_theme_affinity_model_train` only when the GPU/local XGBoost route is the modelling choice.
-4. In MLflow, review the experiment `/Shared/mlflow/nextads/dev/experiments/theme_affinity_ranker`.
-5. Record the Databricks run id, MLflow run id, registered model name, model version, alias and evidence summary.
+2. Confirm `configs/models/nextads_models.yaml` declares the labelled observation source, point-in-time feature lookups, split policy, trainer and evidence contract.
+3. Run `mktg_next_uk_nextads_model_development` with the declared `model_name` and `operation=BUILD`, or use `operation=RESEARCH` followed by `operation=REVIEW_SELECT` when several model options must be compared and reviewed by a person.
+4. In MLflow, review the model's derived personal-DEV experiment path and the immutable training or research receipts.
+5. Record the Databricks run id, MLflow run id, registered model name, exact model version and evidence summary. The shared DEV job does not set or move an alias.
 
 Minimum evidence to check for any model using this lifecycle:
 
 - training frame row count is within configured limits;
 - positive and negative labels exist in train, validation and test splits;
-- ranking metrics are non-zero and make sense for the challenger objective;
+- ranking metrics are non-zero and make sense for the comparison objective;
 - `sample_profile.json` and training evidence plots are present;
-- the registered model alias matches the backend, such as `dev_spark_xgboost` or `dev_gpu_xgboost`.
+- the registered model version and artifact URI match the fixed training-result or reviewed-selection receipt, with existing aliases unchanged.
 
 If the job fails because the training frame has no positive labels, the input table is probably an unlabelled scoring table. Stop and fix the input before trying to train again. The exact label-quality checks may differ for future models, but each model must have equivalent evidence that its training data is valid.
 
@@ -55,7 +56,7 @@ If the job fails because the training frame has no positive labels, the input ta
 Open the feature PR into `develop`. The PR should include:
 
 - the DEV run id and MLflow run id;
-- the registered model version and alias created in DEV;
+- the registered model version created in DEV and the before/after alias state;
 - the training input table used;
 - the key ranking metrics and artifact checks;
 - whether the Spark or GPU backend is proposed for integration.
@@ -105,7 +106,7 @@ After the import job completes, record the PREPROD model version created under: 
 
 Use the normal PREPROD release validation route to prove that the imported model works in the workflow that will consume it. This is wider than just copying the model or loading it in isolation: run the model's PREPROD batch job, serving path, notebook workflow or equivalent operational route, then review that route's output and sense checks.
 
-For the Theme Affinity reference path, this means running the PREPROD `mktg_next_uk_nextads_theme_affinity` job with the `model_uri` job parameter set to the imported PREPROD model version or alias. The job parameter defaults from `theme_affinity_model_uri` and is passed to the Theme Affinity prediction task as `--model_uri`, so the validation run loads the reviewed imported model rather than the default/current model. Example URI:
+For the Theme Affinity reference path, this means running the PREPROD `mktg_next_uk_nextads_model_scoring` job with `model_name=theme_affinity` and the `model_uri` job parameter set to the imported PREPROD model version or alias. The job parameter defaults from `theme_affinity_model_uri` and is passed to the Theme Affinity scoring implementation as `--model_uri`, so the validation run loads the reviewed imported model rather than the default/current model. Example URI:
 
 ```text
 models:/marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker/<version>
@@ -117,7 +118,7 @@ or:
 models:/marketingdata_prod.ds_sandbox.nextads_theme_affinity_ranker@preprod_spark_xgboost
 ```
 
-Review the full Theme Affinity run evidence: DLT/data-prep status, prediction task status, clean-output task status, model sense checks and output-table movement. For future models, use the same principle with that model's own consuming workflow and equivalent operational checks. Keep the PREPROD run ids, model URI, output tables and review outcome in the release evidence.
+Review the full shared scoring run evidence: request validation, the same-date `mktg_next_uk_nextads_scoring_inputs` child run and accepted snapshot, Lakeflow/data-prep status, accepted score-source publication, both compatibility branches, both sense checks and output-table movement. Candidate Build is a separate downstream job and is not part of this model-scoring proof. For future supported models, use the same shared job with that model's declared implementation and equivalent operational checks. Keep the PREPROD run ids, model name, model URI, output tables and review outcome in the release evidence.
 
 ## 6. Promote PREPROD Version To PROD
 
@@ -139,12 +140,12 @@ After the promotion job completes, record the PROD model version created under: 
 
 ## 7. Production Selection And Monitoring
 
-Promotion registers the model and sets the `prod` alias. It does not by itself prove the production scoring output has changed. In the Theme Affinity reference path, confirm the deployed `theme_affinity_model_uri` used by `mktg_next_uk_nextads_theme_affinity` points to the intended production model URI before treating the challenger as live. Future models need the equivalent serving or scoring URI check.
+Promotion registers the model and sets the `prod` alias. It does not by itself prove the production scoring output has changed. In the Theme Affinity reference path, confirm the deployed `theme_affinity_model_uri` used by `mktg_next_uk_nextads_model_scoring` with `model_name=theme_affinity` points to the intended production model URI before treating the comparison model as live. Future models need the equivalent shared scoring declaration and deployed model-reference check.
 
 After production output exists for the model under review:
 
 1. Run `mktg_next_uk_nextads_theme_affinity_quality_monitor_setup` only if the native Databricks quality monitor needs creating or updating.
-2. Run `mktg_next_uk_nextads_theme_affinity_model_monitor` to log MLflow drift evidence for the configured baseline and candidate tables.
+2. Run `mktg_next_uk_nextads_theme_affinity_model_monitor` to log MLflow drift evidence for the configured baseline and comparison tables (`baseline_table` and `candidate_table` in the job settings).
 3. Review drift status, retrain recommendation and promotion-blocking tags in the MLflow monitor run.
 4. Keep monitor run ids and Databricks quality monitor evidence in the release notes.
 

@@ -1,0 +1,290 @@
+# Keep the existing resource key while the live job is renamed so Databricks
+# preserves the job ID and run history across this consolidation.
+mktg_next_uk_nextads_model_scoring_config: &mktg_next_uk_nextads_model_scoring_config
+  mktg_next_uk_nextads_theme_affinity_cicd:
+    name: mktg_next_uk_nextads_model_scoring
+    queue:
+      enabled: true
+    max_concurrent_runs: 1
+    job_clusters: ${var.job_clusters_config}
+    tags:
+      deployed_at: ${var.deploy_timestamp}
+      git_commit: ${var.git_commit_sha}
+      git_branch: ${var.git_branch}
+      deployed_by: ${var.deployed_by}
+      department: marketing
+      project: nextads
+      domain: model_scoring
+    email_notifications:
+      on_failure: ${var.data_team_notification_emails}
+    notification_settings:
+      no_alert_for_skipped_runs: true
+      no_alert_for_canceled_runs: true
+    schedule:
+      quartz_cron_expression: 0 15 12 * * ?
+      timezone_id: Europe/London
+    timeout_seconds: 72000
+    parameters:
+      - name: model_name
+        default: theme_affinity
+      - name: run_date
+        default: "{{job.start_time.iso_date}}"
+      - name: input_snapshot_id
+        default: same_day
+      - name: publish_source_namespace
+        default: ${var.mktgdata_catalog}.${var.theme_affinity_pipeline_schema}
+      - name: publish_target_namespace
+        default: ${var.mktgdata_catalog}.${var.user_schema}
+      - name: publish_source_table_prefix
+        default: ${var.theme_affinity_pipeline_table_prefix}
+      - name: publish_target_table_prefix
+        default: next_uk_nextads_account_theme_foundation
+      - name: table_suffixes
+        default: ${var.theme_affinity_publish_table_suffixes}
+      - name: model_uri
+        default: ${var.theme_affinity_model_uri}
+    tasks:
+      - task_key: validate_model_scoring_request
+        spark_python_task:
+          python_file: ../../../jobs/orchestration/validate_model_scoring_request.py
+          parameters:
+            - --model_name
+            - "{{job.parameters.model_name}}"
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.theme_affinity_libraries}
+        timeout_seconds: 900
+      - task_key: prepare_scoring_inputs
+        depends_on:
+          - task_key: validate_model_scoring_request
+        run_job_task:
+          job_id: ${resources.jobs.mktg_next_uk_nextads_scoring_inputs_cicd.id}
+          job_parameters:
+            run_date: "{{job.parameters.run_date}}"
+        timeout_seconds: 7200
+      - task_key: use_theme_affinity_scoring
+        depends_on:
+          - task_key: validate_model_scoring_request
+        condition_task:
+          op: EQUAL_TO
+          left: "{{tasks.validate_model_scoring_request.values.implementation}}"
+          right: theme_affinity
+      - task_key: prepare_foundation_context
+        depends_on:
+          - task_key: prepare_scoring_inputs
+          - task_key: use_theme_affinity_scoring
+            outcome: "true"
+        spark_python_task:
+          python_file: ../../../jobs/orchestration/prepare_scoring_foundation_context.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --input_snapshot_id
+            - "{{job.parameters.input_snapshot_id}}"
+            - --foundation_id
+            - account_theme_features
+            - --context_slot
+            - account_theme_features_v2
+            - --allow-serial-run-takeover
+            - --reuse-completed-output
+            - --source_namespace
+            - "{{job.parameters.publish_source_namespace}}"
+            - --source_table_prefix
+            - "{{job.parameters.publish_source_table_prefix}}"
+            - --target_namespace
+            - "{{job.parameters.publish_target_namespace}}"
+            - --target_table_prefix
+            - "{{job.parameters.publish_target_table_prefix}}"
+            - --readiness_wait_seconds
+            - "5400"
+            - --readiness_poll_seconds
+            - "60"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --orchestration_run_id
+            - "{{job.run_id}}"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D4ads_v5_1_1
+        libraries: ${var.theme_affinity_libraries}
+        max_retries: 1
+        timeout_seconds: 6600
+      - task_key: predict_data_prep
+        depends_on:
+          - task_key: prepare_foundation_context
+        pipeline_task:
+          pipeline_id: ${resources.pipelines.nextads_theme_affinity_predict_data_prep.id}
+          full_refresh: false
+        timeout_seconds: 18000
+      - task_key: publish_and_score
+        depends_on:
+          - task_key: predict_data_prep
+        spark_python_task:
+          python_file: ../../../jobs/orchestration/publish_theme_affinity.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --model_uri
+            - "{{job.parameters.model_uri}}"
+            - --foundation_context_slot
+            - account_theme_features_v2
+            - --provider_context_slot
+            - theme_affinity_serving
+            - --orchestration_run_id
+            - "{{job.run_id}}"
+            - --source_namespace
+            - "{{job.parameters.publish_source_namespace}}"
+            - --source_table_prefix
+            - "{{job.parameters.publish_source_table_prefix}}"
+            - --target_namespace
+            - "{{job.parameters.publish_target_namespace}}"
+            - --target_table_prefix
+            - "{{job.parameters.publish_target_table_prefix}}"
+            - --pipeline_id
+            - ${resources.pipelines.nextads_theme_affinity_predict_data_prep.id}
+            - --pipeline_task_run_id
+            - "{{tasks.predict_data_prep.run_id}}"
+            - --task_run_id
+            - "{{task.run_id}}"
+            - --execution_count
+            - "{{task.execution_count}}"
+            - --git_commit
+            - ${var.git_commit_sha}
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.theme_affinity_libraries}
+        max_retries: 1
+        min_retry_interval_millis: 60000
+        timeout_seconds: 10800
+      - task_key: publish_provider_compatibility
+        depends_on:
+          - task_key: publish_and_score
+        spark_python_task:
+          python_file: ../../../jobs/orchestration/publish_provider_compatibility.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --provider_id
+            - "{{tasks.validate_model_scoring_request.values.provider_id}}"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.theme_affinity_libraries}
+        max_retries: 1
+        min_retry_interval_millis: 60000
+        timeout_seconds: 5400
+      - task_key: publish_feature_compatibility
+        depends_on:
+          - task_key: publish_and_score
+        spark_python_task:
+          python_file: ../../../jobs/model/theme_affinity/publish_outputs.py
+          parameters:
+            - --source_namespace
+            - "{{job.parameters.publish_source_namespace}}"
+            - --target_namespace
+            - "{{job.parameters.publish_target_namespace}}"
+            - --table_prefix
+            - "{{job.parameters.publish_source_table_prefix}}"
+            - --target_table_prefix
+            - "{{job.parameters.publish_target_table_prefix}}"
+            - --table_suffixes
+            - "{{job.parameters.table_suffixes}}"
+            - --run_date
+            - "{{job.parameters.run_date}}"
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.shared_libraries}
+        max_retries: 1
+        min_retry_interval_millis: 60000
+        timeout_seconds: 5400
+      - task_key: sense_check_foundation
+        depends_on:
+          - task_key: publish_feature_compatibility
+        spark_python_task:
+          python_file: ../../../jobs/model/theme_affinity/sense_check.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --check_scope
+            - data
+            - --baseline_intermediate_namespace
+            - marketingdata_prod.ds_sandbox
+            - --baseline_intermediate_prefix
+            - next_uk_nextAds_predict_prod
+            - --candidate_intermediate_namespace
+            - "{{job.parameters.publish_source_namespace}}"
+            - --candidate_intermediate_prefix
+            - "{{job.parameters.publish_source_table_prefix}}"
+            - --summary_table
+            - ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_dlt_sense_check_summary
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.theme_affinity_libraries}
+        max_retries: 1
+        timeout_seconds: 5400
+      - task_key: sense_check_model_outputs
+        depends_on:
+          - task_key: publish_provider_compatibility
+        spark_python_task:
+          python_file: ../../../jobs/model/theme_affinity/sense_check.py
+          parameters:
+            - --client
+            - next_uk
+            - --job_env
+            - ${var.job_parameter_environment_name}
+            - --check_scope
+            - model_outputs
+            - --baseline_intermediate_namespace
+            - marketingdata_prod.ds_sandbox
+            - --baseline_intermediate_prefix
+            - next_uk_nextAds_predict_prod
+            - --baseline_final_table
+            - marketingdata_prod.ds_sandbox.next_uk_next_ads_hackathon_model_full
+            - --summary_table
+            - ${var.mktgdata_catalog}.${var.user_schema}.next_uk_nextads_theme_affinity_model_sense_check_summary
+            - --log_level
+            - INFO
+        job_cluster_key: next_ads_job_cluster_D32ads_v5_1_4
+        libraries: ${var.theme_affinity_libraries}
+        max_retries: 1
+        timeout_seconds: 5400
+
+targets:
+  SANDBOX:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_model_scoring_config
+  DEV:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_model_scoring_config
+  DEV_INTEGRATION:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_model_scoring_config
+  PREPROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_model_scoring_config
+  PROD:
+    resources:
+      jobs:
+        <<: *mktg_next_uk_nextads_model_scoring_config

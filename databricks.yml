@@ -6,7 +6,6 @@ bundle:
   name: next-ads
 
 include:
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_inputs.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_foundation.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_markov_scoring.yml
@@ -16,8 +15,8 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_payload_export.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_plp_gs_delivery.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_inputs.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_feature_compatibility.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_scoring_inputs.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_scoring.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_candidate_compatibility.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_theme_affinity_model_train_spark.yml
@@ -38,15 +37,8 @@ include:
   - pipelines/databricks/jobs/mktg_next_uk_nextads_realtime_results.yml
   - pipelines/databricks/jobs/table_size_monitoring.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_feature_source.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_snapshot_verification.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_prediction_verification.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_analytics_pctr_adoption.yml
   - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_ongoing_evaluation.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_feature_preparation.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_shopping_bag_label_publication.yml
-  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_development_runtime_smoke.yml
+  - pipelines/databricks/jobs/mktg_next_uk_nextads_model_research_automl.yml
   - pipelines/databricks/jobs/dev_setup.yml
   - pipelines/databricks/jobs/table_operations.yml
   - pipelines/databricks/jobs/preprod_dependency_smoke.yml
@@ -94,6 +86,9 @@ variables:
   theme_affinity_pipeline_schema:
     description: Schema used by the Theme Affinity Lakeflow pipeline outputs before optional warehouse publication
     default: ${var.user_schema}
+  theme_affinity_pipeline_table_prefix:
+    description: Table prefix used by the Theme Affinity Lakeflow pipeline and its publisher
+    default: next_uk_nextads_account_theme_foundation_stage
   theme_affinity_publish_table_suffixes:
     description: Comma-separated non-foundation Theme Affinity compatibility outputs
     default: advanced_features,customer_features,customer_segments,popularity_metrics
@@ -365,6 +360,7 @@ targets:
       run_as_SPN_name: 2be8d1c2-d35b-4438-891e-558b9b5880f6
       job_parameter_environment_name: preprod
       user_schema: ds_sandbox
+      theme_affinity_pipeline_table_prefix: next_uk_nextads_account_theme_foundation_pp_stage
       theme_affinity_monitor_baseline_table: marketingdata_prod.warehouse.next_uk_nextads_theme_affinity_predict_ranked
       theme_affinity_monitor_candidate_table: marketingdata_prod.ds_sandbox.next_uk_nextads_account_theme_foundation_ranked
 

@@ -37,8 +37,7 @@ databricks workspace list /root -t DEV
 databricks workspace list /root -t PROD
 ```
 
-If local Databricks auth has expired, refresh the named CLI profiles used by
-the bundle:
+If local Databricks auth has expired, refresh the named CLI profiles used by the bundle:
 
 ```bash
 databricks auth login --host https://adb-6694370232251359.19.azuredatabricks.net/ -p SANDBOX
@@ -47,9 +46,7 @@ databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net
 databricks auth login --host https://adb-6188831950334199.19.azuredatabricks.net/ -p PROD
 ```
 
-`DEV` and `SANDBOX` share the same workspace host, and `PREPROD` and `PROD`
-share the same production host. For bundle commands, pass an explicit profile
-to avoid ambiguous-profile resolution:
+`DEV` and `SANDBOX` share the same workspace host, and `PREPROD` and `PROD` share the same production host. For bundle commands, pass an explicit profile to avoid ambiguous-profile resolution:
 
 ```bash
 databricks bundle validate --target DEV --profile DEV
@@ -88,9 +85,11 @@ poetry run pytest tests/unit/test_specific_file.py -v
 
 ### **Phase 3: Deploy Code to DEV with Databricks CLI**
 
-Deploy your code as job to DEV environment before committing to Git. Create a developer specific feature job for light testing.
+Deploy the existing bundle to the personal DEV target before committing to Git. Use the centrally owned job for the responsibility you are testing; do not create a developer-, model-, theme- or experiment-specific saved job for ordinary data-science work.
 
 Do not use PREPROD for ordinary feature branch testing. PREPROD is the Release Owner route for an agreed `release/*` candidate.
+
+For model work, add or update the model and optional research declaration in `configs/models/nextads_models.yaml`, add reusable feature contracts through the Feature Store registry and builders, and use `mktg_next_uk_nextads_model_development`. A new saved job requires a stable operational responsibility with distinct ownership, scheduling or runtime needs that the centrally owned route cannot represent.
 
 ```bash
 # Step 1: Source environment variables
@@ -109,7 +108,7 @@ databricks bundle plan -t DEV --profile DEV
 databricks bundle deploy -t DEV --profile DEV
 ```
 
-Run the job manually in Databricks UI and verify successful completion.
+Run the relevant centrally owned job manually in the Databricks UI and verify successful completion.
 
 ---
 
@@ -154,7 +153,6 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | Stage | What It Does |
 |-------|---|
 | **CI** | Runs unit tests, linting, validation |
-| **Integration Tests** | Runs integration tests using the configured production-side route |
 | **Deploy DEV** | Deploys to DEV workspace, tags jobs with git info |
 | **Deploy DEV Integration** | Deploys `develop` to the shared `DEV_INTEGRATION` target |
 | **Deploy DEV Feature Store** | Deploys the scheduled shared DEV feature-store target only |
@@ -162,16 +160,13 @@ Now, let the automation take over. This ensures the deployment is repeatable and
 | **Deploy PREPROD** | Deploys only from `release/*` using the PREPROD route |
 | **Smoke PREPROD Dependencies** | Runs a metadata-only PREPROD dependency check without reading rows or altering tables |
 | **Initialize PREPROD Tables** | Optional setup stage that creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
-| **Deploy PROD** | Runs only from an approved production tag on `main` |
-| **Initialize PREPROD Tables** | Creates missing PREPROD validation tables in `marketingdata_prod.ds_sandbox` |
 | **Deploy PROD** | Runs only from an approved `nextads-vYYYY.MM.DD.N` production tag on `main` |
 
 ---
 
 > NOTE: The deployment pipeline is still manually queued. Select the intended branch or tag explicitly; branch conditions prevent PREPROD from running outside `release/*` and PROD from running outside tags.
 
-For the Databricks jobs expected in each bundle target, see
-[`CICD/nextads_databricks_job_environment_matrix.md`](CICD/nextads_databricks_job_environment_matrix.md).
+For the Databricks jobs expected in each bundle target, see [`CICD/nextads_databricks_job_environment_matrix.md`](CICD/nextads_databricks_job_environment_matrix.md).
 
 #### DEV Integration Smoke Check
 
@@ -188,6 +183,21 @@ After the feature-store route has merged to `develop`, run the deployment pipeli
 The shared feature-store job writes reusable model-building features to `marketingdata_dev.nextads_feature_store` and reads stable Theme Affinity source outputs from `marketingdata_prod.warehouse`. It is scheduled daily at 21:00 Europe/London; run it manually after deployment when immediate validation or repair evidence is needed.
 
 Feature branches can deploy a separate personal Feature Store job through `git deploy-dev`. That copy has no schedule, permits one run at a time and writes only to the last commit author's DEV schema. Use it for branch-level runtime validation. `DEV_FEATURE_STORE` remains the sole scheduled shared copy and is deployed only from `develop`.
+
+#### Declared Model Development
+
+The normal model-author workflow is declaration plus parameter selection, not creation of another Databricks job. Add or update `configs/models/nextads_models.yaml`, deploy the feature branch to personal `DEV`, then run `mktg_next_uk_nextads_model_development` with a declared `model_name` and one operation:
+
+| Operation | Supply | Result |
+| --- | --- | --- |
+| `BUILD` | `observation_reference_dates`, `feature_reference_dates`, `label_end` | Point-in-time training receipt, selected build and registered personal-DEV model version. |
+| `RESEARCH` | `label_end` | Model-option comparison using train, validation, test, feature-date and selection-policy rules from the declaration. |
+| `REVIEW_SELECT` | `research_build_id`, `candidate_id`, `written_reason`, `reviewed_by` | Durable reviewed decision, selected-model-only test evaluation and registered personal-DEV model version. |
+| `EVALUATE` | `model_build_id`, `run_date`; optional feature dates, account limit, serving slot and candidate-build attempt | Isolated evaluation evidence with no serving, assignment or payload change. |
+
+The job derives the personal DEV namespaces, registered-model name, control tables and MLflow path. It cannot promote, set an alias or copy a model to another environment. For optional AutoML, run the centrally owned `mktg_next_uk_nextads_model_discovery` job with `enabled=true`, the same declared `model_name`, an exact `research_build_id` and an optional bounded timeout; its separate ML runtime never registers or activates a model.
+
+The table above is only the launch summary. Before declaring or running model research, read [Model research: data scientist guide](model_research_walkthrough.md) for every DS-selectable option, declaration-owned choice, platform-controlled value, metric/evidence requirement, output destination, retry rule, current limitation and the worked Shopping Bag values.
 
 ### **Phase 6: Create Azure DevOps Pull Request**
 

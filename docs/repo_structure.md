@@ -23,7 +23,7 @@ The target structure separates:
 - configuration and policy;
 - SQL assets;
 - experiments and notebooks;
-- documentation for humans and coding assistants;
+- documentation and maintained engineering context;
 - tests and validation checks;
 - deployment/release support.
 
@@ -43,14 +43,14 @@ next-ads/
   configs/       # settings, policies, environment config, and future feature-layer config
   sql/           # table, view, and reporting SQL
   experiments/   # safe exploration, notebooks and reference work
-  docs/          # team, release and AI-assistant context
+  docs/          # team, release and engineering context
   tests/         # confidence checks
   deployment/    # release setup and operational deployment support
 ```
 
 The reusable package and job-entrypoint migration was completed through
 controlled stories with output checks and release evidence. New work must use
-the canonical `src/next_ads` package and route-oriented `jobs/` folders.
+the supported `src/next_ads` package and route-oriented `jobs/` folders.
 
 ## Folder Purposes
 
@@ -62,7 +62,7 @@ the canonical `src/next_ads` package and route-oriented `jobs/` folders.
 | `configs/` | Settings, policy and environment configuration. | YAML/JSON settings, model settings, route config and policy-like config. | Secrets, credentials or generated runtime files. |
 | `sql/` | Table, view and reporting SQL. | DDL, view definitions, SQL checks and reporting SQL grouped by functional area. | Python transformations or notebook-only exploration. |
 | `experiments/` | Safe exploration and reference work. | Notebooks, prototype code, historical analysis and model exploration that is not yet the production route. | Code that production jobs import directly without an explicit promotion story. |
-| `docs/` | Team, release and AI-assistant context. | Repo structure, release route, PR process, guides, model context, known gotchas and safe-edit boundaries. | Long-lived generated artefacts or confidential secrets. |
+| `docs/` | Team, release and engineering context. | Repo structure, release route, PR process, guides, model context, known gotchas and safe-edit boundaries. | Long-lived generated artefacts or confidential secrets. |
 | `tests/` | Confidence checks. | Unit tests, route-control tests, bundle/config tests, integration tests and contract tests. | Manual evidence screenshots or production data extracts. |
 | `deployment/` | Release setup and operational deployment support. | Scripts or docs for release setup, admin tasks and deployment operations that are not normal job entry points. | Core production decisioning or ranking logic. |
 
@@ -248,10 +248,10 @@ The historical response-model/pCTR scripts are retained under
 promotes reusable pieces into `src/next_ads/features`, `src/next_ads/ranking`,
 or `jobs/model`.
 
-### Docs and AI Context
+### Docs and Engineering Context
 
-`docs/` should contain both human-facing documentation and compact context that
-helps coding assistants make safer changes.
+`docs/` should contain both human-facing documentation and compact engineering
+context that helps contributors make safer changes.
 
 Useful docs include:
 
@@ -263,8 +263,8 @@ Useful docs include:
 - output contracts and validation expectations;
 - known gotchas.
 
-If `docs/docs_for_ai/` is used, it should point back to the human-readable docs
-and should not become a second source of truth.
+The existing `docs/docs_for_ai/` path should point back to the human-readable
+docs and should not become a second source of truth.
 
 ## Current Transition Rules
 
@@ -297,7 +297,7 @@ and should not become a second source of truth.
 ## Migration Principles
 
 1. Move low-risk reusable utilities before output-affecting logic.
-2. Use canonical imports from `src/next_ads`; legacy package wrappers are no
+2. Use supported imports from `src/next_ads`; legacy package wrappers are no
    longer supported.
 3. Add tests that prove package imports work with `src` as the package root.
 4. Move Databricks job entry points with core business logic only when the PR is

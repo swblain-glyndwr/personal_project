@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 import pytest
 
@@ -214,21 +215,26 @@ def test_feature_write_rejects_an_unknown_mode_before_writing(monkeypatch):
         )
 
 
-def test_explicit_upsert_uses_one_feature_engineering_merge(monkeypatch):
+def test_explicit_upsert_uses_one_feature_engineering_merge(
+    monkeypatch,
+    caplog,
+):
     _stub_contract_alignment(monkeypatch)
     client = _FakeClient()
 
-    path = materialization.write_feature_table(
-        _FakeSpark(),
-        "next_uk_nextads_fs_product_embeddings_latest",
-        _FakeFrame(),
-        reference_date=None,
-        replace_reference_date=False,
-        mode="merge",
-        feature_engineering_client=client,
-    )
+    with caplog.at_level(logging.INFO, logger="next_ads.outputs"):
+        path = materialization.write_feature_table(
+            _FakeSpark(),
+            "next_uk_nextads_fs_product_embeddings_latest",
+            _FakeFrame(),
+            reference_date=None,
+            replace_reference_date=False,
+            mode="merge",
+            feature_engineering_client=client,
+        )
 
     assert len(client.calls) == 1
     assert client.calls[0]["name"] == path
     assert client.calls[0]["mode"] == "merge"
     assert isinstance(client.calls[0]["df"], _FakeFrame)
+    assert path in caplog.records[-1].getMessage()

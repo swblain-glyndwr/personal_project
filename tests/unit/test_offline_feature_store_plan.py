@@ -100,13 +100,21 @@ def test_offline_plan_reports_builders_dependencies_and_missing_contracts():
         "next_uk_nextads_fs_shopping_bag_click_labels"
     ]
     assert observed_labels["builder"] == "build_shopping_bag_click_labels"
-    assert observed_labels["builder_job"] == (
-        "mktg_next_uk_nextads_shopping_bag_label_publication"
-    )
-    assert observed_labels["execution_scope"] == "MANUAL_DEV_PROOF"
-    assert observed_labels["task_dependencies"] == [
-        "create_observed_label_table"
+    assert observed_labels["builder_job"] is None
+    assert observed_labels["execution_scope"] == "ON_DEMAND_ENTRYPOINT"
+    assert observed_labels["task_dependencies"] == []
+    assert observed_labels["timestamp_key"] == "exposure_timestamp"
+    assert observed_labels["snapshot_date_key"] == "session_date"
+
+    shopping_bag_activity = features[
+        "next_uk_nextads_fs_shopping_bag_account_activity_90d"
     ]
+    assert shopping_bag_activity["builder_job"] is None
+    assert shopping_bag_activity["execution_scope"] == "ON_DEMAND_ENTRYPOINT"
+
+    account_profile = features["next_uk_nextads_fs_account_profile"]
+    assert account_profile["timestamp_key"] == "reference_date"
+    assert account_profile["snapshot_date_key"] == "reference_date"
 
 
 def test_compatibility_view_plan_reports_contract_readiness_not_live_state():

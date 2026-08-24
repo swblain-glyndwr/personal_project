@@ -85,7 +85,8 @@ def test_reader_uses_recorded_delta_version_and_reference_date(monkeypatch):
     spark = SimpleNamespace(read=reader)
     registry = SimpleNamespace(
         table_spec=lambda _feature: SimpleNamespace(
-            timestamp_key="reference_date"
+            timestamp_key="reference_date",
+            snapshot_date_key="reference_date",
         )
     )
 
@@ -102,3 +103,93 @@ def test_reader_uses_recorded_delta_version_and_reference_date(monkeypatch):
     assert reader.options == [("versionAsOf", 42)]
     assert reader.tables == [BINDING_ROW["backing_table"]]
     assert len(frame.filters) == 1
+
+
+def test_reader_scopes_aug7_labels_by_session_date(monkeypatch):
+    from pyspark.sql import functions as F
+
+    feature_id = "next_uk_nextads_fs_shopping_bag_click_labels"
+    binding_row = {
+        **BINDING_ROW,
+        "feature_snapshot_id": "build_shopping_bag_click_labels:2026-08-07",
+        "reference_date": date(2026, 8, 7),
+        "feature_id": feature_id,
+        "backing_table": f"catalog.schema.{feature_id}",
+        "row_count": 1,
+    }
+    monkeypatch.setattr(
+        snapshot_reader,
+        "latest_ready_feature_binding_row",
+        lambda *_args, **_kwargs: binding_row,
+    )
+    monkeypatch.setattr(
+        snapshot_reader,
+        "schema_checksum",
+        lambda _frame: "b" * 64,
+    )
+
+    class Expression:
+        def __init__(self, value):
+            self.value = value
+
+        def __eq__(self, other):
+            return ("eq", self.value, other.value)
+
+    monkeypatch.setattr(F, "col", lambda name: Expression(("col", name)))
+    monkeypatch.setattr(
+        F,
+        "to_date",
+        lambda expression: Expression(("to_date", expression.value)),
+    )
+    monkeypatch.setattr(F, "lit", lambda value: Expression(("lit", value)))
+
+    class Frame:
+        session_date = date(2026, 8, 7)
+        exposure_timestamp = datetime(2026, 8, 6, 22, 46)
+
+        def __init__(self):
+            self.filters = []
+
+        def where(self, condition):
+            self.filters.append(condition)
+            return self
+
+        def count(self):
+            return 1
+
+    class Reader:
+        def __init__(self, frame):
+            self.frame = frame
+
+        def option(self, _name, _value):
+            return self
+
+        def table(self, _table):
+            return self.frame
+
+    frame = Frame()
+    registry = SimpleNamespace(
+        table_spec=lambda _feature: SimpleNamespace(
+            timestamp_key="exposure_timestamp",
+            snapshot_date_key="session_date",
+        )
+    )
+
+    result, binding = snapshot_reader.read_ready_feature(
+        SimpleNamespace(read=Reader(frame)),
+        feature_id,
+        catalog="catalog",
+        schema="schema",
+        registry=registry,
+    )
+
+    assert result is frame
+    assert binding.reference_date == date(2026, 8, 7)
+    assert frame.exposure_timestamp.date() == date(2026, 8, 6)
+    assert frame.filters == [
+        (
+            "eq",
+            ("to_date", ("col", "session_date")),
+            ("lit", date(2026, 8, 7)),
+        )
+    ]

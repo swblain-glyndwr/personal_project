@@ -25,6 +25,7 @@ from dsutils.dbc import configure_spark, get_dbutils
 from dsutils.logtools import configure_logging, get_logger
 from dsutils.argparser import get_job_parser
 from next_ads.common import config_manager
+from next_ads.common.output_locations import log_output_location
 from next_ads.delivery.cosmos import get_cosmos_config, sdk_write_to_cosmos
 from pyspark.sql.types import StructType, StructField, StringType, ArrayType
 import pyspark.sql.functions as F
@@ -163,6 +164,15 @@ def main(JOB_ENV, CLIENT, LOG_LEVEL):
                 f"Failed writing to Cosmos DB using SDK (clientId: {clientId}): {sdk_e}"
             )
             raise sdk_e
+
+    log_output_location(
+        (
+            f"{config.cosmos_url.rstrip('/')}"
+            f"/{config.cosmos_database}/{config.cosmos_container}"
+        ),
+        kind="cosmos_container",
+        details={"row_count": excount},
+    )
 
     logger.info("Run complete")
 
